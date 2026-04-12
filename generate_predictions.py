@@ -211,7 +211,7 @@ button{{font-family:inherit;cursor:pointer}}
       <span>Sha Tin | {race_date}</span>
       <span>|</span>
       <span id="clock">{now}</span>
-      <span class="version">v3.0 | 14 FACTORS</span>
+      <span class="version">v5.0 | 26 FACTORS | REAL DATA ML</span>
     </div>
   </div>
 </div>
@@ -340,7 +340,7 @@ function renderDashboard() {{
     '<div class="stat"><div class="v" style="color:var(--pink)">' + counts.TRIO + '</div><div class="l">TRIO</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--dim)">' + counts.SKIP + '</div><div class="l">SKIP</div></div>' +
     '<div class="stat"><div class="v">' + RACES.length + '</div><div class="l">Races</div></div>' +
-    '<div class="stat"><div class="v">18</div><div class="l">Factors</div></div>' +
+    '<div class="stat"><div class="v">26</div><div class="l">Factors</div></div>' +
   '</div>' +
   '<div class="legend">' +
     '<div class="item"><div class="dot" style="background:var(--green)"></div>WIN</div>' +
@@ -405,7 +405,7 @@ function renderDashboard() {{
   
   html += '</div>' +
     '<div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>' +
-    '<div class="footer">HKJC Racing Analyzer v4.0 | 18-Factor Calibrated Analytics | Generated: ' + GENERATED + '</div>';
+    '<div class="footer">HKJC Racing Analyzer v5.0 | 26-Factor + Real Data ML | Generated: ' + GENERATED + '</div>';
   el.innerHTML = html;
 }}
 
@@ -656,7 +656,7 @@ function copyAllToWhatsApp() {{
   RACES.forEach(function(race) {{
     text += buildWhatsAppText(race) + '\\n';
   }});
-  text += '\\n_HKJC Analyzer v4.0 | 18 Factors_';
+  text += '\\n_HKJC Analyzer v5.0 | 26 Factors | Real Data ML_';
   text = text.replace(/\\n{3,}/g, '\\n\\n').trim();
   navigator.clipboard.writeText(text).then(function() {{
     var btn = document.getElementById('wa-btn-all');
