@@ -340,7 +340,7 @@ function renderDashboard() {{
     '<div class="stat"><div class="v" style="color:var(--pink)">' + counts.TRIO + '</div><div class="l">TRIO</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--dim)">' + counts.SKIP + '</div><div class="l">SKIP</div></div>' +
     '<div class="stat"><div class="v">' + active + '</div><div class="l">Active Bets</div></div>' +
-    '<div class="stat"><div class="v">14</div><div class="l">Factors</div></div>' +
+    '<div class="stat"><div class="v">18</div><div class="l">Factors</div></div>' +
   '</div>' +
   '<div class="legend">' +
     '<div class="item"><div class="dot" style="background:var(--green)"></div>WIN</div>' +
@@ -356,17 +356,43 @@ function renderDashboard() {{
   RACES.forEach(r => {{
     const g = gradeRace(r);
     const gc = gradeClass(g);
+    const hasResults = r.results_available || false;
+    const winner = hasResults ? r.actual_winner : null;
+    const winnerHorse = winner ? r.horses.find(h => h.number === winner) : null;
+    const winnerName = winnerHorse ? winnerHorse.name : '';
+    const winOdds = r.actual_win_odds || 0;
+    const accuracy = r.accuracy || {{}};
+    const winCorrect = accuracy.win_correct || false;
+    const top3Overlap = accuracy.top3_overlap || 0;
+    const winnerOurRank = accuracy.winner_our_rank || '?';
+
     html += '<div class="race-card g-' + gc + '" onclick="showRace(' + r.race_number + ')">' +
       '<div class="rc-header">' +
         '<div><div class="rc-num">Race ' + r.race_number + '</div><div class="rc-meta">' + r.time + ' | ' + r.distance + 'm | ' + r.class_type + ' | ' + r.going + '</div></div>' +
         '<span class="grade ' + gc + '">' + g + '</span>' +
-      '</div>' +
-      '<div class="rc-preview">';
+      '</div>';
+
+    // Show result banner if results available
+    if (hasResults && winner) {{
+      var resultBg = winCorrect ? 'rgba(16,185,129,.2)' : (winnerOurRank <= 3 ? 'rgba(245,158,11,.15)' : 'rgba(239,68,68,.12)');
+      var resultBorder = winCorrect ? 'var(--green)' : (winnerOurRank <= 3 ? 'var(--accent)' : '#ef4444');
+      var resultIcon = winCorrect ? '\\u2705' : (winnerOurRank <= 3 ? '\\ud83d\\udfe1' : '\\u274c');
+      var resultLabel = winCorrect ? 'WIN CORRECT!' : (winnerOurRank <= 3 ? 'Top 3 hit (Rank ' + winnerOurRank + ')' : 'Winner was Rank ' + winnerOurRank);
+      html += '<div style="background:' + resultBg + ';border-left:3px solid ' + resultBorder + ';padding:8px 12px;margin:0 -1px;display:flex;justify-content:space-between;align-items:center">' +
+        '<div style="font-size:.78rem;font-weight:700">' + resultIcon + ' Winner: #' + winner + ' ' + winnerName + ' @ $' + winOdds + '</div>' +
+        '<div style="font-size:.68rem;color:var(--dim)">' + resultLabel + ' | Top3: ' + top3Overlap + '/3</div>' +
+      '</div>';
+    }}
+
+    html += '<div class="rc-preview">';
     r.horses.slice(0, 4).forEach((h, i) => {{
       const tc = i === 0 ? ' top' : '';
-      html += '<div class="rc-horse' + tc + '">' +
+      const isActualWinner = hasResults && h.number === winner;
+      const actualPos = h.actual_position || '';
+      const posLabel = hasResults && actualPos ? '<span style="font-size:.6rem;padding:1px 4px;border-radius:3px;margin-left:4px;' + (actualPos === 1 ? 'background:var(--green);color:#000' : actualPos <= 3 ? 'background:var(--accent);color:#000' : 'background:var(--surface);color:var(--dim)') + '">Fin:' + actualPos + '</span>' : '';
+      html += '<div class="rc-horse' + tc + '"' + (isActualWinner ? ' style="background:rgba(16,185,129,.12);border-radius:6px"' : '') + '>' +
         '<div class="rc-rank">' + h.rank + '</div>' +
-        '<div class="rc-name">#' + h.number + ' ' + h.name + '<div style="font-size:.65rem;color:var(--dim);font-weight:400;margin-top:1px">' + h.jockey + ' | ' + h.trainer + '</div></div>' +
+        '<div class="rc-name">#' + h.number + ' ' + h.name + posLabel + '<div style="font-size:.65rem;color:var(--dim);font-weight:400;margin-top:1px">' + h.jockey + ' | ' + h.trainer + '</div></div>' +
         '<div class="rc-odds">$' + h.win_odds + '</div>' +
         '<div class="rc-prob" style="color:' + probColor(h.calibrated_prob) + '">' + h.calibrated_prob.toFixed(1) + '%</div>' +
         '<div class="bt" style="background:' + betBg(h.bet_recommendation) + ';color:' + betColor(h.bet_recommendation) + '">' + h.bet_recommendation + '</div>' +
@@ -379,7 +405,7 @@ function renderDashboard() {{
   
   html += '</div>' +
     '<div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>' +
-    '<div class="footer">HKJC Racing Analyzer v3.0 | 14-Factor Calibrated Analytics | Generated: ' + GENERATED + '</div>';
+    '<div class="footer">HKJC Racing Analyzer v4.0 | 18-Factor Calibrated Analytics | Generated: ' + GENERATED + '</div>';
   el.innerHTML = html;
 }}
 
@@ -550,92 +576,56 @@ function buildWhatsAppText(race) {{
   var qnlPicks = h.filter(function(x) {{ return x.bet_recommendation === 'QNL PL'; }});
   var trioPicks = h.filter(function(x) {{ return x.bet_recommendation === 'TRIO'; }});
   var dangers = h.filter(function(x) {{ return x.rank >= 4 && x.rank <= 7 && x.win_odds >= 8 && x.calibrated_prob >= 0.06; }});
+  var bankerPicks = h.filter(function(x) {{ return x.bet_recommendation === 'BANKER WIN'; }});
 
   var t = '';
-  t += '\\ud83c\\udfc7 *RACE ' + race.race_number + ' - ' + race.venue + '*\\n';
-  t += '\\u23f0 ' + race.time + ' | ' + race.distance + 'm | ' + (race.class_type || '') + ' | ' + (race.going || '') + '\\n';
-  t += '\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n';
+  t += '\\ud83c\\udfc7 *R' + race.race_number + ' ' + race.venue + '* ' + race.time + ' | ' + race.distance + 'm | ' + (race.going || '') + '\\n';
 
-  // Top picks table
-  t += '\\n*TOP PICKS*\\n';
-  h.slice(0, 5).forEach(function(x) {{
-    var medal = x.rank === 1 ? '\\ud83e\\udd47' : x.rank === 2 ? '\\ud83e\\udd48' : x.rank === 3 ? '\\ud83e\\udd49' : '  ' + x.rank + '.';
-    t += medal + ' *#' + x.number + ' ' + x.name + '*\\n';
-    t += '   \\u2022 ' + x.jockey + ' | $' + x.win_odds + ' | ' + (x.calibrated_prob * 100).toFixed(1) + '%\\n';
+  // Top 4 picks — single line each
+  h.slice(0, 4).forEach(function(x) {{
+    var medal = x.rank === 1 ? '\\ud83e\\udd47' : x.rank === 2 ? '\\ud83e\\udd48' : x.rank === 3 ? '\\ud83e\\udd49' : '4.';
+    t += medal + ' #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + '\\n';
   }});
+  t += '\\n*BET STRATEGY*\\n';
 
-  // Betting strategy
-  t += '\\n\\ud83c\\udfaf *BETTING STRATEGY*\\n';
+  // Determine which is the best/primary bet
+  var bestBet = bankerPicks.length ? 'BANKER' : winPicks.length ? 'WIN' : qinPicks.length >= 2 ? 'QIN' : qnlPicks.length >= 2 ? 'QNL' : trioPicks.length >= 3 ? 'TRIO' : placePicks.length ? 'PLACE' : '';
 
   if (bankerPicks.length) {{
     bankerPicks.forEach(function(x) {{
-      t += '\\ud83d\\udca5 *BANKER WIN - BET BIG* \\n';
-      t += '   *#' + x.number + ' ' + x.name + '* @ $' + x.win_odds + '\\n';
-      t += '   ' + x.jockey + ' | ' + (x.calibrated_prob * 100).toFixed(1) + '% chance\\n';
+      t += '\\ud83d\\udca5 *BANKER WIN* #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + ' \\u2b05 BEST\\n';
     }});
   }} else if (winPicks.length) {{
     winPicks.forEach(function(x) {{
-      var ev = (x.expected_return * 100).toFixed(0);
-      t += '\\u2705 *WIN* #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + ' (EV ' + (ev > 0 ? '+' : '') + ev + '%)\\n';
+      t += '\\u2705 *WIN* #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + (bestBet === 'WIN' ? ' \\u2b05 BEST' : '') + '\\n';
     }});
   }}
 
   if (qinPicks.length >= 2) {{
-    t += '\\ud83d\\udd04 *QIN* ';
-    t += qinPicks.map(function(x) {{ return '#' + x.number; }}).join(' + ');
-    t += ' (' + qinPicks.map(function(x) {{ return x.name; }}).join(' & ') + ')\\n';
+    t += '\\ud83d\\udd04 *QIN* ' + qinPicks.map(function(x) {{ return '#' + x.number + ' ' + x.name; }}).join(' + ') + (bestBet === 'QIN' ? ' \\u2b05 BEST' : '') + '\\n';
   }}
 
   if (qnlPicks.length >= 2) {{
-    t += '\\ud83d\\udd35 *QNL PL* ';
-    t += qnlPicks.map(function(x) {{ return '#' + x.number; }}).join(' + ');
-    t += ' (' + qnlPicks.map(function(x) {{ return x.name; }}).join(' & ') + ')\\n';
+    t += '\\ud83d\\udd35 *QNL PL* ' + qnlPicks.map(function(x) {{ return '#' + x.number + ' ' + x.name; }}).join(' + ') + (bestBet === 'QNL' ? ' \\u2b05 BEST' : '') + '\\n';
   }}
 
   if (trioPicks.length >= 3) {{
-    t += '\\ud83d\\udccd *TRIO* ';
-    t += trioPicks.map(function(x) {{ return '#' + x.number; }}).join(' + ');
-    t += ' (' + trioPicks.map(function(x) {{ return x.name; }}).join(', ') + ')\\n';
+    t += '\\ud83d\\udccd *TRIO* ' + trioPicks.map(function(x) {{ return '#' + x.number; }}).join(' + ') + (bestBet === 'TRIO' ? ' \\u2b05 BEST' : '') + '\\n';
   }}
 
   if (placePicks.length) {{
-    t += '\\ud83d\\udfe3 *PLACE* ';
-    t += placePicks.map(function(x) {{ return '#' + x.number + ' ' + x.name + ' ($' + x.win_odds + ')'; }}).join(', ') + '\\n';
+    t += '\\ud83d\\udfe3 *PLACE* ' + placePicks.map(function(x) {{ return '#' + x.number + ' ' + x.name; }}).join(', ') + (bestBet === 'PLACE' ? ' \\u2b05 BEST' : '') + '\\n';
   }}
 
-  // Value bets
-  var valueBets = h.filter(function(x) {{ return x.expected_return > 0.05 && x.bet_recommendation !== 'SKIP'; }});
-  if (valueBets.length) {{
-    t += '\\n\\ud83d\\udcb0 *VALUE BETS*\\n';
-    valueBets.forEach(function(x) {{
-      t += '   #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + ' (+' + (x.expected_return * 100).toFixed(0) + '% EV)\\n';
-    }});
-  }}
-
-  // Ones to watch
-  if (dangers.length) {{
-    t += '\\n\\u26a0\\ufe0f *ONES TO WATCH*\\n';
-    dangers.forEach(function(x) {{
-      t += '   #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + ' (' + (x.calibrated_prob * 100).toFixed(1) + '%)\\n';
-    }});
-  }}
-
-  // Wildcard bet
+  // Wildcard — single line
   if (dangers.length && h.length >= 3) {{
     var wd = dangers[0];
-    var wTop2 = h.slice(0, 2);
-    t += '\\n\\ud83c\\udfb2 *WILDCARD BET*\\n';
-    t += '   TRIO/QIN Box: ' + wTop2.map(function(x) {{ return '#' + x.number; }}).join(' + ') + ' + #' + wd.number + '\\n';
-    t += '   Covers upset by ' + wd.name + ' @ $' + wd.win_odds + '\\n';
+    t += '\\ud83c\\udfb2 *WILDCARD* #' + h[0].number + '+#' + h[1].number + '+#' + wd.number + ' ' + wd.name + ' $' + wd.win_odds + '\\n';
   }}
 
   if (!active.length) {{
-    t += '\\u274c *SKIP* - No value bets identified\\n';
+    t += '\\u274c *SKIP* - No value\\n';
   }}
-
-  t += '\\n\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n';
-  t += '\\ud83e\\udd16 _HKJC Analyzer v3.0 | 14 Factors | ML-Trained_\\n';
-  t += '\\u26a0\\ufe0f _For entertainment only. Not financial advice._';
 
   return t;
 }}
@@ -661,10 +651,10 @@ function copyToWhatsApp(raceNum) {{
 
 function copyAllToWhatsApp() {{
   var text = '\\ud83c\\udfc7 *HKJC RACE DAY - ' + RACE_DATE + '*\\n';
-  text += '\\ud83d\\udcca _14-Factor ML Analysis_\\n\\n';
   RACES.forEach(function(race) {{
-    text += buildWhatsAppText(race) + '\\n\\n';
+    text += buildWhatsAppText(race) + '\\n';
   }});
+  text += '\\n_HKJC Analyzer v4.0 | 18 Factors_';
   text = text.replace(/\\n{3,}/g, '\\n\\n').trim();
   navigator.clipboard.writeText(text).then(function() {{
     var btn = document.getElementById('wa-btn-all');
@@ -705,20 +695,60 @@ function renderRaceDetail(race) {{
     '<div class="stat"><div class="v" style="color:var(--green)">' + topML + '%</div><div class="l">ML Prob</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--accent)">' + topCal + '%</div><div class="l">Calibrated</div></div>' +
   '</div>';
-  
+
+  // Result banner in detail view
+  var dHasResults = race.results_available || false;
+  var dWinner = dHasResults ? race.actual_winner : null;
+  var dWinnerHorse = dWinner ? race.horses.find(function(h) {{ return h.number === dWinner; }}) : null;
+  var dWinOdds = race.actual_win_odds || 0;
+  var dAccuracy = race.accuracy || {{}};
+  var dWinCorrect = dAccuracy.win_correct || false;
+  var dTop3 = dAccuracy.top3_overlap || 0;
+  var dWinnerRank = dAccuracy.winner_our_rank || '?';
+
+  if (dHasResults && dWinner) {{
+    var dBg = dWinCorrect ? 'rgba(16,185,129,.2)' : (dWinnerRank <= 3 ? 'rgba(245,158,11,.15)' : 'rgba(239,68,68,.12)');
+    var dBorder = dWinCorrect ? 'var(--green)' : (dWinnerRank <= 3 ? 'var(--accent)' : '#ef4444');
+    var dIcon = dWinCorrect ? '\\u2705' : (dWinnerRank <= 3 ? '\\ud83d\\udfe1' : '\\u274c');
+    var dLabel = dWinCorrect ? 'OUR #1 WON!' : (dWinnerRank <= 3 ? 'Winner was our Rank ' + dWinnerRank : 'Winner was Rank ' + dWinnerRank);
+    // Show top 3 results
+    var top3Results = (race.actual_top3 || []).map(function(num) {{
+      var rh = race.horses.find(function(h) {{ return h.number === num; }});
+      return rh ? '#' + num + ' ' + rh.name : '#' + num;
+    }});
+    html += '<div style="background:' + dBg + ';border-left:4px solid ' + dBorder + ';padding:12px 16px;border-radius:8px;margin-bottom:16px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+        '<div>' +
+          '<div style="font-size:.9rem;font-weight:700">' + dIcon + ' RESULT: #' + dWinner + ' ' + (dWinnerHorse ? dWinnerHorse.name : '') + ' WON @ $' + dWinOdds + '</div>' +
+          '<div style="font-size:.75rem;color:var(--dim);margin-top:4px">Top 3: ' + top3Results.join(' | ') + '</div>' +
+        '</div>' +
+        '<div style="text-align:right">' +
+          '<div style="font-size:.78rem;font-weight:600;color:' + dBorder + '">' + dLabel + '</div>' +
+          '<div style="font-size:.7rem;color:var(--dim)">Top 3 overlap: ' + dTop3 + '/3</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }}
+
   html += buildStrategyPanel(race);
 
-  html += '<table class="horse-table"><thead><tr><th>#</th><th>Horse</th><th>Jockey</th><th>Draw</th><th>Odds</th><th>ML%</th><th>Cal%</th><th>Bet</th><th>Reasoning</th></tr></thead><tbody>';
-  
+  var hasAnyResults = dHasResults && dWinner;
+  html += '<table class="horse-table"><thead><tr><th>#</th><th>Horse</th><th>Jockey</th><th>Draw</th><th>Odds</th>' + (hasAnyResults ? '<th>Fin</th>' : '') + '<th>ML%</th><th>Cal%</th><th>Bet</th><th>Reasoning</th></tr></thead><tbody>';
+
   race.horses.forEach((h, i) => {{
     const isTop = i === 0;
     const reasoning = h.reasoning ? h.reasoning.join('<br>') : '';
-    html += '<tr class="' + (isTop?'top-row':'') + '">' +
+    const isWinner = hasAnyResults && h.number === dWinner;
+    const actualPos = h.actual_position || '';
+    const finBg = actualPos === 1 ? 'background:var(--green);color:#000' : actualPos <= 3 ? 'background:var(--accent);color:#000' : 'background:var(--surface);color:var(--dim)';
+    const finCell = hasAnyResults ? '<td>' + (actualPos ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-weight:700;font-size:.75rem;' + finBg + '">' + actualPos + '</span>' : '-') + '</td>' : '';
+    html += '<tr class="' + (isTop?'top-row':'') + '"' + (isWinner ? ' style="background:rgba(16,185,129,.1)"' : '') + '>' +
       '<td><div class="rc-rank">' + h.rank + '</div></td>' +
-      '<td><div class="rc-name">#' + h.number + ' ' + h.name + '</div><div style="font-size:.7rem;color:var(--dim)">' + h.trainer + '</div></td>' +
+      '<td><div class="rc-name">#' + h.number + ' ' + h.name + (isWinner ? ' <span style="font-size:.6rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:700">WINNER</span>' : '') + '</div><div style="font-size:.7rem;color:var(--dim)">' + h.trainer + '</div></td>' +
       '<td>' + h.jockey + '</td>' +
       '<td>' + h.draw + '</td>' +
       '<td style="color:var(--cyan)">$' + h.win_odds + '</td>' +
+      finCell +
       '<td>' + h.ml_prob.toFixed(1) + '%</td>' +
       '<td style="color:' + probColor(h.calibrated_prob) + '">' + h.calibrated_prob.toFixed(1) + '%</td>' +
       '<td><div class="bt" style="background:' + betBg(h.bet_recommendation) + ';color:' + betColor(h.bet_recommendation) + '">' + h.bet_recommendation + '</div></td>' +

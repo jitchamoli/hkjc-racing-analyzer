@@ -36,6 +36,7 @@ from advanced_analytics import (
     ClassMovementAnalyzer,
     GearChangeAnalyzer,
     WeightAnalyzer,
+    GoingPreferenceAnalyzer,
 )
 from odds_tracker import OddsMovementAnalyzer
 
@@ -194,13 +195,13 @@ def convert_race(rc: RaceCard) -> Race:
 class BettingStrategy:
     # Full 17-factor weights (when all data available)
     # Tips Index is the strongest signal — aggregates expert tipster consensus
-    RATING_WEIGHT = 0.09
-    FORM_WEIGHT = 0.12       # Recency-weighted form (recent wins boosted)
+    RATING_WEIGHT = 0.08
+    FORM_WEIGHT = 0.11       # Recency-weighted form (recent wins boosted)
     ODDS_WEIGHT = 0.09       # Market implied probability
     JOCKEY_WEIGHT = 0.06
     TRAINER_WEIGHT = 0.04
     DRAW_WEIGHT = 0.05       # Enhanced with rail bias
-    TIPS_WEIGHT = 0.14       # HKJC expert tips index (strongest signal)
+    TIPS_WEIGHT = 0.13       # HKJC expert tips index (strongest signal)
     PACE_WEIGHT = 0.04       # Running style + pace scenario
     SECTIONAL_WEIGHT = 0.04  # Finishing speed
     CD_FORM_WEIGHT = 0.04    # Course & Distance record
@@ -208,10 +209,10 @@ class BettingStrategy:
     CLASS_MOVE_WEIGHT = 0.03 # Class drop/rise advantage
     GEAR_WEIGHT = 0.03       # Equipment changes
     WEIGHT_WEIGHT = 0.05     # Weight carried vs rating
-    # New high-impact factors
-    FRESHNESS_WEIGHT = 0.06  # Days since last run
+    FRESHNESS_WEIGHT = 0.05  # Days since last run
     RATING_TREND_WEIGHT = 0.04  # Rating going up or down
-    STAKES_WEIGHT = 0.03     # Season prize money earned
+    STAKES_WEIGHT = 0.02     # Season prize money earned
+    GOING_WEIGHT = 0.05      # Going (track condition) preference — high impact
 
     @staticmethod
     def analyze_form(last_6: str) -> tuple:
@@ -457,6 +458,14 @@ class CombinedRaceAnalyzer:
         self.class_analyzer = ClassMovementAnalyzer()
         self.gear_analyzer = GearChangeAnalyzer()
         self.weight_analyzer = WeightAnalyzer()
+        self.going_analyzer = GoingPreferenceAnalyzer()
+        # Try to connect to horse database for going preference lookups
+        self._horse_db = None
+        try:
+            from horse_database import HorseDatabase
+            self._horse_db = HorseDatabase()
+        except Exception:
+            pass
 
     def analyze_horse(
         self, horse: Horse, race: Race, all_horses: List[Horse] = None,
@@ -697,6 +706,20 @@ class CombinedRaceAnalyzer:
         if stakes_score > 0:
             reasoning.append(f"Earnings: {stakes_reason}")
 
+        # --- NEW: Going (Track Condition) Preference ---
+        going_score = 0.0
+        going_reason = ""
+        if race.going and self._horse_db:
+            going_record = self._horse_db.get_horse_going_record(horse.name, race.going)
+            horse_record = self._horse_db.get_horse_record(horse.name)
+            total_runs = horse_record.get('total_starts', 0) if horse_record else 0
+            going_score, going_reason = self.going_analyzer.analyze_going_preference(
+                going_record, race.going, total_runs
+            )
+        factors["going_pref"] = going_score
+        if going_score > 0:
+            reasoning.append(f"Going: {going_reason}")
+
         # --- Weighted score calculation (dynamic) ---
         # Build weight map only for available factors (score > 0)
         weight_map = {
@@ -730,6 +753,8 @@ class CombinedRaceAnalyzer:
             weight_map["rating_trend"] = BettingStrategy.RATING_TREND_WEIGHT
         if stakes_score > 0:
             weight_map["season_stakes"] = BettingStrategy.STAKES_WEIGHT
+        if going_score > 0:
+            weight_map["going_pref"] = BettingStrategy.GOING_WEIGHT
 
         # Normalize weights to sum to 1.0
         total_weight = sum(weight_map.values())
@@ -995,30 +1020,25 @@ class CombinedRaceAnalyzer:
             gap_1_2 = top_prob - second_prob
 
         # Determine race-level bet type first, then assign to horses
-        # QIN = 2 horses, QNL PL = 2 horses, TRIO = 3 horses
-        race_bet_type = "WIN"  # default
+        # QIN #1+#2 is the DEFAULT — our rank 2 wins often enough that
+        # QIN on ranks 1+2 hits far more often than WIN on rank 1 alone.
+        # WIN only for BANKER (7+ signals) or extreme market standouts.
+        race_bet_type = "QIN"  # default: QIN on rank 1 + rank 2
 
         # BANKER overrides everything — always WIN
         if banker_horse and banker_horse.rank == 1:
             race_bet_type = "WIN"
-        elif market_prob_top >= 0.30 and gap_1_2 > 0.06:
-            race_bet_type = "WIN"  # clear market standout
-        elif gap_1_2 > 0.04 and top and top.expected_return > 0.10:
-            race_bet_type = "WIN"  # clear standout by our model
-        elif gap_1_2 < 0.03 and top_3_share > 0.35:
-            # Top 2 very close — exotic bet territory
+        elif market_prob_top >= 0.35 and gap_1_2 > 0.08:
+            race_bet_type = "WIN"  # very clear market standout (tighter threshold)
+        elif gap_1_2 > 0.06 and top and top.expected_return > 0.15:
+            race_bet_type = "WIN"  # very clear model standout (tighter threshold)
+        elif gap_1_2 < 0.02 and top_3_share > 0.35:
+            # Top 3 extremely bunched — wider exotic
             if gap_2_3 < 0.02 and n >= 3:
                 race_bet_type = "TRIO"  # top 3 all bunched
-            elif gap_1_2 < 0.02:
-                race_bet_type = "QNL PL"  # very tight top 2
             else:
-                race_bet_type = "QIN"  # top 2 close, 3rd separated
-        elif gap_1_2 < 0.03:
-            race_bet_type = "QIN"  # tight 1-2
-        elif gap_1_2 > 0.02 and top and top.expected_return > 0.0:
-            race_bet_type = "WIN"
-        else:
-            race_bet_type = "PLACE"  # no clear value
+                race_bet_type = "QNL PL"  # very tight top 2
+        # else: stays QIN (default)
 
         for i, a in enumerate(analyses):
             rank = a.rank

@@ -317,6 +317,49 @@ class HorseDatabase:
         row = c.fetchone()
         return dict(row) if row else {'runners': 0, 'wins': 0, 'places': 0}
 
+    def get_horse_going_record(self, horse_name: str, going: str) -> Dict:
+        """Get horse's record on a specific going (track condition).
+
+        Going values: GOOD, GOOD TO FIRM, GOOD TO YIELDING, YIELDING, SOFT, etc.
+        Uses LIKE matching so 'GOOD' matches 'GOOD' and 'GOOD TO FIRM'.
+        """
+        c = self.conn.cursor()
+        # Normalize: extract primary going keyword
+        going_upper = going.upper().strip() if going else ''
+        if not going_upper:
+            return {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
+
+        # Exact match first, then fallback to partial
+        c.execute("""
+            SELECT
+                COUNT(*) as runs,
+                SUM(is_winner) as wins,
+                SUM(is_top3) as places,
+                AVG(CASE WHEN finish_position > 0 THEN finish_position END) as avg_pos
+            FROM race_results
+            WHERE horse_name = ? AND UPPER(going) = ?
+        """, (horse_name, going_upper))
+        row = c.fetchone()
+        result = dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
+
+        # If no exact match, try partial (e.g. 'GOOD' matches 'GOOD TO FIRM')
+        if result['runs'] == 0:
+            primary = going_upper.split(' TO ')[0].split()[0] if going_upper else ''
+            if primary:
+                c.execute("""
+                    SELECT
+                        COUNT(*) as runs,
+                        SUM(is_winner) as wins,
+                        SUM(is_top3) as places,
+                        AVG(CASE WHEN finish_position > 0 THEN finish_position END) as avg_pos
+                    FROM race_results
+                    WHERE horse_name = ? AND UPPER(going) LIKE ?
+                """, (horse_name, f'%{primary}%'))
+                row = c.fetchone()
+                result = dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
+
+        return result
+
     def get_horse_days_since_last(self, horse_name: str,
                                    current_date: str) -> int:
         """Calculate days since horse's last race."""
