@@ -224,6 +224,7 @@ class BettingStrategy:
     TRAINER_FORM_WEIGHT = 0.03  # Trainer recent win% (hot streak)
     FIELD_SIZE_WEIGHT = 0.05    # Field size — #1 feature in gmalbert research (17.41%)
     CAREER_PLACE_WEIGHT = 0.03  # Career top-3 rate from horse DB
+    AGE_WEIGHT = 0.02           # Age relative to field (pbovard63 approach)
 
     @staticmethod
     def analyze_form(last_6: str) -> tuple:
@@ -491,11 +492,32 @@ class CombinedRaceAnalyzer:
 
         # --- Core factors (same as before) ---
 
-        factors["rating"] = min(100, horse.rating)
-        reasoning.append(
-            f"Rating {horse.rating:.0f}: "
-            f"{'Top class' if factors['rating'] > 90 else 'Good' if factors['rating'] > 80 else 'Average'}"
-        )
+        # Rating — now scored relative to field average (pbovard63 approach)
+        field_ratings = [h.rating for h in (all_horses or []) if h.rating > 0]
+        field_avg_rating = sum(field_ratings) / len(field_ratings) if field_ratings else 0
+        if horse.rating > 0 and field_avg_rating > 0:
+            rating_diff = horse.rating - field_avg_rating
+            # Score based on how far above/below field average
+            base = min(100, horse.rating)
+            if rating_diff >= 10:
+                factors["rating"] = min(100, base + 10)
+                rating_label = f"Rating {horse.rating:.0f} (+{rating_diff:.0f} vs field avg {field_avg_rating:.0f})"
+            elif rating_diff >= 3:
+                factors["rating"] = min(100, base + 5)
+                rating_label = f"Rating {horse.rating:.0f} (+{rating_diff:.0f} vs field)"
+            elif rating_diff >= -3:
+                factors["rating"] = base
+                rating_label = f"Rating {horse.rating:.0f} (field avg {field_avg_rating:.0f})"
+            elif rating_diff >= -8:
+                factors["rating"] = max(10, base - 5)
+                rating_label = f"Rating {horse.rating:.0f} ({rating_diff:.0f} vs field)"
+            else:
+                factors["rating"] = max(5, base - 10)
+                rating_label = f"Rating {horse.rating:.0f} ({rating_diff:.0f} below field)"
+        else:
+            factors["rating"] = min(100, horse.rating)
+            rating_label = f"Rating {horse.rating:.0f}"
+        reasoning.append(rating_label)
 
         form_score, form_reason = self.strategy.analyze_form(horse.last_6)
 
@@ -881,6 +903,40 @@ class CombinedRaceAnalyzer:
         if cp_score > 0:
             reasoning.append(cp_reason)
 
+        # --- NEW: Age vs Field (pbovard63 approach) ---
+        age_score = 0.0
+        age_reason = ""
+        if horse.age and horse.age.isdigit():
+            horse_age = int(horse.age)
+            field_ages = [int(h.age) for h in (all_horses or []) if h.age and h.age.isdigit()]
+            if field_ages:
+                avg_age = sum(field_ages) / len(field_ages)
+                # In HK, 3-4yo = improving, 5-6 = peak, 7+ = declining
+                if horse_age <= 4:
+                    age_base = 65.0  # young improver
+                elif horse_age <= 6:
+                    age_base = 60.0  # peak years
+                else:
+                    age_base = 45.0  # older
+                # Relative to field
+                age_diff = horse_age - avg_age
+                if abs(age_diff) >= 2:
+                    if horse_age <= 4 and age_diff < 0:
+                        age_score = 72.0
+                        age_reason = f"Young improver ({horse_age}yo vs field avg {avg_age:.0f})"
+                    elif horse_age >= 7 and age_diff > 0:
+                        age_score = 35.0
+                        age_reason = f"Older in field ({horse_age}yo vs avg {avg_age:.0f})"
+                    else:
+                        age_score = age_base
+                        age_reason = f"Age {horse_age} (field avg {avg_age:.0f})"
+                else:
+                    age_score = age_base
+                    age_reason = f"Age {horse_age} (field avg {avg_age:.0f})"
+        factors["age"] = age_score
+        if age_score > 0:
+            reasoning.append(age_reason)
+
         # --- Weighted score calculation (dynamic) ---
         # Build weight map only for available factors (score > 0)
         weight_map = {
@@ -930,6 +986,8 @@ class CombinedRaceAnalyzer:
             weight_map["field_size"] = BettingStrategy.FIELD_SIZE_WEIGHT
         if cp_score > 0:
             weight_map["career_place"] = BettingStrategy.CAREER_PLACE_WEIGHT
+        if age_score > 0:
+            weight_map["age"] = BettingStrategy.AGE_WEIGHT
 
         # Normalize weights to sum to 1.0
         total_weight = sum(weight_map.values())
