@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(printf '\\\\nall\\\\nn\\\\n')",
+      "Bash(open:*)",
+      "Bash(wc -l /Users/jitendrachamoli/Documents/Project_Hub/hkjc_racing_analyzer/*.py)",
+      "Bash(ls:*)"
+    ]
+  }
+}

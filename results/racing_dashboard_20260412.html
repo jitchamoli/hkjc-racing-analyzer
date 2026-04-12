@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HKJC Racing Dashboard - 2026/04/12</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+:root {
+  --bg:#0a0e1a;--surface:#111827;--surface2:#1a2236;--surface3:#1e293b;
+  --border:#2d3748;--text:#e2e8f0;--dim:#8892a4;--accent:#f59e0b;--gold:#fbbf24;
+  --green:#10b981;--red:#ef4444;--blue:#3b82f6;--purple:#8b5cf6;
+  --cyan:#06b6d4;--pink:#ec4899;--orange:#f97316;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+button{font-family:inherit;cursor:pointer}
+
+/* Header */
+.header{background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 40%,#312e81 100%);
+  border-bottom:2px solid var(--accent);padding:16px 24px;position:sticky;top:0;z-index:100}
+.header-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.header h1{font-size:1.6rem;font-weight:900;
+  background:linear-gradient(90deg,#fbbf24,#f59e0b,#d97706);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-meta{display:flex;gap:12px;align-items:center;font-size:.8rem;color:var(--dim)}
+.version{background:linear-gradient(90deg,var(--accent),#d97706);color:#000;
+  padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:800}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;display:inline-block}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Race selector tabs */
+.race-tabs{display:flex;gap:6px;padding:12px 24px;overflow-x:auto;background:var(--surface);
+  border-bottom:1px solid var(--border);position:sticky;top:62px;z-index:99}
+.race-tab{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;
+  color:var(--dim);font-size:.78rem;font-weight:600;transition:all .2s;white-space:nowrap;
+  display:flex;align-items:center;gap:6px}
+.race-tab:hover{background:var(--surface2);color:var(--text);border-color:var(--accent)}
+.race-tab.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:800}
+.race-tab .tab-grade{font-size:.6rem;padding:1px 5px;border-radius:10px;font-weight:800}
+.race-tab.active .tab-grade{background:rgba(0,0,0,.2);color:#000}
+.tab-grade.g-aplus{background:rgba(251,191,36,.25);color:var(--gold)}
+.tab-grade.g-a{background:rgba(16,185,129,.25);color:var(--green)}
+.tab-grade.g-bplus{background:rgba(59,130,246,.25);color:var(--blue)}
+.tab-grade.g-b{background:rgba(139,92,246,.25);color:var(--purple)}
+.tab-grade.g-c{background:rgba(100,116,139,.2);color:var(--dim)}
+.next-badge{background:var(--green);color:#000;font-size:.58rem;padding:1px 5px;border-radius:8px;font-weight:800}
+
+/* Main content */
+.content{padding:20px 24px;max-width:1400px;margin:0 auto}
+
+/* Dashboard view */
+#dashboard-view {}
+#race-detail-view {display:none}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:16px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center}
+.stat .v{font-size:1.3rem;font-weight:800}
+.stat .l{font-size:.65rem;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+
+/* Bet legend */
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-size:.74rem}
+.legend .item{display:flex;align-items:center;gap:5px}
+.legend .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+/* Race cards grid */
+.race-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:14px;margin-bottom:20px}
+.race-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;cursor:pointer;transition:all .25s}
+.race-card:hover{transform:translateY(-2px);box-shadow:0 6px 25px rgba(0,0,0,.4);border-color:var(--accent)}
+.race-card.g-aplus{border-top:3px solid var(--gold)}
+.race-card.g-a{border-top:3px solid var(--green)}
+.race-card.g-bplus{border-top:3px solid var(--blue)}
+.race-card.g-b{border-top:3px solid var(--purple)}
+.race-card.g-c{border-top:3px solid var(--border)}
+
+.rc-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;
+  border-bottom:1px solid var(--border)}
+.rc-num{font-weight:800;font-size:.95rem}
+.rc-meta{font-size:.7rem;color:var(--dim)}
+.grade{font-size:.65rem;font-weight:800;padding:3px 9px;border-radius:16px}
+.grade.aplus{background:rgba(251,191,36,.2);color:var(--gold)}
+.grade.a{background:rgba(16,185,129,.2);color:var(--green)}
+.grade.bplus{background:rgba(59,130,246,.2);color:var(--blue)}
+.grade.b{background:rgba(139,92,246,.2);color:var(--purple)}
+.grade.c{background:rgba(100,116,139,.2);color:var(--dim)}
+
+.rc-preview{padding:10px 16px}
+.rc-horse{display:grid;grid-template-columns:24px 1fr 54px 48px 52px;align-items:center;gap:6px;
+  padding:5px 0;font-size:.78rem;border-bottom:1px solid rgba(45,55,72,.3)}
+.rc-horse:last-child{border:none}
+.rc-rank{font-size:.68rem;font-weight:800;color:var(--dim);width:22px;height:22px;
+  display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.05)}
+.rc-horse.top .rc-rank{background:var(--accent);color:#000}
+.rc-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-odds{text-align:right;color:var(--cyan);font-weight:600;font-size:.8rem}
+.rc-prob{text-align:right;font-weight:700;font-size:.8rem}
+.bt{display:inline-block;font-size:.62rem;font-weight:700;padding:2px 6px;border-radius:4px;text-align:center}
+
+.rc-footer{padding:8px 16px;background:var(--surface2);font-size:.7rem;color:var(--dim);
+  display:flex;justify-content:space-between;align-items:center}
+.rc-footer .click-hint{color:var(--blue);font-weight:600}
+
+/* DETAIL VIEW */
+.detail-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px}
+.detail-title{font-size:1.4rem;font-weight:800}
+.detail-meta{font-size:.85rem;color:var(--dim);margin-top:4px}
+.back-btn{background:var(--surface2);color:var(--text);border:1px solid var(--border);
+  padding:8px 18px;border-radius:8px;font-size:.82rem;font-weight:600;transition:all .2s}
+.back-btn:hover{background:var(--accent);color:#000;border-color:var(--accent)}
+
+.detail-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+
+/* Full horse table */
+.horse-table{width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:16px}
+.horse-table th{background:var(--surface2);padding:10px 12px;text-align:left;font-size:.72rem;
+  font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);border-bottom:2px solid var(--border)}
+.horse-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+.horse-table tr:hover{background:var(--surface2)}
+.horse-table tr.top-row{background:rgba(245,158,11,.05)}
+.horse-table .reasoning-cell{font-size:.72rem;color:var(--dim);line-height:1.5;max-width:300px}
+
+/* Nav arrows */
+.nav-arrows{display:flex;gap:8px;margin-top:16px;justify-content:center}
+.nav-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);
+  padding:10px 20px;border-radius:8px;font-size:.85rem;font-weight:600;transition:all .2s}
+.nav-btn:hover{background:var(--accent);color:#000;border-color:var(--accent)}
+.nav-btn:disabled{opacity:.3;cursor:not-allowed}
+.nav-btn:disabled:hover{background:var(--surface);color:var(--text)}
+
+/* Strategy panel */
+.strategy-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:16px;margin-bottom:16px}
+.strategy-panel h3{font-size:.9rem;font-weight:700;margin-bottom:10px}
+.strat-row{display:flex;gap:12px;align-items:center;padding:6px 0;font-size:.82rem;
+  border-bottom:1px solid rgba(45,55,72,.3)}
+.strat-row:last-child{border:none}
+
+/* Disclaimer */
+.disclaimer{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);
+  border-radius:8px;padding:10px 16px;margin-top:16px;font-size:.72rem;color:#fca5a5}
+.footer{text-align:center;padding:20px;font-size:.72rem;color:var(--dim);
+  border-top:1px solid var(--border);margin-top:16px}
+
+/* Responsive */
+@media(max-width:768px){
+  .race-grid{grid-template-columns:1fr}
+  .content{padding:12px 14px}
+  .race-tabs{padding:10px 14px}
+  .header{padding:12px 14px}
+  .detail-header{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-row">
+    <h1>HKJC Racing Dashboard</h1>
+    <div class="header-meta">
+      <span class="live-dot"></span>
+      <span>Sha Tin | 2026/04/12</span>
+      <span>|</span>
+      <span id="clock">2026-04-12 12:04:10</span>
+      <span class="version">v3.0 | 14 FACTORS</span>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px">
+    <div id="next-countdown" style="font-size:.82rem;color:var(--dim)"></div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <label style="font-size:.72rem;color:var(--dim);display:flex;align-items:center;gap:5px;cursor:pointer">
+        <input type="checkbox" id="auto-nav-toggle" checked onchange="autoNavEnabled=this.checked"
+          style="accent-color:var(--accent)">
+        Auto-navigate to next race
+      </label>
+    </div>
+  </div>
+</div>
+
+<!-- RACE TABS -->
+<div class="race-tabs" id="race-tabs">
+  <button class="race-tab active" onclick="showDashboard()" id="tab-all">
+    All Races
+  </button>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="content">
+
+  <!-- DASHBOARD VIEW -->
+  <div id="dashboard-view"></div>
+  
+  <!-- RACE DETAIL VIEW -->
+  <div id="race-detail-view"></div>
+
+</div>
+
+<script>
+// ===== DATA =====
+const RACES = [{"race_number": 1, "venue": "Sha Tin", "time": "12:30", "distance": "1000", "class_type": "Griffin", "going": "Good", "course": "", "horses": [{"rank": 1, "number": 3, "name": "SILVERY KNIGHT", "jockey": "L Hewitson", "trainer": "D J Whyte", "draw": 3, "weight": "126", "gear": "", "rating": 0.0, "win_odds": 8.1, "place_odds": 1.8, "last_6": "", "rule_score": 45.2, "ml_prob": 36.1, "combined_score": 40.6, "calibrated_prob": 20.3, "expected_return": 64.2, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 0: Average", "No recent form data", "Market: 12.3% implied @ $8.1 (LIVE)", "Top jockey - L Hewitson", "Trainer: D J Whyte", "Ideal barrier (3)", "Tips Index: 7.8", "Midfield - Neutral pace (x1.00)", "Odds: Stable market ($8.1)", "Weight: 126lbs carried"]}, {"rank": 2, "number": 5, "name": "SECRET INGREDIENT", "jockey": "H Bentley", "trainer": "D A Hayes", "draw": 6, "weight": "121", "gear": "", "rating": 0.0, "win_odds": 6.1, "place_odds": 1.8, "last_6": "", "rule_score": 43.9, "ml_prob": 36.1, "combined_score": 40.0, "calibrated_prob": 19.3, "expected_return": 17.6, "bet_recommendation": "QIN", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 0: Average", "No recent form data", "Market: 16.4% implied @ $6.1 (LIVE)", "Skilled jockey - H Bentley", "Trainer: D A Hayes", "Average barrier (6)", "Tips Index: 4.1", "Midfield - Neutral pace (x1.00)", "Odds: Stable market ($6.1)", "Weight: 121lbs carried"]}, {"rank": 3, "number": 6, "name": "TALENTS CHAMPION", "jockey": "M L Yeung", "trainer": "D A Hayes", "draw": 1, "weight": "121", "gear": "", "rating": 0.0, "win_odds": 2.9, "place_odds": 1.1, "last_6": "", "rule_score": 45.7, "ml_prob": 33.9, "combined_score": 39.8, "calibrated_prob": 19.0, "expected_return": -44.9, "bet_recommendation": "TRIO", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 0: Average", "No recent form data", "Market: 34.5% implied @ $2.9 (LIVE)", "Jockey: M L Yeung", "Trainer: D A Hayes", "Good barrier (1)", "Tips Index: 2.9", "Midfield - Neutral pace (x1.00)", "Odds: Stable market ($2.9)", "Weight: 121lbs carried"]}, {"rank": 4, "number": 1, "name": "KA YING GRATEFUL", "jockey": "K C Leung", "trainer": "W K Mo", "draw": 2, "weight": "126", "gear": "TT1", "rating": 0.0, "win_odds": 9.6, "place_odds": 1.8, "last_6": "", "rule_score": 41.9, "ml_prob": 34.3, "combined_score": 38.1, "calibrated_prob": 16.6, "expected_return": 59.0, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 0: Average", "No recent form data", "Market: 10.4% implied @ $9.6 (LIVE)", "Experienced jockey", "Trainer: W K Mo", "Good barrier (2)", "Tips Index: 18.2", "Midfield - Neutral pace (x1.00)", "Odds: Stable market ($9.6)", "Gear: Gear: TT1 (no significant impact)", "Weight: 126lbs carried"]}, {"rank": 5, "number": 4, "name": "GLORIOUS HERO", "jockey": "K Teetan", "trainer": "D A Hayes", "draw": 5, "weight": "121", "gear": "", "rating": 0.0, "win_odds": 16.0, "place_odds": 3.0, "last_6": "", "rule_score": 35.8, "ml_prob": 36.1, "combined_score": 36.0, "calibrated_prob": 13.9, "expected_return": 123.0, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 0: Average", "No recent form data", "Market: 6.2% implied @ $16.0 (LIVE)", "Top jockey - K Teetan", "Trainer: D A Hayes", "Good barrier (5)", "Midfield - Neutral pace (x1.00)", "Odds: Stable market ($16.0)", "Weight: 121lbs carried"]}, {"rank": 6, "number": 2, "name": "PERFECT ONE", "jockey": "Z Purton", "trainer": "C H Yip", "draw": 4, "weight": "126", "gear": "", "rating": 0.0, "win_odds": 2.4, "place_odds": 1.1, "last_6": "", "rule_score": 48.9, "ml_prob": 16.9, "combined_score": 32.9, "calibrated_prob": 10.9, "expected_return": -73.7, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 0: Average", "No recent form data", "Market: 41.7% implied @ $2.4 (LIVE)", "Champion jockey - Z Purton", "Trainer - C H Yip", "Good barrier (4)", "Tips Index: 4.3", "Midfield - Neutral pace (x1.00)", "Odds: Stable market ($2.4)", "Weight: 126lbs carried"]}]}, {"race_number": 2, "venue": "Sha Tin", "time": "13:00", "distance": "1400", "class_type": "Class 5", "going": "Good", "course": "", "horses": [{"rank": 1, "number": 4, "name": "CALL TO COMMAND", "jockey": "H Bentley", "trainer": "C W Chang", "draw": 5, "weight": "133", "gear": "CP/TT", "rating": 38.0, "win_odds": 31.0, "place_odds": 5.0, "last_6": "93512310", "rule_score": 50.7, "ml_prob": 55.8, "combined_score": 53.2, "calibrated_prob": 12.7, "expected_return": 292.9, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 38: Average", "Consistent placer: 2 places", "Market: 3.2% implied @ $31.0 (LIVE)", "Skilled jockey - H Bentley", "Trainer: C W Chang", "Ideal barrier (5)", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($31.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (133lbs, rated 38)"]}, {"rank": 2, "number": 8, "name": "DASH", "jockey": "A Badel", "trainer": "D J Whyte", "draw": 4, "weight": "132", "gear": "B/TT", "rating": 37.0, "win_odds": 10.0, "place_odds": 3.0, "last_6": "3764108", "rule_score": 54.3, "ml_prob": 51.6, "combined_score": 53.0, "calibrated_prob": 12.4, "expected_return": 24.3, "bet_recommendation": "QIN", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 37: Average", "Moderate form: avg score 25", "Market: 10.0% implied @ $10.0 (LIVE)", "Top jockey - A Badel", "Trainer: D J Whyte", "Good barrier (4)", "Tips Index: 4.9", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($10.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (132lbs, rated 37)"]}, {"rank": 3, "number": 3, "name": "SETANTA", "jockey": "L Ferraris", "trainer": "M Newnham", "draw": 9, "weight": "134", "gear": "B-/TT", "rating": 39.0, "win_odds": 11.0, "place_odds": 3.0, "last_6": "10610327", "rule_score": 51.9, "ml_prob": 52.3, "combined_score": 52.1, "calibrated_prob": 11.6, "expected_return": 27.6, "bet_recommendation": "QNL PL", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 39: Average", "Moderate form: avg score 39", "Market: 9.1% implied @ $11.0 (LIVE)", "Jockey: L Ferraris", "Trainer: M Newnham", "Average barrier (9)", "Tips Index: 13.1", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($11.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (134lbs, rated 39)"]}, {"rank": 4, "number": 12, "name": "HE WAS ME", "jockey": "K Teetan", "trainer": "A S Cruz", "draw": 2, "weight": "124", "gear": "B/TT", "rating": 29.0, "win_odds": 18.0, "place_odds": 3.0, "last_6": "8133910", "rule_score": 49.5, "ml_prob": 53.4, "combined_score": 51.4, "calibrated_prob": 11.0, "expected_return": 98.0, "bet_recommendation": "QNL PL", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 29: Average", "Consistent placer: 2 places", "Market: 5.6% implied @ $18.0 (LIVE)", "Top jockey - K Teetan", "Trainer: A S Cruz", "Average barrier (2)", "Tips Index: 44.5", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($18.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (124lbs, rated 29); 6lbs below field avg"]}, {"rank": 5, "number": 1, "name": "GOOD FORTUNE", "jockey": "P N Wong", "trainer": "P C Ng", "draw": 6, "weight": "135", "gear": "B/TT", "rating": 40.0, "win_odds": 9.3, "place_odds": 1.8, "last_6": "5511121411", "rule_score": 56.2, "ml_prob": 39.2, "combined_score": 47.7, "calibrated_prob": 8.2, "expected_return": -24.0, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 40: Average", "Strong form: 6 wins in last 6 races", "Market: 10.8% implied @ $9.3 (LIVE)", "Jockey: P N Wong", "Trainer: P C Ng", "Good barrier (6)", "Tips Index: 6.0", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($9.3)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (135lbs, rated 40); 5lbs above field avg"]}, {"rank": 6, "number": 9, "name": "WINNING MACHINE", "jockey": "J Moreira", "trainer": "C Fownes", "draw": 1, "weight": "132", "gear": "TT", "rating": 37.0, "win_odds": 1.9, "place_odds": 1.1, "last_6": "427494", "rule_score": 58.5, "ml_prob": 35.1, "combined_score": 46.8, "calibrated_prob": 7.6, "expected_return": -85.6, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 37: Average", "Moderate form: avg score 22", "Market: 52.6% implied @ $1.9 (LIVE)", "Elite jockey - J Moreira", "Top trainer - C Fownes", "Average barrier (1)", "Tips Index: 4.4", "Midfield - Moderate pace edge (x1.08)", "Finish: Est. sectional", "Odds: Stable market ($1.9)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (132lbs, rated 37)"]}, {"rank": 7, "number": 11, "name": "PANDA LEGEND", "jockey": "J Orman", "trainer": "W Y So", "draw": 13, "weight": "127", "gear": "V/TT", "rating": 32.0, "win_odds": 17.0, "place_odds": 3.0, "last_6": "5711234", "rule_score": 52.3, "ml_prob": 35.8, "combined_score": 44.0, "calibrated_prob": 6.1, "expected_return": 3.3, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 32: Average", "Moderate form: avg score 49", "Market: 5.9% implied @ $17.0 (LIVE)", "Jockey: J Orman", "Trainer - W Y So", "Wide draw (13)", "Tips Index: 14.8", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($17.0)", "Gear: Visor ON (partial blinkers); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (127lbs, rated 32)"]}, {"rank": 8, "number": 13, "name": "MR GOOD VIBES", "jockey": "R Kingscote", "trainer": "D J Hall", "draw": 8, "weight": "123", "gear": "B", "rating": 28.0, "win_odds": 69.0, "place_odds": 5.0, "last_6": "12111947", "rule_score": 45.6, "ml_prob": 41.6, "combined_score": 43.6, "calibrated_prob": 5.9, "expected_return": 305.6, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 28: Average", "Strong form: 4 wins in last 6 races", "Market: 1.4% implied @ $69.0 (LIVE)", "Jockey: R Kingscote", "Top trainer - D J Hall", "Average barrier (8)", "Leader - Pace against (x0.85)", "Finish: Declining trend", "Odds: Stable market ($69.0)", "Gear: Blinkers ON (improves focus)", "Weight: Heavy weight for rating (123lbs, rated 28); 7lbs below field avg"]}, {"rank": 9, "number": 2, "name": "ONE LOVE", "jockey": "A Atzeni", "trainer": "J Size", "draw": 7, "weight": "134", "gear": "E", "rating": 39.0, "win_odds": 21.0, "place_odds": 5.0, "last_6": "912116129", "rule_score": 47.7, "ml_prob": 38.1, "combined_score": 42.9, "calibrated_prob": 5.5, "expected_return": 16.5, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 39: Average", "Strong form: 4 wins in last 6 races", "Market: 4.8% implied @ $21.0 (LIVE)", "Jockey: A Atzeni", "Legendary trainer - J Size", "Good barrier (7)", "Leader - Pace against (x0.85)", "Finish: Est. sectional", "Odds: Stable market ($21.0)", "Gear: Gear: E (no significant impact)", "Weight: Heavy weight for rating (134lbs, rated 39)"]}, {"rank": 10, "number": 6, "name": "WINNING DIAMOND", "jockey": "H Bowman", "trainer": "C H Yip", "draw": 3, "weight": "133", "gear": "E1", "rating": 38.0, "win_odds": 19.0, "place_odds": 3.0, "last_6": "1088131011", "rule_score": 53.0, "ml_prob": 32.0, "combined_score": 42.5, "calibrated_prob": 5.4, "expected_return": 2.2, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 38: Average", "Strong form: 5 wins in last 6 races", "Market: 5.3% implied @ $19.0 (LIVE)", "International star - H Bowman", "Trainer - C H Yip", "Good barrier (3)", "Tips Index: 19.3", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($19.0)", "Gear: Gear: E1 (no significant impact)", "Weight: Heavy weight for rating (133lbs, rated 38)"]}, {"rank": 11, "number": 10, "name": "YEE CHEONG RAIDER", "jockey": "L Hewitson", "trainer": "B Crawford", "draw": 12, "weight": "129", "gear": "CP", "rating": 34.0, "win_odds": 10.0, "place_odds": 3.0, "last_6": "245666", "rule_score": 50.2, "ml_prob": 31.4, "combined_score": 40.8, "calibrated_prob": 4.7, "expected_return": -52.9, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 34: Average", "Moderate form: avg score 22", "Market: 10.0% implied @ $10.0 (LIVE)", "Top jockey - L Hewitson", "Trainer: B Crawford", "Average barrier (12)", "Tips Index: 5.3", "Stalker - Moderate pace edge (x1.05)", "Finish: Declining trend", "Odds: Stable market ($10.0)", "Gear: Gear: CP (no significant impact)", "Weight: Heavy weight for rating (129lbs, rated 34)"]}, {"rank": 12, "number": 7, "name": "BASIC INSTINCT", "jockey": "K C Leung", "trainer": "Y S Tsui", "draw": 10, "weight": "132", "gear": "B", "rating": 37.0, "win_odds": 67.0, "place_odds": 5.0, "last_6": "810910513", "rule_score": 44.3, "ml_prob": 27.1, "combined_score": 35.7, "calibrated_prob": 3.1, "expected_return": 108.7, "bet_recommendation": "PLACE", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 37: Average", "Strong form: 3 wins in last 6 races", "Market: 1.5% implied @ $67.0 (LIVE)", "Experienced jockey", "Trainer: Y S Tsui", "Average barrier (10)", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($67.0)", "Gear: Blinkers ON (improves focus)", "Weight: Heavy weight for rating (132lbs, rated 37)"]}, {"rank": 13, "number": 5, "name": "WINNING CIGAR", "jockey": "B Avdulla", "trainer": "D A Hayes", "draw": 11, "weight": "133", "gear": "B", "rating": 38.0, "win_odds": 52.0, "place_odds": 5.0, "last_6": "11568912", "rule_score": 43.9, "ml_prob": 26.2, "combined_score": 35.1, "calibrated_prob": 3.0, "expected_return": 54.6, "bet_recommendation": "PLACE", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 38: Average", "Strong form: 3 wins in last 6 races", "Market: 1.9% implied @ $52.0 (LIVE)", "Jockey: B Avdulla", "Trainer: D A Hayes", "Average barrier (11)", "Leader - Pace against (x0.85)", "Finish: Est. sectional", "Odds: Stable market ($52.0)", "Gear: Blinkers ON (improves focus)", "Weight: Heavy weight for rating (133lbs, rated 38)"]}, {"rank": 14, "number": 14, "name": "ISLAND GOLDEN", "jockey": "Y L Chung", "trainer": "K L Man", "draw": 14, "weight": "115", "gear": "B/TT", "rating": 18.0, "win_odds": 101.0, "place_odds": 5.0, "last_6": "1010710612", "rule_score": 40.9, "ml_prob": 28.3, "combined_score": 34.6, "calibrated_prob": 2.9, "expected_return": 189.5, "bet_recommendation": "PLACE", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 18: Average", "Strong form: 4 wins in last 6 races", "Market: 1.0% implied @ $101.0 (LIVE)", "Jockey: Y L Chung", "Trainer: K L Man", "Wide draw (14)", "Leader - Pace against (x0.85)", "Finish: Est. sectional", "Odds: Stable market ($101.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (115lbs, rated 18); 15lbs below field avg"]}]}, {"race_number": 3, "venue": "Sha Tin", "time": "13:30", "distance": "1600", "class_type": "Class 5", "going": "Good", "course": "", "horses": [{"rank": 1, "number": 1, "name": "BEAUTY MISSILE", "jockey": "H Bowman", "trainer": "B Crawford", "draw": 9, "weight": "135", "gear": "V", "rating": 39.0, "win_odds": 7.3, "place_odds": 1.8, "last_6": "314584", "rule_score": 53.7, "ml_prob": 61.4, "combined_score": 57.6, "calibrated_prob": 18.7, "expected_return": 36.4, "bet_recommendation": "WIN", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 39: Average", "Moderate form: avg score 34", "Market: 13.7% implied @ $7.3 (LIVE)", "International star - H Bowman", "Trainer: B Crawford", "Good barrier (9)", "Tips Index: 6.8", "Stalker - Moderate pace edge (x1.05)", "Finish: Declining trend", "Odds: Stable market ($7.3)", "Gear: Visor ON (partial blinkers)", "Weight: Heavy weight for rating (135lbs, rated 39); 8lbs above field avg"]}, {"rank": 2, "number": 4, "name": "RATTAN GALAXY", "jockey": "C Y Ho", "trainer": "K L Man", "draw": 11, "weight": "134", "gear": "CP/TT", "rating": 38.0, "win_odds": 24.0, "place_odds": 5.0, "last_6": "9527149", "rule_score": 44.8, "ml_prob": 59.1, "combined_score": 52.0, "calibrated_prob": 11.9, "expected_return": 186.7, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 38: Average", "Moderate form: avg score 29", "Market: 4.2% implied @ $24.0 (LIVE)", "Jockey: C Y Ho", "Trainer: K L Man", "Average barrier (11)", "Midfield - Moderate pace edge (x1.08)", "Finish: Improving trend", "Odds: Stable market ($24.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (134lbs, rated 38); 8lbs above field avg"]}, {"rank": 3, "number": 6, "name": "GENERAL SMART", "jockey": "Z Purton", "trainer": "C S Shum", "draw": 13, "weight": "132", "gear": "CP-/XB/SR1/TT", "rating": 36.0, "win_odds": 4.5, "place_odds": 1.3, "last_6": "256769", "rule_score": 51.7, "ml_prob": 50.7, "combined_score": 51.2, "calibrated_prob": 11.3, "expected_return": -49.3, "bet_recommendation": "TRIO", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 36: Average", "Moderate form: avg score 16", "Market: 22.2% implied @ $4.5 (LIVE)", "Champion jockey - Z Purton", "Trainer: C S Shum", "Wide draw (13)", "Tips Index: 3.3", "Midfield - Moderate pace edge (x1.08)", "Finish: Declining trend", "Odds: Stable market ($4.5)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (132lbs, rated 36); 6lbs above field avg"]}, {"rank": 4, "number": 7, "name": "COOL BLUE", "jockey": "M Chadwick", "trainer": "W Y So", "draw": 10, "weight": "129", "gear": "E/P/TT", "rating": 33.0, "win_odds": 15.0, "place_odds": 3.0, "last_6": "147229", "rule_score": 52.2, "ml_prob": 49.7, "combined_score": 51.0, "calibrated_prob": 11.0, "expected_return": 65.3, "bet_recommendation": "QNL PL", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 33: Average", "Moderate form: avg score 41", "Market: 6.7% implied @ $15.0 (LIVE)", "Improving jockey", "Trainer - W Y So", "Good barrier (10)", "Tips Index: 18.5", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($15.0)", "Gear: Pacifiers ON (settling gear); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (129lbs, rated 33)"]}, {"rank": 5, "number": 5, "name": "BLING BLING GENIUS", "jockey": "B Avdulla", "trainer": "D J Whyte", "draw": 3, "weight": "133", "gear": "", "rating": 37.0, "win_odds": 7.6, "place_odds": 1.8, "last_6": "2412527", "rule_score": 52.6, "ml_prob": 39.0, "combined_score": 45.8, "calibrated_prob": 7.3, "expected_return": -44.7, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 37: Average", "Moderate form: avg score 46", "Market: 13.2% implied @ $7.6 (LIVE)", "Jockey: B Avdulla", "Trainer: D J Whyte", "Average barrier (3)", "Tips Index: 5.2", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($7.6)", "Weight: Heavy weight for rating (133lbs, rated 37); 6lbs above field avg"]}, {"rank": 6, "number": 9, "name": "WINDICATOR FAMILY", "jockey": "K C Leung", "trainer": "W K Mo", "draw": 8, "weight": "126", "gear": "V/TT-", "rating": 30.0, "win_odds": 15.0, "place_odds": 3.0, "last_6": "9410478", "rule_score": 45.0, "ml_prob": 44.0, "combined_score": 44.5, "calibrated_prob": 6.6, "expected_return": -1.2, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 30: Average", "Moderate form: avg score 21", "Market: 6.7% implied @ $15.0 (LIVE)", "Experienced jockey", "Trainer: W K Mo", "Ideal barrier (8)", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($15.0)", "Gear: Visor ON (partial blinkers)", "Weight: Heavy weight for rating (126lbs, rated 30)"]}, {"rank": 7, "number": 10, "name": "GOLD TACK", "jockey": "C L Chau", "trainer": "D J Hall", "draw": 5, "weight": "121", "gear": "CP-", "rating": 25.0, "win_odds": 18.0, "place_odds": 3.0, "last_6": "646455", "rule_score": 44.3, "ml_prob": 41.6, "combined_score": 42.9, "calibrated_prob": 5.8, "expected_return": 4.4, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 25: Average", "Moderate form: avg score 17", "Market: 5.6% implied @ $18.0 (LIVE)", "Rising star - C L Chau", "Top trainer - D J Hall", "Average barrier (5)", "Midfield - Moderate pace edge (x1.08)", "Finish: Improving trend", "Odds: Stable market ($18.0)", "Gear: Gear: CP- (no significant impact)", "Weight: Heavy weight for rating (121lbs, rated 25); 6lbs below field avg"]}, {"rank": 8, "number": 2, "name": "DASHING MAURISON", "jockey": "P N Wong", "trainer": "D A Hayes", "draw": 6, "weight": "135", "gear": "CP", "rating": 39.0, "win_odds": 4.7, "place_odds": 1.3, "last_6": "663989", "rule_score": 51.0, "ml_prob": 30.8, "combined_score": 40.9, "calibrated_prob": 4.9, "expected_return": -76.9, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 39: Average", "Moderate form: avg score 10", "Market: 21.3% implied @ $4.7 (LIVE)", "Jockey: P N Wong", "Trainer: D A Hayes", "Good barrier (6)", "Tips Index: 3.4", "Closer - Strong pace advantage (x1.15)", "Finish: Declining trend", "Odds: Stable market ($4.7)", "Gear: Gear: CP (no significant impact)", "Weight: Heavy weight for rating (135lbs, rated 39); 8lbs above field avg"]}, {"rank": 9, "number": 8, "name": "SPEEDY TRIDENT", "jockey": "M L Yeung", "trainer": "Y S Tsui", "draw": 12, "weight": "128", "gear": "P-", "rating": 32.0, "win_odds": 61.0, "place_odds": 5.0, "last_6": "91197913", "rule_score": 41.1, "ml_prob": 37.7, "combined_score": 39.4, "calibrated_prob": 4.4, "expected_return": 167.2, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 32: Average", "Strong form: 3 wins in last 6 races", "Market: 1.6% implied @ $61.0 (LIVE)", "Jockey: M L Yeung", "Trainer: Y S Tsui", "Average barrier (12)", "Leader - Pace against (x0.85)", "Finish: Est. sectional", "Odds: Stable market ($61.0)", "Gear: Gear: P- (no significant impact)", "Weight: Heavy weight for rating (128lbs, rated 32)"]}, {"rank": 10, "number": 13, "name": "MR ALADDIN", "jockey": "A Badel", "trainer": "P C Ng", "draw": 1, "weight": "115", "gear": "CP/TT", "rating": 15.0, "win_odds": 31.0, "place_odds": 5.0, "last_6": "81313774", "rule_score": 44.4, "ml_prob": 32.0, "combined_score": 38.2, "calibrated_prob": 4.0, "expected_return": 23.1, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 15: Average", "Consistent placer: 2 places", "Market: 3.2% implied @ $31.0 (LIVE)", "Top jockey - A Badel", "Trainer: P C Ng", "Average barrier (1)", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($31.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (115lbs, rated 15); 12lbs below field avg"]}, {"rank": 11, "number": 14, "name": "THE WAY WE WIN", "jockey": "H T Mo", "trainer": "J Richards", "draw": 14, "weight": "115", "gear": "B/TT", "rating": 15.0, "win_odds": 54.0, "place_odds": 5.0, "last_6": "13138101010", "rule_score": 43.3, "ml_prob": 32.5, "combined_score": 37.9, "calibrated_prob": 3.9, "expected_return": 109.3, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 15: Average", "Strong form: 5 wins in last 6 races", "Market: 1.9% implied @ $54.0 (LIVE)", "Jockey: H T Mo", "Skilled trainer", "Wide draw (14)", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($54.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (115lbs, rated 15); 12lbs below field avg"]}, {"rank": 12, "number": 12, "name": "CASA LEGEND", "jockey": "K Teetan", "trainer": "C W Chang", "draw": 2, "weight": "116", "gear": "B/TT", "rating": 20.0, "win_odds": 17.0, "place_odds": 3.0, "last_6": "7121010104", "rule_score": 45.3, "ml_prob": 28.3, "combined_score": 36.8, "calibrated_prob": 3.6, "expected_return": -39.5, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 20: Average", "Strong form: 4 wins in last 6 races", "Market: 5.9% implied @ $17.0 (LIVE)", "Top jockey - K Teetan", "Trainer: C W Chang", "Average barrier (2)", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($17.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (116lbs, rated 20); 10lbs below field avg"]}, {"rank": 13, "number": 11, "name": "HARRY'S HERO", "jockey": "H Bentley", "trainer": "P F Yiu", "draw": 4, "weight": "117", "gear": "H", "rating": 21.0, "win_odds": 10.0, "place_odds": 3.0, "last_6": "662256", "rule_score": 42.9, "ml_prob": 30.6, "combined_score": 36.7, "calibrated_prob": 3.5, "expected_return": -64.7, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 21: Average", "Moderate form: avg score 28", "Market: 10.0% implied @ $10.0 (LIVE)", "Skilled jockey - H Bentley", "Experienced trainer", "Average barrier (4)", "Tips Index: 74.2", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($10.0)", "Gear: Hood ON (calming effect)", "Weight: Heavy weight for rating (117lbs, rated 21); 10lbs below field avg"]}, {"rank": 14, "number": 3, "name": "IRON LEGION", "jockey": "Y L Chung", "trainer": "A S Cruz", "draw": 7, "weight": "135", "gear": "H/TT", "rating": 39.0, "win_odds": 14.0, "place_odds": 3.0, "last_6": "10131786", "rule_score": 43.7, "ml_prob": 27.3, "combined_score": 35.5, "calibrated_prob": 3.2, "expected_return": -55.2, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 39: Average", "Strong form: 3 wins in last 6 races", "Market: 7.1% implied @ $14.0 (LIVE)", "Jockey: Y L Chung", "Trainer: A S Cruz", "Good barrier (7)", "Leader - Pace against (x0.85)", "Finish: Declining trend", "Odds: Stable market ($14.0)", "Gear: Hood ON (calming effect); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (135lbs, rated 39); 8lbs above field avg"]}]}, {"race_number": 4, "venue": "Sha Tin", "time": "14:00", "distance": "1400", "class_type": "Class 4", "going": "Good", "course": "", "horses": [{"rank": 1, "number": 7, "name": "INVICTUS DRAGON", "jockey": "Z Purton", "trainer": "K W Lui", "draw": 8, "weight": "126", "gear": "", "rating": 51.0, "win_odds": 2.3, "place_odds": 1.1, "last_6": "2311395", "rule_score": 60.0, "ml_prob": 51.5, "combined_score": 55.8, "calibrated_prob": 14.1, "expected_return": -67.7, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 51: Average", "Good recent form: 2W/2P", "Market: 43.5% implied @ $2.3 (LIVE)", "Champion jockey - Z Purton", "Trainer: K W Lui", "Average barrier (8)", "Tips Index: 4.4", "Stalker - Moderate pace edge (x1.05)", "Finish: Declining trend", "Odds: Stable market ($2.3)", "Weight: Heavy weight for rating (126lbs, rated 51)"]}, {"rank": 2, "number": 14, "name": "THE CONCENTRATION", "jockey": "A Atzeni", "trainer": "P F Yiu", "draw": 3, "weight": "117", "gear": "B", "rating": 42.0, "win_odds": 9.3, "place_odds": 1.8, "last_6": "311338", "rule_score": 48.0, "ml_prob": 61.0, "combined_score": 54.5, "calibrated_prob": 12.7, "expected_return": 17.8, "bet_recommendation": "QIN", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 42: Average", "Good recent form: 2W/3P", "Market: 10.8% implied @ $9.3 (LIVE)", "Jockey: A Atzeni", "Experienced trainer", "Good barrier (3)", "Tips Index: 74.2", "Stalker - Moderate pace edge (x1.05)", "Finish: Declining trend", "Odds: Stable market ($9.3)", "Gear: Blinkers ON (improves focus)", "Weight: Heavy weight for rating (117lbs, rated 42); 9lbs below field avg"]}, {"rank": 3, "number": 12, "name": "SUPREME FEELING", "jockey": "H Bentley", "trainer": "D A Hayes", "draw": 14, "weight": "121", "gear": "B", "rating": 46.0, "win_odds": 139.0, "place_odds": 5.0, "last_6": "107138", "rule_score": 48.2, "ml_prob": 52.1, "combined_score": 50.1, "calibrated_prob": 8.9, "expected_return": 1142.6, "bet_recommendation": "QNL PL", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 46: Average", "Moderate form: avg score 40", "Market: 0.7% implied @ $139.0 (LIVE)", "Skilled jockey - H Bentley", "Trainer: D A Hayes", "Wide draw (14)", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($139.0)", "Gear: Blinkers ON (improves focus)", "Weight: Heavy weight for rating (121lbs, rated 46); 5lbs below field avg"]}, {"rank": 4, "number": 2, "name": "HAPPY BOSS", "jockey": "L Ferraris", "trainer": "D Eustace", "draw": 13, "weight": "135", "gear": "CP/TT", "rating": 60.0, "win_odds": 9.4, "place_odds": 1.8, "last_6": "2516", "rule_score": 55.6, "ml_prob": 43.2, "combined_score": 49.4, "calibrated_prob": 8.4, "expected_return": -21.0, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 60: Average", "Moderate form: avg score 46", "Market: 10.6% implied @ $9.4 (LIVE)", "Jockey: L Ferraris", "Trainer: D Eustace", "Wide draw (13)", "Tips Index: 4.6", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($9.4)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (135lbs, rated 60); 9lbs above field avg"]}, {"rank": 5, "number": 9, "name": "TYCOON EXPRESS", "jockey": "J Moreira", "trainer": "C Fownes", "draw": 11, "weight": "125", "gear": "TT", "rating": 50.0, "win_odds": 6.3, "place_odds": 1.8, "last_6": "56", "rule_score": 53.3, "ml_prob": 44.9, "combined_score": 49.1, "calibrated_prob": 8.3, "expected_return": -48.0, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 50: Average", "Moderate form: avg score 12", "Market: 15.9% implied @ $6.3 (LIVE)", "Elite jockey - J Moreira", "Top trainer - C Fownes", "Average barrier (11)", "Tips Index: 18.4", "Midfield - Moderate pace edge (x1.08)", "Finish: Est. sectional", "Odds: Stable market ($6.3)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (125lbs, rated 50)"]}, {"rank": 6, "number": 5, "name": "GALLANT DESIGN", "jockey": "B Avdulla", "trainer": "J Richards", "draw": 9, "weight": "129", "gear": "B/TT", "rating": 54.0, "win_odds": 6.2, "place_odds": 1.8, "last_6": "572", "rule_score": 55.2, "ml_prob": 35.7, "combined_score": 45.5, "calibrated_prob": 6.2, "expected_return": -61.8, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 54: Average", "Moderate form: avg score 25", "Market: 16.1% implied @ $6.2 (LIVE)", "Jockey: B Avdulla", "Skilled trainer", "Average barrier (9)", "Tips Index: 6.9", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($6.2)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (129lbs, rated 54)"]}, {"rank": 7, "number": 4, "name": "LIGHTNESS OF BEING", "jockey": "Y L Chung", "trainer": "A S Cruz", "draw": 4, "weight": "130", "gear": "CP/TT", "rating": 55.0, "win_odds": 111.0, "place_odds": 5.0, "last_6": "121112131114", "rule_score": 52.2, "ml_prob": 38.0, "combined_score": 45.1, "calibrated_prob": 6.0, "expected_return": 564.0, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 55: Average", "Strong form: 8 wins in last 6 races", "Market: 0.9% implied @ $111.0 (LIVE)", "Jockey: Y L Chung", "Trainer: A S Cruz", "Good barrier (4)", "Leader - Pace against (x0.85)", "Finish: Est. sectional", "Odds: Stable market ($111.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (130lbs, rated 55)"]}, {"rank": 8, "number": 3, "name": "TOP TIME", "jockey": "J Orman", "trainer": "W Y So", "draw": 2, "weight": "133", "gear": "", "rating": 58.0, "win_odds": 13.0, "place_odds": 3.0, "last_6": "1265253", "rule_score": 53.0, "ml_prob": 37.2, "combined_score": 45.1, "calibrated_prob": 6.0, "expected_return": -22.3, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 58: Average", "Moderate form: avg score 43", "Market: 7.7% implied @ $13.0 (LIVE)", "Jockey: J Orman", "Trainer - W Y So", "Average barrier (2)", "Tips Index: 18.5", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($13.0)", "Weight: Heavy weight for rating (133lbs, rated 58); 7lbs above field avg"]}, {"rank": 9, "number": 10, "name": "GOLDEN WIN", "jockey": "K C Leung", "trainer": "K L Man", "draw": 1, "weight": "123", "gear": "", "rating": 48.0, "win_odds": 92.0, "place_odds": 5.0, "last_6": "81410", "rule_score": 48.5, "ml_prob": 41.1, "combined_score": 44.8, "calibrated_prob": 5.8, "expected_return": 436.2, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 48: Average", "Moderate form: avg score 45", "Market: 1.1% implied @ $92.0 (LIVE)", "Experienced jockey", "Trainer: K L Man", "Average barrier (1)", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($92.0)", "Weight: Heavy weight for rating (123lbs, rated 48)"]}, {"rank": 10, "number": 8, "name": "CHEERFUL WONGCHOY", "jockey": "K Teetan", "trainer": "P C Ng", "draw": 5, "weight": "125", "gear": "CP-/H1/PC1", "rating": 50.0, "win_odds": 86.0, "place_odds": 5.0, "last_6": "86", "rule_score": 45.5, "ml_prob": 43.7, "combined_score": 44.6, "calibrated_prob": 5.7, "expected_return": 393.5, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 50: Average", "Moderate form: avg score 5", "Market: 1.2% implied @ $86.0 (LIVE)", "Top jockey - K Teetan", "Trainer: P C Ng", "Ideal barrier (5)", "Midfield - Moderate pace edge (x1.08)", "Finish: Est. sectional", "Odds: Stable market ($86.0)", "Gear: Gear: CP-/H1/PC1 (no significant impact)", "Weight: Heavy weight for rating (125lbs, rated 50)"]}, {"rank": 11, "number": 1, "name": "EIGHTY LIGHT YEARS", "jockey": "L Hewitson", "trainer": "B Crawford", "draw": 10, "weight": "135", "gear": "XB", "rating": 60.0, "win_odds": 14.0, "place_odds": 3.0, "last_6": "2871072", "rule_score": 55.4, "ml_prob": 31.9, "combined_score": 43.7, "calibrated_prob": 5.3, "expected_return": -25.3, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 60: Average", "Moderate form: avg score 31", "Market: 7.1% implied @ $14.0 (LIVE)", "Top jockey - L Hewitson", "Trainer: B Crawford", "Average barrier (10)", "Tips Index: 3.5", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($14.0)", "Gear: Gear: XB (no significant impact)", "Weight: Heavy weight for rating (135lbs, rated 60); 9lbs above field avg"]}, {"rank": 12, "number": 11, "name": "SWEET BRIAR", "jockey": "R Kingscote", "trainer": "K H Ting", "draw": 7, "weight": "122", "gear": "V-/B2/TT", "rating": 47.0, "win_odds": 63.0, "place_odds": 5.0, "last_6": "128811613", "rule_score": 49.1, "ml_prob": 33.2, "combined_score": 41.2, "calibrated_prob": 4.4, "expected_return": 174.8, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 47: Average", "Strong form: 4 wins in last 6 races", "Market: 1.6% implied @ $63.0 (LIVE)", "Jockey: R Kingscote", "Consistent trainer", "Good barrier (7)", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($63.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (122lbs, rated 47)"]}, {"rank": 13, "number": 13, "name": "AMAZING FUN", "jockey": "M Chadwick", "trainer": "C H Yip", "draw": 6, "weight": "119", "gear": "TT", "rating": 44.0, "win_odds": 31.0, "place_odds": 5.0, "last_6": "11142957", "rule_score": 47.7, "ml_prob": 33.4, "combined_score": 40.5, "calibrated_prob": 4.1, "expected_return": 28.6, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 44: Average", "Strong form: 3 wins in last 6 races", "Market: 3.2% implied @ $31.0 (LIVE)", "Improving jockey", "Trainer - C H Yip", "Good barrier (6)", "Leader - Pace against (x0.85)", "Finish: Declining trend", "Odds: Stable market ($31.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (119lbs, rated 44); 7lbs below field avg"]}, {"rank": 14, "number": 6, "name": "MASSIVE GLORY", "jockey": "C L Chau", "trainer": "F C Lor", "draw": 12, "weight": "127", "gear": "CP1/TT1", "rating": 52.0, "win_odds": 42.0, "place_odds": 5.0, "last_6": "", "rule_score": 43.6, "ml_prob": 37.4, "combined_score": 40.5, "calibrated_prob": 4.1, "expected_return": 73.8, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 52: Average", "No recent form data", "Market: 2.4% implied @ $42.0 (LIVE)", "Rising star - C L Chau", "Elite trainer - F C Lor", "Average barrier (12)", "Midfield - Moderate pace edge (x1.08)", "Odds: Stable market ($42.0)", "Gear: Gear: CP1/TT1 (no significant impact)", "Weight: Heavy weight for rating (127lbs, rated 52)"]}]}, {"race_number": 5, "venue": "Sha Tin", "time": "14:30", "distance": "1200", "class_type": "Class 4", "going": "Good", "course": "", "horses": [{"rank": 1, "number": 4, "name": "CALL ME SPARKLE", "jockey": "M L Yeung", "trainer": "K W Lui", "draw": 5, "weight": "133", "gear": "H/TT", "rating": 58.0, "win_odds": 4.2, "place_odds": 1.3, "last_6": "1", "rule_score": 66.1, "ml_prob": 43.5, "combined_score": 54.8, "calibrated_prob": 16.4, "expected_return": -31.3, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 58: Average", "Good recent form: 1W/0P", "Market: 23.8% implied @ $4.2 (LIVE)", "Jockey: M L Yeung", "Trainer: K W Lui", "Ideal barrier (5)", "Tips Index: 4.1", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($4.2)", "Gear: Hood ON (calming effect); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (133lbs, rated 58); 6lbs above field avg"]}, {"rank": 2, "number": 10, "name": "GORGEOUS VICTORY", "jockey": "Y L Chung", "trainer": "C S Shum", "draw": 8, "weight": "123", "gear": "TT", "rating": 48.0, "win_odds": 32.0, "place_odds": 5.0, "last_6": "10613", "rule_score": 47.9, "ml_prob": 51.2, "combined_score": 49.6, "calibrated_prob": 10.8, "expected_return": 245.0, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 48: Average", "Moderate form: avg score 50", "Market: 3.1% implied @ $32.0 (LIVE)", "Jockey: Y L Chung", "Trainer: C S Shum", "Average barrier (8)", "Stalker - Moderate pace edge (x1.05)", "Finish: Declining trend", "Odds: Stable market ($32.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (123lbs, rated 48)"]}, {"rank": 3, "number": 3, "name": "CONRAD PATCH", "jockey": "H Bowman", "trainer": "W K Mo", "draw": 4, "weight": "134", "gear": "TT", "rating": 59.0, "win_odds": 6.3, "place_odds": 1.8, "last_6": "9132", "rule_score": 60.2, "ml_prob": 36.4, "combined_score": 48.3, "calibrated_prob": 9.7, "expected_return": -38.7, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 59: Average", "Moderate form: avg score 50", "Market: 15.9% implied @ $6.3 (LIVE)", "International star - H Bowman", "Trainer: W K Mo", "Good barrier (4)", "Tips Index: 5.8", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($6.3)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (134lbs, rated 59); 7lbs above field avg"]}, {"rank": 4, "number": 6, "name": "JUBILANT STAR", "jockey": "Z Purton", "trainer": "D J Hall", "draw": 12, "weight": "127", "gear": "", "rating": 52.0, "win_odds": 11.0, "place_odds": 3.0, "last_6": "9362", "rule_score": 55.0, "ml_prob": 39.6, "combined_score": 47.3, "calibrated_prob": 9.0, "expected_return": -1.2, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 52: Average", "Moderate form: avg score 28", "Market: 9.1% implied @ $11.0 (LIVE)", "Champion jockey - Z Purton", "Top trainer - D J Hall", "Average barrier (12)", "Tips Index: 8.8", "Midfield - Neutral pace (x1.00)", "Finish: Improving trend", "Odds: Stable market ($11.0)", "Weight: Heavy weight for rating (127lbs, rated 52)"]}, {"rank": 5, "number": 9, "name": "CHATER FLASH", "jockey": "L Ferraris", "trainer": "D A Hayes", "draw": 6, "weight": "124", "gear": "CP", "rating": 49.0, "win_odds": 10.0, "place_odds": 3.0, "last_6": "512713", "rule_score": 49.3, "ml_prob": 43.3, "combined_score": 46.3, "calibrated_prob": 8.3, "expected_return": -17.2, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 49: Average", "Good recent form: 2W/1P", "Market: 10.0% implied @ $10.0 (LIVE)", "Jockey: L Ferraris", "Trainer: D A Hayes", "Good barrier (6)", "Tips Index: 57.1", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($10.0)", "Gear: Gear: CP (no significant impact)", "Weight: Heavy weight for rating (124lbs, rated 49)"]}, {"rank": 6, "number": 8, "name": "SUPREME VOYAGER", "jockey": "B Avdulla", "trainer": "C H Yip", "draw": 9, "weight": "126", "gear": "TT", "rating": 51.0, "win_odds": 8.0, "place_odds": 1.8, "last_6": "21099", "rule_score": 53.9, "ml_prob": 38.3, "combined_score": 46.1, "calibrated_prob": 8.2, "expected_return": -34.7, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 51: Average", "Moderate form: avg score 32", "Market: 12.5% implied @ $8.0 (LIVE)", "Jockey: B Avdulla", "Trainer - C H Yip", "Average barrier (9)", "Tips Index: 5.6", "Stalker - Moderate pace edge (x1.05)", "Finish: Declining trend", "Odds: Stable market ($8.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (126lbs, rated 51)"]}, {"rank": 7, "number": 7, "name": "SMILING CHAMPION", "jockey": "J Orman", "trainer": "D J Whyte", "draw": 3, "weight": "127", "gear": "CP", "rating": 52.0, "win_odds": 95.0, "place_odds": 5.0, "last_6": "12", "rule_score": 53.5, "ml_prob": 38.2, "combined_score": 45.9, "calibrated_prob": 8.0, "expected_return": 659.9, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 52: Average", "Good recent form: 1W/0P", "Market: 1.1% implied @ $95.0 (LIVE)", "Jockey: J Orman", "Trainer: D J Whyte", "Good barrier (3)", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($95.0)", "Gear: Gear: CP (no significant impact)", "Weight: Heavy weight for rating (127lbs, rated 52)"]}, {"rank": 8, "number": 1, "name": "SPICY STANDARD", "jockey": "A Atzeni", "trainer": "J Size", "draw": 11, "weight": "135", "gear": "", "rating": 60.0, "win_odds": 6.0, "place_odds": 1.8, "last_6": "721410", "rule_score": 58.5, "ml_prob": 29.4, "combined_score": 44.0, "calibrated_prob": 6.9, "expected_return": -58.8, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 60: Average", "Moderate form: avg score 48", "Market: 16.7% implied @ $6.0 (LIVE)", "Jockey: A Atzeni", "Legendary trainer - J Size", "Average barrier (11)", "Tips Index: 4.6", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($6.0)", "Weight: Heavy weight for rating (135lbs, rated 60); 8lbs above field avg"]}, {"rank": 9, "number": 5, "name": "FLASHING FIGHTER", "jockey": "H Y Yuen", "trainer": "P F Yiu", "draw": 2, "weight": "127", "gear": "", "rating": 52.0, "win_odds": 8.1, "place_odds": 1.8, "last_6": "", "rule_score": 47.4, "ml_prob": 38.3, "combined_score": 42.8, "calibrated_prob": 6.3, "expected_return": -49.1, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 52: Average", "No recent form data", "Market: 12.3% implied @ $8.1 (LIVE)", "Jockey: H Y Yuen", "Experienced trainer", "Average barrier (2)", "Tips Index: 17.1", "Midfield - Neutral pace (x1.00)", "Odds: Stable market ($8.1)", "Weight: Heavy weight for rating (127lbs, rated 52)"]}, {"rank": 10, "number": 11, "name": "FULL OF LAUGHTER", "jockey": "R Kingscote", "trainer": "C W Chang", "draw": 7, "weight": "121", "gear": "SR/TT", "rating": 46.0, "win_odds": 101.0, "place_odds": 5.0, "last_6": "118146", "rule_score": 51.2, "ml_prob": 33.6, "combined_score": 42.4, "calibrated_prob": 6.1, "expected_return": 511.5, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 46: Average", "Strong form: 3 wins in last 6 races", "Market: 1.0% implied @ $101.0 (LIVE)", "Jockey: R Kingscote", "Trainer: C W Chang", "Good barrier (7)", "Leader - Moderate pace edge (x1.07)", "Finish: Est. sectional", "Odds: Stable market ($101.0)", "Gear: Shadow roll (visual aid); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (121lbs, rated 46); 6lbs below field avg"]}, {"rank": 11, "number": 12, "name": "RUBY SAILING", "jockey": "P N Wong", "trainer": "K L Man", "draw": 1, "weight": "116", "gear": "TT", "rating": 41.0, "win_odds": 7.5, "place_odds": 1.8, "last_6": "91085111", "rule_score": 51.0, "ml_prob": 30.5, "combined_score": 40.8, "calibrated_prob": 5.3, "expected_return": -60.1, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 41: Average", "Strong form: 4 wins in last 6 races", "Market: 13.3% implied @ $7.5 (LIVE)", "Jockey: P N Wong", "Trainer: K L Man", "Average barrier (1)", "Leader - Moderate pace edge (x1.07)", "Finish: Improving trend", "Odds: Stable market ($7.5)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (116lbs, rated 41); 11lbs below field avg"]}, {"rank": 12, "number": 2, "name": "VICTOR THE RAPID", "jockey": "C L Chau", "trainer": "P C Ng", "draw": 10, "weight": "135", "gear": "B/TT", "rating": 60.0, "win_odds": 27.0, "place_odds": 5.0, "last_6": "423166", "rule_score": 49.9, "ml_prob": 31.0, "combined_score": 40.4, "calibrated_prob": 5.2, "expected_return": 39.8, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 60: Average", "Moderate form: avg score 41", "Market: 3.7% implied @ $27.0 (LIVE)", "Rising star - C L Chau", "Trainer: P C Ng", "Average barrier (10)", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($27.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (135lbs, rated 60); 8lbs above field avg"]}]}, {"race_number": 6, "venue": "Sha Tin", "time": "15:00", "distance": "1200", "class_type": "Class 4", "going": "Good", "course": "", "horses": [{"rank": 1, "number": 4, "name": "LO PAN SPIRIT", "jockey": "L Ferraris", "trainer": "K H Ting", "draw": 8, "weight": "133", "gear": "B/TT", "rating": 58.0, "win_odds": 16.0, "place_odds": 3.0, "last_6": "1014127137", "rule_score": 53.9, "ml_prob": 46.5, "combined_score": 50.2, "calibrated_prob": 12.4, "expected_return": 97.9, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 58: Average", "Strong form: 4 wins in last 6 races", "Market: 6.2% implied @ $16.0 (LIVE)", "Jockey: L Ferraris", "Consistent trainer", "Average barrier (8)", "Tips Index: 17.1", "Leader - Neutral pace (x0.97)", "Finish: Declining trend", "Odds: Stable market ($16.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (133lbs, rated 58); 5lbs above field avg"]}, {"rank": 2, "number": 2, "name": "ELITE GOLF", "jockey": "H Bentley", "trainer": "W Y So", "draw": 5, "weight": "135", "gear": "H1", "rating": 60.0, "win_odds": 5.3, "place_odds": 1.8, "last_6": "215", "rule_score": 61.8, "ml_prob": 37.2, "combined_score": 49.5, "calibrated_prob": 11.7, "expected_return": -38.1, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 60: Average", "Good recent form: 1W/0P", "Market: 18.9% implied @ $5.3 (LIVE)", "Skilled jockey - H Bentley", "Trainer - W Y So", "Ideal barrier (5)", "Tips Index: 4.6", "Stalker - Moderate pace edge (x1.10)", "Finish: Est. sectional", "Odds: Stable market ($5.3)", "Gear: Gear: H1 (no significant impact)", "Weight: Heavy weight for rating (135lbs, rated 60); 7lbs above field avg"]}, {"rank": 3, "number": 3, "name": "ISLAND BUDDY", "jockey": "K Teetan", "trainer": "B Crawford", "draw": 12, "weight": "133", "gear": "", "rating": 58.0, "win_odds": 18.0, "place_odds": 3.0, "last_6": "24111212", "rule_score": 59.7, "ml_prob": 37.5, "combined_score": 48.6, "calibrated_prob": 10.8, "expected_return": 95.1, "bet_recommendation": "QNL PL", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 58: Average", "Strong form: 4 wins in last 6 races", "Market: 5.6% implied @ $18.0 (LIVE)", "Top jockey - K Teetan", "Trainer: B Crawford", "Average barrier (12)", "Tips Index: 4.5", "Leader - Neutral pace (x0.97)", "Finish: Improving trend", "Odds: Stable market ($18.0)", "Weight: Heavy weight for rating (133lbs, rated 58); 5lbs above field avg"]}, {"rank": 4, "number": 1, "name": "BABY SAKURA", "jockey": "C Y Ho", "trainer": "K W Lui", "draw": 3, "weight": "135", "gear": "TT", "rating": 60.0, "win_odds": 2.5, "place_odds": 1.1, "last_6": "31", "rule_score": 63.8, "ml_prob": 33.1, "combined_score": 48.5, "calibrated_prob": 10.8, "expected_return": -73.1, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 60: Average", "Good recent form: 1W/1P", "Market: 40.0% implied @ $2.5 (LIVE)", "Jockey: C Y Ho", "Trainer: K W Lui", "Good barrier (3)", "Tips Index: 3.0", "Stalker - Moderate pace edge (x1.10)", "Finish: Est. sectional", "Odds: Stable market ($2.5)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (135lbs, rated 60); 7lbs above field avg"]}, {"rank": 5, "number": 7, "name": "LUCKY BID", "jockey": "B Avdulla", "trainer": "J Richards", "draw": 4, "weight": "127", "gear": "TT1", "rating": 52.0, "win_odds": 7.3, "place_odds": 1.8, "last_6": "", "rule_score": 49.1, "ml_prob": 43.2, "combined_score": 46.2, "calibrated_prob": 9.0, "expected_return": -34.7, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 52: Average", "No recent form data", "Market: 13.7% implied @ $7.3 (LIVE)", "Jockey: B Avdulla", "Skilled trainer", "Good barrier (4)", "Tips Index: 21.4", "Midfield - Moderate pace edge (x1.08)", "Odds: Stable market ($7.3)", "Gear: Gear: TT1 (no significant impact)", "Weight: Heavy weight for rating (127lbs, rated 52)"]}, {"rank": 6, "number": 10, "name": "LEADING DRAGON", "jockey": "H Y Yuen", "trainer": "P C Ng", "draw": 1, "weight": "124", "gear": "TT1", "rating": 49.0, "win_odds": 8.1, "place_odds": 1.8, "last_6": "565", "rule_score": 46.9, "ml_prob": 44.9, "combined_score": 45.9, "calibrated_prob": 8.8, "expected_return": -28.9, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 49: Average", "Moderate form: avg score 13", "Market: 12.3% implied @ $8.1 (LIVE)", "Jockey: H Y Yuen", "Trainer: P C Ng", "Average barrier (1)", "Tips Index: 34.2", "Midfield - Moderate pace edge (x1.08)", "Finish: Est. sectional", "Odds: Stable market ($8.1)", "Gear: Gear: TT1 (no significant impact)", "Weight: Heavy weight for rating (124lbs, rated 49)"]}, {"rank": 7, "number": 8, "name": "SUPER RUBICK KID", "jockey": "J Orman", "trainer": "Y S Tsui", "draw": 2, "weight": "127", "gear": "H-", "rating": 52.0, "win_odds": 39.0, "place_odds": 5.0, "last_6": "12", "rule_score": 53.3, "ml_prob": 38.2, "combined_score": 45.8, "calibrated_prob": 8.7, "expected_return": 237.9, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 52: Average", "Good recent form: 1W/0P", "Market: 2.6% implied @ $39.0 (LIVE)", "Jockey: J Orman", "Trainer: Y S Tsui", "Average barrier (2)", "Stalker - Moderate pace edge (x1.10)", "Finish: Est. sectional", "Odds: Stable market ($39.0)", "Gear: Gear: H- (no significant impact)", "Weight: Heavy weight for rating (127lbs, rated 52)"]}, {"rank": 8, "number": 12, "name": "AQUAMAN", "jockey": "M Chadwick", "trainer": "C W Chang", "draw": 10, "weight": "118", "gear": "CP/TT", "rating": 43.0, "win_odds": 30.0, "place_odds": 5.0, "last_6": "7311111312", "rule_score": 52.6, "ml_prob": 36.0, "combined_score": 44.3, "calibrated_prob": 7.7, "expected_return": 131.8, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 43: Average", "Strong form: 6 wins in last 6 races", "Market: 3.3% implied @ $30.0 (LIVE)", "Improving jockey", "Trainer: C W Chang", "Average barrier (10)", "Leader - Neutral pace (x0.97)", "Finish: Improving trend", "Odds: Stable market ($30.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (118lbs, rated 43); 10lbs below field avg"]}, {"rank": 9, "number": 5, "name": "FLYING SNIPER", "jockey": "Z Purton", "trainer": "D J Hall", "draw": 6, "weight": "127", "gear": "", "rating": 52.0, "win_odds": 13.0, "place_odds": 3.0, "last_6": "7", "rule_score": 50.9, "ml_prob": 29.7, "combined_score": 40.3, "calibrated_prob": 5.6, "expected_return": -27.2, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 52: Average", "Moderate form: avg score 0", "Market: 7.7% implied @ $13.0 (LIVE)", "Champion jockey - Z Purton", "Top trainer - D J Hall", "Good barrier (6)", "Tips Index: 20.2", "Midfield - Moderate pace edge (x1.08)", "Finish: Est. sectional", "Odds: Stable market ($13.0)", "Weight: Heavy weight for rating (127lbs, rated 52)"]}, {"rank": 10, "number": 9, "name": "TOP THRONE", "jockey": "L Hewitson", "trainer": "D A Hayes", "draw": 11, "weight": "126", "gear": "CP/TT", "rating": 51.0, "win_odds": 20.0, "place_odds": 5.0, "last_6": "47911914", "rule_score": 53.6, "ml_prob": 25.0, "combined_score": 39.3, "calibrated_prob": 5.2, "expected_return": 3.5, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 51: Average", "Strong form: 3 wins in last 6 races", "Market: 5.0% implied @ $20.0 (LIVE)", "Top jockey - L Hewitson", "Trainer: D A Hayes", "Average barrier (11)", "Tips Index: 20.4", "Leader - Neutral pace (x0.97)", "Finish: Improving trend", "Odds: Stable market ($20.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (126lbs, rated 51)"]}, {"rank": 11, "number": 11, "name": "KINGDOM OF RICHES", "jockey": "M L Yeung", "trainer": "C S Shum", "draw": 9, "weight": "122", "gear": "H-/TT", "rating": 47.0, "win_odds": 33.0, "place_odds": 5.0, "last_6": "128691213", "rule_score": 49.4, "ml_prob": 27.8, "combined_score": 38.6, "calibrated_prob": 4.9, "expected_return": 60.9, "bet_recommendation": "PLACE", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 47: Average", "Strong form: 3 wins in last 6 races", "Market: 3.0% implied @ $33.0 (LIVE)", "Jockey: M L Yeung", "Trainer: C S Shum", "Average barrier (9)", "Leader - Neutral pace (x0.97)", "Finish: Improving trend", "Odds: Stable market ($33.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (122lbs, rated 47); 6lbs below field avg"]}, {"rank": 12, "number": 6, "name": "HEROIC VANGUARD", "jockey": "A Badel", "trainer": "C H Yip", "draw": 7, "weight": "127", "gear": "TT1", "rating": 52.0, "win_odds": 25.0, "place_odds": 5.0, "last_6": "5", "rule_score": 46.8, "ml_prob": 28.7, "combined_score": 37.8, "calibrated_prob": 4.6, "expected_return": 14.2, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 52: Average", "Moderate form: avg score 15", "Market: 4.0% implied @ $25.0 (LIVE)", "Top jockey - A Badel", "Trainer - C H Yip", "Good barrier (7)", "Midfield - Moderate pace edge (x1.08)", "Finish: Est. sectional", "Odds: Stable market ($25.0)", "Gear: Gear: TT1 (no significant impact)", "Weight: Heavy weight for rating (127lbs, rated 52)"]}]}, {"race_number": 7, "venue": "Sha Tin", "time": "15:35", "distance": "1400", "class_type": "Class 4", "going": "Good", "course": "", "horses": [{"rank": 1, "number": 9, "name": "SHOTGUN", "jockey": "Z Purton", "trainer": "D J Hall", "draw": 5, "weight": "125", "gear": "B/XB", "rating": 50.0, "win_odds": 3.6, "place_odds": 1.3, "last_6": "123126", "rule_score": 64.2, "ml_prob": 53.5, "combined_score": 58.9, "calibrated_prob": 16.2, "expected_return": -41.7, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 50: Average", "Good recent form: 2W/1P", "Market: 27.8% implied @ $3.6 (LIVE)", "Champion jockey - Z Purton", "Top trainer - D J Hall", "Ideal barrier (5)", "Tips Index: 3.0", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($3.6)", "Gear: Blinkers ON (improves focus)", "Weight: Heavy weight for rating (125lbs, rated 50)"]}, {"rank": 2, "number": 13, "name": "ALABAMA SONG", "jockey": "A Badel", "trainer": "J Size", "draw": 9, "weight": "117", "gear": "H", "rating": 42.0, "win_odds": 22.0, "place_odds": 5.0, "last_6": "46103912", "rule_score": 50.3, "ml_prob": 58.1, "combined_score": 54.2, "calibrated_prob": 11.1, "expected_return": 144.4, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 42: Average", "Moderate form: avg score 42", "Market: 4.5% implied @ $22.0 (LIVE)", "Top jockey - A Badel", "Legendary trainer - J Size", "Average barrier (9)", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($22.0)", "Gear: Hood ON (calming effect)", "Weight: Heavy weight for rating (117lbs, rated 42); 9lbs below field avg"]}, {"rank": 3, "number": 10, "name": "SUPER DRAGON", "jockey": "A Atzeni", "trainer": "M Newnham", "draw": 14, "weight": "125", "gear": "", "rating": 50.0, "win_odds": 10.0, "place_odds": 3.0, "last_6": "6628", "rule_score": 51.1, "ml_prob": 53.6, "combined_score": 52.4, "calibrated_prob": 9.6, "expected_return": -3.8, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 50: Average", "Moderate form: avg score 20", "Market: 10.0% implied @ $10.0 (LIVE)", "Jockey: A Atzeni", "Trainer: M Newnham", "Wide draw (14)", "Tips Index: 9.5", "Midfield - Moderate pace edge (x1.08)", "Finish: Improving trend", "Odds: Stable market ($10.0)", "Weight: Heavy weight for rating (125lbs, rated 50)"]}, {"rank": 4, "number": 4, "name": "MASTER PHOENIX", "jockey": "L Ferraris", "trainer": "D Eustace", "draw": 13, "weight": "130", "gear": "B", "rating": 55.0, "win_odds": 20.0, "place_odds": 5.0, "last_6": "497268", "rule_score": 50.7, "ml_prob": 52.9, "combined_score": 51.8, "calibrated_prob": 9.2, "expected_return": 83.9, "bet_recommendation": "QNL PL", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 55: Average", "Moderate form: avg score 16", "Market: 5.0% implied @ $20.0 (LIVE)", "Jockey: L Ferraris", "Trainer: D Eustace", "Wide draw (13)", "Tips Index: 17.1", "Midfield - Moderate pace edge (x1.08)", "Finish: Improving trend", "Odds: Stable market ($20.0)", "Gear: Blinkers ON (improves focus)", "Weight: Heavy weight for rating (130lbs, rated 55)"]}, {"rank": 5, "number": 3, "name": "FORZA TORO", "jockey": "J Moreira", "trainer": "C Fownes", "draw": 10, "weight": "131", "gear": "TT", "rating": 56.0, "win_odds": 3.6, "place_odds": 1.3, "last_6": "6331169", "rule_score": 60.1, "ml_prob": 38.6, "combined_score": 49.3, "calibrated_prob": 7.5, "expected_return": -72.9, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 56: Average", "Consistent placer: 2 places", "Market: 27.8% implied @ $3.6 (LIVE)", "Elite jockey - J Moreira", "Top trainer - C Fownes", "Average barrier (10)", "Tips Index: 7.9", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($3.6)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (131lbs, rated 56)"]}, {"rank": 6, "number": 11, "name": "JUST FOLLOW ME", "jockey": "K Teetan", "trainer": "B Crawford", "draw": 3, "weight": "123", "gear": "CP/XB/TT", "rating": 48.0, "win_odds": 5.3, "place_odds": 1.8, "last_6": "2241087", "rule_score": 57.0, "ml_prob": 40.5, "combined_score": 48.7, "calibrated_prob": 7.2, "expected_return": -61.9, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 48: Average", "Moderate form: avg score 35", "Market: 18.9% implied @ $5.3 (LIVE)", "Top jockey - K Teetan", "Trainer: B Crawford", "Good barrier (3)", "Tips Index: 4.2", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($5.3)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (123lbs, rated 48)"]}, {"rank": 7, "number": 8, "name": "LUCKY GIBS", "jockey": "C Y Ho", "trainer": "K L Man", "draw": 12, "weight": "125", "gear": "", "rating": 50.0, "win_odds": 123.0, "place_odds": 5.0, "last_6": "1310", "rule_score": 50.1, "ml_prob": 47.0, "combined_score": 48.5, "calibrated_prob": 7.1, "expected_return": 771.5, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 50: Average", "Good recent form: 2W/1P", "Market: 0.8% implied @ $123.0 (LIVE)", "Jockey: C Y Ho", "Trainer: K L Man", "Average barrier (12)", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($123.0)", "Weight: Heavy weight for rating (125lbs, rated 50)"]}, {"rank": 8, "number": 14, "name": "WAVE GARDEN", "jockey": "M L Yeung", "trainer": "K H Ting", "draw": 6, "weight": "115", "gear": "CP/XB/TT", "rating": 40.0, "win_odds": 44.0, "place_odds": 5.0, "last_6": "119812119", "rule_score": 49.9, "ml_prob": 46.1, "combined_score": 48.0, "calibrated_prob": 6.8, "expected_return": 197.4, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 40: Average", "Strong form: 5 wins in last 6 races", "Market: 2.3% implied @ $44.0 (LIVE)", "Jockey: M L Yeung", "Consistent trainer", "Good barrier (6)", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($44.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (115lbs, rated 40); 11lbs below field avg"]}, {"rank": 9, "number": 5, "name": "STAR SATYR", "jockey": "Y L Chung", "trainer": "A S Cruz", "draw": 8, "weight": "129", "gear": "TT", "rating": 54.0, "win_odds": 16.0, "place_odds": 3.0, "last_6": "116114212", "rule_score": 54.8, "ml_prob": 33.4, "combined_score": 44.1, "calibrated_prob": 5.0, "expected_return": -20.8, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 54: Average", "Strong form: 5 wins in last 6 races", "Market: 6.2% implied @ $16.0 (LIVE)", "Jockey: Y L Chung", "Trainer: A S Cruz", "Average barrier (8)", "Tips Index: 22.3", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($16.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (129lbs, rated 54)"]}, {"rank": 10, "number": 7, "name": "PRESIDENT PEGASUS", "jockey": "L Hewitson", "trainer": "C S Shum", "draw": 4, "weight": "127", "gear": "TT1", "rating": 52.0, "win_odds": 37.0, "place_odds": 5.0, "last_6": "", "rule_score": 43.5, "ml_prob": 43.2, "combined_score": 43.3, "calibrated_prob": 4.7, "expected_return": 72.8, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 52: Average", "No recent form data", "Market: 2.7% implied @ $37.0 (LIVE)", "Top jockey - L Hewitson", "Trainer: C S Shum", "Good barrier (4)", "Midfield - Moderate pace edge (x1.08)", "Odds: Stable market ($37.0)", "Gear: Gear: TT1 (no significant impact)", "Weight: Heavy weight for rating (127lbs, rated 52)"]}, {"rank": 11, "number": 2, "name": "RUN RUN SMART", "jockey": "H Y Yuen", "trainer": "F C Lor", "draw": 1, "weight": "135", "gear": "TT", "rating": 60.0, "win_odds": 7.7, "place_odds": 1.8, "last_6": "14191035", "rule_score": 54.9, "ml_prob": 30.7, "combined_score": 42.8, "calibrated_prob": 4.5, "expected_return": -65.6, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 60: Average", "Strong form: 3 wins in last 6 races", "Market: 13.0% implied @ $7.7 (LIVE)", "Jockey: H Y Yuen", "Elite trainer - F C Lor", "Average barrier (1)", "Tips Index: 13.1", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($7.7)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (135lbs, rated 60); 9lbs above field avg"]}, {"rank": 12, "number": 1, "name": "FLYING FORTUNE", "jockey": "K C Leung", "trainer": "W K Mo", "draw": 2, "weight": "135", "gear": "H/TT", "rating": 60.0, "win_odds": 53.0, "place_odds": 5.0, "last_6": "101012", "rule_score": 48.3, "ml_prob": 36.2, "combined_score": 42.2, "calibrated_prob": 4.3, "expected_return": 126.3, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 60: Average", "Strong form: 3 wins in last 6 races", "Market: 1.9% implied @ $53.0 (LIVE)", "Experienced jockey", "Trainer: W K Mo", "Average barrier (2)", "Tips Index: 57.1", "Leader - Pace against (x0.85)", "Finish: Est. sectional", "Odds: Stable market ($53.0)", "Gear: Hood ON (calming effect); Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (135lbs, rated 60); 9lbs above field avg"]}, {"rank": 13, "number": 6, "name": "FUN TOGETHER", "jockey": "C L Chau", "trainer": "C W Chang", "draw": 7, "weight": "128", "gear": "CP/TT", "rating": 53.0, "win_odds": 57.0, "place_odds": 5.0, "last_6": "1410101144", "rule_score": 49.7, "ml_prob": 31.3, "combined_score": 40.5, "calibrated_prob": 3.7, "expected_return": 111.8, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 53: Average", "Strong form: 5 wins in last 6 races", "Market: 1.8% implied @ $57.0 (LIVE)", "Rising star - C L Chau", "Trainer: C W Chang", "Good barrier (7)", "Leader - Pace against (x0.85)", "Finish: Est. sectional", "Odds: Stable market ($57.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (128lbs, rated 53)"]}, {"rank": 14, "number": 12, "name": "LUCKY SECRET", "jockey": "E C W Wong", "trainer": "D A Hayes", "draw": 11, "weight": "121", "gear": "TT", "rating": 46.0, "win_odds": 106.0, "place_odds": 5.0, "last_6": "14111012", "rule_score": 50.3, "ml_prob": 27.3, "combined_score": 38.8, "calibrated_prob": 3.2, "expected_return": 243.7, "bet_recommendation": "PLACE", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 46: Average", "Strong form: 5 wins in last 6 races", "Market: 0.9% implied @ $106.0 (LIVE)", "Jockey: E C W Wong", "Trainer: D A Hayes", "Average barrier (11)", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($106.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Heavy weight for rating (121lbs, rated 46); 5lbs below field avg"]}]}, {"race_number": 8, "venue": "Sha Tin", "time": "16:05", "distance": "1600", "class_type": "Class 3", "going": "Good", "course": "", "horses": [{"rank": 1, "number": 4, "name": "ENDUED", "jockey": "A Atzeni", "trainer": "J Size", "draw": 1, "weight": "132", "gear": "E/TT", "rating": 74.0, "win_odds": 3.2, "place_odds": 1.3, "last_6": "213461", "rule_score": 65.4, "ml_prob": 36.3, "combined_score": 50.9, "calibrated_prob": 14.0, "expected_return": -55.1, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 74: Average", "Good recent form: 2W/1P", "Market: 31.2% implied @ $3.2 (LIVE)", "Jockey: A Atzeni", "Legendary trainer - J Size", "Average barrier (1)", "Tips Index: 2.8", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($3.2)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (132lbs, rated 74)"]}, {"rank": 2, "number": 1, "name": "MISTER DAPPER", "jockey": "B Avdulla", "trainer": "D Eustace", "draw": 3, "weight": "135", "gear": "B/XB/TT", "rating": 77.0, "win_odds": 18.0, "place_odds": 3.0, "last_6": "7111227", "rule_score": 58.5, "ml_prob": 42.9, "combined_score": 50.7, "calibrated_prob": 13.9, "expected_return": 149.3, "bet_recommendation": "QIN", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 77: Average", "Strong form: 3 wins in last 6 races", "Market: 5.6% implied @ $18.0 (LIVE)", "Jockey: B Avdulla", "Trainer: D Eustace", "Average barrier (3)", "Tips Index: 10.6", "Leader - Pace against (x0.85)", "Finish: Est. sectional", "Odds: Stable market ($18.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (135lbs, rated 77); 8lbs above field avg"]}, {"rank": 3, "number": 7, "name": "AMAZING PARTNERS", "jockey": "C Y Ho", "trainer": "K W Lui", "draw": 4, "weight": "123", "gear": "TT", "rating": 65.0, "win_odds": 6.4, "place_odds": 1.8, "last_6": "31133", "rule_score": 61.0, "ml_prob": 34.5, "combined_score": 47.7, "calibrated_prob": 10.9, "expected_return": -30.1, "bet_recommendation": "TRIO", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 65: Average", "Good recent form: 2W/3P", "Market: 15.6% implied @ $6.4 (LIVE)", "Jockey: C Y Ho", "Trainer: K W Lui", "Average barrier (4)", "Tips Index: 5.7", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($6.4)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Fair weight (123lbs, rated 65)"]}, {"rank": 4, "number": 6, "name": "SHANWAH", "jockey": "H Bowman", "trainer": "D J Whyte", "draw": 7, "weight": "131", "gear": "B-/E-/TT-", "rating": 73.0, "win_odds": 41.0, "place_odds": 5.0, "last_6": "141114101411", "rule_score": 57.7, "ml_prob": 37.1, "combined_score": 47.4, "calibrated_prob": 10.7, "expected_return": 336.7, "bet_recommendation": "QNL PL", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 73: Average", "Strong form: 8 wins in last 6 races", "Market: 2.4% implied @ $41.0 (LIVE)", "International star - H Bowman", "Trainer: D J Whyte", "Good barrier (7)", "Tips Index: 44.5", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($41.0)", "Gear: Gear: B-/E-/TT- (no significant impact)", "Weight: Light weight for rating (131lbs, rated 73)"]}, {"rank": 5, "number": 3, "name": "WINDLORD", "jockey": "C L Chau", "trainer": "W K Mo", "draw": 6, "weight": "134", "gear": "H2/TT", "rating": 76.0, "win_odds": 39.0, "place_odds": 5.0, "last_6": "1210125", "rule_score": 55.6, "ml_prob": 33.1, "combined_score": 44.4, "calibrated_prob": 8.4, "expected_return": 225.8, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 76: Average", "Strong form: 3 wins in last 6 races", "Market: 2.6% implied @ $39.0 (LIVE)", "Rising star - C L Chau", "Trainer: W K Mo", "Good barrier (6)", "Leader - Pace against (x0.85)", "Finish: Est. sectional", "Odds: Stable market ($39.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (134lbs, rated 76); 7lbs above field avg"]}, {"rank": 6, "number": 11, "name": "RISING PHOENIX", "jockey": "A Badel", "trainer": "D J Hall", "draw": 2, "weight": "120", "gear": "B", "rating": 62.0, "win_odds": 17.0, "place_odds": 3.0, "last_6": "589151", "rule_score": 54.9, "ml_prob": 32.6, "combined_score": 43.8, "calibrated_prob": 8.0, "expected_return": 35.2, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 62: Average", "Moderate form: avg score 38", "Market: 5.9% implied @ $17.0 (LIVE)", "Top jockey - A Badel", "Top trainer - D J Hall", "Average barrier (2)", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($17.0)", "Gear: Blinkers ON (improves focus)", "Weight: Fair weight (120lbs, rated 62); 7lbs below field avg"]}, {"rank": 7, "number": 5, "name": "FLYING LUCK", "jockey": "J Moreira", "trainer": "C Fownes", "draw": 5, "weight": "132", "gear": "V/TT", "rating": 74.0, "win_odds": 4.4, "place_odds": 1.3, "last_6": "1318253", "rule_score": 64.8, "ml_prob": 20.6, "combined_score": 42.7, "calibrated_prob": 7.3, "expected_return": -67.8, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 74: Average", "Good recent form: 2W/2P", "Market: 22.7% implied @ $4.4 (LIVE)", "Elite jockey - J Moreira", "Top trainer - C Fownes", "Average barrier (5)", "Tips Index: 5.2", "Stalker - Moderate pace edge (x1.05)", "Finish: Declining trend", "Odds: Stable market ($4.4)", "Gear: Visor ON (partial blinkers); Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (132lbs, rated 74)"]}, {"rank": 8, "number": 8, "name": "HAPPY TERCENTENARY", "jockey": "K C Leung", "trainer": "D J Whyte", "draw": 8, "weight": "122", "gear": "H-/SR/XB2/TT-", "rating": 64.0, "win_odds": 61.0, "place_odds": 5.0, "last_6": "1213", "rule_score": 58.9, "ml_prob": 24.9, "combined_score": 41.9, "calibrated_prob": 6.9, "expected_return": 317.9, "bet_recommendation": "PLACE", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 64: Average", "Good recent form: 2W/1P", "Market: 1.6% implied @ $61.0 (LIVE)", "Experienced jockey", "Trainer: D J Whyte", "Ideal barrier (8)", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($61.0)", "Gear: Shadow roll (visual aid)", "Weight: Fair weight (122lbs, rated 64); 5lbs below field avg"]}, {"rank": 9, "number": 12, "name": "WITHALLMYFAITH", "jockey": "M L Yeung", "trainer": "D A Hayes", "draw": 9, "weight": "118", "gear": "B/XB2/TT-", "rating": 60.0, "win_odds": 5.5, "place_odds": 1.8, "last_6": "7533113", "rule_score": 60.3, "ml_prob": 22.6, "combined_score": 41.5, "calibrated_prob": 6.6, "expected_return": -63.6, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 60: Average", "Consistent placer: 3 places", "Market: 18.2% implied @ $5.5 (LIVE)", "Jockey: M L Yeung", "Trainer: D A Hayes", "Good barrier (9)", "Tips Index: 12.4", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($5.5)", "Gear: Blinkers ON (improves focus)", "Weight: Fair weight (118lbs, rated 60); 9lbs below field avg"]}, {"rank": 10, "number": 2, "name": "PRESTIGE GOOD", "jockey": "H Y Yuen", "trainer": "P F Yiu", "draw": 12, "weight": "135", "gear": "V", "rating": 77.0, "win_odds": 14.0, "place_odds": 3.0, "last_6": "6102512", "rule_score": 57.8, "ml_prob": 21.4, "combined_score": 39.6, "calibrated_prob": 5.7, "expected_return": -20.3, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 77: Average", "Moderate form: avg score 49", "Market: 7.1% implied @ $14.0 (LIVE)", "Jockey: H Y Yuen", "Experienced trainer", "Average barrier (12)", "Tips Index: 27.8", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($14.0)", "Gear: Visor ON (partial blinkers)", "Weight: Light weight for rating (135lbs, rated 77); 8lbs above field avg"]}, {"rank": 11, "number": 9, "name": "HYMNBOOK", "jockey": "K Teetan", "trainer": "B Crawford", "draw": 11, "weight": "122", "gear": "", "rating": 64.0, "win_odds": 49.0, "place_odds": 5.0, "last_6": "127", "rule_score": 53.6, "ml_prob": 20.9, "combined_score": 37.2, "calibrated_prob": 4.7, "expected_return": 131.1, "bet_recommendation": "PLACE", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 64: Average", "Good recent form: 1W/0P", "Market: 2.0% implied @ $49.0 (LIVE)", "Top jockey - K Teetan", "Trainer: B Crawford", "Average barrier (11)", "Stalker - Moderate pace edge (x1.05)", "Finish: Declining trend", "Odds: Stable market ($49.0)", "Weight: Fair weight (122lbs, rated 64); 5lbs below field avg"]}, {"rank": 12, "number": 10, "name": "LEGEND WINNER", "jockey": "L Ferraris", "trainer": "M Newnham", "draw": 10, "weight": "121", "gear": "B/TT", "rating": 63.0, "win_odds": 12.0, "place_odds": 3.0, "last_6": "412838", "rule_score": 55.8, "ml_prob": 7.6, "combined_score": 31.7, "calibrated_prob": 3.0, "expected_return": -63.6, "bet_recommendation": "SKIP", "confidence": "LOW \u2b50", "reasoning": ["Rating 63: Average", "Moderate form: avg score 38", "Market: 8.3% implied @ $12.0 (LIVE)", "Jockey: L Ferraris", "Trainer: M Newnham", "Good barrier (10)", "Tips Index: 22.5", "Stalker - Moderate pace edge (x1.05)", "Finish: Declining trend", "Odds: Stable market ($12.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Fair weight (121lbs, rated 63); 6lbs below field avg"]}]}, {"race_number": 9, "venue": "Sha Tin", "time": "16:35", "distance": "1400", "class_type": "Class 3", "going": "Good", "course": "", "horses": [{"rank": 1, "number": 1, "name": "ENDEARED", "jockey": "Z Purton", "trainer": "J Size", "draw": 8, "weight": "126", "gear": "P-/XB", "rating": 68.0, "win_odds": 4.9, "place_odds": 1.3, "last_6": "31127211", "rule_score": 62.5, "ml_prob": 39.8, "combined_score": 51.2, "calibrated_prob": 19.3, "expected_return": -5.4, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 68: Average", "Strong form: 4 wins in last 6 races", "Market: 20.4% implied @ $4.9 (LIVE)", "Champion jockey - Z Purton", "Legendary trainer - J Size", "Average barrier (8)", "Tips Index: 7.8", "Leader - Pace against (x0.85)", "Finish: Est. sectional", "Odds: Stable market ($4.9)", "Gear: Gear: P-/XB (no significant impact)", "Weight: Fair weight (126lbs, rated 68)"]}, {"rank": 2, "number": 3, "name": "CHARMING LEGEND", "jockey": "J Moreira", "trainer": "C Fownes", "draw": 5, "weight": "125", "gear": "TT-", "rating": 67.0, "win_odds": 5.8, "place_odds": 1.8, "last_6": "71211957", "rule_score": 60.2, "ml_prob": 27.6, "combined_score": 43.9, "calibrated_prob": 10.8, "expected_return": -37.4, "bet_recommendation": "PLACE", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 67: Average", "Strong form: 3 wins in last 6 races", "Market: 17.2% implied @ $5.8 (LIVE)", "Elite jockey - J Moreira", "Top trainer - C Fownes", "Ideal barrier (5)", "Tips Index: 7.9", "Leader - Pace against (x0.85)", "Finish: Declining trend", "Odds: Stable market ($5.8)", "Gear: Gear: TT- (no significant impact)", "Weight: Fair weight (125lbs, rated 67)"]}, {"rank": 3, "number": 2, "name": "HEAVING", "jockey": "L Ferraris", "trainer": "D Eustace", "draw": 9, "weight": "126", "gear": "B-/TT", "rating": 68.0, "win_odds": 11.0, "place_odds": 3.0, "last_6": "1043125", "rule_score": 58.1, "ml_prob": 29.4, "combined_score": 43.7, "calibrated_prob": 10.6, "expected_return": 17.0, "bet_recommendation": "TRIO", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 68: Average", "Moderate form: avg score 49", "Market: 9.1% implied @ $11.0 (LIVE)", "Jockey: L Ferraris", "Trainer: D Eustace", "Average barrier (9)", "Tips Index: 11.6", "Stalker - Moderate pace edge (x1.05)", "Finish: Est. sectional", "Odds: Stable market ($11.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Fair weight (126lbs, rated 68)"]}, {"rank": 4, "number": 4, "name": "OUTGATE", "jockey": "Y L Chung", "trainer": "A S Cruz", "draw": 3, "weight": "125", "gear": "TT", "rating": 67.0, "win_odds": 19.0, "place_odds": 3.0, "last_6": "66112410", "rule_score": 55.3, "ml_prob": 29.4, "combined_score": 42.3, "calibrated_prob": 9.5, "expected_return": 80.9, "bet_recommendation": "QNL PL", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 67: Average", "Strong form: 3 wins in last 6 races", "Market: 5.3% implied @ $19.0 (LIVE)", "Jockey: Y L Chung", "Trainer: A S Cruz", "Good barrier (3)", "Tips Index: 24.5", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($19.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Fair weight (125lbs, rated 67)"]}, {"rank": 5, "number": 10, "name": "FLASH CURRENT", "jockey": "H Bentley", "trainer": "K H Ting", "draw": 11, "weight": "121", "gear": "TT", "rating": 63.0, "win_odds": 14.0, "place_odds": 3.0, "last_6": "5524812", "rule_score": 59.1, "ml_prob": 20.1, "combined_score": 39.6, "calibrated_prob": 7.6, "expected_return": 6.8, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 63: Average", "Moderate form: avg score 39", "Market: 7.1% implied @ $14.0 (LIVE)", "Skilled jockey - H Bentley", "Consistent trainer", "Average barrier (11)", "Tips Index: 8.5", "Stalker - Moderate pace edge (x1.05)", "Finish: Improving trend", "Odds: Stable market ($14.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Fair weight (121lbs, rated 63)"]}, {"rank": 6, "number": 5, "name": "ALL'S WELL", "jockey": "C Y Ho", "trainer": "C H Yip", "draw": 4, "weight": "123", "gear": "TT", "rating": 65.0, "win_odds": 13.0, "place_odds": 3.0, "last_6": "818429", "rule_score": 56.8, "ml_prob": 22.0, "combined_score": 39.4, "calibrated_prob": 7.5, "expected_return": -2.4, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 65: Average", "Moderate form: avg score 31", "Market: 7.7% implied @ $13.0 (LIVE)", "Jockey: C Y Ho", "Trainer - C H Yip", "Good barrier (4)", "Tips Index: 20.4", "Midfield - Moderate pace edge (x1.08)", "Finish: Improving trend", "Odds: Stable market ($13.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Fair weight (123lbs, rated 65)"]}, {"rank": 7, "number": 11, "name": "POSITIVE SMILE", "jockey": "M L Yeung", "trainer": "D A Hayes", "draw": 7, "weight": "120", "gear": "B/TT", "rating": 62.0, "win_odds": 14.0, "place_odds": 3.0, "last_6": "9611310", "rule_score": 53.3, "ml_prob": 22.9, "combined_score": 38.1, "calibrated_prob": 6.8, "expected_return": -5.4, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 62: Average", "Strong form: 3 wins in last 6 races", "Market: 7.1% implied @ $14.0 (LIVE)", "Jockey: M L Yeung", "Trainer: D A Hayes", "Good barrier (7)", "Tips Index: 37.1", "Leader - Pace against (x0.85)", "Finish: Improving trend", "Odds: Stable market ($14.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Fair weight (120lbs, rated 62)"]}, {"rank": 8, "number": 12, "name": "REFUSETOBEENGLISH", "jockey": "A Atzeni", "trainer": "P C Ng", "draw": 10, "weight": "120", "gear": "B/TT", "rating": 62.0, "win_odds": 8.3, "place_odds": 1.8, "last_6": "596239", "rule_score": 55.8, "ml_prob": 19.2, "combined_score": 37.5, "calibrated_prob": 6.5, "expected_return": -46.4, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 62: Average", "Moderate form: avg score 21", "Market: 12.0% implied @ $8.3 (LIVE)", "Jockey: A Atzeni", "Trainer: P C Ng", "Average barrier (10)", "Tips Index: 8.6", "Midfield - Moderate pace edge (x1.08)", "Finish: Improving trend", "Odds: Stable market ($8.3)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Fair weight (120lbs, rated 62)"]}, {"rank": 9, "number": 8, "name": "GHORGAN", "jockey": "C L Chau", "trainer": "K L Man", "draw": 6, "weight": "122", "gear": "H/TT", "rating": 64.0, "win_odds": 4.3, "place_odds": 1.3, "last_6": "728348", "rule_score": 59.7, "ml_prob": 12.2, "combined_score": 35.9, "calibrated_prob": 5.7, "expected_return": -75.5, "bet_recommendation": "SKIP", "confidence": "LOW \u2b50", "reasoning": ["Rating 64: Average", "Moderate form: avg score 21", "Market: 23.3% implied @ $4.3 (LIVE)", "Rising star - C L Chau", "Trainer: K L Man", "Good barrier (6)", "Tips Index: 3.7", "Midfield - Moderate pace edge (x1.08)", "Finish: Improving trend", "Odds: Stable market ($4.3)", "Gear: Hood ON (calming effect); Tongue-tie ON (aids breathing)", "Weight: Fair weight (122lbs, rated 64)"]}, {"rank": 10, "number": 7, "name": "FORTUNE LINK", "jockey": "H Y Yuen", "trainer": "P F Yiu", "draw": 12, "weight": "123", "gear": "B-", "rating": 65.0, "win_odds": 16.0, "place_odds": 3.0, "last_6": "", "rule_score": 45.2, "ml_prob": 25.4, "combined_score": 35.3, "calibrated_prob": 5.4, "expected_return": -13.5, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 65: Average", "No recent form data", "Market: 6.2% implied @ $16.0 (LIVE)", "Jockey: H Y Yuen", "Experienced trainer", "Average barrier (12)", "Midfield - Moderate pace edge (x1.08)", "Odds: Stable market ($16.0)", "Gear: Gear: B- (no significant impact)", "Weight: Fair weight (123lbs, rated 65)"]}, {"rank": 11, "number": 6, "name": "COMPLETE UNKNOWN", "jockey": "K C Leung", "trainer": "W K Mo", "draw": 1, "weight": "123", "gear": "H-/TT", "rating": 65.0, "win_odds": 50.0, "place_odds": 5.0, "last_6": "8", "rule_score": 46.1, "ml_prob": 23.3, "combined_score": 34.7, "calibrated_prob": 5.2, "expected_return": 158.4, "bet_recommendation": "PLACE", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 65: Average", "Moderate form: avg score 0", "Market: 2.0% implied @ $50.0 (LIVE)", "Experienced jockey", "Trainer: W K Mo", "Average barrier (1)", "Midfield - Moderate pace edge (x1.08)", "Finish: Est. sectional", "Odds: Stable market ($50.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Fair weight (123lbs, rated 65)"]}, {"rank": 12, "number": 9, "name": "PRAY FOR JUSTICE", "jockey": "R Kingscote", "trainer": "D Eustace", "draw": 2, "weight": "122", "gear": "TT", "rating": 64.0, "win_odds": 19.0, "place_odds": 3.0, "last_6": "5", "rule_score": 51.5, "ml_prob": 17.6, "combined_score": 34.6, "calibrated_prob": 5.1, "expected_return": -2.9, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 64: Average", "Moderate form: avg score 15", "Market: 5.3% implied @ $19.0 (LIVE)", "Jockey: R Kingscote", "Trainer: D Eustace", "Average barrier (2)", "Tips Index: 25.0", "Midfield - Moderate pace edge (x1.08)", "Finish: Est. sectional", "Odds: Stable market ($19.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Fair weight (122lbs, rated 64)"]}]}, {"race_number": 10, "venue": "Sha Tin", "time": "17:10", "distance": "1200", "class_type": "Class 3", "going": "Good", "course": "", "horses": [{"rank": 1, "number": 1, "name": "CROSSBORDERPEGASUS", "jockey": "J Orman", "trainer": "J Size", "draw": 11, "weight": "135", "gear": "B1/TT", "rating": 79.0, "win_odds": 6.2, "place_odds": 1.8, "last_6": "241211", "rule_score": 66.3, "ml_prob": 39.4, "combined_score": 52.8, "calibrated_prob": 16.5, "expected_return": 2.1, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 79: Average", "Strong form: 3 wins in last 6 races", "Market: 16.1% implied @ $6.2 (LIVE)", "Jockey: J Orman", "Legendary trainer - J Size", "Average barrier (11)", "Tips Index: 5.3", "Leader - Neutral pace (x0.97)", "Finish: Improving trend", "Odds: Stable market ($6.2)", "Gear: Blinkers FIRST TIME (high strike rate); Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (135lbs, rated 79); 8lbs above field avg"]}, {"rank": 2, "number": 2, "name": "SMART GOLF", "jockey": "H Bentley", "trainer": "F C Lor", "draw": 4, "weight": "132", "gear": "TT", "rating": 76.0, "win_odds": 4.3, "place_odds": 1.3, "last_6": "11315", "rule_score": 67.2, "ml_prob": 36.5, "combined_score": 51.9, "calibrated_prob": 15.2, "expected_return": -34.4, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 76: Average", "Strong form: 3 wins in last 6 races", "Market: 23.3% implied @ $4.3 (LIVE)", "Skilled jockey - H Bentley", "Elite trainer - F C Lor", "Good barrier (4)", "Tips Index: 2.6", "Leader - Neutral pace (x0.97)", "Finish: Est. sectional", "Odds: Stable market ($4.3)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (132lbs, rated 76); 5lbs above field avg"]}, {"rank": 3, "number": 6, "name": "TURQUOISE VELOCITY", "jockey": "M L Yeung", "trainer": "K W Lui", "draw": 9, "weight": "128", "gear": "", "rating": 72.0, "win_odds": 10.0, "place_odds": 3.0, "last_6": "11111", "rule_score": 61.7, "ml_prob": 36.3, "combined_score": 49.0, "calibrated_prob": 12.1, "expected_return": 21.4, "bet_recommendation": "QNL PL", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 72: Average", "Strong form: 5 wins in last 6 races", "Market: 10.0% implied @ $10.0 (LIVE)", "Jockey: M L Yeung", "Trainer: K W Lui", "Average barrier (9)", "Tips Index: 31.8", "Leader - Neutral pace (x0.97)", "Finish: Est. sectional", "Odds: Stable market ($10.0)", "Weight: Light weight for rating (128lbs, rated 72)"]}, {"rank": 4, "number": 4, "name": "JUMBO TREASURE", "jockey": "H Y Yuen", "trainer": "W K Mo", "draw": 5, "weight": "129", "gear": "CP/TT", "rating": 73.0, "win_odds": 7.4, "place_odds": 1.8, "last_6": "34121119", "rule_score": 59.1, "ml_prob": 37.9, "combined_score": 48.5, "calibrated_prob": 11.7, "expected_return": -13.7, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 73: Average", "Strong form: 4 wins in last 6 races", "Market: 13.5% implied @ $7.4 (LIVE)", "Jockey: H Y Yuen", "Trainer: W K Mo", "Ideal barrier (5)", "Leader - Neutral pace (x0.97)", "Finish: Est. sectional", "Odds: Stable market ($7.4)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (129lbs, rated 73)"]}, {"rank": 5, "number": 8, "name": "MASTER OF ALL", "jockey": "H T Mo", "trainer": "W Y So", "draw": 3, "weight": "125", "gear": "B/TT", "rating": 69.0, "win_odds": 48.0, "place_odds": 5.0, "last_6": "1212131322", "rule_score": 57.7, "ml_prob": 31.6, "combined_score": 44.7, "calibrated_prob": 8.6, "expected_return": 311.6, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 69: Average", "Strong form: 4 wins in last 6 races", "Market: 2.1% implied @ $48.0 (LIVE)", "Jockey: H T Mo", "Trainer - W Y So", "Good barrier (3)", "Leader - Neutral pace (x0.97)", "Finish: Est. sectional", "Odds: Stable market ($48.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (125lbs, rated 69)"]}, {"rank": 6, "number": 5, "name": "CHILL BUDDY", "jockey": "A Atzeni", "trainer": "P F Yiu", "draw": 1, "weight": "128", "gear": "TT", "rating": 72.0, "win_odds": 11.0, "place_odds": 3.0, "last_6": "16234", "rule_score": 62.2, "ml_prob": 20.0, "combined_score": 41.1, "calibrated_prob": 6.5, "expected_return": -29.0, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 72: Average", "Moderate form: avg score 47", "Market: 9.1% implied @ $11.0 (LIVE)", "Jockey: A Atzeni", "Experienced trainer", "Average barrier (1)", "Tips Index: 4.7", "Stalker - Moderate pace edge (x1.10)", "Finish: Improving trend", "Odds: Stable market ($11.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (128lbs, rated 72)"]}, {"rank": 7, "number": 10, "name": "QUANTUM LEGEND", "jockey": "Z Purton", "trainer": "M Newnham", "draw": 7, "weight": "122", "gear": "", "rating": 66.0, "win_odds": 4.1, "place_odds": 1.3, "last_6": "", "rule_score": 56.3, "ml_prob": 25.9, "combined_score": 41.1, "calibrated_prob": 6.5, "expected_return": -73.5, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 66: Average", "No recent form data", "Market: 24.4% implied @ $4.1 (LIVE)", "Champion jockey - Z Purton", "Trainer: M Newnham", "Good barrier (7)", "Tips Index: 8.1", "Midfield - Moderate pace edge (x1.08)", "Odds: Stable market ($4.1)", "Weight: Fair weight (122lbs, rated 66)"]}, {"rank": 8, "number": 9, "name": "NEW FUTURE FOLKS", "jockey": "C Y Ho", "trainer": "C W Chang", "draw": 10, "weight": "123", "gear": "B2/TT", "rating": 67.0, "win_odds": 27.0, "place_odds": 5.0, "last_6": "9109382", "rule_score": 49.6, "ml_prob": 27.0, "combined_score": 38.3, "calibrated_prob": 5.2, "expected_return": 39.2, "bet_recommendation": "PLACE", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 67: Average", "Moderate form: avg score 29", "Market: 3.7% implied @ $27.0 (LIVE)", "Jockey: C Y Ho", "Trainer: C W Chang", "Average barrier (10)", "Stalker - Moderate pace edge (x1.10)", "Finish: Declining trend", "Odds: Stable market ($27.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Fair weight (123lbs, rated 67)"]}, {"rank": 9, "number": 12, "name": "YEE CHEONG GLORY", "jockey": "A Badel", "trainer": "J Richards", "draw": 2, "weight": "120", "gear": "CP/TT", "rating": 64.0, "win_odds": 15.0, "place_odds": 3.0, "last_6": "4143148", "rule_score": 55.2, "ml_prob": 21.3, "combined_score": 38.2, "calibrated_prob": 5.1, "expected_return": -23.1, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 64: Average", "Moderate form: avg score 45", "Market: 6.7% implied @ $15.0 (LIVE)", "Top jockey - A Badel", "Skilled trainer", "Average barrier (2)", "Tips Index: 37.1", "Leader - Neutral pace (x0.97)", "Finish: Est. sectional", "Odds: Stable market ($15.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Fair weight (120lbs, rated 64); 7lbs below field avg"]}, {"rank": 10, "number": 3, "name": "YOUNG EMPEROR", "jockey": "L Ferraris", "trainer": "D Eustace", "draw": 6, "weight": "131", "gear": "TT", "rating": 75.0, "win_odds": 17.0, "place_odds": 3.0, "last_6": "3481116", "rule_score": 56.6, "ml_prob": 18.8, "combined_score": 37.7, "calibrated_prob": 4.9, "expected_return": -16.6, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 75: Average", "Strong form: 3 wins in last 6 races", "Market: 5.9% implied @ $17.0 (LIVE)", "Jockey: L Ferraris", "Trainer: D Eustace", "Good barrier (6)", "Leader - Neutral pace (x0.97)", "Finish: Improving trend", "Odds: Stable market ($17.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (131lbs, rated 75)"]}, {"rank": 11, "number": 7, "name": "THE UNIQUE STAR", "jockey": "K Teetan", "trainer": "B Crawford", "draw": 12, "weight": "127", "gear": "", "rating": 71.0, "win_odds": 31.0, "place_odds": 5.0, "last_6": "872", "rule_score": 54.1, "ml_prob": 19.6, "combined_score": 36.9, "calibrated_prob": 4.6, "expected_return": 42.4, "bet_recommendation": "PLACE", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 71: Average", "Moderate form: avg score 20", "Market: 3.2% implied @ $31.0 (LIVE)", "Top jockey - K Teetan", "Trainer: B Crawford", "Average barrier (12)", "Tips Index: 34.2", "Midfield - Moderate pace edge (x1.08)", "Finish: Improving trend", "Odds: Stable market ($31.0)", "Weight: Light weight for rating (127lbs, rated 71)"]}, {"rank": 12, "number": 11, "name": "MY MARS", "jockey": "B Avdulla", "trainer": "D A Hayes", "draw": 8, "weight": "120", "gear": "", "rating": 64.0, "win_odds": 22.0, "place_odds": 5.0, "last_6": "", "rule_score": 45.1, "ml_prob": 19.7, "combined_score": 32.4, "calibrated_prob": 3.2, "expected_return": -29.2, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 64: Average", "No recent form data", "Market: 4.5% implied @ $22.0 (LIVE)", "Jockey: B Avdulla", "Trainer: D A Hayes", "Average barrier (8)", "Midfield - Moderate pace edge (x1.08)", "Odds: Stable market ($22.0)", "Weight: Fair weight (120lbs, rated 64); 7lbs below field avg"]}]}, {"race_number": 11, "venue": "Sha Tin", "time": "17:45", "distance": "1200", "class_type": "Class 2", "going": "Good", "course": "", "horses": [{"rank": 1, "number": 7, "name": "YOUNG CHAMPION", "jockey": "H Bowman", "trainer": "J Size", "draw": 7, "weight": "126", "gear": "B", "rating": 91.0, "win_odds": 6.4, "place_odds": 1.8, "last_6": "13221110", "rule_score": 70.1, "ml_prob": 58.2, "combined_score": 64.2, "calibrated_prob": 20.0, "expected_return": 27.8, "bet_recommendation": "WIN", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 91: Top class", "Strong form: 4 wins in last 6 races", "Market: 15.6% implied @ $6.4 (LIVE)", "International star - H Bowman", "Legendary trainer - J Size", "Good barrier (7)", "Tips Index: 5.3", "Leader - Neutral pace (x0.97)", "Finish: Improving trend", "Odds: Stable market ($6.4)", "Gear: Blinkers ON (improves focus)", "Weight: Light weight for rating (126lbs, rated 91)"]}, {"rank": 2, "number": 5, "name": "CRIMSON FLASH", "jockey": "A Atzeni", "trainer": "M Newnham", "draw": 3, "weight": "127", "gear": "B", "rating": 92.0, "win_odds": 8.4, "place_odds": 1.8, "last_6": "1117521", "rule_score": 65.2, "ml_prob": 52.0, "combined_score": 58.6, "calibrated_prob": 12.8, "expected_return": 7.5, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 92: Top class", "Strong form: 4 wins in last 6 races", "Market: 11.9% implied @ $8.4 (LIVE)", "Jockey: A Atzeni", "Trainer: M Newnham", "Good barrier (3)", "Tips Index: 6.4", "Leader - Neutral pace (x0.97)", "Finish: Declining trend", "Odds: Stable market ($8.4)", "Gear: Blinkers ON (improves focus)", "Weight: Light weight for rating (127lbs, rated 92)"]}, {"rank": 3, "number": 2, "name": "SKY TRUST", "jockey": "J Moreira", "trainer": "C Fownes", "draw": 9, "weight": "133", "gear": "TT", "rating": 98.0, "win_odds": 5.2, "place_odds": 1.8, "last_6": "821741", "rule_score": 67.4, "ml_prob": 49.4, "combined_score": 58.4, "calibrated_prob": 12.6, "expected_return": -34.3, "bet_recommendation": "TRIO", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 98: Top class", "Moderate form: avg score 48", "Market: 19.2% implied @ $5.2 (LIVE)", "Elite jockey - J Moreira", "Top trainer - C Fownes", "Average barrier (9)", "Tips Index: 8.9", "Stalker - Moderate pace edge (x1.10)", "Finish: Est. sectional", "Odds: Stable market ($5.2)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (133lbs, rated 98); 8lbs above field avg"]}, {"rank": 4, "number": 1, "name": "COLOURFUL KING", "jockey": "Z Purton", "trainer": "D Eustace", "draw": 12, "weight": "135", "gear": "TT", "rating": 100.0, "win_odds": 12.0, "place_odds": 3.0, "last_6": "622122", "rule_score": 67.0, "ml_prob": 41.0, "combined_score": 54.0, "calibrated_prob": 8.9, "expected_return": 6.4, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 100: Top class", "Good recent form: 1W/0P", "Market: 8.3% implied @ $12.0 (LIVE)", "Champion jockey - Z Purton", "Trainer: D Eustace", "Average barrier (12)", "Tips Index: 13.8", "Stalker - Moderate pace edge (x1.10)", "Finish: Improving trend", "Odds: Stable market ($12.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (135lbs, rated 100); 10lbs above field avg"]}, {"rank": 5, "number": 9, "name": "RISING FORCE", "jockey": "R Kingscote", "trainer": "P F Yiu", "draw": 8, "weight": "117", "gear": "", "rating": 82.0, "win_odds": 4.5, "place_odds": 1.3, "last_6": "122172", "rule_score": 66.1, "ml_prob": 39.0, "combined_score": 52.5, "calibrated_prob": 7.9, "expected_return": -64.5, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 82: Good", "Good recent form: 2W/0P", "Market: 22.2% implied @ $4.5 (LIVE)", "Jockey: R Kingscote", "Experienced trainer", "Average barrier (8)", "Tips Index: 3.9", "Stalker - Moderate pace edge (x1.10)", "Finish: Est. sectional", "Odds: Stable market ($4.5)", "Weight: Light weight for rating (117lbs, rated 82); 8lbs below field avg"]}, {"rank": 6, "number": 11, "name": "GALACTIC VOYAGE", "jockey": "A Badel", "trainer": "K W Lui", "draw": 5, "weight": "116", "gear": "XB", "rating": 81.0, "win_odds": 6.1, "place_odds": 1.8, "last_6": "51134", "rule_score": 67.6, "ml_prob": 34.4, "combined_score": 51.0, "calibrated_prob": 7.0, "expected_return": -57.5, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 81: Good", "Good recent form: 2W/1P", "Market: 16.4% implied @ $6.1 (LIVE)", "Top jockey - A Badel", "Trainer: K W Lui", "Ideal barrier (5)", "Tips Index: 5.9", "Stalker - Moderate pace edge (x1.10)", "Finish: Improving trend", "Odds: Stable market ($6.1)", "Gear: Gear: XB (no significant impact)", "Weight: Light weight for rating (116lbs, rated 81); 8lbs below field avg"]}, {"rank": 7, "number": 4, "name": "SELF IMPROVEMENT", "jockey": "P N Wong", "trainer": "K L Man", "draw": 2, "weight": "130", "gear": "B/TT", "rating": 95.0, "win_odds": 16.0, "place_odds": 3.0, "last_6": "11891114", "rule_score": 55.5, "ml_prob": 42.4, "combined_score": 49.0, "calibrated_prob": 5.9, "expected_return": -5.1, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 95: Top class", "Strong form: 5 wins in last 6 races", "Market: 6.2% implied @ $16.0 (LIVE)", "Jockey: P N Wong", "Trainer: K L Man", "Average barrier (2)", "Tips Index: 74.2", "Leader - Neutral pace (x0.97)", "Finish: Improving trend", "Odds: Stable market ($16.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (130lbs, rated 95); 6lbs above field avg"]}, {"rank": 8, "number": 8, "name": "VICTOR THE WINNER", "jockey": "M L Yeung", "trainer": "P C Ng", "draw": 4, "weight": "122", "gear": "TT", "rating": 87.0, "win_odds": 45.0, "place_odds": 5.0, "last_6": "1011981014", "rule_score": 56.9, "ml_prob": 39.1, "combined_score": 48.0, "calibrated_prob": 5.5, "expected_return": 146.3, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 87: Good", "Strong form: 5 wins in last 6 races", "Market: 2.2% implied @ $45.0 (LIVE)", "Jockey: M L Yeung", "Trainer: P C Ng", "Good barrier (4)", "Leader - Neutral pace (x0.97)", "Finish: Est. sectional", "Odds: Stable market ($45.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (122lbs, rated 87)"]}, {"rank": 9, "number": 12, "name": "PAKISTAN LEGACY", "jockey": "K Teetan", "trainer": "W Y So", "draw": 1, "weight": "116", "gear": "V/TT", "rating": 81.0, "win_odds": 10.0, "place_odds": 3.0, "last_6": "2127126", "rule_score": 59.9, "ml_prob": 35.3, "combined_score": 47.6, "calibrated_prob": 5.3, "expected_return": -46.7, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 81: Good", "Good recent form: 2W/0P", "Market: 10.0% implied @ $10.0 (LIVE)", "Top jockey - K Teetan", "Trainer - W Y So", "Average barrier (1)", "Tips Index: 31.8", "Leader - Neutral pace (x0.97)", "Finish: Declining trend", "Odds: Stable market ($10.0)", "Gear: Visor ON (partial blinkers); Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (116lbs, rated 81); 8lbs below field avg"]}, {"rank": 10, "number": 6, "name": "MAGIC CONTROL", "jockey": "K C Leung", "trainer": "W K Mo", "draw": 10, "weight": "126", "gear": "B-/TT", "rating": 91.0, "win_odds": 24.0, "place_odds": 5.0, "last_6": "9551052", "rule_score": 56.9, "ml_prob": 37.7, "combined_score": 47.3, "calibrated_prob": 5.2, "expected_return": 24.4, "bet_recommendation": "SKIP", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 91: Top class", "Moderate form: avg score 29", "Market: 4.2% implied @ $24.0 (LIVE)", "Experienced jockey", "Trainer: W K Mo", "Average barrier (10)", "Stalker - Moderate pace edge (x1.10)", "Finish: Improving trend", "Odds: Stable market ($24.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (126lbs, rated 91)"]}, {"rank": 11, "number": 3, "name": "GORGEOUS WIN", "jockey": "J Orman", "trainer": "C S Shum", "draw": 11, "weight": "130", "gear": "TT", "rating": 95.0, "win_odds": 34.0, "place_odds": 5.0, "last_6": "89211110", "rule_score": 58.1, "ml_prob": 36.5, "combined_score": 47.3, "calibrated_prob": 5.2, "expected_return": 76.0, "bet_recommendation": "PLACE", "confidence": "HIGH \u2b50\u2b50\u2b50", "reasoning": ["Rating 95: Top class", "Strong form: 4 wins in last 6 races", "Market: 2.9% implied @ $34.0 (LIVE)", "Jockey: J Orman", "Trainer: C S Shum", "Average barrier (11)", "Leader - Neutral pace (x0.97)", "Finish: Improving trend", "Odds: Stable market ($34.0)", "Gear: Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (130lbs, rated 95); 6lbs above field avg"]}, {"rank": 12, "number": 10, "name": "CHATEAUNEUF", "jockey": "L Hewitson", "trainer": "D A Hayes", "draw": 6, "weight": "116", "gear": "B/TT", "rating": 81.0, "win_odds": 26.0, "place_odds": 5.0, "last_6": "67111151", "rule_score": 61.3, "ml_prob": 25.6, "combined_score": 43.4, "calibrated_prob": 3.8, "expected_return": -1.1, "bet_recommendation": "SKIP", "confidence": "MEDIUM \u2b50\u2b50", "reasoning": ["Rating 81: Good", "Strong form: 5 wins in last 6 races", "Market: 3.8% implied @ $26.0 (LIVE)", "Top jockey - L Hewitson", "Trainer: D A Hayes", "Good barrier (6)", "Leader - Neutral pace (x0.97)", "Finish: Improving trend", "Odds: Stable market ($26.0)", "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)", "Weight: Light weight for rating (116lbs, rated 81); 8lbs below field avg"]}]}];
+const NEXT_RACE = 1;
+const GENERATED = "2026-04-12 12:04:10";
+
+// ===== HELPERS =====
+function betColor(bt) {
+  return {'WIN':'#10b981','PLACE':'#8b5cf6','QIN':'#f59e0b','QNL PL':'#06b6d4',
+    'TRIO':'#ec4899','SKIP':'#64748b','E/W':'#3b82f6'}[bt] || '#64748b';
+}
+function betBg(bt) {
+  return {'WIN':'rgba(16,185,129,.15)','PLACE':'rgba(139,92,246,.15)',
+    'QIN':'rgba(245,158,11,.15)','QNL PL':'rgba(6,182,212,.15)',
+    'TRIO':'rgba(236,72,153,.15)','SKIP':'rgba(100,116,139,.1)'}[bt] || 'rgba(100,116,139,.1)';
+}
+function gradeRace(race) {
+  const p = race.horses[0]?.calibrated_prob || 0;
+  if (p >= 18) return 'A+';
+  if (p >= 14) return 'A';
+  if (p >= 11) return 'B+';
+  if (p >= 9) return 'B';
+  return 'C';
+}
+function gradeClass(g) {
+  return {'A+':'aplus','A':'a','B+':'bplus','B':'b','C':'c'}[g] || 'c';
+}
+function probColor(p) {
+  if (p >= 15) return 'var(--green)';
+  if (p >= 10) return 'var(--accent)';
+  return 'var(--dim)';
+}
+
+// ===== INIT TABS =====
+function initTabs() {
+  const tabs = document.getElementById('race-tabs');
+  RACES.forEach(r => {
+    const g = gradeRace(r);
+    const gc = gradeClass(g);
+    const isNext = r.race_number === NEXT_RACE;
+    const btn = document.createElement('button');
+    btn.className = 'race-tab';
+    btn.id = `tab-${r.race_number}`;
+    btn.onclick = () => showRace(r.race_number);
+    btn.innerHTML = `<span id="status-${r.race_number}" style="font-size:.6rem"></span> R${r.race_number} <span class="tab-grade g-${gc}">${g}</span>${isNext ? ' <span class="next-badge">NEXT</span>' : ''}`;
+    tabs.appendChild(btn);
+  });
+}
+
+// ===== DASHBOARD VIEW =====
+function showDashboard() {
+  document.getElementById('dashboard-view').style.display = 'block';
+  document.getElementById('race-detail-view').style.display = 'none';
+  document.querySelectorAll('.race-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-all').classList.add('active');
+  renderDashboard();
+}
+
+function renderDashboard() {
+  const el = document.getElementById('dashboard-view');
+  
+  // Count bet types
+  const counts = {WIN:0,PLACE:0,QIN:0,'QNL PL':0,TRIO:0,SKIP:0};
+  RACES.forEach(r => r.horses.forEach(h => {
+    if (counts[h.bet_recommendation] !== undefined) counts[h.bet_recommendation]++;
+  }));
+  const active = counts.WIN + counts.PLACE + counts.QIN + counts['QNL PL'] + counts.TRIO;
+  
+  let html = `
+    <div class="stats">
+      <div class="stat"><div class="v" style="color:var(--gold)">${counts.WIN}</div><div class="l">WIN</div></div>
+      <div class="stat"><div class="v" style="color:var(--purple)">${counts.PLACE}</div><div class="l">PLACE</div></div>
+      <div class="stat"><div class="v" style="color:var(--accent)">${counts.QIN}</div><div class="l">QIN</div></div>
+      <div class="stat"><div class="v" style="color:var(--cyan)">${counts['QNL PL']}</div><div class="l">QNL PL</div></div>
+      <div class="stat"><div class="v" style="color:var(--pink)">${counts.TRIO}</div><div class="l">TRIO</div></div>
+      <div class="stat"><div class="v" style="color:var(--dim)">${counts.SKIP}</div><div class="l">SKIP</div></div>
+      <div class="stat"><div class="v">${active}</div><div class="l">Active Bets</div></div>
+      <div class="stat"><div class="v">14</div><div class="l">Factors</div></div>
+    </div>
+    <div class="legend">
+      <div class="item"><div class="dot" style="background:var(--green)"></div>WIN</div>
+      <div class="item"><div class="dot" style="background:var(--purple)"></div>PLACE</div>
+      <div class="item"><div class="dot" style="background:var(--accent)"></div>QIN</div>
+      <div class="item"><div class="dot" style="background:var(--cyan)"></div>QNL PL</div>
+      <div class="item"><div class="dot" style="background:var(--pink)"></div>TRIO</div>
+      <div class="item"><div class="dot" style="background:var(--dim)"></div>SKIP</div>
+    </div>
+    <div class="race-grid">`;
+  
+  RACES.forEach(r => {
+    const g = gradeRace(r);
+    const gc = gradeClass(g);
+    const isNext = r.race_number === NEXT_RACE;
+    
+    html += `<div class="race-card g-${gc}" onclick="showRace(${r.race_number})">
+      <div class="rc-header">
+        <div>
+          <div class="rc-num">Race ${r.race_number} ${isNext ? '<span class="next-badge" style="margin-left:6px">NEXT</span>' : ''}</div>
+          <div class="rc-meta">${r.time} | ${r.distance}m | ${r.class_type} | ${r.going}</div>
+        </div>
+        <span class="grade ${gc}">${g}</span>
+      </div>
+      <div class="rc-preview">`;
+    
+    r.horses.slice(0, 4).forEach((h, i) => {
+      const tc = i === 0 ? ' top' : '';
+      html += `<div class="rc-horse${tc}">
+        <div class="rc-rank">${h.rank}</div>
+        <div class="rc-name">#${h.number} ${h.name}</div>
+        <div class="rc-odds">$${h.win_odds}</div>
+        <div class="rc-prob" style="color:${probColor(h.calibrated_prob)}">${h.calibrated_prob}%</div>
+        <div class="bt" style="background:${betBg(h.bet_recommendation)};color:${betColor(h.bet_recommendation)}">${h.bet_recommendation}</div>
+      </div>`;
+    });
+    
+    html += `</div>
+      <div class="rc-footer">
+        <span>${r.horses.length} runners | Top: #${r.horses[0]?.number} ${r.horses[0]?.name}</span>
+        <span class="click-hint" id="card-status-${r.race_number}">Click to expand &rarr;</span>
+      </div>
+    </div>`;
+  });
+  
+  html += `</div>
+    <div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>
+    <div class="footer">HKJC Racing Analyzer v3.0 | 14-Factor Calibrated Analytics | Generated: ${GENERATED}</div>`;
+  
+  el.innerHTML = html;
+}
+
+// ===== RACE DETAIL VIEW =====
+function showRace(raceNum) {
+  const race = RACES.find(r => r.race_number === raceNum);
+  if (!race) return;
+  
+  document.getElementById('dashboard-view').style.display = 'none';
+  document.getElementById('race-detail-view').style.display = 'block';
+  document.querySelectorAll('.race-tab').forEach(t => t.classList.remove('active'));
+  const tab = document.getElementById(`tab-${raceNum}`);
+  if (tab) tab.classList.add('active');
+  
+  renderRaceDetail(race);
+}
+
+function renderRaceDetail(race) {
+  const el = document.getElementById('race-detail-view');
+  const g = gradeRace(race);
+  const gc = gradeClass(g);
+  const top = race.horses[0];
+  const top2 = race.horses[1];
+  const top3 = race.horses[2];
+  const isNext = race.race_number === NEXT_RACE;
+  
+  // Race-level strategy
+  let stratBet = top?.bet_recommendation || 'SKIP';
+  let stratSel = '';
+  let stratNote = '';
+  
+  if (stratBet === 'WIN') {
+    stratSel = `#${top.number} ${top.name}`;
+    stratNote = 'Clear standout - back to win';
+  } else if (top2 && top2.bet_recommendation === 'QIN') {
+    stratBet = 'WIN + QIN';
+    stratSel = `WIN #${top.number} + QIN #${top.number}/#${top2.number}`;
+    stratNote = 'Top 2 close together - combine bets';
+  } else if (top3 && top3.bet_recommendation === 'TRIO') {
+    stratBet = 'PLACE + TRIO';
+    stratSel = `PLACE #${top.number} + TRIO #${top.number}/#${top2.number}/#${top3.number}`;
+    stratNote = 'Tight top 3 - exotic play';
+  } else if (stratBet === 'PLACE') {
+    stratSel = `#${top.number} ${top.name}`;
+    stratNote = 'No clear standout - safe place bet';
+  }
+  
+  let html = `
+    <div class="detail-header">
+      <div>
+        <div class="detail-title">
+          Race ${race.race_number} ${isNext ? '<span class="next-badge" style="font-size:.75rem;vertical-align:middle;margin-left:8px">NEXT RACE</span>' : ''}
+          <span class="grade ${gc}" style="margin-left:8px;vertical-align:middle">${g}</span>
+        </div>
+        <div class="detail-meta">
+          ${race.time} HKT | ${race.venue} | ${race.distance}m | ${race.class_type} | ${race.going}
+          ${race.course ? ' | Rail: ' + race.course : ''}
+        </div>
+        <div id="detail-race-status" style="margin-top:6px;font-size:.85rem;font-weight:600"></div>
+      </div>
+      <button class="back-btn" onclick="showDashboard()">&larr; Back to Dashboard</button>
+    </div>
+    
+    <!-- Strategy panel -->
+    <div class="strategy-panel">
+      <h3 style="display:flex;align-items:center;gap:8px">
+        Recommended Strategy
+        <span class="bt" style="background:${betBg(stratBet.split(' ')[0])};color:${betColor(stratBet.split(' ')[0])};font-size:.75rem;padding:4px 12px">${stratBet}</span>
+      </h3>
+      <div class="strat-row">
+        <strong style="min-width:80px">Selection:</strong>
+        <span style="font-weight:600">${stratSel}</span>
+      </div>
+      <div class="strat-row">
+        <strong style="min-width:80px">Rationale:</strong>
+        <span style="color:var(--dim)">${stratNote}</span>
+      </div>
+      <div class="strat-row">
+        <strong style="min-width:80px">Stake:</strong>
+        <span>${g === 'A+' ? '8-10%' : g === 'A' ? '5-8%' : g.startsWith('B') ? '3-5%' : '2-3%'} of bankroll</span>
+      </div>
+    </div>
+    
+    <!-- Quick stats -->
+    <div class="detail-stats">
+      <div class="stat"><div class="v">${race.horses.length}</div><div class="l">Runners</div></div>
+      <div class="stat"><div class="v" style="color:var(--green)">${top?.calibrated_prob || 0}%</div><div class="l">Top Win Prob</div></div>
+      <div class="stat"><div class="v" style="color:var(--cyan)">$${top?.win_odds || 0}</div><div class="l">Top Odds</div></div>
+      <div class="stat"><div class="v" style="color:${(top?.expected_return||0) > 0 ? 'var(--green)' : 'var(--red)'}">${(top?.expected_return||0) > 0 ? '+' : ''}${(top?.expected_return||0).toFixed(0)}%</div><div class="l">Top EV</div></div>
+      <div class="stat"><div class="v">${race.horses.filter(h => h.bet_recommendation !== 'SKIP').length}</div><div class="l">Active Bets</div></div>
+    </div>
+    
+    <!-- Full horse table -->
+    <table class="horse-table">
+      <tr>
+        <th style="width:35px">Rank</th>
+        <th style="width:30px">No</th>
+        <th>Horse</th>
+        <th>Jockey</th>
+        <th style="width:50px">Draw</th>
+        <th style="width:55px">Wt</th>
+        <th style="width:35px">Rtg</th>
+        <th style="width:45px">Gear</th>
+        <th style="width:50px">Form</th>
+        <th style="text-align:right;width:55px">Odds</th>
+        <th style="text-align:right;width:55px">Prob</th>
+        <th style="text-align:right;width:55px">EV</th>
+        <th style="text-align:center;width:60px">Bet</th>
+        <th>Reasoning</th>
+      </tr>`;
+  
+  race.horses.forEach((h, i) => {
+    const isTop = i === 0;
+    const rowClass = isTop ? ' class="top-row"' : '';
+    const evClass = h.expected_return > 0 ? 'color:var(--green)' : 'color:var(--red)';
+    const evStr = (h.expected_return > 0 ? '+' : '') + h.expected_return.toFixed(0) + '%';
+    
+    // Trim reasoning to key points
+    const keyReasons = h.reasoning.filter(r => 
+      !r.startsWith('Rating 0') && r !== 'No recent form data' && r !== 'No live odds available'
+    ).slice(0, 5);
+    
+    html += `<tr${rowClass}>
+      <td style="font-weight:800;text-align:center">${h.rank}</td>
+      <td style="font-weight:700">${h.number}</td>
+      <td style="font-weight:600">${h.name}</td>
+      <td>${h.jockey}</td>
+      <td style="text-align:center">${h.draw}</td>
+      <td>${h.weight}</td>
+      <td>${h.rating > 0 ? h.rating.toFixed(0) : '-'}</td>
+      <td style="font-size:.72rem">${h.gear || '-'}</td>
+      <td style="font-family:monospace;letter-spacing:1px">${h.last_6 || '-'}</td>
+      <td style="text-align:right;color:var(--cyan);font-weight:600">$${h.win_odds}</td>
+      <td style="text-align:right;font-weight:700;color:${probColor(h.calibrated_prob)}">${h.calibrated_prob}%</td>
+      <td style="text-align:right;font-weight:600;${evClass}">${evStr}</td>
+      <td style="text-align:center">
+        <span class="bt" style="background:${betBg(h.bet_recommendation)};color:${betColor(h.bet_recommendation)};padding:3px 8px">${h.bet_recommendation}</span>
+      </td>
+      <td class="reasoning-cell">${keyReasons.map(r => '&bull; ' + r).join('<br>')}</td>
+    </tr>`;
+  });
+  
+  html += `</table>`;
+  
+  // Top 3 detailed breakdown
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:16px">`;
+  
+  race.horses.slice(0, 3).forEach((h, i) => {
+    const medal = ['1st Pick', '2nd Pick', '3rd Pick'][i];
+    const medalColor = ['var(--gold)', 'var(--dim)', 'var(--orange)'][i];
+    
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;
+      ${i === 0 ? 'border-left:3px solid var(--gold)' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-weight:800;color:${medalColor}">${medal}</span>
+        <span class="bt" style="background:${betBg(h.bet_recommendation)};color:${betColor(h.bet_recommendation)};padding:3px 10px">${h.bet_recommendation}</span>
+      </div>
+      <div style="font-size:1.05rem;font-weight:700;margin-bottom:4px">#${h.number} ${h.name}</div>
+      <div style="font-size:.78rem;color:var(--dim);margin-bottom:8px">${h.jockey} | ${h.trainer} | D${h.draw} | ${h.weight}lbs</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:.78rem;margin-bottom:8px">
+        <div>Odds: <strong style="color:var(--cyan)">$${h.win_odds}</strong></div>
+        <div>Win Prob: <strong style="color:${probColor(h.calibrated_prob)}">${h.calibrated_prob}%</strong></div>
+        <div>Score: <strong>${h.combined_score}%</strong></div>
+        <div>EV: <strong style="${h.expected_return > 0 ? 'color:var(--green)' : 'color:var(--red)'}">${h.expected_return > 0 ? '+' : ''}${h.expected_return.toFixed(0)}%</strong></div>
+      </div>
+      <div style="font-size:.72rem;color:var(--dim);line-height:1.6">
+        ${h.reasoning.map(r => '&bull; ' + r).join('<br>')}
+      </div>
+    </div>`;
+  });
+  
+  html += `</div>`;
+  
+  // Navigation arrows
+  const raceIdx = RACES.findIndex(r => r.race_number === race.race_number);
+  const prevRace = raceIdx > 0 ? RACES[raceIdx - 1].race_number : null;
+  const nextRace = raceIdx < RACES.length - 1 ? RACES[raceIdx + 1].race_number : null;
+  
+  html += `<div class="nav-arrows">
+    <button class="nav-btn" ${prevRace ? `onclick="showRace(${prevRace})"` : 'disabled'}>&larr; Race ${prevRace || '-'}</button>
+    <button class="nav-btn" onclick="showDashboard()">Dashboard</button>
+    <button class="nav-btn" ${nextRace ? `onclick="showRace(${nextRace})"` : 'disabled'}>Race ${nextRace || '-'} &rarr;</button>
+  </div>
+  
+  <div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>`;
+  
+  el.innerHTML = html;
+  window.scrollTo(0, 0);
+
+  // Live status updater for detail view
+  updateDetailStatus(race);
+}
+
+function updateDetailStatus(race) {
+  const el = document.getElementById('detail-race-status');
+  if (!el) return;
+  const now = new Date();
+  const raceTime = parseRaceTime(race.time);
+  const diff = raceTime - now;
+  const status = getRaceStatus(race);
+
+  if (diff > 0) {
+    el.innerHTML = `<span style="color:${status.color}">${status.label}</span> &mdash; Post in <strong style="color:var(--cyan)">${formatCountdown(diff)}</strong>`;
+  } else if (diff > -300000) {
+    el.innerHTML = `<span style="color:var(--pink);animation:pulse 1s infinite">RACE RUNNING</span>`;
+  } else {
+    el.innerHTML = `<span style="color:var(--dim)">RACE FINISHED</span>`;
+  }
+}
+
+// ===== CLOCK & AUTO-REFRESH =====
+const RACE_DATE = '2026-04-12';
+let autoNavEnabled = true;
+let lastAutoNavRace = null;
+
+function parseRaceTime(timeStr) {
+  // Convert "12:30" to a Date object on race day
+  const [h, m] = timeStr.split(':').map(Number);
+  const d = new Date(RACE_DATE + 'T' + timeStr + ':00');
+  return d;
+}
+
+function getNextRaceInfo() {
+  const now = new Date();
+  for (const race of RACES) {
+    const raceTime = parseRaceTime(race.time);
+    const diff = raceTime - now;
+    if (diff > -300000) { // Include races started within last 5 min
+      return { race, diff, raceTime };
+    }
+  }
+  return null; // All races done
+}
+
+function formatCountdown(ms) {
+  if (ms <= 0) return 'NOW';
+  const totalSec = Math.floor(ms / 1000);
+  const hrs = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  if (hrs > 0) return `${hrs}h ${mins}m ${secs}s`;
+  if (mins > 0) return `${mins}m ${secs}s`;
+  return `${secs}s`;
+}
+
+function getRaceStatus(race) {
+  const now = new Date();
+  const raceTime = parseRaceTime(race.time);
+  const diff = raceTime - now;
+  if (diff > 1800000) return { label: 'UPCOMING', color: 'var(--dim)', icon: '' };
+  if (diff > 600000) return { label: 'BETTING OPEN', color: 'var(--green)', icon: '' };
+  if (diff > 120000) return { label: 'CLOSING SOON', color: 'var(--accent)', icon: '' };
+  if (diff > 0) return { label: 'LAST CALL', color: 'var(--red)', icon: '' };
+  if (diff > -300000) return { label: 'RUNNING', color: 'var(--pink)', icon: '' };
+  return { label: 'FINISHED', color: 'var(--dim)', icon: '' };
+}
+
+function updateClock() {
+  const now = new Date();
+  const clockEl = document.getElementById('clock');
+  clockEl.textContent = now.toLocaleString('en-GB', {
+    year:'numeric',month:'2-digit',day:'2-digit',
+    hour:'2-digit',minute:'2-digit',second:'2-digit'
+  });
+
+  // Update countdown in header
+  const cdEl = document.getElementById('next-countdown');
+  const nextInfo = getNextRaceInfo();
+  if (nextInfo && cdEl) {
+    const { race, diff } = nextInfo;
+    const status = getRaceStatus(race);
+    if (diff > 0) {
+      cdEl.innerHTML = `<span style="color:${status.color};font-weight:700">${status.label}</span> R${race.race_number} in <strong style="color:var(--cyan)">${formatCountdown(diff)}</strong>`;
+    } else if (diff > -300000) {
+      cdEl.innerHTML = `<span style="color:var(--pink);font-weight:700;animation:pulse 1s infinite">RACE ${race.race_number} RUNNING</span>`;
+    } else {
+      cdEl.innerHTML = `<span style="color:var(--dim)">R${race.race_number} completed</span>`;
+    }
+
+    // Auto-navigate to race when it's 10 minutes to post (betting window)
+    if (autoNavEnabled && diff <= 600000 && diff > 590000 && lastAutoNavRace !== race.race_number) {
+      lastAutoNavRace = race.race_number;
+      showRace(race.race_number);
+      showNotification(`Race ${race.race_number} - 10 min to post! Betting window open.`);
+    }
+
+    // Alert at 2 min to post
+    if (autoNavEnabled && diff <= 120000 && diff > 110000 && lastAutoNavRace !== -race.race_number) {
+      lastAutoNavRace = -race.race_number; // Use negative to distinguish from 10-min alert
+      showNotification(`LAST CALL - Race ${race.race_number} in 2 minutes!`);
+    }
+  } else if (cdEl) {
+    cdEl.innerHTML = '<span style="color:var(--dim)">Meeting completed</span>';
+  }
+
+  // Update race status badges in tabs and cards
+  updateTabStatuses();
+
+  // Update detail view status if visible
+  const detail = document.getElementById('race-detail-view');
+  if (detail && detail.style.display !== 'none') {
+    const activeTab = document.querySelector('.race-tab.active');
+    if (activeTab && activeTab.id !== 'tab-all') {
+      const rn = parseInt(activeTab.id.replace('tab-', ''));
+      const race = RACES.find(r => r.race_number === rn);
+      if (race) updateDetailStatus(race);
+    }
+  }
+}
+
+function updateTabStatuses() {
+  const now = new Date();
+  RACES.forEach(race => {
+    const status = getRaceStatus(race);
+    const raceTime = parseRaceTime(race.time);
+    const diff = raceTime - now;
+
+    // Tab status dot
+    const badge = document.getElementById(`status-${race.race_number}`);
+    if (badge) {
+      badge.style.color = status.color;
+      badge.textContent = status.icon;
+    }
+
+    // Card status
+    const cardStatus = document.getElementById(`card-status-${race.race_number}`);
+    if (cardStatus) {
+      if (diff > 0) {
+        cardStatus.innerHTML = `<span style="color:${status.color};font-weight:600">${status.label}</span> ${formatCountdown(diff)}`;
+      } else if (diff > -300000) {
+        cardStatus.innerHTML = `<span style="color:var(--pink);font-weight:700">RUNNING</span>`;
+      } else {
+        cardStatus.innerHTML = `<span style="color:var(--dim)">FINISHED</span>`;
+      }
+    }
+  });
+}
+
+function showNotification(msg) {
+  // In-page notification banner
+  let notif = document.getElementById('live-notification');
+  if (!notif) {
+    notif = document.createElement('div');
+    notif.id = 'live-notification';
+    notif.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(90deg,rgba(245,158,11,.95),rgba(217,119,6,.95));color:#000;padding:12px 24px;border-radius:10px;font-weight:700;font-size:.9rem;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,.5);transition:opacity .5s;text-align:center';
+    document.body.appendChild(notif);
+  }
+  notif.textContent = msg;
+  notif.style.opacity = '1';
+  setTimeout(() => { notif.style.opacity = '0'; }, 5000);
+
+  // Browser notification if permitted
+  if (Notification && Notification.permission === 'granted') {
+    new Notification('HKJC Racing', { body: msg });
+  }
+}
+
+setInterval(updateClock, 1000);
+
+// Request notification permission
+if (Notification && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+
+// ===== KEYBOARD NAV =====
+document.addEventListener('keydown', e => {
+  const detail = document.getElementById('race-detail-view');
+  if (detail.style.display === 'none') return;
+
+  const activeTab = document.querySelector('.race-tab.active');
+  if (!activeTab || activeTab.id === 'tab-all') return;
+
+  const currentNum = parseInt(activeTab.id.replace('tab-', ''));
+  const idx = RACES.findIndex(r => r.race_number === currentNum);
+
+  if (e.key === 'ArrowLeft' && idx > 0) showRace(RACES[idx - 1].race_number);
+  if (e.key === 'ArrowRight' && idx < RACES.length - 1) showRace(RACES[idx + 1].race_number);
+  if (e.key === 'Escape') showDashboard();
+});
+
+// ===== INIT =====
+initTabs();
+showDashboard();
+updateClock();
+</script>
+
+</body>
+</html>

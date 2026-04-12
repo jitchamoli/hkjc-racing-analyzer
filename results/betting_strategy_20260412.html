@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HKJC Betting Strategy - Sha Tin, April 12, 2026</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --card-hover: #22263a;
+    --border: #2a2e3f;
+    --text: #e4e6f0;
+    --text-dim: #8b8fa3;
+    --accent: #6c5ce7;
+    --accent-glow: rgba(108,92,231,0.3);
+    --green: #00b894;
+    --green-dim: rgba(0,184,148,0.15);
+    --red: #ff6b6b;
+    --red-dim: rgba(255,107,107,0.15);
+    --yellow: #ffc312;
+    --yellow-dim: rgba(255,195,18,0.15);
+    --blue: #0984e3;
+    --blue-dim: rgba(9,132,227,0.15);
+    --orange: #e17055;
+    --orange-dim: rgba(225,112,85,0.15);
+    --gold: #f9ca24;
+    --silver: #bdc3c7;
+    --bronze: #e67e22;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #1a1d27 0%, #2d1f4e 50%, #1a1d27 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 2rem 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 30% 50%, rgba(108,92,231,0.08) 0%, transparent 50%),
+                radial-gradient(circle at 70% 50%, rgba(0,184,148,0.06) 0%, transparent 50%);
+    animation: pulse 8s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  .header-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .header h1 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #fff 0%, #6c5ce7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+  }
+  .header .subtitle {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+  }
+  .header-badge {
+    background: var(--accent);
+    color: #fff;
+    padding: 0.5rem 1.2rem;
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+
+  /* Stats Bar */
+  .stats-bar {
+    max-width: 1400px;
+    margin: -1.5rem auto 2rem;
+    padding: 0 2rem;
+    position: relative;
+    z-index: 2;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1rem;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+  }
+  .stat-value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 0.25rem;
+  }
+  .stat-green .stat-value { color: var(--green); }
+  .stat-blue .stat-value { color: var(--blue); }
+  .stat-yellow .stat-value { color: var(--yellow); }
+  .stat-accent .stat-value { color: var(--accent); }
+  .stat-orange .stat-value { color: var(--orange); }
+
+  /* Main Content */
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 2rem 3rem;
+  }
+
+  /* Section */
+  .section {
+    margin-bottom: 2rem;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.2rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+  }
+  .section-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .section-tag {
+    margin-left: auto;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 0.3rem 0.8rem;
+    border-radius: 50px;
+    font-weight: 600;
+  }
+
+  /* Priority Colors */
+  .priority-aplus { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,184,148,0.3); }
+  .priority-a { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(9,132,227,0.3); }
+  .priority-b { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(255,195,18,0.3); }
+  .priority-c { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(225,112,85,0.3); }
+  .priority-skip { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,107,107,0.3); }
+
+  /* Race Cards */
+  .race-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 1.2rem;
+  }
+  .race-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .race-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 35px rgba(0,0,0,0.4);
+  }
+  .race-card-header {
+    padding: 1rem 1.2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .race-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    background: var(--accent-glow);
+    color: var(--accent);
+  }
+  .race-class {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+  .race-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+  .race-card-body {
+    padding: 1.2rem;
+  }
+  .bet-type-badge {
+    display: inline-block;
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 0.8rem;
+  }
+  .bet-win { background: rgba(0,184,148,0.2); color: var(--green); border: 1px solid rgba(0,184,148,0.3); }
+  .bet-place { background: rgba(9,132,227,0.2); color: var(--blue); border: 1px solid rgba(9,132,227,0.3); }
+  .bet-qin { background: rgba(108,92,231,0.2); color: #a29bfe; border: 1px solid rgba(108,92,231,0.3); }
+  .bet-qinplace { background: rgba(253,203,110,0.2); color: var(--yellow); border: 1px solid rgba(253,203,110,0.3); }
+  .bet-trio { background: rgba(225,112,85,0.2); color: var(--orange); border: 1px solid rgba(225,112,85,0.3); }
+  .bet-skip { background: rgba(255,107,107,0.15); color: var(--red); border: 1px solid rgba(255,107,107,0.2); }
+
+  .horse-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .horse-row:last-child { border-bottom: none; }
+  .horse-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+  .horse-info { flex: 1; }
+  .horse-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .horse-detail {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 0.15rem;
+  }
+  .horse-odds {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--green);
+  }
+  .horse-prob {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--accent);
+    text-align: right;
+    min-width: 50px;
+  }
+
+  .medal-1 .horse-number { background: linear-gradient(135deg, #f9ca24, #e67e22); color: #1a1d27; }
+  .medal-2 .horse-number { background: linear-gradient(135deg, #dfe6e9, #b2bec3); color: #1a1d27; }
+  .medal-3 .horse-number { background: linear-gradient(135deg, #e67e22, #d35400); color: #fff; }
+
+  .risk-reward {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+  .risk-tag, .reward-tag {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .risk-low { background: var(--green-dim); color: var(--green); }
+  .risk-med { background: var(--yellow-dim); color: var(--yellow); }
+  .risk-high { background: var(--red-dim); color: var(--red); }
+  .reward-high { background: var(--green-dim); color: var(--green); }
+  .reward-med { background: var(--blue-dim); color: var(--blue); }
+  .reward-vhigh { background: rgba(108,92,231,0.2); color: #a29bfe; }
+
+  .reasoning {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 0.5rem;
+    line-height: 1.5;
+    font-style: italic;
+  }
+
+  /* Summary Table */
+  .summary-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .summary-table thead th {
+    background: rgba(108,92,231,0.15);
+    padding: 0.9rem 1rem;
+    text-align: left;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .summary-table tbody td {
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+  }
+  .summary-table tbody tr {
+    background: var(--card);
+    transition: background 0.2s;
+  }
+  .summary-table tbody tr:hover {
+    background: var(--card-hover);
+  }
+  .summary-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Money Management */
+  .money-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+  .money-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .money-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+  }
+  .money-card.mc-a::before { background: var(--green); }
+  .money-card.mc-b::before { background: var(--yellow); }
+  .money-card.mc-c::before { background: var(--orange); }
+  .money-card.mc-skip::before { background: var(--red); }
+  .money-pct {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 2.2rem;
+    font-weight: 800;
+  }
+  .money-label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-top: 0.3rem;
+  }
+  .money-races {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Confidence Bar */
+  .conf-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    margin-top: 0.4rem;
+    overflow: hidden;
+  }
+  .conf-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s ease;
+  }
+  .conf-green { background: linear-gradient(90deg, var(--green), #55efc4); }
+  .conf-blue { background: linear-gradient(90deg, var(--blue), #74b9ff); }
+  .conf-yellow { background: linear-gradient(90deg, var(--yellow), #ffeaa7); }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    border-top: 1px solid var(--border);
+    margin-top: 2rem;
+  }
+
+  /* Glow effect for top pick */
+  .top-pick {
+    border-color: rgba(0,184,148,0.4) !important;
+    box-shadow: 0 0 30px rgba(0,184,148,0.1);
+  }
+  .top-pick .race-card-header {
+    background: linear-gradient(135deg, rgba(0,184,148,0.08), transparent);
+  }
+
+  /* Animations */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .race-card { animation: fadeInUp 0.5s ease forwards; }
+  .race-card:nth-child(1) { animation-delay: 0.05s; }
+  .race-card:nth-child(2) { animation-delay: 0.1s; }
+  .race-card:nth-child(3) { animation-delay: 0.15s; }
+  .race-card:nth-child(4) { animation-delay: 0.2s; }
+  .race-card:nth-child(5) { animation-delay: 0.25s; }
+  .race-card:nth-child(6) { animation-delay: 0.3s; }
+
+  @media (max-width: 900px) {
+    .stats-grid { grid-template-columns: repeat(3, 1fr); }
+    .race-grid { grid-template-columns: 1fr; }
+    .money-grid { grid-template-columns: repeat(2, 1fr); }
+    .header-content { flex-direction: column; gap: 1rem; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-content">
+    <div>
+      <h1>HKJC Racing Strategy</h1>
+      <div class="subtitle">Sha Tin &bull; Saturday, April 12, 2026 &bull; 11 Races &bull; Turf / Good</div>
+    </div>
+    <div class="header-badge">LIVE ODDS + ML MODEL</div>
+  </div>
+</div>
+
+<!-- Stats Bar -->
+<div class="stats-bar">
+  <div class="stats-grid">
+    <div class="stat-card stat-green">
+      <div class="stat-value">11</div>
+      <div class="stat-label">Races Analysed</div>
+    </div>
+    <div class="stat-card stat-blue">
+      <div class="stat-value">10</div>
+      <div class="stat-label">Active Bets</div>
+    </div>
+    <div class="stat-card stat-accent">
+      <div class="stat-value">63.7%</div>
+      <div class="stat-label">Best Combined %</div>
+    </div>
+    <div class="stat-card stat-yellow">
+      <div class="stat-value">3</div>
+      <div class="stat-label">Trio Specials</div>
+    </div>
+    <div class="stat-card stat-orange">
+      <div class="stat-value">R11</div>
+      <div class="stat-label">Top Pick Race</div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ========== A+ PICKS ========== -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--green-dim);color:var(--green);">A+</div>
+      <div class="section-title">Top Priority - Highest Confidence</div>
+      <span class="section-tag priority-aplus">50% of Budget</span>
+    </div>
+    <div class="race-grid">
+
+      <!-- R11 -->
+      <div class="race-card top-pick">
+        <div class="race-card-header">
+          <div><span class="race-num">R11</span> <span class="race-class">Class 2 &bull; 1200m</span></div>
+          <div class="race-time">17:45</div>
+        </div>
+        <div class="race-card-body">
+          <span class="bet-type-badge bet-qinplace">QIN PLACE</span>
+          <span class="bet-type-badge bet-place" style="margin-left:0.3rem;">PLACE</span>
+
+          <div class="horse-row medal-1">
+            <div class="horse-number">7</div>
+            <div class="horse-info">
+              <div class="horse-name">YOUNG CHAMPION</div>
+              <div class="horse-detail">H Bowman &bull; J Size &bull; Rating 91 &bull; 4W in 6 &bull; Tips: 5.3</div>
+            </div>
+            <div class="horse-odds">$6.4</div>
+            <div class="horse-prob">63.7%</div>
+          </div>
+          <div class="conf-bar"><div class="conf-fill conf-green" style="width:63.7%"></div></div>
+
+          <div class="horse-row medal-2">
+            <div class="horse-number">1</div>
+            <div class="horse-info">
+              <div class="horse-name">COLOURFUL KING</div>
+              <div class="horse-detail">Z Purton &bull; D Eustace &bull; Rating 100 &bull; Tips: 13.8</div>
+            </div>
+            <div class="horse-odds">$12.0</div>
+            <div class="horse-prob">58.6%</div>
+          </div>
+          <div class="conf-bar"><div class="conf-fill conf-green" style="width:58.6%"></div></div>
+
+          <div class="risk-reward">
+            <span class="risk-tag risk-low">Risk: Low</span>
+            <span class="reward-tag reward-high">Reward: High</span>
+          </div>
+          <div class="reasoning">Day's best pick at VERY_HIGH confidence. Two highest-rated horses in the race. COLOURFUL KING at $12 adds massive value to QIN PLACE.</div>
+        </div>
+      </div>
+
+      <!-- R10 -->
+      <div class="race-card top-pick">
+        <div class="race-card-header">
+          <div><span class="race-num">R10</span> <span class="race-class">Class 3 &bull; 1200m</span></div>
+          <div class="race-time">17:10</div>
+        </div>
+        <div class="race-card-body">
+          <span class="bet-type-badge bet-place">PLACE</span>
+          <span class="bet-type-badge bet-qinplace" style="margin-left:0.3rem;">QIN PLACE</span>
+
+          <div class="horse-row medal-1">
+            <div class="horse-number">2</div>
+            <div class="horse-info">
+              <div class="horse-name">SMART GOLF</div>
+              <div class="horse-detail">H Bentley &bull; F C Lor &bull; Rating 76 &bull; 3W in 6 &bull; Tips: 2.6</div>
+            </div>
+            <div class="horse-odds">$4.3</div>
+            <div class="horse-prob">63.5%</div>
+          </div>
+          <div class="conf-bar"><div class="conf-fill conf-green" style="width:63.5%"></div></div>
+
+          <div class="horse-row medal-2">
+            <div class="horse-number">6</div>
+            <div class="horse-info">
+              <div class="horse-name">TURQUOISE VELOCITY</div>
+              <div class="horse-detail">M L Yeung &bull; K W Lui &bull; Rating 72 &bull; 5W in 6 &bull; Tips: 31.8</div>
+            </div>
+            <div class="horse-odds">$9.4</div>
+            <div class="horse-prob">57.2%</div>
+          </div>
+          <div class="conf-bar"><div class="conf-fill conf-green" style="width:57.2%"></div></div>
+
+          <div class="risk-reward">
+            <span class="risk-tag risk-low">Risk: Low</span>
+            <span class="reward-tag reward-high">Reward: Good</span>
+          </div>
+          <div class="reasoning">Best Tips Index leader (2.6). Elite trainer F C Lor. TURQUOISE VELOCITY at $9.4 adds value to QIN PLACE.</div>
+        </div>
+      </div>
+
+      <!-- R9 -->
+      <div class="race-card">
+        <div class="race-card-header">
+          <div><span class="race-num">R9</span> <span class="race-class">Class 3 &bull; 1400m</span></div>
+          <div class="race-time">16:35</div>
+        </div>
+        <div class="race-card-body">
+          <span class="bet-type-badge bet-qinplace">QIN PLACE</span>
+
+          <div class="horse-row medal-1">
+            <div class="horse-number">1</div>
+            <div class="horse-info">
+              <div class="horse-name">ENDEARED</div>
+              <div class="horse-detail">Z Purton &bull; J Size &bull; Rating 68 &bull; 4W in 6 &bull; Tips: 7.8</div>
+            </div>
+            <div class="horse-odds">$4.8</div>
+            <div class="horse-prob">61.1%</div>
+          </div>
+          <div class="conf-bar"><div class="conf-fill conf-green" style="width:61.1%"></div></div>
+
+          <div class="horse-row medal-2">
+            <div class="horse-number">3</div>
+            <div class="horse-info">
+              <div class="horse-name">CHARMING LEGEND</div>
+              <div class="horse-detail">J Moreira &bull; C Fownes &bull; Rating 67 &bull; 3W in 6 &bull; Tips: 7.9</div>
+            </div>
+            <div class="horse-odds">$5.6</div>
+            <div class="horse-prob">56.8%</div>
+          </div>
+          <div class="conf-bar"><div class="conf-fill conf-green" style="width:56.8%"></div></div>
+
+          <div class="risk-reward">
+            <span class="risk-tag risk-low">Risk: Low</span>
+            <span class="reward-tag reward-med">Reward: Steady</span>
+          </div>
+          <div class="reasoning">Z Purton/J Size + J Moreira/C Fownes. Two elite jockey-trainer combos with strong form.</div>
+        </div>
+      </div>
+
+      <!-- R7 -->
+      <div class="race-card">
+        <div class="race-card-header">
+          <div><span class="race-num">R7</span> <span class="race-class">Class 4 &bull; 1400m</span></div>
+          <div class="race-time">15:35</div>
+        </div>
+        <div class="race-card-body">
+          <span class="bet-type-badge bet-trio">TRIO</span>
+          <span class="bet-type-badge bet-qin" style="margin-left:0.3rem;">QIN</span>
+
+          <div class="horse-row medal-1">
+            <div class="horse-number">9</div>
+            <div class="horse-info">
+              <div class="horse-name">SHOTGUN</div>
+              <div class="horse-detail">Z Purton &bull; D J Hall &bull; Rating 50 &bull; 2W/1P &bull; Tips: 3.0</div>
+            </div>
+            <div class="horse-odds">$3.6</div>
+            <div class="horse-prob">54.6%</div>
+          </div>
+
+          <div class="horse-row medal-2">
+            <div class="horse-number">3</div>
+            <div class="horse-info">
+              <div class="horse-name">FORZA TORO</div>
+              <div class="horse-detail">J Moreira &bull; C Fownes &bull; Rating 56 &bull; 2P &bull; Tips: 7.9</div>
+            </div>
+            <div class="horse-odds">$3.7</div>
+            <div class="horse-prob">48.3%</div>
+          </div>
+
+          <div class="horse-row medal-3">
+            <div class="horse-number">5</div>
+            <div class="horse-info">
+              <div class="horse-name">STAR SATYR</div>
+              <div class="horse-detail">Y L Chung &bull; A S Cruz &bull; Rating 54 &bull; 5W in 6 &bull; Tips: 22.3</div>
+            </div>
+            <div class="horse-odds">$16.0</div>
+            <div class="horse-prob">48.2%</div>
+          </div>
+
+          <div class="risk-reward">
+            <span class="risk-tag risk-med">Risk: Medium</span>
+            <span class="reward-tag reward-vhigh">Reward: High</span>
+          </div>
+          <div class="reasoning">Two elite combos neck and neck. STAR SATYR at $16 with 5W in 6 form inflates TRIO payout massively.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========== B+ PICKS ========== -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--yellow-dim);color:var(--yellow);">B+</div>
+      <div class="section-title">Strong Picks - Good Value</div>
+      <span class="section-tag priority-b">30% of Budget</span>
+    </div>
+    <div class="race-grid">
+
+      <!-- R8 -->
+      <div class="race-card">
+        <div class="race-card-header">
+          <div><span class="race-num">R8</span> <span class="race-class">Class 3 &bull; 1600m</span></div>
+          <div class="race-time">16:05</div>
+        </div>
+        <div class="race-card-body">
+          <span class="bet-type-badge bet-trio">TRIO</span>
+          <span class="bet-type-badge bet-place" style="margin-left:0.3rem;">PLACE</span>
+
+          <div class="horse-row medal-1">
+            <div class="horse-number">4</div>
+            <div class="horse-info">
+              <div class="horse-name">ENDUED</div>
+              <div class="horse-detail">A Atzeni &bull; J Size &bull; Rating 74 &bull; 2W/1P &bull; Tips: 2.8</div>
+            </div>
+            <div class="horse-odds">$3.2</div>
+            <div class="horse-prob">54.5%</div>
+          </div>
+
+          <div class="horse-row medal-2">
+            <div class="horse-number">5</div>
+            <div class="horse-info">
+              <div class="horse-name">FLYING LUCK</div>
+              <div class="horse-detail">J Moreira &bull; Rating 69 &bull; Tips: 3.2</div>
+            </div>
+            <div class="horse-odds">$4.4</div>
+            <div class="horse-prob">47.9%</div>
+          </div>
+
+          <div class="horse-row medal-3">
+            <div class="horse-number">1</div>
+            <div class="horse-info">
+              <div class="horse-name">MISTER DAPPER</div>
+              <div class="horse-detail">B Avdulla &bull; Rating 71 &bull; 50.4% model @ $18 = huge value</div>
+            </div>
+            <div class="horse-odds">$18.0</div>
+            <div class="horse-prob">50.4%</div>
+          </div>
+
+          <div class="risk-reward">
+            <span class="risk-tag risk-med">Risk: Medium</span>
+            <span class="reward-tag reward-vhigh">Reward: High</span>
+          </div>
+          <div class="reasoning">J Size + J Moreira core. MISTER DAPPER at $18 with 50.4% model score = massive TRIO value.</div>
+        </div>
+      </div>
+
+      <!-- R5 -->
+      <div class="race-card">
+        <div class="race-card-header">
+          <div><span class="race-num">R5</span> <span class="race-class">Class 4 &bull; 1200m</span></div>
+          <div class="race-time">14:30</div>
+        </div>
+        <div class="race-card-body">
+          <span class="bet-type-badge bet-win">WIN</span>
+          <span class="bet-type-badge bet-qin" style="margin-left:0.3rem;">QIN</span>
+
+          <div class="horse-row medal-1">
+            <div class="horse-number">4</div>
+            <div class="horse-info">
+              <div class="horse-name">CALL ME SPARKLE</div>
+              <div class="horse-detail">M L Yeung &bull; K W Lui &bull; Rating 58 &bull; 1W &bull; Ideal Draw &bull; Tips: 4.1</div>
+            </div>
+            <div class="horse-odds">$4.2</div>
+            <div class="horse-prob">55.3%</div>
+          </div>
+          <div class="conf-bar"><div class="conf-fill conf-blue" style="width:55.3%"></div></div>
+
+          <div class="horse-row medal-2">
+            <div class="horse-number">3</div>
+            <div class="horse-info">
+              <div class="horse-name">CONRAD PATCH</div>
+              <div class="horse-detail">H Bowman &bull; Rating 59 &bull; Tips: 5.8</div>
+            </div>
+            <div class="horse-odds">$6.6</div>
+            <div class="horse-prob">46.7%</div>
+          </div>
+
+          <div class="risk-reward">
+            <span class="risk-tag risk-med">Risk: Medium</span>
+            <span class="reward-tag reward-med">Reward: Good</span>
+          </div>
+          <div class="reasoning">Highest rule score of the day (72.9). Ideal barrier draw. Strong WIN candidate.</div>
+        </div>
+      </div>
+
+      <!-- R6 -->
+      <div class="race-card">
+        <div class="race-card-header">
+          <div><span class="race-num">R6</span> <span class="race-class">Class 4 &bull; 1200m</span></div>
+          <div class="race-time">15:00</div>
+        </div>
+        <div class="race-card-body">
+          <span class="bet-type-badge bet-win">WIN</span>
+          <span class="bet-type-badge bet-qin" style="margin-left:0.3rem;">QIN</span>
+
+          <div class="horse-row medal-1">
+            <div class="horse-number">1</div>
+            <div class="horse-info">
+              <div class="horse-name">BABY SAKURA</div>
+              <div class="horse-detail">C Y Ho &bull; K W Lui &bull; Rating 60 &bull; 1W/1P &bull; Tips: 3.0</div>
+            </div>
+            <div class="horse-odds">$2.4</div>
+            <div class="horse-prob">56.6%</div>
+          </div>
+          <div class="conf-bar"><div class="conf-fill conf-blue" style="width:56.6%"></div></div>
+
+          <div class="horse-row medal-2">
+            <div class="horse-number">2</div>
+            <div class="horse-info">
+              <div class="horse-name">ELITE GOLF</div>
+              <div class="horse-detail">H Bentley &bull; Rating 60 &bull; 1W &bull; Ideal Draw &bull; Tips: 4.6</div>
+            </div>
+            <div class="horse-odds">$5.2</div>
+            <div class="horse-prob">50.4%</div>
+          </div>
+
+          <div class="risk-reward">
+            <span class="risk-tag risk-low">Risk: Low</span>
+            <span class="reward-tag reward-med">Reward: Moderate</span>
+          </div>
+          <div class="reasoning">Clear top pick. Short-priced but safe. QIN with ELITE GOLF adds payout.</div>
+        </div>
+      </div>
+
+      <!-- R4 -->
+      <div class="race-card">
+        <div class="race-card-header">
+          <div><span class="race-num">R4</span> <span class="race-class">Class 4 &bull; 1400m</span></div>
+          <div class="race-time">14:00</div>
+        </div>
+        <div class="race-card-body">
+          <span class="bet-type-badge bet-trio">TRIO</span>
+
+          <div class="horse-row medal-1">
+            <div class="horse-number">7</div>
+            <div class="horse-info">
+              <div class="horse-name">INVICTUS DRAGON</div>
+              <div class="horse-detail">Z Purton &bull; Rating 51 &bull; 2W/2P &bull; Market Fav</div>
+            </div>
+            <div class="horse-odds">$2.3</div>
+            <div class="horse-prob">46.4%</div>
+          </div>
+
+          <div class="horse-row medal-2">
+            <div class="horse-number">2</div>
+            <div class="horse-info">
+              <div class="horse-name">HAPPY BOSS</div>
+              <div class="horse-detail">L Ferraris &bull; Rating 60 &bull; Model #1 (52.4%) @ $9.4</div>
+            </div>
+            <div class="horse-odds">$9.4</div>
+            <div class="horse-prob">52.4%</div>
+          </div>
+
+          <div class="horse-row medal-3">
+            <div class="horse-number">1</div>
+            <div class="horse-info">
+              <div class="horse-name">EIGHTY LIGHT YEARS</div>
+              <div class="horse-detail">L Hewitson &bull; Rating 59 &bull; 32.9% ML &bull; Big TRIO inflator</div>
+            </div>
+            <div class="horse-odds">$14.0</div>
+            <div class="horse-prob">45.2%</div>
+          </div>
+
+          <div class="risk-reward">
+            <span class="risk-tag risk-high">Risk: Medium-High</span>
+            <span class="reward-tag reward-vhigh">Reward: Very High</span>
+          </div>
+          <div class="reasoning">Market fav anchors the TRIO. HAPPY BOSS is model's #1 at $9.4. EIGHTY LIGHT YEARS at $14 makes a lucrative combo.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========== C PICKS ========== -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--orange-dim);color:var(--orange);">C</div>
+      <div class="section-title">Speculative - Lower Confidence</div>
+      <span class="section-tag priority-c">20% of Budget</span>
+    </div>
+    <div class="race-grid">
+
+      <!-- R2 -->
+      <div class="race-card">
+        <div class="race-card-header">
+          <div><span class="race-num">R2</span> <span class="race-class">Class 5 &bull; 1400m</span></div>
+          <div class="race-time">13:00</div>
+        </div>
+        <div class="race-card-body">
+          <span class="bet-type-badge bet-qinplace">QIN PLACE</span>
+
+          <div class="horse-row medal-1">
+            <div class="horse-number">1</div>
+            <div class="horse-info">
+              <div class="horse-name">GOOD FORTUNE</div>
+              <div class="horse-detail">P N Wong &bull; Rating 40 &bull; 6W in 6 &bull; Model's #1 &bull; Tips: 6.0</div>
+            </div>
+            <div class="horse-odds">$9.2</div>
+            <div class="horse-prob">50.1%</div>
+          </div>
+
+          <div class="horse-row medal-2">
+            <div class="horse-number">9</div>
+            <div class="horse-info">
+              <div class="horse-name">WINNING MACHINE</div>
+              <div class="horse-detail">J Moreira &bull; Rating 46 &bull; Market Fav @ $2.0</div>
+            </div>
+            <div class="horse-odds">$2.0</div>
+            <div class="horse-prob">40.7%</div>
+          </div>
+
+          <div class="risk-reward">
+            <span class="risk-tag risk-med">Risk: Medium</span>
+            <span class="reward-tag reward-med">Reward: Good</span>
+          </div>
+          <div class="reasoning">Model vs Market hedge. GOOD FORTUNE has 6 wins in 6 but market backs WINNING MACHINE. QIN PLACE covers both.</div>
+        </div>
+      </div>
+
+      <!-- R3 -->
+      <div class="race-card">
+        <div class="race-card-header">
+          <div><span class="race-num">R3</span> <span class="race-class">Class 5 &bull; 1600m</span></div>
+          <div class="race-time">13:30</div>
+        </div>
+        <div class="race-card-body">
+          <span class="bet-type-badge bet-place">PLACE</span>
+
+          <div class="horse-row medal-1">
+            <div class="horse-number">5</div>
+            <div class="horse-info">
+              <div class="horse-name">BLING BLING GENIUS</div>
+              <div class="horse-detail">B Avdulla &bull; D J Whyte &bull; Rating 37 &bull; Tips: 5.2</div>
+            </div>
+            <div class="horse-odds">$7.4</div>
+            <div class="horse-prob">43.0%</div>
+          </div>
+          <div class="conf-bar"><div class="conf-fill conf-yellow" style="width:43%"></div></div>
+
+          <div class="risk-reward">
+            <span class="risk-tag risk-med">Risk: Medium</span>
+            <span class="reward-tag reward-med">Reward: Moderate</span>
+          </div>
+          <div class="reasoning">Modest confidence. Play safe with PLACE only.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========== SKIP ========== -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--red-dim);color:var(--red);">X</div>
+      <div class="section-title">Skip - Too Risky</div>
+      <span class="section-tag priority-skip">No Bet</span>
+    </div>
+    <div class="race-grid">
+      <div class="race-card" style="opacity:0.6;">
+        <div class="race-card-header">
+          <div><span class="race-num">R1</span> <span class="race-class">Griffin &bull; 1000m</span></div>
+          <div class="race-time">12:30</div>
+        </div>
+        <div class="race-card-body">
+          <span class="bet-type-badge bet-skip">SKIP</span>
+          <div class="reasoning" style="margin-top:0;">All 6 horses have 0 rating and 0 form data. This is a debut (Griffin) race - model relies only on jockey/draw/tips. Too unpredictable for meaningful analysis.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SUMMARY TABLE ========== -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(108,92,231,0.15);color:var(--accent);">$</div>
+      <div class="section-title">Complete Bet Card</div>
+    </div>
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th>Priority</th>
+          <th>Race</th>
+          <th>Time</th>
+          <th>Bet Type</th>
+          <th>Selections</th>
+          <th>Key Factor</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="section-tag priority-aplus" style="font-size:0.7rem;">A+</span></td>
+          <td>R11</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">17:45</td>
+          <td><span class="bet-type-badge bet-qinplace" style="margin:0;">QIN PLACE</span></td>
+          <td><strong>#7</strong> + <strong>#1</strong></td>
+          <td>63.7% VERY_HIGH - Day's best</td>
+        </tr>
+        <tr>
+          <td><span class="section-tag priority-aplus" style="font-size:0.7rem;">A+</span></td>
+          <td>R10</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">17:10</td>
+          <td><span class="bet-type-badge bet-place" style="margin:0;">PLACE</span></td>
+          <td><strong>#2</strong> SMART GOLF</td>
+          <td>63.5% combined, Tips leader</td>
+        </tr>
+        <tr>
+          <td><span class="section-tag priority-a" style="font-size:0.7rem;">A</span></td>
+          <td>R9</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">16:35</td>
+          <td><span class="bet-type-badge bet-qinplace" style="margin:0;">QIN PLACE</span></td>
+          <td><strong>#1</strong> + <strong>#3</strong></td>
+          <td>Purton/Size + Moreira/Fownes</td>
+        </tr>
+        <tr>
+          <td><span class="section-tag priority-a" style="font-size:0.7rem;">A</span></td>
+          <td>R7</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">15:35</td>
+          <td><span class="bet-type-badge bet-trio" style="margin:0;">TRIO</span></td>
+          <td><strong>#9</strong> + <strong>#3</strong> + <strong>#5</strong></td>
+          <td>Elite combos + $16 value</td>
+        </tr>
+        <tr>
+          <td><span class="section-tag priority-b" style="font-size:0.7rem;">B+</span></td>
+          <td>R8</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">16:05</td>
+          <td><span class="bet-type-badge bet-trio" style="margin:0;">TRIO</span></td>
+          <td><strong>#4</strong> + <strong>#5</strong> + <strong>#1</strong></td>
+          <td>J Size + Moreira + $18 value</td>
+        </tr>
+        <tr>
+          <td><span class="section-tag priority-b" style="font-size:0.7rem;">B+</span></td>
+          <td>R5</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">14:30</td>
+          <td><span class="bet-type-badge bet-win" style="margin:0;">WIN</span></td>
+          <td><strong>#4</strong> CALL ME SPARKLE</td>
+          <td>Rule score 72.9, ideal draw</td>
+        </tr>
+        <tr>
+          <td><span class="section-tag priority-b" style="font-size:0.7rem;">B</span></td>
+          <td>R6</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">15:00</td>
+          <td><span class="bet-type-badge bet-win" style="margin:0;">WIN</span></td>
+          <td><strong>#1</strong> BABY SAKURA</td>
+          <td>56.6%, clear top pick</td>
+        </tr>
+        <tr>
+          <td><span class="section-tag priority-b" style="font-size:0.7rem;">B</span></td>
+          <td>R4</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">14:00</td>
+          <td><span class="bet-type-badge bet-trio" style="margin:0;">TRIO</span></td>
+          <td><strong>#7</strong> + <strong>#2</strong> + <strong>#1</strong></td>
+          <td>Mkt fav + model fav + value</td>
+        </tr>
+        <tr>
+          <td><span class="section-tag priority-c" style="font-size:0.7rem;">C</span></td>
+          <td>R2</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">13:00</td>
+          <td><span class="bet-type-badge bet-qinplace" style="margin:0;">QIN PLACE</span></td>
+          <td><strong>#1</strong> + <strong>#9</strong></td>
+          <td>Model vs market hedge</td>
+        </tr>
+        <tr>
+          <td><span class="section-tag priority-c" style="font-size:0.7rem;">C</span></td>
+          <td>R3</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">13:30</td>
+          <td><span class="bet-type-badge bet-place" style="margin:0;">PLACE</span></td>
+          <td><strong>#5</strong> BLING BLING</td>
+          <td>Modest, play safe</td>
+        </tr>
+        <tr style="opacity:0.5;">
+          <td><span class="section-tag priority-skip" style="font-size:0.7rem;">SKIP</span></td>
+          <td>R1</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">12:30</td>
+          <td><span class="bet-type-badge bet-skip" style="margin:0;">-</span></td>
+          <td>-</td>
+          <td>Griffin, no data</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ========== MONEY MANAGEMENT ========== -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(9,132,227,0.15);color:var(--blue);">%</div>
+      <div class="section-title">Money Management</div>
+    </div>
+    <div class="money-grid">
+      <div class="money-card mc-a">
+        <div class="money-pct" style="color:var(--green);">50%</div>
+        <div class="money-label">A+ / A Picks</div>
+        <div class="money-races">R11, R10, R9, R7</div>
+      </div>
+      <div class="money-card mc-b">
+        <div class="money-pct" style="color:var(--yellow);">30%</div>
+        <div class="money-label">B+ / B Picks</div>
+        <div class="money-races">R8, R5, R6, R4</div>
+      </div>
+      <div class="money-card mc-c">
+        <div class="money-pct" style="color:var(--orange);">20%</div>
+        <div class="money-label">C Picks</div>
+        <div class="money-races">R2, R3</div>
+      </div>
+      <div class="money-card mc-skip">
+        <div class="money-pct" style="color:var(--red);">0%</div>
+        <div class="money-label">Skip</div>
+        <div class="money-races">R1 (Griffin)</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <p>Generated: April 12, 2026 &bull; Data: HKJC Live Odds + Tips Index + ML Model v20260322</p>
+  <p style="margin-top:0.5rem;color:var(--red);font-weight:600;">Disclaimer: For entertainment only. Not financial advice. Gamble responsibly.</p>
+</div>
+
+</body>
+</html>
