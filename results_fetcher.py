@@ -150,7 +150,7 @@ class ResultsFetcher:
         }
 
     def compute_day_summary(self, predictions: List) -> Dict:
-        """Compute overall day accuracy summary."""
+        """Compute overall day accuracy summary with comparison vs public favourite."""
         races_with_results = [r for r in predictions if r.get('results_available')]
         if not races_with_results:
             return {}
@@ -167,6 +167,73 @@ class ResultsFetcher:
         ]
         avg_winner_rank = sum(winner_ranks) / len(winner_ranks) if winner_ranks else 0
 
+        # --- Public favourite win rate ---
+        # Public favourite = shortest odds horse in each race
+        fav_wins = 0
+        for r in races_with_results:
+            horses = r.get('horses', [])
+            actual_winner = r.get('actual_winner')
+            if not horses or not actual_winner:
+                continue
+            # Find shortest odds horse (public favourite)
+            fav = min(horses, key=lambda h: h.get('win_odds', 999) if h.get('win_odds', 0) > 0 else 999)
+            if fav.get('number') == actual_winner:
+                fav_wins += 1
+
+        # --- Our BEST bet hit rate ---
+        # QIN hit = winner is in our rank 1 or rank 2
+        # WIN/BANKER hit = our rank 1 won
+        best_bet_hits = 0
+        best_bet_roi = 0.0
+        for r in races_with_results:
+            horses = r.get('horses', [])
+            actual_winner = r.get('actual_winner')
+            actual_top3 = set(r.get('actual_top3', []))
+            if not horses or not actual_winner:
+                continue
+            rank1 = horses[0] if horses else None
+            rank2 = horses[1] if len(horses) > 1 else None
+            rank1_num = rank1.get('number') if rank1 else None
+            rank2_num = rank2.get('number') if rank2 else None
+            bet_type = rank1.get('bet_recommendation', '') if rank1 else ''
+
+            if bet_type in ('BANKER WIN', 'WIN'):
+                # WIN bet hits if rank 1 won
+                if rank1_num == actual_winner:
+                    best_bet_hits += 1
+                    best_bet_roi += (rank1.get('win_odds', 0) - 1)
+                else:
+                    best_bet_roi -= 1  # lost the bet
+            elif bet_type == 'QIN':
+                # QIN hits if winner is rank 1 or rank 2
+                if actual_winner in (rank1_num, rank2_num):
+                    # Check if both rank 1 and rank 2 are in top 2
+                    actual_top2 = set(
+                        h['number'] for h in
+                        sorted([hh for hh in horses if hh.get('actual_position', 99) <= 2],
+                               key=lambda x: x.get('actual_position', 99))
+                    )
+                    if rank1_num in actual_top2 and rank2_num in actual_top2:
+                        best_bet_hits += 1
+                        # QIN payout estimation (rough)
+                        best_bet_roi += 3.0  # avg QIN payout
+                    else:
+                        best_bet_roi -= 1
+                else:
+                    best_bet_roi -= 1
+            elif bet_type in ('QNL PL', 'TRIO'):
+                # Simpler: did any of our picks hit top 3?
+                our_picks = {h.get('number') for h in horses if h.get('bet_recommendation') == bet_type}
+                if our_picks & actual_top3:
+                    best_bet_hits += 1
+                else:
+                    best_bet_roi -= 1
+
+        # --- Random baseline ---
+        # Average field size
+        avg_field = sum(len(r.get('horses', [])) for r in races_with_results) / total if total else 12
+        random_win_rate = round(1.0 / avg_field * 100, 1)
+
         return {
             'total_races': total,
             'wins_correct': wins_correct,
@@ -176,6 +243,13 @@ class ResultsFetcher:
             'bets_hit': bets_hit,
             'bet_hit_rate': round(bets_hit / total * 100, 1) if total else 0,
             'avg_winner_rank': round(avg_winner_rank, 1),
+            # Comparison stats
+            'fav_wins': fav_wins,
+            'fav_win_rate': round(fav_wins / total * 100, 1) if total else 0,
+            'best_bet_hits': best_bet_hits,
+            'best_bet_hit_rate': round(best_bet_hits / total * 100, 1) if total else 0,
+            'best_bet_roi': round(best_bet_roi, 1),
+            'random_win_rate': random_win_rate,
         }
 
     def save_merged_data(self, data: List, race_date: str, summary: Dict) -> str:
@@ -342,11 +416,12 @@ var RESULTS_DATA = ''' + results_json + ''';
     banner.style.cssText = 'background:linear-gradient(90deg,rgba(16,185,129,.1),rgba(59,130,246,.1));border:1px solid var(--green);border-radius:12px;padding:14px 20px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;text-align:center';
 
     var items = [
-      {v: 'RESULTS IN', c: 'var(--green)', l: '', isLabel: true},
-      {v: s.wins_correct + '/' + s.total_races, c: 'var(--green)', l: 'Win Picks Correct'},
-      {v: s.top3_accuracy + '%', c: 'var(--cyan)', l: 'Top 3 Accuracy'},
-      {v: s.avg_winner_rank.toString(), c: 'var(--accent)', l: 'Avg Winner Rank'},
-      {v: s.bets_hit + '/' + s.total_races, c: 'var(--purple)', l: 'Bets Hit'},
+      {v: 'SCORECARD', c: 'var(--green)', l: '', isLabel: true},
+      {v: (s.best_bet_hit_rate || 0) + '%', c: 'var(--green)', l: 'Our BEST Bet'},
+      {v: (s.fav_win_rate || 0) + '%', c: 'var(--accent)', l: 'Public Favourite'},
+      {v: (s.random_win_rate || 8) + '%', c: 'var(--dim)', l: 'Random Pick'},
+      {v: s.wins_correct + '/' + s.total_races, c: 'var(--cyan)', l: '#1 Pick Won'},
+      {v: s.avg_winner_rank.toString(), c: 'var(--purple)', l: 'Avg Winner Rank'},
     ];
     items.forEach(function(item) {
       var div = document.createElement('div');

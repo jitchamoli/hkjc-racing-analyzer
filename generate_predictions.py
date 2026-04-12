@@ -339,7 +339,7 @@ function renderDashboard() {{
     '<div class="stat"><div class="v" style="color:var(--cyan)">' + counts['QNL PL'] + '</div><div class="l">QNL PL</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--pink)">' + counts.TRIO + '</div><div class="l">TRIO</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--dim)">' + counts.SKIP + '</div><div class="l">SKIP</div></div>' +
-    '<div class="stat"><div class="v">' + active + '</div><div class="l">Active Bets</div></div>' +
+    '<div class="stat"><div class="v">' + RACES.length + '</div><div class="l">Races</div></div>' +
     '<div class="stat"><div class="v">18</div><div class="l">Factors</div></div>' +
   '</div>' +
   '<div class="legend">' +
@@ -579,7 +579,7 @@ function buildWhatsAppText(race) {{
   var bankerPicks = h.filter(function(x) {{ return x.bet_recommendation === 'BANKER WIN'; }});
 
   var t = '';
-  t += '\\ud83c\\udfc7 *R' + race.race_number + ' ' + race.venue + '* ' + race.time + ' | ' + race.distance + 'm | ' + (race.going || '') + '\\n\\n';
+  t += '\\ud83c\\udfc7 *R' + race.race_number + ' ' + race.venue + '* ' + race.time + ' | ' + race.distance + 'm | ' + (race.going || '') + '\\n\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n';
 
   // Top 4 picks — single line each
   h.slice(0, 4).forEach(function(x) {{
@@ -626,6 +626,8 @@ function buildWhatsAppText(race) {{
   if (!active.length) {{
     t += '\\u274c *SKIP* - No value\\n';
   }}
+
+  t += '\\n_\\u26a0\\ufe0f For entertainment only. Gamble responsibly._';
 
   return t;
 }}
