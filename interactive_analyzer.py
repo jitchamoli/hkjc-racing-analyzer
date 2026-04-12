@@ -11,8 +11,8 @@ import logging
 
 sys.path.insert(0, sys.path[0])
 
+from hkjc_data_fetcher import HKJCDataFetcher
 from hkjc_racing_analyzer import (
-    HKJCRacingScraper,
     CombinedRaceAnalyzer,
     ReportGenerator,
     Race,
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 class InteractiveRacingAnalyzer:
     def __init__(self):
-        self.scraper = None
+        self.fetcher = HKJCDataFetcher()
         self.analyzer = CombinedRaceAnalyzer()
         self.tracker = ResultsTracker()
         self.current_race = None
@@ -45,31 +45,20 @@ class InteractiveRacingAnalyzer:
         race_number = input("Race number (1-10): ").strip() or "1"
         race_number = int(race_number)
         
-        self.scraper = HKJCRacingScraper()
-        await self.scraper.init_browser()
+        print(f"\n📡 Fetching race data...")
+        self.current_race = await self.fetcher.get_race_card(race_date, race_number)
         
-        try:
-            page = await self.scraper.context.new_page()
-            
-            print(f"\n📡 Fetching race data...")
-            self.current_race = await self.scraper.scrape_race_card(page, race_date, race_number)
-            
-            if not self.current_race or not self.current_race.horses:
-                print("❌ Could not fetch race data")
-                return
-            
-            await page.close()
-            
-            self.current_analyses = self.analyzer.analyze_race(self.current_race)
-            
-            self._print_race_with_odds_input()
-            
-            self._offer_betting_analysis()
-            
-            self._offer_tracking()
-            
-        finally:
-            await self.scraper.close_browser()
+        if not self.current_race or not self.current_race.horses:
+            print("❌ Could not fetch race data")
+            return
+        
+        self.current_analyses = self.analyzer.analyze_race(self.current_race)
+        
+        self._print_race_with_odds_input()
+        
+        self._offer_betting_analysis()
+        
+        self._offer_tracking()
     
     def _print_race_with_odds_input(self):
         print(f"\n{'='*70}")
