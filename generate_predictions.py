@@ -297,8 +297,8 @@ function updateNextBadge() {{
   }}
 }}
 
-function betColor(bt) {{return {{'WIN':'#10b981','PLACE':'#8b5cf6','QIN':'#f59e0b','QNL PL':'#06b6d4','TRIO':'#ec4899','SKIP':'#64748b','E/W':'#3b82f6'}}[bt] || '#64748b'}}
-function betBg(bt) {{return {{'WIN':'rgba(16,185,129,.15)','PLACE':'rgba(139,92,246,.15)','QIN':'rgba(245,158,11,.15)','QNL PL':'rgba(6,182,212,.15)','TRIO':'rgba(236,72,153,.15)','SKIP':'rgba(100,116,139,.1)'}}[bt] || 'rgba(100,116,139,.1)'}}
+function betColor(bt) {{return {{'BANKER WIN':'#fbbf24','WIN':'#10b981','PLACE':'#8b5cf6','QIN':'#f59e0b','QNL PL':'#06b6d4','TRIO':'#ec4899','SKIP':'#64748b','E/W':'#3b82f6'}}[bt] || '#64748b'}}
+function betBg(bt) {{return {{'BANKER WIN':'rgba(251,191,36,.25)','WIN':'rgba(16,185,129,.15)','PLACE':'rgba(139,92,246,.15)','QIN':'rgba(245,158,11,.15)','QNL PL':'rgba(6,182,212,.15)','TRIO':'rgba(236,72,153,.15)','SKIP':'rgba(100,116,139,.1)'}}[bt] || 'rgba(100,116,139,.1)'}}
 function gradeRace(race) {{const p = race.horses[0]?.calibrated_prob || 0;if(p>=18)return'A+';if(p>=14)return'A';if(p>=11)return'B+';if(p>=9)return'B';return'C'}}
 function gradeClass(g) {{return {{'A+':'aplus','A':'a','B+':'bplus','B':'b','C':'c'}}[g]||'c'}}
 function probColor(p) {{if(p>=15)return'var(--green)';if(p>=10)return'var(--accent)';return'var(--dim)'}}
@@ -328,7 +328,7 @@ function showDashboard() {{
 
 function renderDashboard() {{
   const el = document.getElementById('dashboard-view');
-  const counts = {{WIN:0,PLACE:0,QIN:0,'QNL PL':0,TRIO:0,SKIP:0}};
+  const counts = {{'BANKER WIN':0,WIN:0,PLACE:0,QIN:0,'QNL PL':0,TRIO:0,SKIP:0}};
   RACES.forEach(r => r.horses.forEach(h => {{if(counts[h.bet_recommendation]!==undefined)counts[h.bet_recommendation]++}}));
   const active = counts.WIN + counts.PLACE + counts.QIN + counts['QNL PL'] + counts.TRIO;
   
@@ -405,7 +405,8 @@ function buildStrategyPanel(race) {{
   var primaryBet = Object.keys(betTypes).sort(function(a,b) {{ return betTypes[b] - betTypes[a]; }})[0];
 
   // Gather selections per type
-  var winPicks = horses.filter(function(h) {{ return h.bet_recommendation === 'WIN'; }});
+  var bankerPicks = horses.filter(function(h) {{ return h.bet_recommendation === 'BANKER WIN'; }});
+  var winPicks = horses.filter(function(h) {{ return h.bet_recommendation === 'WIN' || h.bet_recommendation === 'BANKER WIN'; }});
   var placePicks = horses.filter(function(h) {{ return h.bet_recommendation === 'PLACE'; }});
   var qinPicks = horses.filter(function(h) {{ return h.bet_recommendation === 'QIN'; }});
   var qnlPicks = horses.filter(function(h) {{ return h.bet_recommendation === 'QNL PL'; }});
@@ -426,7 +427,21 @@ function buildStrategyPanel(race) {{
   // Primary recommendation
   s += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:14px">';
 
-  if (winPicks.length) {{
+  if (bankerPicks.length) {{
+    bankerPicks.forEach(function(h) {{
+      var bankerReason = (h.reasoning || []).find(function(r) {{ return r.indexOf('BANKER') === 0; }}) || '';
+      s += '<div style="background:linear-gradient(135deg,rgba(251,191,36,.12),rgba(245,158,11,.08));border:2px solid rgba(251,191,36,.5);border-radius:10px;padding:14px 16px">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+        + '<span style="font-size:.8rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px">BANKER WIN</span>'
+        + '<span style="font-size:.68rem;background:rgba(251,191,36,.2);color:var(--gold);padding:2px 8px;border-radius:8px;font-weight:700">BET BIG</span></div>'
+        + '<div style="font-size:1.1rem;font-weight:800">#' + h.number + ' ' + h.name + '</div>'
+        + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + h.jockey + ' | $' + h.win_odds + ' | ' + (h.calibrated_prob * 100).toFixed(1) + '% chance</div>'
+        + (bankerReason ? '<div style="font-size:.7rem;color:var(--gold);margin-top:6px;font-weight:600">' + bankerReason + '</div>' : '')
+        + '</div>';
+    }});
+  }}
+
+  if (winPicks.length && !bankerPicks.length) {{
     winPicks.forEach(function(h) {{
       var evColor = h.expected_return > 0 ? 'var(--green)' : 'var(--red)';
       s += '<div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.25);border-radius:10px;padding:12px 16px">'
@@ -552,7 +567,13 @@ function buildWhatsAppText(race) {{
   // Betting strategy
   t += '\\n\\ud83c\\udfaf *BETTING STRATEGY*\\n';
 
-  if (winPicks.length) {{
+  if (bankerPicks.length) {{
+    bankerPicks.forEach(function(x) {{
+      t += '\\ud83d\\udca5 *BANKER WIN - BET BIG* \\n';
+      t += '   *#' + x.number + ' ' + x.name + '* @ $' + x.win_odds + '\\n';
+      t += '   ' + x.jockey + ' | ' + (x.calibrated_prob * 100).toFixed(1) + '% chance\\n';
+    }});
+  }} else if (winPicks.length) {{
     winPicks.forEach(function(x) {{
       var ev = (x.expected_return * 100).toFixed(0);
       t += '\\u2705 *WIN* #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + ' (EV ' + (ev > 0 ? '+' : '') + ev + '%)\\n';

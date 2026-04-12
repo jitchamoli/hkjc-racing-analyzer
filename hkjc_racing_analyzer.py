@@ -743,6 +743,61 @@ class CombinedRaceAnalyzer:
 
         rule_confidence = self.strategy.get_rule_confidence(rule_score)
 
+        # --- BANKER detection: count strong conviction signals ---
+        # When multiple strong signals align, flag as high-conviction bet
+        banker_signals = 0
+        banker_reasons = []
+
+        # 1. High overall score (top of field)
+        if rule_score >= 68:
+            banker_signals += 1
+            banker_reasons.append("High score")
+
+        # 2. Rating trending up strongly
+        if rtg_chg >= 5:
+            banker_signals += 1
+            banker_reasons.append(f"Rating surging (+{rtg_chg})")
+
+        # 3. Ideal freshness (14-35 days)
+        if 14 <= days <= 35:
+            banker_signals += 1
+            banker_reasons.append("Peak fitness")
+
+        # 4. Strong recent form (2+ wins in last 6)
+        if form_score >= 60:
+            banker_signals += 1
+            banker_reasons.append("Winning form")
+
+        # 5. Pace advantage (leader at sprint or closer at distance)
+        if pace_score >= 70:
+            banker_signals += 1
+            banker_reasons.append("Pace advantage")
+
+        # 6. Good draw for distance
+        if draw_score >= 70:
+            banker_signals += 1
+            banker_reasons.append("Ideal draw")
+
+        # 7. Top jockey
+        if jockey_score >= 82:
+            banker_signals += 1
+            banker_reasons.append("Top jockey")
+
+        # 8. Top earner (proven at level)
+        if stakes_val >= 2_000_000:
+            banker_signals += 1
+            banker_reasons.append("Proven earner")
+
+        # 9. Market confidence (short odds)
+        if horse.win_odds > 0 and (1 / horse.win_odds) >= 0.10:
+            banker_signals += 1
+            banker_reasons.append("Market backed")
+
+        # BANKER = 7+ signals out of 9 (must be truly exceptional)
+        is_banker = banker_signals >= 7
+        if is_banker:
+            reasoning.insert(0, f"BANKER ({banker_signals}/9 signals: {', '.join(banker_reasons)})")
+
         horse_data = {
             "number": horse.number,
             "name": horse.name,
@@ -890,12 +945,17 @@ class CombinedRaceAnalyzer:
         # Market-implied probability for comparison
         market_prob_top = (1 / top.horse.win_odds) if top and top.horse.win_odds > 0 else 0
 
+        # Check if our #1 is a BANKER — if so, don't let market override it
+        top_is_banker = any("BANKER" in r for r in analyses[0].reasoning) if analyses else False
+
         # Check if market favourite differs from our top pick — if so, re-sort
         # to respect the market when it strongly backs a different horse
+        # BUT: never override a BANKER pick — our model has high conviction
         market_fav = min(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds > 0 else 999)
         market_fav_prob = (1 / market_fav.horse.win_odds) if market_fav.horse.win_odds > 0 else 0
         if (market_fav_prob >= 0.30 and market_fav.rank > 1
-                and market_fav.horse.win_odds > 0):
+                and market_fav.horse.win_odds > 0
+                and not top_is_banker):
             # Market strongly backs a horse we don't rank #1 — promote it
             # Re-sort: swap market fav to position 0
             old_idx = next(i for i, a in enumerate(analyses) if a is market_fav)
@@ -915,15 +975,33 @@ class CombinedRaceAnalyzer:
             top_3_share = top_prob + second_prob + third_prob
             market_prob_top = market_fav_prob
 
+        # Check if any horse is a BANKER — if so, promote it to #1 and force WIN
+        banker_horse = None
+        for a in analyses:
+            if any("BANKER" in r for r in a.reasoning):
+                if banker_horse is None or a.rule_score > banker_horse.rule_score:
+                    banker_horse = a
+
+        if banker_horse and banker_horse.rank > 1:
+            # Promote BANKER to rank 1
+            old_idx = next(i for i, a in enumerate(analyses) if a is banker_horse)
+            analyses[0], analyses[old_idx] = analyses[old_idx], analyses[0]
+            for i, a in enumerate(analyses):
+                a.rank = i + 1
+            calibrated_probs[0], calibrated_probs[old_idx] = calibrated_probs[old_idx], calibrated_probs[0]
+            top = analyses[0]
+            top_prob = calibrated_probs[0]
+            second_prob = calibrated_probs[1] if n >= 2 else 0
+            gap_1_2 = top_prob - second_prob
+
         # Determine race-level bet type first, then assign to horses
         # QIN = 2 horses, QNL PL = 2 horses, TRIO = 3 horses
         race_bet_type = "WIN"  # default
 
-        # Market standout: if market gives 30%+ implied prob AND big gap, it's WIN
-        # regardless of EV — the market knows something at these odds
-        is_market_standout = (market_prob_top >= 0.30 and gap_1_2 > 0.06)
-
-        if is_market_standout:
+        # BANKER overrides everything — always WIN
+        if banker_horse and banker_horse.rank == 1:
+            race_bet_type = "WIN"
+        elif market_prob_top >= 0.30 and gap_1_2 > 0.06:
             race_bet_type = "WIN"  # clear market standout
         elif gap_1_2 > 0.04 and top and top.expected_return > 0.10:
             race_bet_type = "WIN"  # clear standout by our model
@@ -949,7 +1027,9 @@ class CombinedRaceAnalyzer:
 
             if race_bet_type == "WIN":
                 if rank == 1:
-                    a.bet_recommendation = "WIN"
+                    # Check if this horse has BANKER flag in reasoning
+                    is_banker = any("BANKER" in r for r in a.reasoning)
+                    a.bet_recommendation = "BANKER WIN" if is_banker else "WIN"
                 elif rank == 2 and (a.expected_return > 0.0 or has_place_value):
                     a.bet_recommendation = "PLACE"
                 elif rank == 3 and has_place_value:
