@@ -552,7 +552,8 @@ class CombinedRaceAnalyzer:
     ) -> HorseAnalysis:
         factors = {}
         reasoning = []
-        distance = race.distance
+        # Normalize distance to string (some paths pass int, some str)
+        distance = str(race.distance) if race.distance else "1200"
 
         # --- Core factors (same as before) ---
 

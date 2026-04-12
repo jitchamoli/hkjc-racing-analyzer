@@ -568,10 +568,14 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             # Feature 1: rating normalized
             feat_rating = min(1.0, rating / 100) if rating > 0 else 0.5
 
-            # Feature 2: form score (from position history — use this race's position as proxy)
-            pos = r.get('finish_position', 7)
-            # We don't have last_6 in results, so estimate from position
-            feat_form = max(0.05, min(1.0, 1.0 - (pos - 1) * 0.08))
+            # Feature 2: form score — use real last_6 from DB when available
+            last_6 = r.get('last_6', '') or ''
+            if last_6:
+                feat_form = FeatureEngineering.calculate_form_score(last_6) / 100
+            else:
+                # Fallback: estimate from this race's finishing position
+                pos = r.get('finish_position', 7)
+                feat_form = max(0.05, min(1.0, 1.0 - (pos - 1) * 0.08))
 
             # Feature 3: draw advantage
             feat_draw = FeatureEngineering.calculate_draw_advantage(draw, distance)

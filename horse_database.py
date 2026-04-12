@@ -84,11 +84,16 @@ class HorseDatabase:
             )
         """)
 
-        # Add margin column if upgrading from older schema
-        try:
-            c.execute("ALTER TABLE race_results ADD COLUMN margin REAL DEFAULT 0")
-        except sqlite3.OperationalError:
-            pass  # column already exists
+        # Add columns if upgrading from older schema
+        for col_def in [
+            "margin REAL DEFAULT 0",
+            "last_6 TEXT DEFAULT ''",
+            "age TEXT DEFAULT ''",
+        ]:
+            try:
+                c.execute(f"ALTER TABLE race_results ADD COLUMN {col_def}")
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
         # Jockey season stats
         c.execute("""
@@ -159,27 +164,35 @@ class HorseDatabase:
 
                 # Upsert race result
                 margin = entry.get('margin', 0) or 0
+                hw = entry.get('horse_weight', 0) or 0
+                last_6 = entry.get('last_6', '') or ''
+                age = entry.get('age', '') or ''
                 c.execute("""
                     INSERT INTO race_results (
                         race_date, race_number, venue, distance, class_type,
                         going, course, horse_name, horse_number, jockey, trainer,
                         draw, weight, rating, win_odds, finish_position,
-                        is_winner, is_top3, gear, margin
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        is_winner, is_top3, gear, margin, horse_weight,
+                        last_6, age
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(race_date, race_number, horse_name)
                     DO UPDATE SET
                         finish_position=excluded.finish_position,
                         is_winner=excluded.is_winner,
                         is_top3=excluded.is_top3,
                         win_odds=CASE WHEN excluded.win_odds > 0 THEN excluded.win_odds ELSE race_results.win_odds END,
-                        margin=CASE WHEN excluded.margin > 0 THEN excluded.margin ELSE race_results.margin END
+                        margin=CASE WHEN excluded.margin > 0 THEN excluded.margin ELSE race_results.margin END,
+                        horse_weight=CASE WHEN excluded.horse_weight > 0 THEN excluded.horse_weight ELSE race_results.horse_weight END,
+                        last_6=CASE WHEN excluded.last_6 != '' THEN excluded.last_6 ELSE race_results.last_6 END,
+                        age=CASE WHEN excluded.age != '' THEN excluded.age ELSE race_results.age END
                 """, (
                     race_date, race_no, venue, distance, class_type,
                     going, course, horse_name, entry.get('number', 0),
                     entry.get('jockey', ''), entry.get('trainer', ''),
                     entry.get('draw', 0), entry.get('weight', ''),
                     entry.get('rating', 0), entry.get('win_odds', 0),
-                    pos, is_winner, is_top3, entry.get('gear', ''), margin,
+                    pos, is_winner, is_top3, entry.get('gear', ''), margin, hw,
+                    last_6, age,
                 ))
 
                 # Upsert horse master record

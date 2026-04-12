@@ -71,6 +71,7 @@ async def main():
                 "win_odds": h.win_odds,
                 "place_odds": h.place_odds,
                 "last_6": h.last_6,
+                "age": h.age if hasattr(h, 'age') else "",
                 "rule_score": a.rule_score,
                 "ml_prob": ml_prob,
                 "combined_score": a.value_score,

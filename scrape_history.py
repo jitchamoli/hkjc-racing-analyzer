@@ -185,10 +185,19 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
             jockey = row[3].strip() if len(row) > 3 else ""
             trainer = row[4].strip() if len(row) > 4 else ""
 
-            # Actual weight (lbs)
+            # Actual weight carried (lbs) — column 5
             weight = row[5].strip() if len(row) > 5 else ""
 
-            # Draw
+            # Declared horse body weight (lbs) — column 6
+            horse_weight = 0
+            if len(row) > 6:
+                hw_text = re.sub(r"[^\d]", "", row[6])
+                if hw_text:
+                    val = int(hw_text)
+                    if 900 <= val <= 1400:  # HK horse body weights range
+                        horse_weight = val
+
+            # Draw — column 7
             draw = 0
             if len(row) > 7:
                 dr_text = re.sub(r"[^\d]", "", row[7])
@@ -233,7 +242,8 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
                 "jockey": jockey,
                 "trainer": trainer,
                 "draw": draw,
-                "weight": weight,
+                "weight": weight,           # Act.Wt (carried weight, lbs)
+                "horse_weight": horse_weight,  # Declar.HorseWt (body weight, lbs)
                 "rating": 0.0,  # Not available on results page
                 "win_odds": win_odds,
                 "actual_position": pos,
