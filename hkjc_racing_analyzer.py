@@ -204,7 +204,7 @@ class BettingStrategy:
     JOCKEY_WEIGHT = 0.04
     TRAINER_WEIGHT = 0.02
     DRAW_WEIGHT = 0.04       # Enhanced with rail bias
-    TIPS_WEIGHT = 0.12       # HKJC expert tips index (strongest signal)
+    TIPS_WEIGHT = 0.10       # HKJC expert tips index (strongest signal)
     PACE_WEIGHT = 0.03       # Running style + pace scenario
     SECTIONAL_WEIGHT = 0.03  # Finishing speed
     CD_FORM_WEIGHT = 0.04    # Course & Distance record
@@ -222,6 +222,8 @@ class BettingStrategy:
     JOCKEY_CHANGE_WEIGHT = 0.04  # Jockey upgrade/downgrade detection
     JOCKEY_FORM_WEIGHT = 0.04   # Jockey recent win% (hot streak)
     TRAINER_FORM_WEIGHT = 0.03  # Trainer recent win% (hot streak)
+    FIELD_SIZE_WEIGHT = 0.05    # Field size — #1 feature in gmalbert research (17.41%)
+    CAREER_PLACE_WEIGHT = 0.03  # Career top-3 rate from horse DB
 
     @staticmethod
     def analyze_form(last_6: str) -> tuple:
@@ -811,6 +813,74 @@ class CombinedRaceAnalyzer:
         if tf_score > 0:
             reasoning.append(tf_reason)
 
+        # --- NEW: Field Size Impact ---
+        # #1 predictor in gmalbert research (17.41% importance)
+        # Small fields = favourites dominate. Large fields = more upsets.
+        # Score: higher for horses with good odds in small fields,
+        #        higher for outsiders in large fields (more chance of chaos)
+        field_n = len(all_horses) if all_horses else 0
+        if field_n > 0 and horse.win_odds > 0:
+            implied_prob = 1.0 / horse.win_odds
+            if field_n <= 8:
+                # Small field: favourites dominate, penalize outsiders
+                if implied_prob >= 0.15:
+                    fs_score = 75.0
+                    fs_reason = f"Small field ({field_n}) favours market leaders"
+                else:
+                    fs_score = 35.0
+                    fs_reason = f"Small field ({field_n}) — hard for outsiders"
+            elif field_n <= 11:
+                # Medium field: balanced
+                fs_score = 55.0
+                fs_reason = f"Medium field ({field_n})"
+            else:
+                # Large field: more chaos, outsiders have more chance
+                if implied_prob >= 0.12:
+                    fs_score = 60.0
+                    fs_reason = f"Large field ({field_n}) — still backed"
+                elif implied_prob >= 0.06:
+                    fs_score = 55.0
+                    fs_reason = f"Large field ({field_n}) — live chance"
+                else:
+                    fs_score = 45.0
+                    fs_reason = f"Large field ({field_n}) — longshot territory"
+        else:
+            fs_score = 0.0
+            fs_reason = ""
+        factors["field_size"] = fs_score
+        if fs_score > 0:
+            reasoning.append(f"Field: {fs_reason}")
+
+        # --- NEW: Career Place Rate ---
+        cp_score = 0.0
+        cp_reason = ""
+        if self._horse_db:
+            hr = self._horse_db.get_horse_record(horse.name)
+            if hr and hr.get('total_starts', 0) >= 3:
+                starts = hr['total_starts']
+                places = hr.get('total_places', 0) or 0
+                wins = hr.get('total_wins', 0) or 0
+                place_rate = places / starts if starts else 0
+                win_rate = wins / starts if starts else 0
+                if win_rate >= 0.25:
+                    cp_score = 85.0
+                    cp_reason = f"Career: {wins}W/{places}P from {starts} ({win_rate:.0%}W)"
+                elif place_rate >= 0.40:
+                    cp_score = 72.0
+                    cp_reason = f"Career: {places}P from {starts} ({place_rate:.0%} top3)"
+                elif place_rate >= 0.25:
+                    cp_score = 58.0
+                    cp_reason = f"Career: {places}P from {starts} ({place_rate:.0%} top3)"
+                elif starts >= 5:
+                    cp_score = 35.0
+                    cp_reason = f"Career: {places}P from {starts} ({place_rate:.0%} top3)"
+                else:
+                    cp_score = 45.0
+                    cp_reason = f"Career: {starts} starts"
+        factors["career_place"] = cp_score
+        if cp_score > 0:
+            reasoning.append(cp_reason)
+
         # --- Weighted score calculation (dynamic) ---
         # Build weight map only for available factors (score > 0)
         weight_map = {
@@ -856,6 +926,10 @@ class CombinedRaceAnalyzer:
             weight_map["jockey_form"] = BettingStrategy.JOCKEY_FORM_WEIGHT
         if tf_score > 0:
             weight_map["trainer_form"] = BettingStrategy.TRAINER_FORM_WEIGHT
+        if fs_score > 0:
+            weight_map["field_size"] = BettingStrategy.FIELD_SIZE_WEIGHT
+        if cp_score > 0:
+            weight_map["career_place"] = BettingStrategy.CAREER_PLACE_WEIGHT
 
         # Normalize weights to sum to 1.0
         total_weight = sum(weight_map.values())
