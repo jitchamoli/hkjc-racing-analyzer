@@ -579,7 +579,7 @@ function buildWhatsAppText(race) {{
   var bankerPicks = h.filter(function(x) {{ return x.bet_recommendation === 'BANKER WIN'; }});
 
   var t = '';
-  t += '\\ud83c\\udfc7 *R' + race.race_number + ' ' + race.venue + '* ' + race.time + ' | ' + race.distance + 'm | ' + (race.going || '') + '\\n';
+  t += '\\ud83c\\udfc7 *R' + race.race_number + ' ' + race.venue + '* ' + race.time + ' | ' + race.distance + 'm | ' + (race.going || '') + '\\n\\n';
 
   // Top 4 picks — single line each
   h.slice(0, 4).forEach(function(x) {{
