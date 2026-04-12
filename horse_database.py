@@ -287,6 +287,65 @@ class HorseDatabase:
         row = c.fetchone()
         return dict(row) if row else None
 
+    def get_jockey_recent_form(self, jockey_name: str, n_rides: int = 10) -> Dict:
+        """Get jockey's recent form over last N rides.
+
+        Hot streak detection — a jockey winning 4/10 recent rides is on fire,
+        regardless of their season average. Bill Benter found this among the
+        most predictive features.
+        """
+        c = self.conn.cursor()
+        c.execute("""
+            SELECT is_winner, is_top3, finish_position
+            FROM race_results
+            WHERE jockey = ? AND finish_position > 0
+            ORDER BY race_date DESC, race_number DESC
+            LIMIT ?
+        """, (jockey_name, n_rides))
+        rows = c.fetchall()
+        if not rows:
+            return {'rides': 0, 'wins': 0, 'places': 0, 'win_rate': 0, 'place_rate': 0, 'hot': False}
+        n = len(rows)
+        wins = sum(r['is_winner'] for r in rows)
+        places = sum(r['is_top3'] for r in rows)
+        win_rate = wins / n if n else 0
+        place_rate = places / n if n else 0
+        return {
+            'rides': n,
+            'wins': wins,
+            'places': places,
+            'win_rate': round(win_rate, 3),
+            'place_rate': round(place_rate, 3),
+            'hot': win_rate >= 0.25,  # 25%+ recent win rate = hot streak
+        }
+
+    def get_trainer_recent_form(self, trainer_name: str, n_runners: int = 10) -> Dict:
+        """Get trainer's recent form over last N runners."""
+        c = self.conn.cursor()
+        c.execute("""
+            SELECT is_winner, is_top3, finish_position
+            FROM race_results
+            WHERE trainer = ? AND finish_position > 0
+            ORDER BY race_date DESC, race_number DESC
+            LIMIT ?
+        """, (trainer_name, n_runners))
+        rows = c.fetchall()
+        if not rows:
+            return {'runners': 0, 'wins': 0, 'places': 0, 'win_rate': 0, 'place_rate': 0, 'hot': False}
+        n = len(rows)
+        wins = sum(r['is_winner'] for r in rows)
+        places = sum(r['is_top3'] for r in rows)
+        win_rate = wins / n if n else 0
+        place_rate = places / n if n else 0
+        return {
+            'runners': n,
+            'wins': wins,
+            'places': places,
+            'win_rate': round(win_rate, 3),
+            'place_rate': round(place_rate, 3),
+            'hot': win_rate >= 0.20,  # 20%+ recent win rate = hot streak
+        }
+
     def get_trainer_stats(self, trainer_name: str) -> Optional[Dict]:
         """Get trainer's season statistics."""
         c = self.conn.cursor()

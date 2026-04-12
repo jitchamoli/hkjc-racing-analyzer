@@ -201,8 +201,8 @@ class BettingStrategy:
     RATING_WEIGHT = 0.07
     FORM_WEIGHT = 0.09       # Recency-weighted form (recent wins boosted)
     ODDS_WEIGHT = 0.08       # Market implied probability
-    JOCKEY_WEIGHT = 0.05
-    TRAINER_WEIGHT = 0.03
+    JOCKEY_WEIGHT = 0.04
+    TRAINER_WEIGHT = 0.02
     DRAW_WEIGHT = 0.04       # Enhanced with rail bias
     TIPS_WEIGHT = 0.12       # HKJC expert tips index (strongest signal)
     PACE_WEIGHT = 0.03       # Running style + pace scenario
@@ -220,6 +220,8 @@ class BettingStrategy:
     ROLLING_FORM_WEIGHT = 0.06  # Rolling avg position, win rate, trend
     MARGIN_WEIGHT = 0.05     # Beaten margins — <2.75L = strong next-out signal
     JOCKEY_CHANGE_WEIGHT = 0.04  # Jockey upgrade/downgrade detection
+    JOCKEY_FORM_WEIGHT = 0.04   # Jockey recent win% (hot streak)
+    TRAINER_FORM_WEIGHT = 0.03  # Trainer recent win% (hot streak)
 
     @staticmethod
     def analyze_form(last_6: str) -> tuple:
@@ -765,6 +767,50 @@ class CombinedRaceAnalyzer:
         if jc_score > 0:
             reasoning.append(jc_reason)
 
+        # --- NEW: Jockey Recent Form (Hot Streak) ---
+        jf_score = 0.0
+        jf_reason = ""
+        if self._horse_db and horse.jockey:
+            jf = self._horse_db.get_jockey_recent_form(horse.jockey, n_rides=10)
+            if jf.get('rides', 0) >= 3:
+                wr = jf['win_rate']
+                pr = jf['place_rate']
+                if jf['hot']:
+                    jf_score = 85.0
+                    jf_reason = f"Jockey HOT: {horse.jockey} {jf['wins']}W/{jf['rides']}R ({wr:.0%})"
+                elif wr >= 0.15:
+                    jf_score = 65.0
+                    jf_reason = f"Jockey solid: {horse.jockey} {jf['wins']}W/{jf['rides']}R ({wr:.0%})"
+                elif pr >= 0.30:
+                    jf_score = 55.0
+                    jf_reason = f"Jockey placing: {horse.jockey} {jf['places']}P/{jf['rides']}R"
+                else:
+                    jf_score = 35.0
+                    jf_reason = f"Jockey cold: {horse.jockey} {jf['wins']}W/{jf['rides']}R ({wr:.0%})"
+        factors["jockey_form"] = jf_score
+        if jf_score > 0:
+            reasoning.append(jf_reason)
+
+        # --- NEW: Trainer Recent Form (Hot Streak) ---
+        tf_score = 0.0
+        tf_reason = ""
+        if self._horse_db and horse.trainer:
+            tf = self._horse_db.get_trainer_recent_form(horse.trainer, n_runners=10)
+            if tf.get('runners', 0) >= 3:
+                wr = tf['win_rate']
+                if tf['hot']:
+                    tf_score = 80.0
+                    tf_reason = f"Trainer HOT: {horse.trainer} {tf['wins']}W/{tf['runners']}R ({wr:.0%})"
+                elif wr >= 0.12:
+                    tf_score = 60.0
+                    tf_reason = f"Trainer solid: {horse.trainer} {tf['wins']}W/{tf['runners']}R"
+                else:
+                    tf_score = 38.0
+                    tf_reason = f"Trainer quiet: {horse.trainer} {tf['wins']}W/{tf['runners']}R"
+        factors["trainer_form"] = tf_score
+        if tf_score > 0:
+            reasoning.append(tf_reason)
+
         # --- Weighted score calculation (dynamic) ---
         # Build weight map only for available factors (score > 0)
         weight_map = {
@@ -806,6 +852,10 @@ class CombinedRaceAnalyzer:
             weight_map["margin"] = BettingStrategy.MARGIN_WEIGHT
         if jc_score > 0:
             weight_map["jockey_change"] = BettingStrategy.JOCKEY_CHANGE_WEIGHT
+        if jf_score > 0:
+            weight_map["jockey_form"] = BettingStrategy.JOCKEY_FORM_WEIGHT
+        if tf_score > 0:
+            weight_map["trainer_form"] = BettingStrategy.TRAINER_FORM_WEIGHT
 
         # Normalize weights to sum to 1.0
         total_weight = sum(weight_map.values())
