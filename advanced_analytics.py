@@ -19,6 +19,18 @@ from typing import Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
+def parse_form_positions(last_6: str) -> List[int]:
+    """Parse form string into list of finishing positions.
+    Handles both '1/3/10/2/5' (slash-separated) and legacy '13425' (digit-by-digit)."""
+    if not last_6:
+        return []
+    s = str(last_6)
+    if "/" in s:
+        return [int(p) for p in s.split("/") if p.strip().isdigit()]
+    else:
+        return [int(ch) for ch in s if ch.isdigit()]
+
+
 # ---------------------------------------------------------------------------
 # 1. Draw Bias Analyzer - Rail position aware draw scoring
 # ---------------------------------------------------------------------------
@@ -233,10 +245,7 @@ class PaceAnalyzer:
         if not last_6:
             return "Midfield"
 
-        positions = []
-        for ch in str(last_6):
-            if ch.isdigit():
-                positions.append(int(ch))
+        positions = parse_form_positions(last_6)
 
         if not positions:
             return "Midfield"
@@ -415,7 +424,7 @@ class SectionalAnalyzer:
 
         # If horse frequently improves position (low finishes improving)
         if last_6:
-            positions = [int(ch) for ch in str(last_6) if ch.isdigit()]
+            positions = parse_form_positions(last_6)
             if len(positions) >= 3:
                 # Check if recent positions are better than earlier ones
                 early = sum(positions[:len(positions)//2]) / max(1, len(positions)//2)

@@ -75,6 +75,15 @@ class Horse:
     trial_position: int = 0
     opening_odds: float = 0.0
     gear: str = ""
+    # New high-impact fields
+    days_since_last_run: int = 0
+    rating_change: int = 0
+    horse_weight: int = 0
+    weight_change: int = 0
+    age: str = ""
+    season_stakes: str = ""
+    import_cat: str = ""
+    sex: str = ""
 
 
 @dataclass
@@ -153,6 +162,14 @@ def convert_race(rc: RaceCard) -> Race:
             trial_position=h.trial_position,
             opening_odds=h.opening_odds,
             gear=h.gear,
+            days_since_last_run=h.days_since_last_run,
+            rating_change=h.rating_change,
+            horse_weight=h.horse_weight,
+            weight_change=h.weight_change,
+            age=getattr(h, 'age', ''),
+            season_stakes=getattr(h, 'season_stakes', ''),
+            import_cat=getattr(h, 'import_cat', ''),
+            sex=getattr(h, 'sex', ''),
         ))
 
     return Race(
@@ -175,35 +192,55 @@ def convert_race(rc: RaceCard) -> Race:
 # ---------------------------------------------------------------------------
 
 class BettingStrategy:
-    # Full 14-factor weights (when all data available)
+    # Full 17-factor weights (when all data available)
     # Tips Index is the strongest signal — aggregates expert tipster consensus
-    RATING_WEIGHT = 0.10
-    FORM_WEIGHT = 0.13       # Recency-weighted form (recent wins boosted)
-    ODDS_WEIGHT = 0.10       # Market implied probability
-    JOCKEY_WEIGHT = 0.07
-    TRAINER_WEIGHT = 0.05
+    RATING_WEIGHT = 0.09
+    FORM_WEIGHT = 0.12       # Recency-weighted form (recent wins boosted)
+    ODDS_WEIGHT = 0.09       # Market implied probability
+    JOCKEY_WEIGHT = 0.06
+    TRAINER_WEIGHT = 0.04
     DRAW_WEIGHT = 0.05       # Enhanced with rail bias
-    TIPS_WEIGHT = 0.16       # HKJC expert tips index (strongest signal)
-    PACE_WEIGHT = 0.05       # Running style + pace scenario
+    TIPS_WEIGHT = 0.14       # HKJC expert tips index (strongest signal)
+    PACE_WEIGHT = 0.04       # Running style + pace scenario
     SECTIONAL_WEIGHT = 0.04  # Finishing speed
-    CD_FORM_WEIGHT = 0.05    # Course & Distance record
-    ODDS_MOVE_WEIGHT = 0.06  # Odds movement / steam detection
-    CLASS_MOVE_WEIGHT = 0.04 # Class drop/rise advantage
-    GEAR_WEIGHT = 0.04       # Equipment changes
-    WEIGHT_WEIGHT = 0.06     # Weight carried vs rating
+    CD_FORM_WEIGHT = 0.04    # Course & Distance record
+    ODDS_MOVE_WEIGHT = 0.05  # Odds movement / steam detection
+    CLASS_MOVE_WEIGHT = 0.03 # Class drop/rise advantage
+    GEAR_WEIGHT = 0.03       # Equipment changes
+    WEIGHT_WEIGHT = 0.05     # Weight carried vs rating
+    # New high-impact factors
+    FRESHNESS_WEIGHT = 0.06  # Days since last run
+    RATING_TREND_WEIGHT = 0.04  # Rating going up or down
+    STAKES_WEIGHT = 0.03     # Season prize money earned
 
     @staticmethod
     def analyze_form(last_6: str) -> tuple:
         if not last_6 or len(last_6) < 1:
             return 0.0, "No recent form data"
 
-        # Position scores
-        pos_scores = {"1": 100, "2": 60, "3": 40, "4": 25, "5": 15, "6": 10}
+        # Position scores — handles positions beyond 6th
+        def pos_score(p):
+            if p == 1: return 100
+            if p == 2: return 60
+            if p == 3: return 40
+            if p == 4: return 25
+            if p == 5: return 15
+            if p == 6: return 10
+            if p <= 9: return 5
+            return 2  # 10th or worse
 
+        # Parse positions — handles both "1/2/3/10/5" and legacy "12345" formats
         positions = []
-        for ch in str(last_6):
-            if ch.isdigit():
-                positions.append(int(ch))
+        if "/" in str(last_6):
+            for part in str(last_6).split("/"):
+                part = part.strip()
+                if part.isdigit():
+                    positions.append(int(part))
+        else:
+            # Legacy single-digit format (may be inaccurate for 10+)
+            for ch in str(last_6):
+                if ch.isdigit():
+                    positions.append(int(ch))
 
         if not positions:
             return 0.0, "No recent form data"
@@ -224,7 +261,7 @@ class BettingStrategy:
         recent_win = False
 
         for i, pos in enumerate(positions):
-            score = pos_scores.get(str(pos), 0)
+            score = pos_score(pos)
             weighted_total += score * weights[i]
             weight_sum += weights[i]
             if pos == 1:
@@ -269,6 +306,18 @@ class BettingStrategy:
             "M Chadwick": (72, "Improving jockey"),
             "V Borges": (78, "Skilled jockey"),
             "B Shinn": (83, "Top jockey - B Shinn"),
+            "A Atzeni": (84, "Top international - A Atzeni"),
+            "B Avdulla": (80, "Skilled jockey - B Avdulla"),
+            "C Y Ho": (78, "Experienced jockey - C Y Ho"),
+            "R Kingscote": (80, "Skilled jockey - R Kingscote"),
+            "L Ferraris": (78, "Rising star - L Ferraris"),
+            "J Orman": (76, "Solid jockey - J Orman"),
+            "M L Yeung": (72, "Local jockey - M L Yeung"),
+            "H Y Yuen": (70, "Apprentice - H Y Yuen"),
+            "H T Mo": (68, "Apprentice - H T Mo"),
+            "E C W Wong": (68, "Apprentice - E C W Wong"),
+            "P N Wong": (66, "Apprentice - P N Wong"),
+            "Y L Chung": (68, "Local jockey - Y L Chung"),
         }
         for name, (score, reason) in top_jockeys.items():
             if name.lower() in jockey.lower():
@@ -280,15 +329,28 @@ class BettingStrategy:
         top_trainers = {
             "J Size": (92, "Legendary trainer - J Size"),
             "A Cruz": (90, "Top trainer - A Cruz"),
+            "A S Cruz": (90, "Top trainer - A S Cruz"),
             "F C Lor": (88, "Elite trainer - F C Lor"),
             "D J Hall": (82, "Top trainer - D J Hall"),
             "C Fownes": (82, "Top trainer - C Fownes"),
-            "J Richards": (80, "Skilled trainer"),
-            "D Whyte": (80, "Trainer - D Whyte"),
-            "K H Ting": (78, "Consistent trainer"),
-            "P F Yiu": (75, "Experienced trainer"),
+            "J Richards": (80, "Skilled trainer - J Richards"),
+            "D Whyte": (80, "Top trainer - D Whyte"),
+            "D J Whyte": (80, "Top trainer - D J Whyte"),
+            "K H Ting": (78, "Consistent trainer - K H Ting"),
+            "P F Yiu": (78, "Experienced trainer - P F Yiu"),
             "W Y So": (72, "Trainer - W Y So"),
             "C H Yip": (75, "Trainer - C H Yip"),
+            "K W Lui": (82, "Top trainer - K W Lui"),
+            "D A Hayes": (80, "Skilled trainer - D A Hayes"),
+            "D Eustace": (76, "Trainer - D Eustace"),
+            "B Crawford": (75, "Trainer - B Crawford"),
+            "M Newnham": (78, "Skilled trainer - M Newnham"),
+            "C S Shum": (78, "Experienced trainer - C S Shum"),
+            "K L Man": (74, "Trainer - K L Man"),
+            "P C Ng": (72, "Trainer - P C Ng"),
+            "C W Chang": (72, "Trainer - C W Chang"),
+            "W K Mo": (70, "Trainer - W K Mo"),
+            "Y S Tsui": (74, "Trainer - Y S Tsui"),
         }
         for name, (score, reason) in top_trainers.items():
             if name.lower() in trainer.lower():
@@ -300,21 +362,25 @@ class BettingStrategy:
         dist = int(distance) if distance and distance.isdigit() else 1200
 
         if dist <= 1000:
-            ideal = 3
+            ideal_range = (1, 4)
         elif dist <= 1400:
-            ideal = 5
+            ideal_range = (1, 6)
         else:
-            ideal = 8
+            ideal_range = (4, 10)
 
         if draw == 0:
             return 50.0, "No draw data"
 
-        if draw == ideal:
-            return 95.0, f"Ideal barrier ({draw})"
-        elif abs(draw - ideal) <= 2:
-            return 80.0, f"Good barrier ({draw})"
+        if ideal_range[0] <= draw <= ideal_range[1]:
+            # Within ideal range — score based on closeness to center
+            center = (ideal_range[0] + ideal_range[1]) / 2
+            dist_from_center = abs(draw - center) / max(1, (ideal_range[1] - ideal_range[0]) / 2)
+            score = 95 - dist_from_center * 15  # 95 at center, ~80 at edges
+            return score, f"Good barrier ({draw})"
         elif draw > 12:
-            return 55.0, f"Wide draw ({draw})"
+            return 45.0, f"Wide draw ({draw})"
+        elif draw > ideal_range[1]:
+            return 60.0, f"Outside ideal range ({draw})"
         else:
             return 65.0, f"Average barrier ({draw})"
 
@@ -409,6 +475,21 @@ class CombinedRaceAnalyzer:
         )
 
         form_score, form_reason = self.strategy.analyze_form(horse.last_6)
+
+        # When form data is missing/empty, use market odds as proxy
+        # A horse at $5 with no form is still well-regarded by the market
+        if form_score == 0 and horse.win_odds > 0:
+            odds_implied = 1.0 / horse.win_odds
+            # Short-priced no-form horse = market sees something we don't
+            if odds_implied >= 0.15:  # $6.67 or shorter
+                form_score = 55.0
+                form_reason = f"No form — market backed (${horse.win_odds:.0f})"
+            elif odds_implied >= 0.08:  # $12.5 or shorter
+                form_score = 45.0
+                form_reason = f"No form — moderate market support (${horse.win_odds:.0f})"
+            else:
+                form_score = 30.0
+                form_reason = f"No form — outsider (${horse.win_odds:.0f})"
 
         # Supplement form for debut/Griffin horses with trial data
         if self.trial_analyzer.is_debut_horse(horse.last_6, horse.rating, race.class_type):
@@ -544,6 +625,78 @@ class CombinedRaceAnalyzer:
         if weight_reason != "Weight data unavailable":
             reasoning.append(f"Weight: {weight_reason}")
 
+        # --- NEW: Days Since Last Run (Freshness) ---
+        days = horse.days_since_last_run
+        if days > 0:
+            # Optimal: 14-35 days. Too fresh (<14) or too long (>60) is risky
+            if 14 <= days <= 35:
+                fresh_score = 75.0
+                fresh_reason = f"Ideal spacing ({days} days)"
+            elif 7 <= days < 14:
+                fresh_score = 60.0
+                fresh_reason = f"Quick backup ({days} days)"
+            elif 35 < days <= 60:
+                fresh_score = 55.0
+                fresh_reason = f"Fair break ({days} days)"
+            elif 60 < days <= 120:
+                fresh_score = 40.0
+                fresh_reason = f"Long absence ({days} days) — fitness query"
+            else:
+                fresh_score = 30.0
+                fresh_reason = f"Very long layoff ({days} days)"
+        else:
+            fresh_score = 0.0
+            fresh_reason = ""
+        factors["freshness"] = fresh_score
+        if fresh_score > 0:
+            reasoning.append(f"Freshness: {fresh_reason}")
+
+        # --- NEW: Rating Change (Trending) ---
+        rtg_chg = horse.rating_change
+        if rtg_chg != 0:
+            if rtg_chg >= 5:
+                trend_score = 80.0
+                trend_reason = f"Rating up {rtg_chg}pts — improving fast"
+            elif rtg_chg > 0:
+                trend_score = 65.0
+                trend_reason = f"Rating up {rtg_chg}pts — on the rise"
+            elif rtg_chg >= -3:
+                trend_score = 45.0
+                trend_reason = f"Rating down {rtg_chg}pts — slight decline"
+            else:
+                trend_score = 30.0
+                trend_reason = f"Rating down {rtg_chg}pts — declining"
+        else:
+            trend_score = 0.0
+            trend_reason = ""
+        factors["rating_trend"] = trend_score
+        if trend_score > 0:
+            reasoning.append(f"Trend: {trend_reason}")
+
+        # --- NEW: Season Stakes (Class Indicator) ---
+        stakes_val = 0
+        if horse.season_stakes and horse.season_stakes not in ("-", "0", ""):
+            stakes_val = int(re.sub(r'[^\d]', '', horse.season_stakes) or '0')
+        if stakes_val > 0:
+            if stakes_val >= 3_000_000:
+                stakes_score = 80.0
+                stakes_reason = f"Top earner (${stakes_val:,.0f})"
+            elif stakes_val >= 1_000_000:
+                stakes_score = 65.0
+                stakes_reason = f"Solid earner (${stakes_val:,.0f})"
+            elif stakes_val >= 300_000:
+                stakes_score = 50.0
+                stakes_reason = f"Moderate earner (${stakes_val:,.0f})"
+            else:
+                stakes_score = 35.0
+                stakes_reason = f"Low earner (${stakes_val:,.0f})"
+        else:
+            stakes_score = 0.0
+            stakes_reason = ""
+        factors["season_stakes"] = stakes_score
+        if stakes_score > 0:
+            reasoning.append(f"Earnings: {stakes_reason}")
+
         # --- Weighted score calculation (dynamic) ---
         # Build weight map only for available factors (score > 0)
         weight_map = {
@@ -570,6 +723,13 @@ class CombinedRaceAnalyzer:
         weight_map["class_movement"] = BettingStrategy.CLASS_MOVE_WEIGHT
         weight_map["gear"] = BettingStrategy.GEAR_WEIGHT
         weight_map["weight_carried"] = BettingStrategy.WEIGHT_WEIGHT
+        # New high-impact factors
+        if fresh_score > 0:
+            weight_map["freshness"] = BettingStrategy.FRESHNESS_WEIGHT
+        if trend_score > 0:
+            weight_map["rating_trend"] = BettingStrategy.RATING_TREND_WEIGHT
+        if stakes_score > 0:
+            weight_map["season_stakes"] = BettingStrategy.STAKES_WEIGHT
 
         # Normalize weights to sum to 1.0
         total_weight = sum(weight_map.values())
@@ -683,9 +843,32 @@ class CombinedRaceAnalyzer:
         exp_total = sum(exp_scores) or 1.0
         calibrated_probs = [e / exp_total for e in exp_scores]
 
-        # Calculate EV using calibrated probabilities
+        # Blend with market-implied probabilities (30% market, 70% model)
+        # This prevents our model from severely underrating strong favourites
+        market_probs = []
+        for a in analyses:
+            if a.horse.win_odds > 0:
+                market_probs.append(1.0 / a.horse.win_odds)
+            else:
+                market_probs.append(0.0)
+        market_total = sum(market_probs) or 1.0
+        market_probs = [p / market_total for p in market_probs]  # normalize to fair probs
+
+        blended_probs = []
+        for i in range(len(calibrated_probs)):
+            if market_probs[i] > 0:
+                blended = 0.70 * calibrated_probs[i] + 0.30 * market_probs[i]
+            else:
+                blended = calibrated_probs[i]
+            blended_probs.append(blended)
+        # Re-normalize
+        blend_total = sum(blended_probs) or 1.0
+        calibrated_probs = [p / blend_total for p in blended_probs]
+
+        # Store calibrated probabilities and calculate EV
         for i, a in enumerate(analyses):
             cal_prob = calibrated_probs[i]
+            a.combined_probability = cal_prob  # overwrite raw score with calibrated prob
             if a.horse.win_odds > 0:
                 a.expected_return = (a.horse.win_odds * cal_prob) - 1
             else:
@@ -707,58 +890,107 @@ class CombinedRaceAnalyzer:
         # Market-implied probability for comparison
         market_prob_top = (1 / top.horse.win_odds) if top and top.horse.win_odds > 0 else 0
 
+        # Check if market favourite differs from our top pick — if so, re-sort
+        # to respect the market when it strongly backs a different horse
+        market_fav = min(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds > 0 else 999)
+        market_fav_prob = (1 / market_fav.horse.win_odds) if market_fav.horse.win_odds > 0 else 0
+        if (market_fav_prob >= 0.30 and market_fav.rank > 1
+                and market_fav.horse.win_odds > 0):
+            # Market strongly backs a horse we don't rank #1 — promote it
+            # Re-sort: swap market fav to position 0
+            old_idx = next(i for i, a in enumerate(analyses) if a is market_fav)
+            analyses[0], analyses[old_idx] = analyses[old_idx], analyses[0]
+            analyses[0].rank = 1
+            for i, a in enumerate(analyses):
+                a.rank = i + 1
+            # Recalculate field shape
+            top = analyses[0]
+            second = analyses[1] if n >= 2 else None
+            top_prob = calibrated_probs[old_idx]
+            calibrated_probs[0], calibrated_probs[old_idx] = calibrated_probs[old_idx], calibrated_probs[0]
+            second_prob = calibrated_probs[1] if n >= 2 else 0
+            third_prob = calibrated_probs[2] if n >= 3 else 0
+            gap_1_2 = top_prob - second_prob
+            gap_2_3 = second_prob - third_prob
+            top_3_share = top_prob + second_prob + third_prob
+            market_prob_top = market_fav_prob
+
+        # Determine race-level bet type first, then assign to horses
+        # QIN = 2 horses, QNL PL = 2 horses, TRIO = 3 horses
+        race_bet_type = "WIN"  # default
+
+        # Market standout: if market gives 30%+ implied prob AND big gap, it's WIN
+        # regardless of EV — the market knows something at these odds
+        is_market_standout = (market_prob_top >= 0.30 and gap_1_2 > 0.06)
+
+        if is_market_standout:
+            race_bet_type = "WIN"  # clear market standout
+        elif gap_1_2 > 0.04 and top and top.expected_return > 0.10:
+            race_bet_type = "WIN"  # clear standout by our model
+        elif gap_1_2 < 0.03 and top_3_share > 0.35:
+            # Top 2 very close — exotic bet territory
+            if gap_2_3 < 0.02 and n >= 3:
+                race_bet_type = "TRIO"  # top 3 all bunched
+            elif gap_1_2 < 0.02:
+                race_bet_type = "QNL PL"  # very tight top 2
+            else:
+                race_bet_type = "QIN"  # top 2 close, 3rd separated
+        elif gap_1_2 < 0.03:
+            race_bet_type = "QIN"  # tight 1-2
+        elif gap_1_2 > 0.02 and top and top.expected_return > 0.0:
+            race_bet_type = "WIN"
+        else:
+            race_bet_type = "PLACE"  # no clear value
+
         for i, a in enumerate(analyses):
-            cal_prob = calibrated_probs[i]
             rank = a.rank
+            # Use place odds if available, otherwise estimate from win odds
+            has_place_value = (a.horse.place_odds > 1.2) if a.horse.place_odds > 0 else (a.horse.win_odds >= 3.0)
 
-            if rank == 1:
-                # Strong standout: clear gap to 2nd AND positive EV
-                if gap_1_2 > 0.04 and a.expected_return > 0.10:
+            if race_bet_type == "WIN":
+                if rank == 1:
                     a.bet_recommendation = "WIN"
-                elif gap_1_2 > 0.02 and a.expected_return > 0.0:
-                    a.bet_recommendation = "WIN"
-                elif a.expected_return > 0.0:
+                elif rank == 2 and (a.expected_return > 0.0 or has_place_value):
+                    a.bet_recommendation = "PLACE"
+                elif rank == 3 and has_place_value:
                     a.bet_recommendation = "PLACE"
                 else:
-                    a.bet_recommendation = "PLACE"
+                    a.bet_recommendation = "SKIP"
 
-            elif rank == 2:
-                # 2nd pick: close to 1st = QIN candidate, otherwise PLACE
-                if gap_1_2 < 0.03 and a.expected_return > 0.0:
+            elif race_bet_type == "QIN":
+                if rank <= 2:
                     a.bet_recommendation = "QIN"
-                elif a.expected_return > 0.05:
-                    a.bet_recommendation = "PLACE"
-                elif a.horse.place_odds > 1.2:
+                elif rank == 3 and has_place_value:
                     a.bet_recommendation = "PLACE"
                 else:
                     a.bet_recommendation = "SKIP"
 
-            elif rank == 3:
-                # 3rd pick: tight top 3 = TRIO candidate
-                if top_3_share > 0.38 and gap_2_3 < 0.03:
+            elif race_bet_type == "QNL PL":
+                if rank <= 2:
+                    a.bet_recommendation = "QNL PL"
+                elif rank == 3 and has_place_value:
+                    a.bet_recommendation = "PLACE"
+                else:
+                    a.bet_recommendation = "SKIP"
+
+            elif race_bet_type == "TRIO":
+                if rank <= 3:
                     a.bet_recommendation = "TRIO"
-                elif a.expected_return > 0.05 and a.horse.place_odds > 1.3:
-                    a.bet_recommendation = "QNL PL"
-                elif a.horse.place_odds > 1.5:
+                elif rank == 4 and has_place_value:
                     a.bet_recommendation = "PLACE"
                 else:
                     a.bet_recommendation = "SKIP"
 
-            elif rank == 4:
-                # 4th pick: only if strong outsider value
-                if a.expected_return > 0.15 and a.horse.win_odds >= 10:
-                    a.bet_recommendation = "QNL PL"
-                elif a.horse.place_odds > 2.0:
+            elif race_bet_type == "PLACE":
+                if rank <= 2:
+                    a.bet_recommendation = "PLACE"
+                elif rank == 3 and (a.expected_return > 0.0 or has_place_value):
                     a.bet_recommendation = "PLACE"
                 else:
                     a.bet_recommendation = "SKIP"
 
             else:
-                # 5th+ : almost always skip
-                if a.expected_return > 0.25 and a.horse.win_odds >= 20:
-                    a.bet_recommendation = "PLACE"
-                else:
-                    a.bet_recommendation = "SKIP"
+                a.bet_recommendation = "SKIP"
 
 
 # ---------------------------------------------------------------------------

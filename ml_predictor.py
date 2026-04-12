@@ -190,11 +190,11 @@ class HKJCHistoricalScraper:
 class FeatureEngineering:
     @staticmethod
     def parse_last_6(last_6: str) -> List[int]:
-        positions = []
-        for char in str(last_6):
-            if char.isdigit():
-                positions.append(int(char))
-        return positions
+        """Parse form string — handles '1/3/10/2/5' and legacy '13425'."""
+        s = str(last_6)
+        if "/" in s:
+            return [int(p) for p in s.split("/") if p.strip().isdigit()]
+        return [int(ch) for ch in s if ch.isdigit()]
     
     @staticmethod
     def calculate_form_score(last_6: str) -> float:
@@ -426,47 +426,73 @@ class HKJCRacingMLModel:
         
         logger.info(f"Saved model version {self.model_version}")
     
-    def train(self, features: np.ndarray, labels: np.ndarray) -> Dict:
+    def train(self, features: np.ndarray, labels: np.ndarray,
+              sample_weight: np.ndarray = None) -> Dict:
         if not ML_AVAILABLE:
             return {'error': 'ML libraries not available'}
-        
-        logger.info(f"Training with {len(features)} samples...")
-        
+
+        logger.info(f"Training with {len(features)} samples "
+                    f"({labels.sum():.0f} winners, {labels.mean()*100:.1f}% win rate)")
+
         X_train, X_test, y_train, y_test = train_test_split(
-            features, labels, test_size=0.2, random_state=42
+            features, labels, test_size=0.2, random_state=42,
+            stratify=labels if labels.sum() >= 10 else None
         )
-        
+
+        # Split sample weights too
+        sw_train = None
+        if sample_weight is not None:
+            sw_train, _ = train_test_split(
+                sample_weight, test_size=0.2, random_state=42,
+                stratify=labels if labels.sum() >= 10 else None
+            )
+
+        # Scale pos weight for imbalanced classes (winners are rare ~7-10%)
+        n_pos = max(1, y_train.sum())
+        n_neg = max(1, len(y_train) - n_pos)
+        scale = n_neg / n_pos
+
         self.model = xgb.XGBClassifier(
-            n_estimators=100,
-            max_depth=6,
-            learning_rate=0.1,
+            n_estimators=200,
+            max_depth=5,
+            learning_rate=0.05,
             subsample=0.8,
             colsample_bytree=0.8,
+            scale_pos_weight=scale,
+            min_child_weight=3,
+            gamma=0.1,
             random_state=42,
             use_label_encoder=False,
             eval_metric='logloss'
         )
-        
-        self.model.fit(X_train, y_train)
-        
+
+        self.model.fit(X_train, y_train, sample_weight=sw_train)
+
         y_pred = self.model.predict(X_test)
         y_pred_proba = self.model.predict_proba(X_test)[:, 1]
-        
+
         accuracy = accuracy_score(y_test, y_pred)
         logloss = log_loss(y_test, y_pred_proba)
-        
+
+        # Precision/recall for winner class
+        from sklearn.metrics import precision_score, recall_score
+        precision = precision_score(y_test, y_pred, zero_division=0)
+        recall = recall_score(y_test, y_pred, zero_division=0)
+
         self.feature_importance = dict(zip(
             self.FEATURE_NAMES,
             self.model.feature_importances_.tolist()
         ))
-        
+
         self.is_trained = True
         self.model_version = datetime.now().strftime('%Y%m%d-%H%M%S')
         self._save_model()
-        
+
         return {
             'accuracy': accuracy,
             'logloss': logloss,
+            'precision': precision,
+            'recall': recall,
             'feature_importance': self.feature_importance,
             'model_version': self.model_version
         }
@@ -552,8 +578,9 @@ def create_combined_prediction(
     ml_confidence: str,
     ml_available: bool
 ) -> Tuple[float, str, Dict]:
-    weights = {'rule': 0.5, 'ml': 0.5}
-    
+    # ML trained on synthetic data — heavily favor rule-based until real data available
+    weights = {'rule': 0.85, 'ml': 0.15}
+
     if not ml_available:
         weights = {'rule': 1.0, 'ml': 0.0}
     

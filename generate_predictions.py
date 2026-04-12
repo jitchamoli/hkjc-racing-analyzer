@@ -32,7 +32,7 @@ async def main():
     
     all_races = []
     
-    for race_no in range(1, 11):
+    for race_no in range(1, 12):
         logger.info(f"Fetching Race {race_no}...")
         
         race = await fetcher.get_race_card(race_date, race_no)
@@ -224,8 +224,69 @@ button{{font-family:inherit;cursor:pointer}}
 </div>
 <script>
 const RACES = {races_json};
-const NEXT_RACE = 1;
+const RACE_DATE = "{race_date}";
 const GENERATED = "{now}";
+
+function getNextRace() {{
+  var now = new Date();
+  var parts = RACE_DATE.split('/');
+  for (var i = 0; i < RACES.length; i++) {{
+    var r = RACES[i];
+    if (r.results_available) continue;
+    var tp = (r.time || '').split(':');
+    if (tp.length === 2) {{
+      var raceTime = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), parseInt(tp[0]), parseInt(tp[1]));
+      if (raceTime > now) return r.race_number;
+    }}
+  }}
+  // All races past — return last one
+  return RACES.length > 0 ? RACES[RACES.length-1].race_number : 1;
+}}
+
+function formatCountdown(raceNum) {{
+  var race = RACES.find(function(r) {{ return r.race_number === raceNum; }});
+  if (!race || !race.time) return '';
+  var parts = RACE_DATE.split('/');
+  var tp = race.time.split(':');
+  var raceTime = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), parseInt(tp[0]), parseInt(tp[1]));
+  var diff = raceTime - new Date();
+  if (diff <= 0) return 'NOW';
+  var h = Math.floor(diff/3600000);
+  var m = Math.floor((diff%3600000)/60000);
+  var s = Math.floor((diff%60000)/1000);
+  if (h > 0) return h + 'h ' + m + 'm';
+  if (m > 0) return m + 'm ' + s + 's';
+  return s + 's';
+}}
+
+var NEXT_RACE = getNextRace();
+
+// Live clock + next race update
+setInterval(function() {{
+  var el = document.getElementById('clock');
+  if (el) {{
+    var now = new Date();
+    var timeStr = now.toLocaleTimeString('en-HK', {{hour:'2-digit',minute:'2-digit',second:'2-digit'}});
+    var nextR = getNextRace();
+    var cd = formatCountdown(nextR);
+    el.textContent = timeStr + (cd ? ' | R' + nextR + ' in ' + cd : '');
+    if (nextR !== NEXT_RACE) {{
+      NEXT_RACE = nextR;
+      updateNextBadge();
+    }}
+  }}
+}}, 1000);
+
+function updateNextBadge() {{
+  document.querySelectorAll('.next-badge').forEach(function(b) {{ b.remove(); }});
+  var tab = document.getElementById('tab-' + NEXT_RACE);
+  if (tab) {{
+    var badge = document.createElement('span');
+    badge.className = 'next-badge';
+    badge.textContent = 'NEXT';
+    tab.appendChild(badge);
+  }}
+}}
 
 function betColor(bt) {{return {{'WIN':'#10b981','PLACE':'#8b5cf6','QIN':'#f59e0b','QNL PL':'#06b6d4','TRIO':'#ec4899','SKIP':'#64748b','E/W':'#3b82f6'}}[bt] || '#64748b'}}
 function betBg(bt) {{return {{'WIN':'rgba(16,185,129,.15)','PLACE':'rgba(139,92,246,.15)','QIN':'rgba(245,158,11,.15)','QNL PL':'rgba(6,182,212,.15)','TRIO':'rgba(236,72,153,.15)','SKIP':'rgba(100,116,139,.1)'}}[bt] || 'rgba(100,116,139,.1)'}}
@@ -280,6 +341,7 @@ function renderDashboard() {{
     '<div class="item"><div class="dot" style="background:var(--pink)"></div>TRIO</div>' +
     '<div class="item"><div class="dot" style="background:var(--dim)"></div>SKIP</div>' +
   '</div>' +
+  '<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button id="wa-btn-all" onclick="copyAllToWhatsApp()" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s"><svg width=\\"16\\" height=\\"16\\" viewBox=\\"0 0 24 24\\" fill=\\"white\\"><path d=\\"M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z\\"/><path d=\\"M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.608-1.467A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.188 0-4.214-.696-5.869-1.879l-.421-.314-2.732.87.907-2.677-.346-.449A9.95 9.95 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z\\"/></svg>Copy All Races</button></div>' +
   '<div class="race-grid">';
   
   RACES.forEach(r => {{
@@ -295,7 +357,7 @@ function renderDashboard() {{
       const tc = i === 0 ? ' top' : '';
       html += '<div class="rc-horse' + tc + '">' +
         '<div class="rc-rank">' + h.rank + '</div>' +
-        '<div class="rc-name">#' + h.number + ' ' + h.name + '</div>' +
+        '<div class="rc-name">#' + h.number + ' ' + h.name + '<div style="font-size:.65rem;color:var(--dim);font-weight:400;margin-top:1px">' + h.jockey + ' | ' + h.trainer + '</div></div>' +
         '<div class="rc-odds">$' + h.win_odds + '</div>' +
         '<div class="rc-prob" style="color:' + probColor(h.calibrated_prob) + '">' + h.calibrated_prob.toFixed(1) + '%</div>' +
         '<div class="bt" style="background:' + betBg(h.bet_recommendation) + ';color:' + betColor(h.bet_recommendation) + '">' + h.bet_recommendation + '</div>' +
@@ -308,7 +370,7 @@ function renderDashboard() {{
   
   html += '</div>' +
     '<div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>' +
-    '<div class="footer">HKJC Racing Analyzer v3.0 | 14-Factor Calibrated Analytics | Generated: ' + now + '</div>';
+    '<div class="footer">HKJC Racing Analyzer v3.0 | 14-Factor Calibrated Analytics | Generated: ' + GENERATED + '</div>';
   el.innerHTML = html;
 }}
 
@@ -323,19 +385,288 @@ function showRace(raceNum) {{
   renderRaceDetail(race);
 }}
 
+function buildStrategyPanel(race) {{
+  var horses = race.horses;
+  var active = horses.filter(function(h) {{ return h.bet_recommendation !== 'SKIP'; }});
+  if (!active.length) return '<div class="strategy-panel"><h3>Strategy: SKIP</h3><p style="color:var(--dim);font-size:.82rem">No value bets identified. Consider sitting this race out.</p></div>';
+
+  // Determine primary bet type
+  var betTypes = {{}};
+  active.forEach(function(h) {{ betTypes[h.bet_recommendation] = (betTypes[h.bet_recommendation] || 0) + 1; }});
+  var primaryBet = Object.keys(betTypes).sort(function(a,b) {{ return betTypes[b] - betTypes[a]; }})[0];
+
+  // Gather selections per type
+  var winPicks = horses.filter(function(h) {{ return h.bet_recommendation === 'WIN'; }});
+  var placePicks = horses.filter(function(h) {{ return h.bet_recommendation === 'PLACE'; }});
+  var qinPicks = horses.filter(function(h) {{ return h.bet_recommendation === 'QIN'; }});
+  var qnlPicks = horses.filter(function(h) {{ return h.bet_recommendation === 'QNL PL'; }});
+  var trioPicks = horses.filter(function(h) {{ return h.bet_recommendation === 'TRIO'; }});
+
+  // Field analysis
+  var top3 = horses.slice(0, 3);
+  var gap = top3.length >= 2 ? (top3[0].calibrated_prob - top3[1].calibrated_prob) : 0;
+  var topShare = top3.reduce(function(s, h) {{ return s + h.calibrated_prob; }}, 0);
+  var fieldType = gap > 0.05 ? 'Dominant favourite' : gap > 0.02 ? 'Clear leader' : topShare > 0.4 ? 'Competitive top 3' : 'Wide open';
+
+  // Value bets (positive EV)
+  var valueBets = horses.filter(function(h) {{ return h.expected_return > 0.05 && h.bet_recommendation !== 'SKIP'; }});
+
+  var s = '<div class="strategy-panel">';
+  s += '<h3 style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="font-size:1.1rem">Betting Strategy</span><span style="font-size:.7rem;padding:3px 10px;border-radius:12px;background:' + betBg(primaryBet) + ';color:' + betColor(primaryBet) + ';font-weight:700">' + primaryBet + ' RACE</span><span style="font-size:.72rem;color:var(--dim)">' + fieldType + ' | ' + race.horses.length + ' runners</span></h3>';
+
+  // Primary recommendation
+  s += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:14px">';
+
+  if (winPicks.length) {{
+    winPicks.forEach(function(h) {{
+      var evColor = h.expected_return > 0 ? 'var(--green)' : 'var(--red)';
+      s += '<div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.25);border-radius:10px;padding:12px 16px">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+        + '<span style="font-size:.72rem;font-weight:700;color:var(--green);text-transform:uppercase">WIN Bet</span>'
+        + '<span style="font-size:.72rem;color:' + evColor + ';font-weight:700">EV: ' + (h.expected_return * 100).toFixed(0) + '%</span></div>'
+        + '<div style="font-size:1rem;font-weight:800">#' + h.number + ' ' + h.name + '</div>'
+        + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + h.jockey + ' | $' + h.win_odds + ' | ' + (h.calibrated_prob * 100).toFixed(1) + '% chance</div>'
+        + '</div>';
+    }});
+  }}
+
+  if (qinPicks.length >= 2) {{
+    var nums = qinPicks.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+    var names = qinPicks.map(function(h) {{ return h.name; }}).join(' & ');
+    s += '<div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:12px 16px">'
+      + '<div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:6px">Quinella (QIN)</div>'
+      + '<div style="font-size:1rem;font-weight:800">' + nums + '</div>'
+      + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + names + '</div>'
+      + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">These two to finish 1st &amp; 2nd in any order</div>'
+      + '</div>';
+  }}
+
+  if (qnlPicks.length >= 2) {{
+    var nums = qnlPicks.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+    var names = qnlPicks.map(function(h) {{ return h.name; }}).join(' & ');
+    s += '<div style="background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.25);border-radius:10px;padding:12px 16px">'
+      + '<div style="font-size:.72rem;font-weight:700;color:var(--cyan);text-transform:uppercase;margin-bottom:6px">Quinella Place (QNL PL)</div>'
+      + '<div style="font-size:1rem;font-weight:800">' + nums + '</div>'
+      + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + names + '</div>'
+      + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">These two to both finish in top 3 (any order)</div>'
+      + '</div>';
+  }}
+
+  if (trioPicks.length >= 3) {{
+    var nums = trioPicks.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+    var names = trioPicks.map(function(h) {{ return h.name; }}).join(', ');
+    s += '<div style="background:rgba(236,72,153,.06);border:1px solid rgba(236,72,153,.25);border-radius:10px;padding:12px 16px">'
+      + '<div style="font-size:.72rem;font-weight:700;color:var(--pink);text-transform:uppercase;margin-bottom:6px">Trio</div>'
+      + '<div style="font-size:1rem;font-weight:800">' + nums + '</div>'
+      + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + names + '</div>'
+      + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">These three to finish 1st, 2nd &amp; 3rd in any order</div>'
+      + '</div>';
+  }}
+
+  if (placePicks.length) {{
+    s += '<div style="background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.25);border-radius:10px;padding:12px 16px">'
+      + '<div style="font-size:.72rem;font-weight:700;color:var(--purple);text-transform:uppercase;margin-bottom:6px">Place Bets</div>';
+    placePicks.forEach(function(h) {{
+      s += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(139,92,246,.1)">'
+        + '<span style="font-weight:700;font-size:.85rem">#' + h.number + ' ' + h.name + '</span>'
+        + '<span style="font-size:.78rem;color:var(--dim)">' + h.jockey + ' | $' + h.win_odds + '</span></div>';
+    }});
+    s += '<div style="font-size:.72rem;color:var(--dim);margin-top:6px">Each to finish in top 3</div></div>';
+  }}
+
+  s += '</div>';
+
+  // Value alerts
+  if (valueBets.length) {{
+    s += '<div style="background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:10px 14px;margin-bottom:10px">'
+      + '<div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:6px">VALUE ALERTS (Positive Expected Value)</div>';
+    valueBets.forEach(function(h) {{
+      s += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:.8rem">'
+        + '<span><span style="font-weight:700">#' + h.number + '</span> ' + h.name + ' @ $' + h.win_odds + '</span>'
+        + '<span style="color:var(--green);font-weight:700">+' + (h.expected_return * 100).toFixed(0) + '% EV</span></div>';
+    }});
+    s += '</div>';
+  }}
+
+  // Ones to watch (high odds but decent rank)
+  var dangers = horses.filter(function(h) {{ return h.rank >= 4 && h.rank <= 7 && h.win_odds >= 8 && h.calibrated_prob >= 0.06; }});
+  if (dangers.length) {{
+    s += '<div style="background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:8px;padding:10px 14px;margin-bottom:10px">'
+      + '<div style="font-size:.72rem;font-weight:700;color:var(--red);margin-bottom:6px">ONES TO WATCH (could upset)</div>';
+    dangers.forEach(function(h) {{
+      s += '<div style="font-size:.8rem;padding:2px 0"><span style="font-weight:700">#' + h.number + '</span> ' + h.name + ' @ $' + h.win_odds + ' <span style="color:var(--dim)">(' + (h.calibrated_prob * 100).toFixed(1) + '%)</span></div>';
+    }});
+    s += '</div>';
+  }}
+
+  // Wildcard bet — exotic combo including top danger horse
+  if (dangers.length && horses.length >= 3) {{
+    var topDanger = dangers[0];
+    var top2 = horses.slice(0, 2);
+    var wcNums = top2.map(function(h) {{ return '#' + h.number; }}).concat(['#' + topDanger.number]);
+    var wcNames = top2.map(function(h) {{ return h.name; }}).concat([topDanger.name]);
+    s += '<div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:10px 14px">'
+      + '<div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:6px">WILDCARD BET (includes outsider)</div>'
+      + '<div style="font-size:.9rem;font-weight:800">' + wcNums.join(' + ') + '</div>'
+      + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + wcNames.join(', ') + '</div>'
+      + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">TRIO or QIN box — covers upset scenario with #' + topDanger.number + ' ' + topDanger.name + ' @ $' + topDanger.win_odds + '</div>'
+      + '</div>';
+  }}
+
+  s += '</div>';
+  return s;
+}}
+
+function buildWhatsAppText(race) {{
+  var h = race.horses;
+  var active = h.filter(function(x) {{ return x.bet_recommendation !== 'SKIP'; }});
+  var winPicks = h.filter(function(x) {{ return x.bet_recommendation === 'WIN'; }});
+  var placePicks = h.filter(function(x) {{ return x.bet_recommendation === 'PLACE'; }});
+  var qinPicks = h.filter(function(x) {{ return x.bet_recommendation === 'QIN'; }});
+  var qnlPicks = h.filter(function(x) {{ return x.bet_recommendation === 'QNL PL'; }});
+  var trioPicks = h.filter(function(x) {{ return x.bet_recommendation === 'TRIO'; }});
+  var dangers = h.filter(function(x) {{ return x.rank >= 4 && x.rank <= 7 && x.win_odds >= 8 && x.calibrated_prob >= 0.06; }});
+
+  var t = '';
+  t += '\\ud83c\\udfc7 *RACE ' + race.race_number + ' - ' + race.venue + '*\\n';
+  t += '\\u23f0 ' + race.time + ' | ' + race.distance + 'm | ' + (race.class_type || '') + ' | ' + (race.going || '') + '\\n';
+  t += '\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n';
+
+  // Top picks table
+  t += '\\n*TOP PICKS*\\n';
+  h.slice(0, 5).forEach(function(x) {{
+    var medal = x.rank === 1 ? '\\ud83e\\udd47' : x.rank === 2 ? '\\ud83e\\udd48' : x.rank === 3 ? '\\ud83e\\udd49' : '  ' + x.rank + '.';
+    t += medal + ' *#' + x.number + ' ' + x.name + '*\\n';
+    t += '   \\u2022 ' + x.jockey + ' | $' + x.win_odds + ' | ' + (x.calibrated_prob * 100).toFixed(1) + '%\\n';
+  }});
+
+  // Betting strategy
+  t += '\\n\\ud83c\\udfaf *BETTING STRATEGY*\\n';
+
+  if (winPicks.length) {{
+    winPicks.forEach(function(x) {{
+      var ev = (x.expected_return * 100).toFixed(0);
+      t += '\\u2705 *WIN* #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + ' (EV ' + (ev > 0 ? '+' : '') + ev + '%)\\n';
+    }});
+  }}
+
+  if (qinPicks.length >= 2) {{
+    t += '\\ud83d\\udd04 *QIN* ';
+    t += qinPicks.map(function(x) {{ return '#' + x.number; }}).join(' + ');
+    t += ' (' + qinPicks.map(function(x) {{ return x.name; }}).join(' & ') + ')\\n';
+  }}
+
+  if (qnlPicks.length >= 2) {{
+    t += '\\ud83d\\udd35 *QNL PL* ';
+    t += qnlPicks.map(function(x) {{ return '#' + x.number; }}).join(' + ');
+    t += ' (' + qnlPicks.map(function(x) {{ return x.name; }}).join(' & ') + ')\\n';
+  }}
+
+  if (trioPicks.length >= 3) {{
+    t += '\\ud83d\\udccd *TRIO* ';
+    t += trioPicks.map(function(x) {{ return '#' + x.number; }}).join(' + ');
+    t += ' (' + trioPicks.map(function(x) {{ return x.name; }}).join(', ') + ')\\n';
+  }}
+
+  if (placePicks.length) {{
+    t += '\\ud83d\\udfe3 *PLACE* ';
+    t += placePicks.map(function(x) {{ return '#' + x.number + ' ' + x.name + ' ($' + x.win_odds + ')'; }}).join(', ') + '\\n';
+  }}
+
+  // Value bets
+  var valueBets = h.filter(function(x) {{ return x.expected_return > 0.05 && x.bet_recommendation !== 'SKIP'; }});
+  if (valueBets.length) {{
+    t += '\\n\\ud83d\\udcb0 *VALUE BETS*\\n';
+    valueBets.forEach(function(x) {{
+      t += '   #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + ' (+' + (x.expected_return * 100).toFixed(0) + '% EV)\\n';
+    }});
+  }}
+
+  // Ones to watch
+  if (dangers.length) {{
+    t += '\\n\\u26a0\\ufe0f *ONES TO WATCH*\\n';
+    dangers.forEach(function(x) {{
+      t += '   #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + ' (' + (x.calibrated_prob * 100).toFixed(1) + '%)\\n';
+    }});
+  }}
+
+  // Wildcard bet
+  if (dangers.length && h.length >= 3) {{
+    var wd = dangers[0];
+    var wTop2 = h.slice(0, 2);
+    t += '\\n\\ud83c\\udfb2 *WILDCARD BET*\\n';
+    t += '   TRIO/QIN Box: ' + wTop2.map(function(x) {{ return '#' + x.number; }}).join(' + ') + ' + #' + wd.number + '\\n';
+    t += '   Covers upset by ' + wd.name + ' @ $' + wd.win_odds + '\\n';
+  }}
+
+  if (!active.length) {{
+    t += '\\u274c *SKIP* - No value bets identified\\n';
+  }}
+
+  t += '\\n\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n';
+  t += '\\ud83e\\udd16 _HKJC Analyzer v3.0 | 14 Factors | ML-Trained_\\n';
+  t += '\\u26a0\\ufe0f _For entertainment only. Not financial advice._';
+
+  return t;
+}}
+
+function copyToWhatsApp(raceNum) {{
+  var race = RACES.find(function(r) {{ return r.race_number === raceNum; }});
+  if (!race) return;
+  var text = buildWhatsAppText(race).replace(/\\n{3,}/g, '\\n\\n').trim();
+  navigator.clipboard.writeText(text).then(function() {{
+    var btn = document.getElementById('wa-btn-' + raceNum);
+    if (btn) {{
+      btn.textContent = 'Copied!';
+      btn.style.background = 'var(--green)';
+      btn.style.color = '#000';
+      setTimeout(function() {{
+        btn.textContent = 'Copy to WhatsApp';
+        btn.style.background = '';
+        btn.style.color = '';
+      }}, 2000);
+    }}
+  }});
+}}
+
+function copyAllToWhatsApp() {{
+  var text = '\\ud83c\\udfc7 *HKJC RACE DAY - ' + RACE_DATE + '*\\n';
+  text += '\\ud83d\\udcca _14-Factor ML Analysis_\\n\\n';
+  RACES.forEach(function(race) {{
+    text += buildWhatsAppText(race) + '\\n\\n';
+  }});
+  text = text.replace(/\\n{3,}/g, '\\n\\n').trim();
+  navigator.clipboard.writeText(text).then(function() {{
+    var btn = document.getElementById('wa-btn-all');
+    if (btn) {{
+      btn.textContent = 'Copied All!';
+      btn.style.background = 'var(--green)';
+      btn.style.color = '#000';
+      setTimeout(function() {{
+        btn.textContent = 'Copy All Races';
+        btn.style.background = '';
+        btn.style.color = '';
+      }}, 2000);
+    }}
+  }});
+}}
+
 function renderRaceDetail(race) {{
   const el = document.getElementById('race-detail-view');
   const g = gradeRace(race);
   const gc = gradeClass(g);
   const top = race.horses[0];
-  
+
   const topBet = top ? top.bet_recommendation : 'N/A';
   const topML = top ? top.ml_prob.toFixed(1) : '0';
   const topCal = top ? top.calibrated_prob.toFixed(1) : '0';
-  
+
   let html = '<div class="detail-header">' +
     '<div><div class="detail-title">Race ' + race.race_number + '</div><div class="detail-meta">' + race.time + ' | ' + race.distance + 'm | ' + race.class_type + ' | ' + race.going + '</div></div>' +
+    '<div style="display:flex;gap:8px;align-items:center">' +
+    '<button id="wa-btn-' + race.race_number + '" onclick="copyToWhatsApp(' + race.race_number + ')" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"white\"><path d=\"M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z\"/><path d=\"M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.608-1.467A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.188 0-4.214-.696-5.869-1.879l-.421-.314-2.732.87.907-2.677-.346-.449A9.95 9.95 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z\"/></svg>Copy to WhatsApp</button>' +
     '<button class="back-btn" onclick="showDashboard()">Back to All Races</button>' +
+    '</div>' +
   '</div>';
   
   html += '<div class="detail-stats">' +
@@ -345,6 +676,8 @@ function renderRaceDetail(race) {{
     '<div class="stat"><div class="v" style="color:var(--accent)">' + topCal + '%</div><div class="l">Calibrated</div></div>' +
   '</div>';
   
+  html += buildStrategyPanel(race);
+
   html += '<table class="horse-table"><thead><tr><th>#</th><th>Horse</th><th>Jockey</th><th>Draw</th><th>Odds</th><th>ML%</th><th>Cal%</th><th>Bet</th><th>Reasoning</th></tr></thead><tbody>';
   
   race.horses.forEach((h, i) => {{

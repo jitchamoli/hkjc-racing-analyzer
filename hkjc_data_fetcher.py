@@ -57,6 +57,14 @@ class HorseEntry:
     trial_position: int = 0         # Best barrier trial finishing position
     trial_margin: str = ""          # Margin in best trial
     opening_odds: float = 0.0       # Opening odds for movement tracking
+    # New high-impact fields
+    days_since_last_run: int = 0     # Days since last race (freshness)
+    rating_change: int = 0           # Rating +/- from last race
+    horse_weight: int = 0            # Declared horse body weight (lbs)
+    weight_change: int = 0           # Weight change from last declaration
+    import_cat: str = ""             # Import category (PP, PPG, ISG)
+    priority: str = ""               # Priority ranking
+    sex: str = ""                    # g=gelding, c=colt, f=filly, h=horse
 
 
 @dataclass
@@ -405,13 +413,14 @@ class HKJCParser:
             # Normalize: keep digits and slashes, replace "/" with nothing for
             # compatibility with the analysis code that expects "121213" format
             last_6_clean = re.sub(r"[^\d/\-]", "", last_6_raw)
-            # Convert "7/2/1/4/10" → "72140" (keep only single-digit positions)
+            # Keep slash-separated format to preserve multi-digit positions
+            # "7/2/1/4/10" → "7/2/1/4/10" (not "721410")
             last_6_positions = []
             for part in last_6_clean.split("/"):
                 part = part.strip("-")
                 if part.isdigit():
                     last_6_positions.append(part)
-            last_6 = "".join(last_6_positions)
+            last_6 = "/".join(last_6_positions)
 
             # Jockey from cell [6] (may include claim like "(-2)")
             jockey = ""
@@ -442,13 +451,55 @@ class HKJCParser:
             if rating == 0 and len(texts) > 10 and texts[10] != "-":
                 rating = HKJCParser._safe_float(texts[10])
 
+            # Rating +/- from cell [12]
+            rating_change = 0
+            if len(texts) > 12 and texts[12] not in ("-", ""):
+                rating_change = HKJCParser._safe_int(texts[12])
+
+            # Horse weight (declaration) from cell [13]
+            horse_weight = 0
+            if len(texts) > 13 and texts[13] not in ("-", ""):
+                horse_weight = HKJCParser._safe_int(texts[13])
+
+            # Weight change from cell [14]
+            weight_change = 0
+            if len(texts) > 14 and texts[14] not in ("-", ""):
+                weight_change = HKJCParser._safe_int(texts[14])
+
             # Best time from cell [15]
             best_time = texts[15] if len(texts) > 15 else ""
 
-            # Gear from cell [16+] area
+            # Age from cell [16]
+            age = texts[16] if len(texts) > 16 else ""
+
+            # Sex from cell [18]
+            sex = texts[18] if len(texts) > 18 else ""
+
+            # Season stakes from cell [19]
+            season_stakes = texts[19] if len(texts) > 19 else ""
+
+            # Priority from cell [20]
+            priority = texts[20] if len(texts) > 20 else ""
+
+            # Days since last run from cell [21]
+            days_since_last_run = 0
+            if len(texts) > 21 and texts[21] not in ("-", ""):
+                days_since_last_run = HKJCParser._safe_int(texts[21])
+
+            # Gear from cell [22]
             gear = ""
             if len(texts) > 22:
-                gear = texts[22]  # TT column in extended data
+                gear = texts[22]
+
+            # Cell 23=Owner, 24=Sire, 25=Dam, 26=Import Cat
+            import_cat = ""
+            if len(texts) > 26 and re.match(r'^(PP|PPG|ISG|ISA)$', texts[26]):
+                import_cat = texts[26]
+            elif len(texts) > 25:
+                for ci in range(23, min(len(texts), 28)):
+                    if re.match(r'^(PP|PPG|ISG|ISA)$', texts[ci]):
+                        import_cat = texts[ci]
+                        break
 
             if not jockey:
                 continue
@@ -464,6 +515,15 @@ class HKJCParser:
                 last_6=last_6,
                 gear=gear,
                 best_time=best_time,
+                age=age,
+                season_stakes=season_stakes,
+                days_since_last_run=days_since_last_run,
+                rating_change=rating_change,
+                horse_weight=horse_weight,
+                weight_change=weight_change,
+                import_cat=import_cat,
+                priority=priority,
+                sex=sex,
             ))
 
         return horses
@@ -515,6 +575,26 @@ class HKJCParser:
     def parse_place_odds(html: str) -> Dict[int, float]:
         """Parse PLACE odds page HTML → {horse_number: decimal_odds}."""
         return HKJCParser.parse_odds(html)  # Same structure, different page
+
+    @staticmethod
+    def parse_race_info(html: str) -> Dict:
+        """Extract race metadata (venue, distance, class, going, course) from HTML."""
+        if not html:
+            return {}
+        soup = BeautifulSoup(html, "html.parser")
+        page_text = soup.get_text(" ", strip=True)
+        info = {}
+        vm = re.search(r"(Sha Tin|Happy Valley)", page_text)
+        if vm: info['venue'] = vm.group(1)
+        dm = re.search(r"(\d{3,4})\s*M", page_text)
+        if dm: info['distance'] = dm.group(1)
+        cm = re.search(r"(Class\s*\d)", page_text)
+        if cm: info['class_type'] = cm.group(1)
+        gm = re.search(r"(Good to Firm|Good to Yielding|Good|Firm|Yielding|Soft|Heavy)", page_text, re.I)
+        if gm: info['going'] = gm.group(1)
+        tm = re.search(r'(Turf|All Weather Track|AWT)\s*[-\s]*"?([A-C]+)?"?', page_text, re.I)
+        if tm: info['course'] = tm.group(0).strip()
+        return info
 
     @staticmethod
     def parse_results(html: str) -> List[Dict]:

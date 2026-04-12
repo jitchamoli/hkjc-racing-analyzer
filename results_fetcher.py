@@ -232,7 +232,7 @@ class ResultsFetcher:
         return output_file
 
     def _regenerate_dashboard(self, data: List, summary: Dict, race_date: str):
-        """Regenerate the interactive HTML dashboard with results overlaid."""
+        """Inject results data into the dashboard by adding a RESULTS constant."""
         date_str = race_date.replace('/', '')
         dashboard_path = os.path.join(self.results_dir, f"racing_dashboard_{date_str}.html")
 
@@ -243,238 +243,236 @@ class ResultsFetcher:
         with open(dashboard_path, 'r') as f:
             html = f.read()
 
-        # Inject results data into the existing dashboard
-        results_json = json.dumps({
+        # Remove any previous RESULTS injection (handles both old and new marker styles)
+        import re
+        # New style: has END RESULTS marker
+        html = re.sub(
+            r'\n*// ===== RESULTS DATA.*?// ===== END RESULTS =====\n*',
+            '\n', html, flags=re.DOTALL
+        )
+        # Old style: from RESULTS DATA marker to just before </script>
+        html = re.sub(
+            r'\n*// ===== RESULTS DATA \(injected by results_fetcher\).*?applyResults\(\);\n*',
+            '\n', html, flags=re.DOTALL
+        )
+
+        # Build results data
+        results_obj = {
             'summary': summary,
-            'races': [
-                {
-                    'race_number': r['race_number'],
-                    'results_available': r.get('results_available', False),
-                    'actual_results': r.get('actual_results', []),
+            'races': {},
+        }
+        for r in data:
+            if r.get('results_available'):
+                race_results = {
                     'actual_winner': r.get('actual_winner'),
                     'actual_top3': r.get('actual_top3', []),
                     'actual_win_odds': r.get('actual_win_odds', 0),
                     'accuracy': r.get('accuracy', {}),
-                    'horses': [
-                        {
-                            'number': h['number'],
-                            'actual_position': h.get('actual_position'),
-                        }
-                        for h in r.get('horses', [])
-                    ],
+                    'positions': {},
                 }
-                for r in data
-            ],
-        })
+                for h in r.get('horses', []):
+                    if h.get('actual_position'):
+                        race_results['positions'][h['number']] = h['actual_position']
 
-        # Inject before </script>
-        inject_js = f'''
+                # Get winner name from actual_results
+                for ar in r.get('actual_results', []):
+                    if ar.get('position') == 1:
+                        race_results['winner_name'] = ar.get('name', '')
+                        break
 
-// ===== RESULTS DATA (injected by results_fetcher) =====
-const RESULTS = {results_json};
+                results_obj['races'][r['race_number']] = race_results
 
-function applyResults() {{
-  if (!RESULTS || !RESULTS.races) return;
+        results_json = json.dumps(results_obj)
 
-  // Merge actual positions into RACES data
-  RESULTS.races.forEach(rr => {{
-    const race = RACES.find(r => r.race_number === rr.race_number);
+        # Inject as a simple data constant + DOM manipulation code
+        # Using string concatenation to avoid template literal issues
+        inject = '''
+// ===== RESULTS DATA (auto-injected by results_fetcher) =====
+var RESULTS_DATA = ''' + results_json + ''';
+
+(function() {
+  if (!RESULTS_DATA || !RESULTS_DATA.races) return;
+
+  // Merge results into RACES
+  Object.keys(RESULTS_DATA.races).forEach(function(rn) {
+    var rr = RESULTS_DATA.races[rn];
+    var race = RACES.find(function(r) { return r.race_number === parseInt(rn); });
     if (!race) return;
-    race.results_available = rr.results_available;
+    race.results_available = true;
     race.actual_winner = rr.actual_winner;
     race.actual_top3 = rr.actual_top3 || [];
     race.actual_win_odds = rr.actual_win_odds;
-    race.accuracy = rr.accuracy || {{}};
+    race.accuracy = rr.accuracy || {};
+    race.winner_name = rr.winner_name || '';
 
-    rr.horses.forEach(rh => {{
-      const h = race.horses.find(hh => hh.number === rh.number);
-      if (h) h.actual_position = rh.actual_position;
-    }});
-  }});
+    Object.keys(rr.positions || {}).forEach(function(hnum) {
+      var h = race.horses.find(function(hh) { return hh.number === parseInt(hnum); });
+      if (h) h.actual_position = rr.positions[hnum];
+    });
+  });
 
-  // Re-render current view
-  const detail = document.getElementById('race-detail-view');
-  if (detail && detail.style.display !== 'none') {{
-    const activeTab = document.querySelector('.race-tab.active');
-    if (activeTab && activeTab.id !== 'tab-all') {{
-      const rn = parseInt(activeTab.id.replace('tab-', ''));
-      showRace(rn);
-    }}
-  }} else {{
-    showDashboard();
-  }}
-}}
+  // Patch dashboard renderer
+  var origDash = renderDashboard;
+  renderDashboard = function() {
+    origDash();
+    overlayDashboardResults();
+  };
 
-// Patch renderDashboard to show results
-const _origRenderDashboard = renderDashboard;
-renderDashboard = function() {{
-  _origRenderDashboard();
+  // Patch detail renderer
+  var origDetail = renderRaceDetail;
+  renderRaceDetail = function(race) {
+    origDetail(race);
+    if (race.results_available) overlayDetailResults(race);
+  };
 
-  // Overlay results badges
-  if (!RESULTS || !RESULTS.summary) return;
-  const s = RESULTS.summary;
+  function overlayDashboardResults() {
+    var s = RESULTS_DATA.summary;
+    if (!s || !s.total_races) return;
 
-  // Add summary banner
-  const dashboard = document.getElementById('dashboard-view');
-  const statsDiv = dashboard.querySelector('.stats');
-  if (statsDiv && s.total_races > 0) {{
-    const banner = document.createElement('div');
+    var dashboard = document.getElementById('dashboard-view');
+    var statsDiv = dashboard.querySelector('.stats');
+    if (!statsDiv) return;
+
+    // Results summary banner
+    var existing = document.getElementById('results-banner');
+    if (existing) existing.remove();
+
+    var banner = document.createElement('div');
+    banner.id = 'results-banner';
     banner.style.cssText = 'background:linear-gradient(90deg,rgba(16,185,129,.1),rgba(59,130,246,.1));border:1px solid var(--green);border-radius:12px;padding:14px 20px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;text-align:center';
-    banner.innerHTML = `
-      <div><div style="font-size:.68rem;color:var(--green);font-weight:700;text-transform:uppercase">RESULTS IN</div></div>
-      <div><div style="font-size:1.3rem;font-weight:800;color:var(--green)">${{s.wins_correct}}/${{s.total_races}}</div><div style="font-size:.65rem;color:var(--dim)">Win Picks Correct</div></div>
-      <div><div style="font-size:1.3rem;font-weight:800;color:var(--cyan)">${{s.top3_accuracy}}%</div><div style="font-size:.65rem;color:var(--dim)">Top 3 Accuracy</div></div>
-      <div><div style="font-size:1.3rem;font-weight:800;color:var(--accent)">${{s.avg_winner_rank}}</div><div style="font-size:.65rem;color:var(--dim)">Avg Winner Rank</div></div>
-      <div><div style="font-size:1.3rem;font-weight:800;color:var(--purple)">${{s.bets_hit}}/${{s.total_races}}</div><div style="font-size:.65rem;color:var(--dim)">Bets Hit</div></div>
-    `;
+
+    var items = [
+      {v: 'RESULTS IN', c: 'var(--green)', l: '', isLabel: true},
+      {v: s.wins_correct + '/' + s.total_races, c: 'var(--green)', l: 'Win Picks Correct'},
+      {v: s.top3_accuracy + '%', c: 'var(--cyan)', l: 'Top 3 Accuracy'},
+      {v: s.avg_winner_rank.toString(), c: 'var(--accent)', l: 'Avg Winner Rank'},
+      {v: s.bets_hit + '/' + s.total_races, c: 'var(--purple)', l: 'Bets Hit'},
+    ];
+    items.forEach(function(item) {
+      var div = document.createElement('div');
+      if (item.isLabel) {
+        div.innerHTML = '<div style="font-size:.68rem;color:' + item.c + ';font-weight:700;text-transform:uppercase">' + item.v + '</div>';
+      } else {
+        div.innerHTML = '<div style="font-size:1.3rem;font-weight:800;color:' + item.c + '">' + item.v + '</div><div style="font-size:.65rem;color:var(--dim)">' + item.l + '</div>';
+      }
+      banner.appendChild(div);
+    });
     statsDiv.parentNode.insertBefore(banner, statsDiv);
-  }}
 
-  // Add result badges to race cards
-  RACES.forEach(race => {{
-    if (!race.results_available) return;
-    const card = document.querySelector(`.race-card[onclick="showRace(${{race.race_number}})"]`);
-    if (!card) return;
+    // Add result badges to race cards
+    RACES.forEach(function(race) {
+      if (!race.results_available) return;
+      var cards = document.querySelectorAll('.race-card');
+      cards.forEach(function(card) {
+        var onclick = card.getAttribute('onclick');
+        if (onclick && onclick.indexOf('showRace(' + race.race_number + ')') >= 0) {
+          // Mark winners in preview
+          var rows = card.querySelectorAll('.rc-horse');
+          rows.forEach(function(row) {
+            var nameEl = row.querySelector('.rc-name');
+            if (!nameEl) return;
+            var m = nameEl.textContent.match(/#(\\d+)/);
+            if (!m) return;
+            var num = parseInt(m[1]);
+            var h = race.horses.find(function(hh) { return hh.number === num; });
+            if (!h || !h.actual_position) return;
+            var colors = {1: 'var(--gold)', 2: '#94a3b8', 3: 'var(--orange)'};
+            var suffixes = {1: 'st', 2: 'nd', 3: 'rd'};
+            if (h.actual_position <= 3) {
+              nameEl.innerHTML += ' <span style="background:' + colors[h.actual_position] + ';color:#000;font-size:.58rem;font-weight:800;padding:1px 5px;border-radius:8px">' + h.actual_position + (suffixes[h.actual_position] || 'th') + '</span>';
+            }
+          });
 
-    // Mark winner in horse rows
-    const rows = card.querySelectorAll('.rc-horse');
-    rows.forEach(row => {{
-      const nameEl = row.querySelector('.rc-name');
-      if (!nameEl) return;
-      const numMatch = nameEl.textContent.match(/#(\\d+)/);
-      if (!numMatch) return;
-      const num = parseInt(numMatch[1]);
-      const horse = race.horses.find(h => h.number === num);
-      if (!horse || !horse.actual_position) return;
+          // Add accuracy badge
+          var header = card.querySelector('.rc-header');
+          var a = race.accuracy;
+          if (header && a) {
+            var badge = document.createElement('span');
+            badge.style.cssText = 'font-size:.62rem;font-weight:700;padding:2px 8px;border-radius:10px;margin-right:6px';
+            if (a.win_correct) {
+              badge.style.background = 'rgba(16,185,129,.2)'; badge.style.color = 'var(--green)'; badge.textContent = 'WIN HIT';
+            } else if (a.top3_overlap >= 2) {
+              badge.style.background = 'rgba(59,130,246,.2)'; badge.style.color = 'var(--blue)'; badge.textContent = a.top3_overlap + '/3 TOP3';
+            } else if (a.winner_our_rank && a.winner_our_rank <= 5) {
+              badge.style.background = 'rgba(245,158,11,.2)'; badge.style.color = 'var(--accent)'; badge.textContent = 'Winner R' + a.winner_our_rank;
+            } else {
+              badge.style.background = 'rgba(239,68,68,.2)'; badge.style.color = 'var(--red)'; badge.textContent = 'MISS';
+            }
+            var gradeEl = header.querySelector('.grade');
+            if (gradeEl) header.insertBefore(badge, gradeEl);
+          }
+        }
+      });
+    });
+  }
 
-      const posLabel = horse.actual_position <= 3
-        ? `<span style="background:${{horse.actual_position===1?'var(--gold)':horse.actual_position===2?'var(--dim)':'var(--orange)'}};color:#000;font-size:.6rem;font-weight:800;padding:1px 5px;border-radius:8px;margin-left:4px">${{horse.actual_position}}${{['st','nd','rd'][horse.actual_position-1]||'th'}}</span>`
-        : `<span style="color:var(--dim);font-size:.65rem;margin-left:4px">${{horse.actual_position}}th</span>`;
-      nameEl.innerHTML += posLabel;
-    }});
+  function overlayDetailResults(race) {
+    var el = document.getElementById('race-detail-view');
+    if (!el) return;
+    var a = race.accuracy || {};
+    var winnerName = race.winner_name || ('#' + race.actual_winner);
 
-    // Add result badge to card header
-    const header = card.querySelector('.rc-header');
-    if (header && race.accuracy) {{
-      const a = race.accuracy;
-      const badge = document.createElement('span');
-      badge.style.cssText = 'font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:10px;margin-right:6px';
-      if (a.win_correct) {{
-        badge.style.background = 'rgba(16,185,129,.2)';
-        badge.style.color = 'var(--green)';
-        badge.textContent = 'WIN HIT';
-      }} else if (a.top3_overlap >= 2) {{
-        badge.style.background = 'rgba(59,130,246,.2)';
-        badge.style.color = 'var(--blue)';
-        badge.textContent = a.top3_overlap + '/3 TOP3';
-      }} else if (a.winner_our_rank && a.winner_our_rank <= 5) {{
-        badge.style.background = 'rgba(245,158,11,.2)';
-        badge.style.color = 'var(--accent)';
-        badge.textContent = 'Winner R' + a.winner_our_rank;
-      }} else {{
-        badge.style.background = 'rgba(239,68,68,.2)';
-        badge.style.color = 'var(--red)';
-        badge.textContent = 'MISS';
-      }}
-      const gradeEl = header.querySelector('.grade');
-      if (gradeEl) header.insertBefore(badge, gradeEl);
-    }}
-  }});
-}};
+    // Results banner
+    var existing = document.getElementById('detail-results-banner');
+    if (existing) existing.remove();
 
-// Patch renderRaceDetail to show results
-const _origRenderRaceDetail = renderRaceDetail;
-renderRaceDetail = function(race) {{
-  _origRenderRaceDetail(race);
+    var banner = document.createElement('div');
+    banner.id = 'detail-results-banner';
+    banner.style.cssText = 'background:linear-gradient(90deg,rgba(16,185,129,.08),rgba(59,130,246,.08));border:1px solid var(--green);border-radius:10px;padding:14px 18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px';
 
-  if (!race.results_available) return;
+    var leftHTML = '<div><div style="font-size:.7rem;color:var(--green);font-weight:700;text-transform:uppercase">Official Result</div>'
+      + '<div style="font-size:1.1rem;font-weight:800;margin-top:4px">Winner: ' + winnerName + ' @ $' + (race.actual_win_odds || '?') + '</div></div>';
 
-  const el = document.getElementById('race-detail-view');
+    var rightHTML = '<div style="display:flex;gap:16px;text-align:center">'
+      + '<div><div style="font-size:1.1rem;font-weight:800;color:' + (a.win_correct ? 'var(--green)' : 'var(--red)') + '">' + (a.win_correct ? 'YES' : 'NO') + '</div><div style="font-size:.65rem;color:var(--dim)">Win Pick</div></div>'
+      + '<div><div style="font-size:1.1rem;font-weight:800;color:var(--cyan)">' + (a.top3_overlap || 0) + '/3</div><div style="font-size:.65rem;color:var(--dim)">Top 3</div></div>'
+      + '<div><div style="font-size:1.1rem;font-weight:800;color:var(--accent)">' + (a.winner_our_rank ? 'Rank ' + a.winner_our_rank : '?') + '</div><div style="font-size:.65rem;color:var(--dim)">Our Rank</div></div>'
+      + '</div>';
 
-  // Add results banner at top
-  const a = race.accuracy || {{}};
-  const winner = race.actual_results?.find(r => r.position === 1);
-  const winnerName = winner ? `#${{winner.number}} ${{winner.name}}` : 'Unknown';
+    banner.innerHTML = leftHTML + rightHTML;
 
-  const banner = document.createElement('div');
-  banner.style.cssText = 'background:linear-gradient(90deg,rgba(16,185,129,.08),rgba(59,130,246,.08));border:1px solid var(--green);border-radius:10px;padding:14px 18px;margin-bottom:14px';
-  banner.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-      <div>
-        <div style="font-size:.7rem;color:var(--green);font-weight:700;text-transform:uppercase">Official Result</div>
-        <div style="font-size:1.1rem;font-weight:800;margin-top:4px">Winner: ${{winnerName}} @ $${{race.actual_win_odds || '?'}}</div>
-      </div>
-      <div style="display:flex;gap:16px;text-align:center">
-        <div>
-          <div style="font-size:1.1rem;font-weight:800;color:${{a.win_correct ? 'var(--green)' : 'var(--red)'}}">${{a.win_correct ? 'YES' : 'NO'}}</div>
-          <div style="font-size:.65rem;color:var(--dim)">Win Pick</div>
-        </div>
-        <div>
-          <div style="font-size:1.1rem;font-weight:800;color:var(--cyan)">${{a.top3_overlap || 0}}/3</div>
-          <div style="font-size:.65rem;color:var(--dim)">Top 3</div>
-        </div>
-        <div>
-          <div style="font-size:1.1rem;font-weight:800;color:var(--accent)">${{a.winner_our_rank ? 'Rank ' + a.winner_our_rank : '?'}}</div>
-          <div style="font-size:.65rem;color:var(--dim)">Our Rank</div>
-        </div>
-      </div>
-    </div>
-  `;
+    var detailHeader = el.querySelector('.detail-header');
+    if (detailHeader) detailHeader.after(banner);
 
-  const firstChild = el.querySelector('.detail-header');
-  if (firstChild) firstChild.after(banner);
+    // Add finish position column to table
+    var table = el.querySelector('.horse-table');
+    if (table) {
+      var headerRow = table.querySelector('tr');
+      if (headerRow && !headerRow.querySelector('.finish-col')) {
+        var th = document.createElement('th');
+        th.className = 'finish-col';
+        th.textContent = 'Finish';
+        th.style.cssText = 'text-align:center;width:50px;background:rgba(16,185,129,.1);color:var(--green)';
+        headerRow.insertBefore(th, headerRow.children[1]);
+      }
 
-  // Add actual position column to horse table
-  const table = el.querySelector('.horse-table');
-  if (table) {{
-    // Add header
-    const headerRow = table.querySelector('tr');
-    if (headerRow) {{
-      const th = document.createElement('th');
-      th.textContent = 'Finish';
-      th.style.cssText = 'text-align:center;width:50px;background:rgba(16,185,129,.1);color:var(--green)';
-      headerRow.insertBefore(th, headerRow.children[1]);
-    }}
+      var rows = table.querySelectorAll('tr');
+      for (var i = 1; i < rows.length; i++) {
+        var cells = rows[i].querySelectorAll('td');
+        if (!cells.length) continue;
+        var rank = parseInt(cells[0].textContent);
+        var horse = race.horses.find(function(h) { return h.rank === rank; });
+        var pos = horse ? horse.actual_position : null;
 
-    // Add finish position to each row
-    const rows = table.querySelectorAll('tr');
-    rows.forEach((row, idx) => {{
-      if (idx === 0) return; // skip header
-      const cells = row.querySelectorAll('td');
-      if (!cells.length) return;
-      const rankCell = cells[0];
-      const rank = parseInt(rankCell.textContent);
+        var td = document.createElement('td');
+        td.style.cssText = 'text-align:center;font-weight:800';
+        if (pos === 1) { td.innerHTML = '<span style="color:var(--gold)">1st</span>'; rows[i].style.background = 'rgba(251,191,36,.08)'; }
+        else if (pos === 2) { td.innerHTML = '<span style="color:#94a3b8">2nd</span>'; rows[i].style.background = 'rgba(148,163,184,.05)'; }
+        else if (pos === 3) { td.innerHTML = '<span style="color:var(--orange)">3rd</span>'; rows[i].style.background = 'rgba(249,115,22,.05)'; }
+        else if (pos) { td.innerHTML = '<span style="color:var(--dim)">' + pos + 'th</span>'; }
+        else { td.textContent = '-'; td.style.color = 'var(--dim)'; }
+        rows[i].insertBefore(td, rows[i].children[1]);
+      }
+    }
+  }
 
-      const horse = race.horses.find(h => h.rank === rank);
-      const pos = horse?.actual_position;
-
-      const td = document.createElement('td');
-      td.style.cssText = 'text-align:center;font-weight:800';
-      if (pos === 1) {{
-        td.innerHTML = '<span style="color:var(--gold)">1st</span>';
-        row.style.background = 'rgba(251,191,36,.08)';
-      }} else if (pos === 2) {{
-        td.innerHTML = '<span style="color:var(--dim)">2nd</span>';
-        row.style.background = 'rgba(148,163,184,.05)';
-      }} else if (pos === 3) {{
-        td.innerHTML = '<span style="color:var(--orange)">3rd</span>';
-        row.style.background = 'rgba(249,115,22,.05)';
-      }} else if (pos) {{
-        td.innerHTML = `<span style="color:var(--dim)">${{pos}}th</span>`;
-      }} else {{
-        td.textContent = '-';
-        td.style.color = 'var(--dim)';
-      }}
-      row.insertBefore(td, row.children[1]);
-    }});
-  }}
-}};
-
-// Apply results on load
-applyResults();
+  // Re-render with results
+  showDashboard();
+})();
+// ===== END RESULTS =====
 '''
 
-        html = html.replace('</script>', inject_js + '\n</script>')
+        html = html.replace('</script>', inject + '\n</script>')
 
         with open(dashboard_path, 'w') as f:
             f.write(html)
