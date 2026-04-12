@@ -158,26 +158,28 @@ class HorseDatabase:
                 is_top3 = 1 if 1 <= pos <= 3 else 0
 
                 # Upsert race result
+                margin = entry.get('margin', 0) or 0
                 c.execute("""
                     INSERT INTO race_results (
                         race_date, race_number, venue, distance, class_type,
                         going, course, horse_name, horse_number, jockey, trainer,
                         draw, weight, rating, win_odds, finish_position,
-                        is_winner, is_top3, gear
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        is_winner, is_top3, gear, margin
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(race_date, race_number, horse_name)
                     DO UPDATE SET
                         finish_position=excluded.finish_position,
                         is_winner=excluded.is_winner,
                         is_top3=excluded.is_top3,
-                        win_odds=excluded.win_odds
+                        win_odds=CASE WHEN excluded.win_odds > 0 THEN excluded.win_odds ELSE race_results.win_odds END,
+                        margin=CASE WHEN excluded.margin > 0 THEN excluded.margin ELSE race_results.margin END
                 """, (
                     race_date, race_no, venue, distance, class_type,
                     going, course, horse_name, entry.get('number', 0),
                     entry.get('jockey', ''), entry.get('trainer', ''),
                     entry.get('draw', 0), entry.get('weight', ''),
                     entry.get('rating', 0), entry.get('win_odds', 0),
-                    pos, is_winner, is_top3, entry.get('gear', ''),
+                    pos, is_winner, is_top3, entry.get('gear', ''), margin,
                 ))
 
                 # Upsert horse master record

@@ -304,71 +304,135 @@ class BettingStrategy:
         return avg_score, reason
 
     @staticmethod
-    def analyze_jockey(jockey: str) -> tuple:
-        top_jockeys = {
-            "J Moreira": (95, "Elite jockey - J Moreira"),
-            "Z Purton": (92, "Champion jockey - Z Purton"),
-            "K Teetan": (85, "Top jockey - K Teetan"),
-            "H Bowman": (85, "International star - H Bowman"),
-            "C L Chau": (80, "Rising star - C L Chau"),
-            "A Badel": (82, "Top jockey - A Badel"),
-            "H Bentley": (80, "Skilled jockey - H Bentley"),
-            "L Hewitson": (82, "Top jockey - L Hewitson"),
-            "C Schofield": (78, "Skilled jockey - C Schofield"),
-            "K C Leung": (75, "Experienced jockey"),
-            "M Chadwick": (72, "Improving jockey"),
-            "V Borges": (78, "Skilled jockey"),
-            "B Shinn": (83, "Top jockey - B Shinn"),
-            "A Atzeni": (84, "Top international - A Atzeni"),
-            "B Avdulla": (80, "Skilled jockey - B Avdulla"),
-            "C Y Ho": (78, "Experienced jockey - C Y Ho"),
-            "R Kingscote": (80, "Skilled jockey - R Kingscote"),
-            "L Ferraris": (78, "Rising star - L Ferraris"),
-            "J Orman": (76, "Solid jockey - J Orman"),
-            "M L Yeung": (72, "Local jockey - M L Yeung"),
-            "H Y Yuen": (70, "Apprentice - H Y Yuen"),
-            "H T Mo": (68, "Apprentice - H T Mo"),
-            "E C W Wong": (68, "Apprentice - E C W Wong"),
-            "P N Wong": (66, "Apprentice - P N Wong"),
-            "Y L Chung": (68, "Local jockey - Y L Chung"),
-        }
-        for name, (score, reason) in top_jockeys.items():
-            if name.lower() in jockey.lower():
+    def analyze_jockey(jockey: str, db=None) -> tuple:
+        """Score jockey using real DB stats when available, else fallback."""
+        if db and jockey:
+            # Try season stats first (most complete)
+            stats = db.get_jockey_stats(jockey)
+            if not stats:
+                # Try partial name match across DB
+                try:
+                    c = db.conn.cursor()
+                    c.execute("SELECT * FROM jockey_stats WHERE name LIKE ?",
+                              (f'%{jockey.split()[-1]}%',))
+                    row = c.fetchone()
+                    if row:
+                        stats = dict(row)
+                except Exception:
+                    pass
+
+            if stats and stats.get('rides', 0) >= 5:
+                win_rate = stats.get('win_rate', 0)
+                place_rate = stats.get('place_rate', 0)
+                rides = stats['rides']
+                wins = stats.get('wins', 0)
+
+                # Score based on actual win rate (HK avg ~8-10%)
+                if win_rate >= 0.20:
+                    score = min(95, 80 + win_rate * 75)
+                    label = "Elite"
+                elif win_rate >= 0.14:
+                    score = 78 + win_rate * 50
+                    label = "Top"
+                elif win_rate >= 0.08:
+                    score = 65 + win_rate * 80
+                    label = "Solid"
+                elif win_rate >= 0.04:
+                    score = 55 + win_rate * 100
+                    label = "Average"
+                else:
+                    score = max(35, 40 + win_rate * 200)
+                    label = "Struggling"
+
+                # Place rate bonus (consistent top-3 finisher)
+                if place_rate >= 0.35:
+                    score = min(97, score + 5)
+                elif place_rate >= 0.25:
+                    score = min(95, score + 3)
+
+                score = min(97, max(30, score))
+                reason = f"{label} jockey - {jockey} ({wins}W/{rides}R, {win_rate:.0%}W)"
                 return score, reason
-        return 65.0, f"Jockey: {jockey}"
+
+        # Fallback: tier-based defaults for known jockeys when DB unavailable
+        TIER_1 = {"moreira", "purton", "bowman", "moore", "mcdonald"}
+        TIER_2 = {"teetan", "badel", "hewitson", "shinn", "atzeni", "avdulla", "bentley"}
+        TIER_3 = {"schofield", "chau", "ho", "kingscote", "ferraris", "borges", "leung"}
+
+        jockey_lower = jockey.lower() if jockey else ""
+        surname = jockey_lower.split()[-1] if jockey_lower.split() else ""
+
+        if surname in TIER_1:
+            return 90.0, f"Elite jockey - {jockey}"
+        elif surname in TIER_2:
+            return 78.0, f"Top jockey - {jockey}"
+        elif surname in TIER_3:
+            return 70.0, f"Experienced jockey - {jockey}"
+        return 60.0, f"Jockey: {jockey}"
 
     @staticmethod
-    def analyze_trainer(trainer: str) -> tuple:
-        top_trainers = {
-            "J Size": (92, "Legendary trainer - J Size"),
-            "A Cruz": (90, "Top trainer - A Cruz"),
-            "A S Cruz": (90, "Top trainer - A S Cruz"),
-            "F C Lor": (88, "Elite trainer - F C Lor"),
-            "D J Hall": (82, "Top trainer - D J Hall"),
-            "C Fownes": (82, "Top trainer - C Fownes"),
-            "J Richards": (80, "Skilled trainer - J Richards"),
-            "D Whyte": (80, "Top trainer - D Whyte"),
-            "D J Whyte": (80, "Top trainer - D J Whyte"),
-            "K H Ting": (78, "Consistent trainer - K H Ting"),
-            "P F Yiu": (78, "Experienced trainer - P F Yiu"),
-            "W Y So": (72, "Trainer - W Y So"),
-            "C H Yip": (75, "Trainer - C H Yip"),
-            "K W Lui": (82, "Top trainer - K W Lui"),
-            "D A Hayes": (80, "Skilled trainer - D A Hayes"),
-            "D Eustace": (76, "Trainer - D Eustace"),
-            "B Crawford": (75, "Trainer - B Crawford"),
-            "M Newnham": (78, "Skilled trainer - M Newnham"),
-            "C S Shum": (78, "Experienced trainer - C S Shum"),
-            "K L Man": (74, "Trainer - K L Man"),
-            "P C Ng": (72, "Trainer - P C Ng"),
-            "C W Chang": (72, "Trainer - C W Chang"),
-            "W K Mo": (70, "Trainer - W K Mo"),
-            "Y S Tsui": (74, "Trainer - Y S Tsui"),
-        }
-        for name, (score, reason) in top_trainers.items():
-            if name.lower() in trainer.lower():
+    def analyze_trainer(trainer: str, db=None) -> tuple:
+        """Score trainer using real DB stats when available, else fallback."""
+        if db and trainer:
+            stats = db.get_trainer_stats(trainer)
+            if not stats:
+                try:
+                    c = db.conn.cursor()
+                    c.execute("SELECT * FROM trainer_stats WHERE name LIKE ?",
+                              (f'%{trainer.split()[-1]}%',))
+                    row = c.fetchone()
+                    if row:
+                        stats = dict(row)
+                except Exception:
+                    pass
+
+            if stats and stats.get('runners', 0) >= 5:
+                win_rate = stats.get('win_rate', 0)
+                place_rate = stats.get('place_rate', 0)
+                runners = stats['runners']
+                wins = stats.get('wins', 0)
+
+                # Score based on actual win rate (HK avg ~6-8%)
+                if win_rate >= 0.18:
+                    score = min(93, 78 + win_rate * 80)
+                    label = "Elite"
+                elif win_rate >= 0.12:
+                    score = 72 + win_rate * 60
+                    label = "Top"
+                elif win_rate >= 0.06:
+                    score = 58 + win_rate * 100
+                    label = "Solid"
+                elif win_rate >= 0.02:
+                    score = 45 + win_rate * 200
+                    label = "Average"
+                else:
+                    score = max(30, 35 + win_rate * 300)
+                    label = "Struggling"
+
+                if place_rate >= 0.30:
+                    score = min(95, score + 4)
+                elif place_rate >= 0.20:
+                    score = min(93, score + 2)
+
+                score = min(95, max(25, score))
+                reason = f"{label} trainer - {trainer} ({wins}W/{runners}R, {win_rate:.0%}W)"
                 return score, reason
-        return 65.0, f"Trainer: {trainer}"
+
+        # Fallback: tier-based defaults for known trainers
+        TIER_1 = {"size", "cruz", "lor"}
+        TIER_2 = {"hall", "fownes", "lui", "whyte", "hayes", "richards", "newnham", "shum"}
+        TIER_3 = {"ting", "yiu", "eustace", "crawford", "yip", "man", "tsui"}
+
+        trainer_lower = trainer.lower() if trainer else ""
+        surname = trainer_lower.split()[-1] if trainer_lower.split() else ""
+
+        if surname in TIER_1:
+            return 88.0, f"Elite trainer - {trainer}"
+        elif surname in TIER_2:
+            return 75.0, f"Top trainer - {trainer}"
+        elif surname in TIER_3:
+            return 68.0, f"Experienced trainer - {trainer}"
+        return 58.0, f"Trainer: {trainer}"
 
     @staticmethod
     def analyze_draw(draw: int, distance: str) -> tuple:
@@ -561,11 +625,11 @@ class CombinedRaceAnalyzer:
             factors["odds"] = 0
             reasoning.append("No live odds available")
 
-        jockey_score, jockey_reason = self.strategy.analyze_jockey(horse.jockey)
+        jockey_score, jockey_reason = self.strategy.analyze_jockey(horse.jockey, db=self._horse_db)
         factors["jockey"] = jockey_score
         reasoning.append(jockey_reason)
 
-        trainer_score, trainer_reason = self.strategy.analyze_trainer(horse.trainer)
+        trainer_score, trainer_reason = self.strategy.analyze_trainer(horse.trainer, db=self._horse_db)
         factors["trainer"] = trainer_score
         reasoning.append(trainer_reason)
 
@@ -1333,19 +1397,35 @@ class CombinedRaceAnalyzer:
 class ReportGenerator:
     @staticmethod
     def print_header():
+        # Count real training data
+        n_results = "synthetic"
+        try:
+            import sqlite3
+            from pathlib import Path
+            db_path = Path(__file__).parent / 'tracking_data' / 'horse_history.db'
+            if db_path.exists():
+                conn = sqlite3.connect(str(db_path))
+                n = conn.execute("SELECT COUNT(*) FROM race_results").fetchone()[0]
+                conn.close()
+                if n > 0:
+                    n_results = f"{n:,}"
+        except Exception:
+            pass
+
         print("\n" + "=" * 80)
-        print("  HKJC HORSE RACING ANALYZER v1.0.0 - REAL-TIME DATA EDITION")
+        print("  HKJC HORSE RACING ANALYZER v5.0 - REAL DATA EDITION")
         print("=" * 80)
-        print("""
-  PREDICTION METHODOLOGY (v3.0 - Full 14-Factor Analytics)
+        print(f"""
+  PREDICTION METHODOLOGY (v5.0 - 26-Factor + Real Data ML)
   --------------------------------------------------------
-  RULE-BASED (50%):  Rating 12% | Form 12% | Tips 12% | Odds 9% | Jockey 7% | Trainer 5%
-                     Draw+Rail 6% | Pace 6% | C&D 6% | Odds Move 6% | Sectional 5%
-                     Class Move 5% | Gear 4% | Weight 5%
-  ML-BASED   (50%):  XGBoost classifier (14 features)
-  ADVANCED:          Rail bias | Pace map | Sectionals | Barrier trials | C&D form
-                     Odds movement | Class drop/rise | Gear changes | Weight analysis
-  DATA SOURCE:       Live from racing.hkjc.com
+  RULE-BASED (75%):  26 scoring factors with dynamic weighting
+    Core:    Rating | Form | Tips | Odds | Jockey (DB stats) | Trainer (DB stats) | Draw
+    Expert:  Pace Map | C&D Form | Odds Movement | Going Preference | Rolling Form
+             Beaten Margins | Jockey Change | Jockey/Trainer Hot Streaks
+             Field Size | Career Place Rate | Age vs Field | Freshness | Rating Trend
+    Tech:    Class Movement | Gear Changes | Weight | Sectional Speed | Season Stakes
+  ML-BASED  (25%):  XGBoost trained on {n_results} real race results
+  DATA:             Real jockey/trainer stats from DB | Live odds from HKJC
         """)
 
     @staticmethod

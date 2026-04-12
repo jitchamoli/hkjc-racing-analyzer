@@ -1,25 +1,22 @@
-# HKJC Horse Racing Analyzer v4.0
+# HKJC Horse Racing Analyzer v5.0
 
-Real-time horse racing analysis tool for the Hong Kong Jockey Club (HKJC). Fetches live race data, odds, and expert tips from racing.hkjc.com to generate betting recommendations using a combined rule-based + ML prediction system with 17 analytical factors, persistent horse database, and auto-learning pipeline.
+Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Fetches live race data, odds, and expert tips from racing.hkjc.com to generate betting recommendations using a 26-factor rule-based engine + XGBoost ML model trained on real historical race data, persistent horse database, and self-improving data pipeline.
 
-## What's New in v4.0
+## What's New in v5.0
 
-- **17-factor analysis engine** - expanded from 14 to 17 scoring factors (added freshness, rating trend, season stakes)
-- **QIN #1+#2 default strategy** - Quinella on model's rank 1 + rank 2 as default bet (hit 6/11 vs 2/11 for WIN alone)
-- **BANKER WIN system** - 9 conviction signals (high score, rating surge, peak fitness, winning form, pace advantage, ideal draw, top jockey, proven earner, market backed); 7+ triggers BANKER WIN with "BET BIG" indicator
-- **Market probability blending** - 70% model + 30% market-implied probabilities prevents underrating strong favourites
-- **Market standout detection** - auto-promotes market favourite (35%+ implied) when it differs from model's top pick
-- **Persistent horse database** - SQLite DB that accumulates horse, jockey, and trainer stats across race days
-- **Auto-learning pipeline** - `--auto-learn` flag ingests results into horse DB and retrains ML model automatically
-- **Expanded jockey database** - 25 jockeys with skill ratings (was 13)
-- **Expanded trainer database** - 24 trainers with skill ratings (was 11)
-- **Freshness scoring** - days since last run: 14-35 ideal, 7-14 quick backup, 35-60 fair break, 60-120 fitness query, 120+ layoff risk
-- **Rating trend detection** - scores horses with rising (+5 or more) vs declining ratings
-- **Season stakes factor** - rewards proven earners with high season prize money
-- **WILDCARD BET section** - includes top outsider in exotic combinations for upset coverage
-- **ONES TO WATCH** - renamed from "Dangers" for friendlier presentation
-- **WhatsApp formatting** - bullet points, bold horse names, trimmed whitespace
-- **Race Day Complete** - dashboard shows completion state after all races finished
+- **26-factor analysis engine** - expanded from 17 to 26 scoring factors with dynamic weighting
+- **Real jockey/trainer stats from DB** - replaced all hardcoded ratings with actual win/place rates computed from 1,286+ historical race results
+- **ML model trained on real data** - XGBoost now trains on actual race results from horse_database (was 100% synthetic)
+- **Historical data scraper** (`scrape_history.py`) - Playwright-based bulk scraper for past HKJC results, auto-ingests into DB
+- **Self-improving pipeline** - each race day adds ~130 results; jockey/trainer stats, ML model, and going/margin data all improve automatically
+- **9 new expert-driven factors** - Going preference, Rolling form, Beaten margins, Jockey change detection, Jockey/Trainer hot streaks, Field size impact, Career place rate, Age vs field
+- **Research-backed feature design** - informed by Bill Benter methodology, CodeWorks Paris (1,618 features), gmalbert (field_size #1 at 17.41%), pbovard63 (field-relative features), Teddy Koker (value betting layer)
+
+### Previous Versions
+- **v4.0**: QIN default strategy, BANKER WIN system, market probability blending, 17 factors
+- **v3.0**: 14-factor analytics, rail bias, pace map, sectionals, C&D form, odds movement
+- **v2.0**: Tips Index integration, ML prediction, advanced analytics
+- **v1.0**: Basic rule-based scoring
 
 ## How It Works
 
@@ -29,52 +26,50 @@ Real-time horse racing analysis tool for the Hong Kong Jockey Club (HKJC). Fetch
 |--------|-----------------|
 | Race Card page | Horse entries, jockeys, trainers, draw, weight, gear, ratings, last 6 runs |
 | Tips Index page | Live odds, Initial Tips Index, Race Day Tips Index, top picks per race |
-| Odds page | Win and Place odds (when available on race day) |
 | Horse Profile page | Running positions, sectional times, class history, C&D record |
-| Barrier Trial page | Trial results for debut/Griffin horses |
-| Results page | Finishing positions for completed races |
-| Mark Six GraphQL API | Draw results, all-time number statistics, current jackpot |
+| Results page | Finishing positions, margins, odds for completed races |
+| Horse Database (local) | 1,286+ race results, jockey/trainer season stats, going records, margins |
 
 ### Prediction System
 
-The analyzer combines two systems (50/50 weighted):
+The analyzer combines two systems (75/25 weighted):
 
-**Rule-Based System (50%) - 17 Factors**
+**Rule-Based System (75%) - 26 Factors**
 
-| Factor | Weight | Description |
-|--------|--------|-------------|
-| HKJC Tips Index | 14% | Expert composite from racing media tipsters |
-| Form | 12% | Last 6 race positions (supplemented by trial data for debut horses) |
-| Rating | 9% | Official HKJC rating |
-| Market Odds | 9% | Implied probability from live odds |
-| Freshness | 6% | Days since last run (14-35 days = peak fitness) |
-| Jockey | 6% | Jockey skill rating (25 riders: Moreira, Purton, Bowman, etc.) |
-| Draw + Rail Bias | 5% | Barrier position adjusted for rail position, venue, and distance |
-| Odds Movement | 5% | Steam moves (shortening) vs drifters (lengthening) |
-| Weight Carried | 5% | Weight-to-rating ratio, field comparison, apprentice claims |
-| Pace Map | 4% | Running style advantage based on field pace pressure |
-| Sectional Speed | 4% | Finishing kick strength from last-400m times |
-| Course & Distance | 4% | C&D win/place record at this venue and distance |
-| Rating Trend | 4% | Rising ratings (+5 or more) vs declining |
-| Trainer | 4% | Trainer success rate (24 trainers: A Cruz, J Size, F C Lor, etc.) |
-| Class Movement | 3% | Advantage from class drop (easier field) or penalty for class rise |
-| Gear Changes | 3% | Equipment impact (blinkers first time, tongue-tie, visor, etc.) |
-| Season Stakes | 3% | Proven earners with high season prize money |
+| Category | Factors | Total Weight |
+|----------|---------|--------------|
+| **Core** | Rating (vs field avg), Form, Tips Index, Market Odds, Jockey (DB stats), Trainer (DB stats), Draw + Rail Bias | ~56% |
+| **Expert** | Going Preference, Rolling Form, Beaten Margins, Jockey Change, Jockey/Trainer Hot Streaks, Field Size, Career Place Rate, Age vs Field | ~37% |
+| **Technical** | Pace Map, C&D Form, Odds Movement, Class Movement, Gear Changes, Weight Analysis, Sectional Speed, Freshness, Rating Trend, Season Stakes | ~7% |
 
-**ML-Based System (50%)**
-- XGBoost classifier with 17 features matching all rule-based factors
-- Auto-retrains when feature dimensions change or new results are ingested
-- Persistent horse database feeds historical performance data
+Weights are dynamic - factors with missing data are excluded and remaining weights are re-normalized to sum to 1.0.
+
+**ML-Based System (25%)**
+- XGBoost classifier with 14 features trained on **real race results** from horse_database
+- Auto-retrains on real data when DB has 50+ results; falls back to calibrated synthetic data otherwise
+- Feature importance from real data: form (68.8%), pace (11.5%), jockey rate (3.9%), rating (3.5%)
+- Model improves automatically as more race days are scraped
+
+### Key Improvements Over Hardcoded Approach
+
+| What | Old (v4.0) | New (v5.0) |
+|------|-----------|-----------|
+| Jockey scores | 26 hardcoded entries (Purton=92) | Real DB stats (Purton=15.6% from 109 rides) |
+| Trainer scores | 23 hardcoded entries (Size=92) | Real DB stats (Size=10.2% from 88 runners) |
+| ML training data | 5,000 synthetic random samples | 1,286+ real race results |
+| Rating scoring | Absolute (rating/100) | Relative to field average (pbovard63) |
+| Jockey form | Static tier | Last 10 rides win/place rate, hot streak detection |
+| Trainer form | Static tier | Last 10 runners win/place rate |
+| Going | Not scored | Horse's record on today's track condition |
+| Margins | Not scored | Last-start margin, close-finish frequency |
 
 ### Bet Type Logic
 
 | Bet Type | When |
 |----------|------|
-| **BANKER WIN** | 7+ of 9 conviction signals fire — highest confidence, bet big |
+| **BANKER WIN** | 7+ of 9 conviction signals fire - highest confidence |
 | **WIN** | Very clear market standout (35%+ implied) or extreme model confidence |
-| **QIN** (Quinella) | **Default** — rank 1 + rank 2 together (hit 6/11 races vs 2/11 for WIN alone) |
-| **QNL PLACE** (Quinella Place) | Very tight top 2, extremely competitive field |
-| **TRIO** | Top 3 horses extremely bunched, all viable winners |
+| **QIN** (Quinella) | **Default** - rank 1 + rank 2 together |
 | **PLACE** | Strong horse at short odds, safety play |
 | **SKIP** | No positive EV or insufficient data |
 
@@ -92,67 +87,31 @@ The analyzer combines two systems (50/50 weighted):
 | Proven earner | Season stakes >= $2M |
 | Market backed | Implied probability >= 10% |
 
-When 7+ signals fire, the horse is flagged as **BANKER WIN** with a gold "BET BIG" badge on the dashboard. BANKER overrides QIN default and auto-promotes to rank 1.
-
-### Advanced Analytics
-
-**Rail Position Draw Bias**
-- Maps 3 venues (Sha Tin, Happy Valley) x 3 distance buckets (short/mid/long) x 8 rail positions
-- Calculates ideal draw range and scores deviation from it
-- Falls back to basic draw scoring when course info unavailable
-
-**Pace Scenario Modeling**
-- Classifies each horse as Leader/Stalker/Midfield/Closer from running positions or form heuristics
-- Counts leaders in the field to determine pace pressure
-- 0-1 leaders = easy lead (leaders advantaged), 3+ leaders = hot pace (closers advantaged)
-- Short races (1200m) boost leaders, long races (1800m+) boost closers
-
-**Odds Movement Tracking**
-- SQLite database (WAL mode) stores timestamped odds snapshots
-- Detects steam moves (30%+ shortening), strong support, stable markets, drifters
-- Late movement detection: compares last quarter of snapshots to earlier readings
-- Periodic polling support for race-day automation
-
-**Class Movement Detection**
-- Parses HKJC class hierarchy (Class 1-5 + Griffin)
-- Big drop (2+ classes): 88 score | Single drop: 72 | Same: 50 | Rise: 38 | Big rise: 25
-
-**Gear Change Impact**
-- Scores common gear codes: B (blinkers), TT (tongue-tie), V (visor), H (hood), etc.
-- First-time blinkers have highest strike rate among gear changes
-- Blinkers off is treated as a mixed/negative signal
-
-**Weight Analysis**
-- Evaluates weight-to-rating ratio (light weight for high rating = advantage)
-- Compares effective weight against field average
-- Accounts for apprentice jockey weight claims (3-10 lbs)
-
 ## Project Structure
 
 ```
 hkjc_racing_analyzer/
-  hkjc_racing_analyzer.py   # Main analyzer (v4.0) - 17-factor engine + BANKER + QIN default
-  hkjc_data_fetcher.py      # Real-time data layer (HKJC API + parser + new data fields)
+  hkjc_racing_analyzer.py   # Main analyzer (v5.0) - 26-factor engine + real DB stats
+  hkjc_data_fetcher.py      # Real-time data layer (HKJC API + parser)
   generate_predictions.py    # HTML dashboard generator + WhatsApp message formatter
   horse_database.py          # Persistent SQLite horse/jockey/trainer database
-  results_fetcher.py         # Fetch race results + auto-learn pipeline (--auto-learn)
-  advanced_analytics.py      # 8 specialized analyzers (draw bias, pace, sectional,
-                             #   barrier trial, C&D, class movement, gear, weight)
+  results_fetcher.py         # Fetch race results + scorecard + auto-learn pipeline
+  scrape_history.py          # Historical results scraper (Playwright) - builds training data
+  advanced_analytics.py      # 12 specialized analyzers (draw bias, pace, sectional,
+                             #   barrier trial, C&D, class, gear, weight, going,
+                             #   rolling form, beaten margins, jockey change)
   odds_tracker.py            # SQLite odds history + movement analyzer + polling
-  ml_predictor.py            # XGBoost ML prediction module (17 features)
+  ml_predictor.py            # XGBoost ML module (14 features, real data training)
   betting_optimizer.py       # Kelly Criterion + value bet optimizer
   mark6_analyzer.py          # Mark Six lottery analyzer (GraphQL + frequency analysis)
   interactive_analyzer.py    # Interactive mode with manual odds input
   racing_scheduler.py        # Automated daily race analysis (cron)
   results_tracker.py         # Track predictions vs actual results
   run_workflow.sh            # Full workflow runner script
-  setup_cron.sh              # Cron job setup for automation
-  requirements.txt           # Python dependencies
-  models/                    # Trained ML models (auto-generated)
+  models/                    # Trained ML models (auto-generated from real data)
   results/                   # Saved analysis results and HTML dashboards
-  tracking_data/             # SQLite databases (odds history, horse history, predictions)
+  tracking_data/             # SQLite databases (horse_history.db with 1,286+ results)
   training_data/             # Historical race data for ML training
-  logs/                      # Application logs
 ```
 
 ## Quick Start
@@ -164,49 +123,49 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
+### Build Historical Database (recommended first run)
+
+```bash
+# Scrape past 10 meetings (~1,300 results) to train ML model
+python scrape_history.py
+
+# Or scrape a specific date
+python scrape_history.py --date 2026/04/06
+```
+
 ### Run the Racing Analyzer
 
 ```bash
 python hkjc_racing_analyzer.py
 ```
 
-You'll be prompted for:
-1. **Race date** - enter `YYYY/MM/DD` or press Enter to auto-detect the next meeting
-2. **Race number** - enter `1-11`, or `all` to analyze the full meeting
-
-### Run the Mark Six Analyzer
+### Generate Dashboard
 
 ```bash
-python mark6_analyzer.py
+python generate_predictions.py
 ```
 
-### Example Output
+### Fetch Results & Score Predictions
 
+```bash
+python results_fetcher.py
 ```
-  HKJC HORSE RACING ANALYZER v1.0.0 - REAL-TIME DATA EDITION
-  ============================================================
 
-  PREDICTION METHODOLOGY (v3.0 - Full 14-Factor Analytics)
-  --------------------------------------------------------
-  RULE-BASED (50%):  Rating 12% | Form 12% | Tips 12% | Odds 9% | Jockey 7%
-                     Trainer 5% | Draw+Rail 6% | Pace 6% | C&D 6% | Odds Move 6%
-                     Sectional 5% | Class Move 5% | Gear 4% | Weight 5%
-  ML-BASED   (50%):  XGBoost classifier (14 features)
+## Performance (April 12, 2026 - Sha Tin)
 
-  RACE 5 - Sha Tin
-  Date: 2026/04/12 | Distance: 1200m | Class: Class 4
-
-  Rank No  Horse               Jockey          Odds    Comb%   EV%     Bet
-  1    4   CALL ME SPARKLE     M L Yeung       $3.8    55.4%   +111%   WIN
-  2    3   CONRAD PATCH        H Bowman        $9.1    46.4%   +322%   WIN
-  ...
-```
+| Metric | Result |
+|--------|--------|
+| #1 Pick Won | 3/11 (27%) |
+| #1 or #2 Won | 8/11 (73%) |
+| #1 or #2 Top 3 | 14/22 entries placed |
+| QIN exact hits | 3/11 |
+| Random baseline | ~8% (1/avg field of 12) |
 
 ## Requirements
 
 - Python 3.10+
 - Internet connection (fetches live data from racing.hkjc.com)
-- Playwright + Chromium (optional, for JS-rendered odds pages)
+- Playwright + Chromium (for historical scraping and JS-rendered pages)
 
 ## Key Dependencies
 
