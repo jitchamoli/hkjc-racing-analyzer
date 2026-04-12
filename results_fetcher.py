@@ -484,6 +484,8 @@ async def main():
     import argparse
     parser = argparse.ArgumentParser(description='Fetch HKJC race results')
     parser.add_argument('date', nargs='?', help='Race date (YYYY/MM/DD), defaults to today')
+    parser.add_argument('--auto-learn', action='store_true',
+                        help='Auto-ingest results into horse DB and retrain ML model')
     args = parser.parse_args()
 
     race_date = args.date or datetime.now().strftime('%Y/%m/%d')
@@ -491,6 +493,47 @@ async def main():
     fetcher = ResultsFetcher()
     await fetcher.update_dashboard_with_results(race_date)
     await fetcher.fetcher.close()
+
+    # Auto-learn: feed results to horse database and retrain ML model
+    if args.auto_learn:
+        auto_learn(race_date)
+
+
+def auto_learn(race_date: str = None):
+    """Automatically ingest results into horse DB and retrain ML model."""
+    from horse_database import HorseDatabase
+    from pathlib import Path
+    import subprocess
+
+    race_date = race_date or datetime.now().strftime('%Y/%m/%d')
+
+    # 1. Ingest into horse database
+    training_file = Path(__file__).parent / 'training_data' / 'historical_races.json'
+    if training_file.exists():
+        with open(training_file) as f:
+            races = json.load(f)
+        today_races = [r for r in races if r.get('date') == race_date]
+        if today_races:
+            db = HorseDatabase()
+            db.ingest_race_day(today_races)
+            summary = db.get_summary()
+            logger.info(f"Horse DB updated: {summary['horses']} horses, "
+                        f"{summary['race_results']} results, {summary['race_days']} days")
+            db.close()
+
+    # 2. Retrain ML model
+    logger.info("Auto-retraining ML model...")
+    result = subprocess.run(
+        [sys.executable, str(Path(__file__).parent / 'train_ml_model.py')],
+        capture_output=True, text=True, timeout=300
+    )
+    if result.returncode == 0:
+        # Extract accuracy from output
+        for line in result.stdout.split('\n'):
+            if 'Win accuracy' in line:
+                logger.info(f"ML retrain: {line.strip()}")
+    else:
+        logger.warning(f"ML retrain failed: {result.stderr[:200]}")
 
 
 if __name__ == '__main__':

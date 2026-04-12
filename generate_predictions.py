@@ -230,6 +230,9 @@ const GENERATED = "{now}";
 function getNextRace() {{
   var now = new Date();
   var parts = RACE_DATE.split('/');
+  // Check if all races have results
+  var allDone = RACES.every(function(r) {{ return r.results_available; }});
+  if (allDone) return -1;  // Race day complete
   for (var i = 0; i < RACES.length; i++) {{
     var r = RACES[i];
     if (r.results_available) continue;
@@ -238,9 +241,10 @@ function getNextRace() {{
       var raceTime = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), parseInt(tp[0]), parseInt(tp[1]));
       if (raceTime > now) return r.race_number;
     }}
+    // Race time passed but no result yet — it's likely running now
+    return r.race_number;
   }}
-  // All races past — return last one
-  return RACES.length > 0 ? RACES[RACES.length-1].race_number : 1;
+  return -1;  // All done
 }}
 
 function formatCountdown(raceNum) {{
@@ -268,8 +272,12 @@ setInterval(function() {{
     var now = new Date();
     var timeStr = now.toLocaleTimeString('en-HK', {{hour:'2-digit',minute:'2-digit',second:'2-digit'}});
     var nextR = getNextRace();
-    var cd = formatCountdown(nextR);
-    el.textContent = timeStr + (cd ? ' | R' + nextR + ' in ' + cd : '');
+    if (nextR === -1) {{
+      el.textContent = timeStr + ' | Race Day Complete';
+    }} else {{
+      var cd = formatCountdown(nextR);
+      el.textContent = timeStr + (cd ? ' | R' + nextR + ' in ' + cd : ' | R' + nextR + ' NOW');
+    }}
     if (nextR !== NEXT_RACE) {{
       NEXT_RACE = nextR;
       updateNextBadge();
@@ -279,6 +287,7 @@ setInterval(function() {{
 
 function updateNextBadge() {{
   document.querySelectorAll('.next-badge').forEach(function(b) {{ b.remove(); }});
+  if (NEXT_RACE === -1) return;  // All races done, no badge
   var tab = document.getElementById('tab-' + NEXT_RACE);
   if (tab) {{
     var badge = document.createElement('span');
@@ -299,7 +308,7 @@ function initTabs() {{
   RACES.forEach(r => {{
     const g = gradeRace(r);
     const gc = gradeClass(g);
-    const isNext = r.race_number === NEXT_RACE;
+    const isNext = NEXT_RACE !== -1 && r.race_number === NEXT_RACE;
     const btn = document.createElement('button');
     btn.className = 'race-tab';
     btn.id = 'tab-' + r.race_number;
