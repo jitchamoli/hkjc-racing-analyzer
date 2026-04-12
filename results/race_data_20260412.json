@@ -21,11 +21,11 @@
         "win_odds": 2.2,
         "place_odds": 0.0,
         "last_6": "",
-        "rule_score": 60.95249757372546,
+        "rule_score": 63.191278024784786,
         "ml_prob": 0.3233775794506073,
-        "combined_score": 60.95249757372546,
-        "calibrated_prob": 0.3197305283553668,
-        "expected_return": -0.296592837618193,
+        "combined_score": 63.191278024784786,
+        "calibrated_prob": 0.3183691790241001,
+        "expected_return": -0.29958780614697966,
         "bet_recommendation": "WIN",
         "confidence": "HIGH \u2b50\u2b50\u2b50",
         "reasoning": [
@@ -39,7 +39,8 @@
           "Midfield - Neutral pace (x1.00)",
           "Odds: Stable market ($2.2)",
           "Weight: 126lbs carried",
-          "Going: Good on Good (1W/1P from 1)"
+          "Going: Good on Good (1W/1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -55,11 +56,11 @@
         "win_odds": 2.9,
         "place_odds": 0.0,
         "last_6": "",
-        "rule_score": 57.312899106002554,
+        "rule_score": 59.53867660764213,
         "ml_prob": 0.20740626752376556,
-        "combined_score": 57.312899106002554,
-        "calibrated_prob": 0.22593002437824986,
-        "expected_return": -0.34480292930307543,
+        "combined_score": 59.53867660764213,
+        "calibrated_prob": 0.22488017741134136,
+        "expected_return": -0.3478474855071101,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -73,7 +74,8 @@
           "Midfield - Neutral pace (x1.00)",
           "Odds: Stable market ($2.9)",
           "Weight: 121lbs carried",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -89,11 +91,11 @@
         "win_odds": 4.0,
         "place_odds": 0.0,
         "last_6": "",
-        "rule_score": 55.72551740085559,
+        "rule_score": 58.04075146947155,
         "ml_prob": 0.20697996020317078,
-        "combined_score": 55.72551740085559,
-        "calibrated_prob": 0.18832613308594737,
-        "expected_return": -0.24669546765621053,
+        "combined_score": 58.04075146947155,
+        "calibrated_prob": 0.18815809005910966,
+        "expected_return": -0.24736763976356135,
         "bet_recommendation": "PLACE",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -107,7 +109,8 @@
           "Midfield - Neutral pace (x1.00)",
           "Odds: Stable market ($4.0)",
           "Weight: 121lbs carried",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -123,11 +126,11 @@
         "win_odds": 12.0,
         "place_odds": 0.0,
         "last_6": "",
-        "rule_score": 53.58907259670354,
+        "rule_score": 55.81730273457641,
         "ml_prob": 0.20697996020317078,
-        "combined_score": 53.58907259670354,
-        "calibrated_prob": 0.13068279711754782,
-        "expected_return": 0.5681935654105739,
+        "combined_score": 55.81730273457641,
+        "calibrated_prob": 0.1298865157646569,
+        "expected_return": 0.5586381891758827,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -141,7 +144,8 @@
           "Midfield - Neutral pace (x1.00)",
           "Odds: Stable market ($12.0)",
           "Weight: 126lbs carried",
-          "Going: Fair on Good (avg 4.0 from 1)"
+          "Going: Fair on Good (avg 4.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -157,11 +161,11 @@
         "win_odds": 16.0,
         "place_odds": 0.0,
         "last_6": "",
-        "rule_score": 47.336766613995195,
+        "rule_score": 49.98579745197851,
         "ml_prob": 0.049043383449316025,
-        "combined_score": 47.336766613995195,
-        "calibrated_prob": 0.0748969747428558,
-        "expected_return": 0.19835159588569273,
+        "combined_score": 49.98579745197851,
+        "calibrated_prob": 0.07618853279825755,
+        "expected_return": 0.21901652477212075,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -176,7 +180,8 @@
           "Odds: Stable market ($16.0)",
           "Gear: Gear: TT1 (no significant impact)",
           "Weight: 126lbs carried",
-          "Going: Limited Good data (1 runs, avg 6.0)"
+          "Going: Limited Good data (1 runs, avg 6.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -192,11 +197,11 @@
         "win_odds": 23.0,
         "place_odds": 0.0,
         "last_6": "",
-        "rule_score": 41.89897698209719,
+        "rule_score": 44.835203366058906,
         "ml_prob": 0.20697996020317078,
-        "combined_score": 41.89897698209719,
-        "calibrated_prob": 0.06043354232003244,
-        "expected_return": 0.389971473360746,
+        "combined_score": 44.835203366058906,
+        "calibrated_prob": 0.06251750494253439,
+        "expected_return": 0.43790261367829086,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -209,7 +214,8 @@
           "Midfield - Neutral pace (x1.00)",
           "Odds: Stable market ($23.0)",
           "Weight: 121lbs carried",
-          "Going: Fair on Good (avg 5.0 from 1)"
+          "Going: Fair on Good (avg 5.0 from 1)",
+          "Margin: Won last start"
         ]
       }
     ]
@@ -236,13 +242,13 @@
         "win_odds": 1.9,
         "place_odds": 0.0,
         "last_6": "4/2/7/4/9/4",
-        "rule_score": 59.335753681863515,
+        "rule_score": 61.3991512609141,
         "ml_prob": 0.045675069093704224,
-        "combined_score": 59.335753681863515,
-        "calibrated_prob": 0.2226721400893752,
-        "expected_return": -0.5769229338301871,
+        "combined_score": 61.3991512609141,
+        "calibrated_prob": 0.22217326616861627,
+        "expected_return": -0.5778707942796291,
         "bet_recommendation": "WIN",
-        "confidence": "LOW \u2b50",
+        "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
           "Rating 37: Average",
           "Moderate form (22)",
@@ -258,7 +264,8 @@
           "Weight: Heavy weight for rating (132lbs, rated 37)",
           "Freshness: Ideal spacing (14 days)",
           "Earnings: Moderate earner ($441,000)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -274,11 +281,11 @@
         "win_odds": 8.7,
         "place_odds": 0.0,
         "last_6": "8/1/3/3/9/10",
-        "rule_score": 50.686526349770304,
+        "rule_score": 52.708727812253386,
         "ml_prob": 0.32269856333732605,
-        "combined_score": 50.686526349770304,
-        "calibrated_prob": 0.10116968770791233,
-        "expected_return": -0.11982371694116278,
+        "combined_score": 52.708727812253386,
+        "calibrated_prob": 0.1005797499774717,
+        "expected_return": -0.12495617519599633,
         "bet_recommendation": "PLACE",
         "confidence": "HIGH \u2b50\u2b50\u2b50",
         "reasoning": [
@@ -296,11 +303,51 @@
           "Weight: Heavy weight for rating (124lbs, rated 29); 6lbs below field avg",
           "Freshness: Ideal spacing (14 days)",
           "Earnings: Moderate earner ($708,750)",
-          "Going: Good on Good (1W/1P from 1)"
+          "Going: Good on Good (1W/1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
         "rank": 3,
+        "number": 10,
+        "name": "YEE CHEONG RAIDER",
+        "jockey": "L Hewitson",
+        "trainer": "B Crawford",
+        "draw": 12,
+        "weight": "129",
+        "gear": "CP",
+        "rating": 34.0,
+        "win_odds": 10.0,
+        "place_odds": 0.0,
+        "last_6": "2/4/5/6/6/6",
+        "rule_score": 54.856891217496425,
+        "ml_prob": 0.0815020278096199,
+        "combined_score": 54.856891217496425,
+        "calibrated_prob": 0.08724607315835337,
+        "expected_return": -0.12753926841646634,
+        "bet_recommendation": "PLACE",
+        "confidence": "LOW \u2b50",
+        "reasoning": [
+          "Rating 34: Average",
+          "Moderate form (16)",
+          "Market: 10.0% implied @ $10.0 (LIVE)",
+          "Top jockey - L Hewitson",
+          "Trainer - B Crawford",
+          "Average barrier (12)",
+          "Tips Index: 5.3",
+          "Stalker - Moderate pace edge (x1.05)",
+          "Finish: Declining trend | Best: 1.21.95",
+          "Odds: Stable market ($10.0)",
+          "Gear: Gear: CP (no significant impact)",
+          "Weight: Heavy weight for rating (129lbs, rated 34)",
+          "Freshness: Ideal spacing (28 days)",
+          "Earnings: Moderate earner ($301,875)",
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
+        ]
+      },
+      {
+        "rank": 4,
         "number": 11,
         "name": "PANDA LEGEND",
         "jockey": "J Orman",
@@ -312,12 +359,12 @@
         "win_odds": 22.0,
         "place_odds": 0.0,
         "last_6": "5/7/11/2/3/4",
-        "rule_score": 52.17234780723153,
+        "rule_score": 54.13194696055702,
         "ml_prob": 0.12095844000577927,
-        "combined_score": 52.17234780723153,
-        "calibrated_prob": 0.07462066848959015,
-        "expected_return": 0.6416547067709832,
-        "bet_recommendation": "PLACE",
+        "combined_score": 54.13194696055702,
+        "calibrated_prob": 0.07384055629693782,
+        "expected_return": 0.6244922385326321,
+        "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
           "Rating 32: Average",
@@ -335,11 +382,12 @@
           "Freshness: Ideal spacing (35 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($367,500)",
-          "Going: Fair on Good (avg 5.0 from 1)"
+          "Going: Fair on Good (avg 5.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
-        "rank": 4,
+        "rank": 5,
         "number": 3,
         "name": "SETANTA",
         "jockey": "L Ferraris",
@@ -351,11 +399,11 @@
         "win_odds": 17.0,
         "place_odds": 0.0,
         "last_6": "10/6/10/3/2/7",
-        "rule_score": 53.20449275986212,
+        "rule_score": 55.069671199859215,
         "ml_prob": 0.042647238820791245,
-        "combined_score": 53.20449275986212,
-        "calibrated_prob": 0.07638243054222918,
-        "expected_return": 0.298501319217896,
+        "combined_score": 55.069671199859215,
+        "calibrated_prob": 0.07522836102553547,
+        "expected_return": 0.27888213743410306,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -374,45 +422,8 @@
           "Freshness: Ideal spacing (32 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($497,250)",
-          "Going: Limited Good data (1 runs, avg 8.0)"
-        ]
-      },
-      {
-        "rank": 5,
-        "number": 10,
-        "name": "YEE CHEONG RAIDER",
-        "jockey": "L Hewitson",
-        "trainer": "B Crawford",
-        "draw": 12,
-        "weight": "129",
-        "gear": "CP",
-        "rating": 34.0,
-        "win_odds": 10.0,
-        "place_odds": 0.0,
-        "last_6": "2/4/5/6/6/6",
-        "rule_score": 52.39929021096867,
-        "ml_prob": 0.0815020278096199,
-        "combined_score": 52.39929021096867,
-        "calibrated_prob": 0.08590749788837823,
-        "expected_return": -0.14092502111621763,
-        "bet_recommendation": "SKIP",
-        "confidence": "LOW \u2b50",
-        "reasoning": [
-          "Rating 34: Average",
-          "Moderate form (16)",
-          "Market: 10.0% implied @ $10.0 (LIVE)",
-          "Top jockey - L Hewitson",
-          "Trainer - B Crawford",
-          "Average barrier (12)",
-          "Tips Index: 5.3",
-          "Stalker - Moderate pace edge (x1.05)",
-          "Finish: Declining trend | Best: 1.21.95",
-          "Odds: Stable market ($10.0)",
-          "Gear: Gear: CP (no significant impact)",
-          "Weight: Heavy weight for rating (129lbs, rated 34)",
-          "Freshness: Ideal spacing (28 days)",
-          "Earnings: Moderate earner ($301,875)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Limited Good data (1 runs, avg 8.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -428,11 +439,11 @@
         "win_odds": 10.0,
         "place_odds": 0.0,
         "last_6": "3/7/6/4/10/8",
-        "rule_score": 53.52356559783886,
+        "rule_score": 55.46345936378387,
         "ml_prob": 0.0065457639284431934,
-        "combined_score": 53.52356559783886,
-        "calibrated_prob": 0.08508228204478616,
-        "expected_return": -0.14917717955213838,
+        "combined_score": 55.46345936378387,
+        "calibrated_prob": 0.08425648089774941,
+        "expected_return": -0.15743519102250592,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -451,7 +462,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Low earner ($194,225)",
-          "Going: Limited Good data (1 runs, avg 11.0)"
+          "Going: Limited Good data (1 runs, avg 11.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -467,11 +479,11 @@
         "win_odds": 8.0,
         "place_odds": 0.0,
         "last_6": "5/5/11/12/14/11",
-        "rule_score": 50.159195851334374,
+        "rule_score": 52.58920502305204,
         "ml_prob": 0.005532682407647371,
-        "combined_score": 50.159195851334374,
-        "calibrated_prob": 0.07869274360436027,
-        "expected_return": -0.3704580511651179,
+        "combined_score": 52.58920502305204,
+        "calibrated_prob": 0.07964962096626602,
+        "expected_return": -0.3628030322698719,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -489,7 +501,8 @@
           "Weight: Heavy weight for rating (135lbs, rated 40); 5lbs above field avg",
           "Freshness: Ideal spacing (21 days)",
           "Earnings: Low earner ($175,500)",
-          "Going: Limited Good data (1 runs, avg 10.0)"
+          "Going: Limited Good data (1 runs, avg 10.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -505,11 +518,11 @@
         "win_odds": 13.0,
         "place_odds": 0.0,
         "last_6": "10/8/8/13/10/11",
-        "rule_score": 49.77770922793189,
+        "rule_score": 52.12611497030102,
         "ml_prob": 0.013854986988008022,
-        "combined_score": 49.77770922793189,
-        "calibrated_prob": 0.06622116978634884,
-        "expected_return": -0.13912479277746503,
+        "combined_score": 52.12611497030102,
+        "calibrated_prob": 0.06689490461886964,
+        "expected_return": -0.13036623995469465,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -527,7 +540,8 @@
           "Weight: Heavy weight for rating (133lbs, rated 38)",
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
-          "Going: Fair on Good (avg 4.0 from 1)"
+          "Going: Fair on Good (avg 4.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -543,11 +557,11 @@
         "win_odds": 49.0,
         "place_odds": 0.0,
         "last_6": "9/3/5/12/3/10",
-        "rule_score": 46.37958805394262,
+        "rule_score": 48.456803428232,
         "ml_prob": 0.007744777947664261,
-        "combined_score": 46.37958805394262,
-        "calibrated_prob": 0.042385376499728684,
-        "expected_return": 1.0768834484867056,
+        "combined_score": 48.456803428232,
+        "calibrated_prob": 0.04222284769718471,
+        "expected_return": 1.0689195371620506,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -565,7 +579,8 @@
           "Freshness: Ideal spacing (18 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($358,025)",
-          "Going: Limited Good data (1 runs, avg 9.0)"
+          "Going: Limited Good data (1 runs, avg 9.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -581,11 +596,11 @@
         "win_odds": 102.0,
         "place_odds": 0.0,
         "last_6": "12/11/1/9/4/7",
-        "rule_score": 44.86689959333295,
+        "rule_score": 47.05022836870393,
         "ml_prob": 0.04705553874373436,
-        "combined_score": 44.86689959333295,
-        "calibrated_prob": 0.03777628807173419,
-        "expected_return": 2.8531813833168878,
+        "combined_score": 47.05022836870393,
+        "calibrated_prob": 0.037877728724628044,
+        "expected_return": 2.8635283299120604,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -602,7 +617,8 @@
           "Weight: Heavy weight for rating (123lbs, rated 28); 7lbs below field avg",
           "Freshness: Fair break (52 days)",
           "Earnings: Moderate earner ($542,500)",
-          "Going: Limited Good data (1 runs, avg 14.0)"
+          "Going: Limited Good data (1 runs, avg 14.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -618,11 +634,11 @@
         "win_odds": 34.0,
         "place_odds": 0.0,
         "last_6": "9/12/11/6/12/9",
-        "rule_score": 44.27369568772829,
+        "rule_score": 46.45705026293262,
         "ml_prob": 0.009225229732692242,
-        "combined_score": 44.27369568772829,
-        "calibrated_prob": 0.039643643384701485,
-        "expected_return": 0.3478838750798505,
+        "combined_score": 46.45705026293262,
+        "calibrated_prob": 0.039736806631567055,
+        "expected_return": 0.35105142547327994,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -640,7 +656,8 @@
           "Freshness: Fair break (42 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($23,400)",
-          "Going: Limited Good data (1 runs, avg 12.0)"
+          "Going: Limited Good data (1 runs, avg 12.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -656,11 +673,11 @@
         "win_odds": 100.0,
         "place_odds": 0.0,
         "last_6": "11/5/6/8/9/12",
-        "rule_score": 43.17578004324992,
+        "rule_score": 45.41683991683992,
         "ml_prob": 0.006884223781526089,
-        "combined_score": 43.17578004324992,
-        "calibrated_prob": 0.03249518567810789,
-        "expected_return": 2.249518567810789,
+        "combined_score": 45.41683991683992,
+        "calibrated_prob": 0.03269992904079227,
+        "expected_return": 2.269992904079227,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -678,7 +695,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($64,350)",
-          "Going: Limited Good data (1 runs, avg 6.0)"
+          "Going: Limited Good data (1 runs, avg 6.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -694,11 +712,11 @@
         "win_odds": 116.0,
         "place_odds": 0.0,
         "last_6": "8/10/9/10/5/13",
-        "rule_score": 42.85226635986919,
+        "rule_score": 45.091741343465486,
         "ml_prob": 0.01236344687640667,
-        "combined_score": 42.85226635986919,
-        "calibrated_prob": 0.031699208190667835,
-        "expected_return": 2.6771081501174687,
+        "combined_score": 45.091741343465486,
+        "calibrated_prob": 0.031897606241404655,
+        "expected_return": 2.70012232400294,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -716,7 +734,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($40,950)",
-          "Going: Limited Good data (1 runs, avg 13.0)"
+          "Going: Limited Good data (1 runs, avg 13.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -732,11 +751,11 @@
         "win_odds": 161.0,
         "place_odds": 0.0,
         "last_6": "10/10/7/10/6/12",
-        "rule_score": 39.40846846535689,
+        "rule_score": 41.82244934853631,
         "ml_prob": 0.02364031784236431,
-        "combined_score": 39.40846846535689,
-        "calibrated_prob": 0.02525167802207955,
-        "expected_return": 3.065520161554807,
+        "combined_score": 41.82244934853631,
+        "calibrated_prob": 0.025696068554623655,
+        "expected_return": 3.1370670372944085,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -754,7 +773,8 @@
           "Freshness: Fair break (52 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($17,500)",
-          "Going: Limited Good data (1 runs, avg 7.0)"
+          "Going: Limited Good data (1 runs, avg 7.0)",
+          "Margin: Won last start"
         ]
       }
     ]
@@ -781,11 +801,11 @@
         "win_odds": 4.8,
         "place_odds": 0.0,
         "last_6": "2/4/12/5/2/7",
-        "rule_score": 56.063689221822656,
+        "rule_score": 58.457598515596025,
         "ml_prob": 0.5664530992507935,
-        "combined_score": 56.063689221822656,
-        "calibrated_prob": 0.1969573956319554,
-        "expected_return": -0.05460450096661407,
+        "combined_score": 58.457598515596025,
+        "calibrated_prob": 0.19904745033176893,
+        "expected_return": -0.044572238407509124,
         "bet_recommendation": "QIN",
         "confidence": "HIGH \u2b50\u2b50\u2b50",
         "reasoning": [
@@ -802,7 +822,8 @@
           "Weight: Heavy weight for rating (133lbs, rated 37); 6lbs above field avg",
           "Freshness: Ideal spacing (14 days)",
           "Earnings: Moderate earner ($626,125)",
-          "Going: Good on Good (1W/1P from 1)"
+          "Going: Good on Good (1W/1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -818,11 +839,11 @@
         "win_odds": 3.8,
         "place_odds": 0.0,
         "last_6": "3/1/4/5/8/4",
-        "rule_score": 54.8178957999837,
+        "rule_score": 56.98638479138337,
         "ml_prob": 0.07434553653001785,
-        "combined_score": 54.8178957999837,
-        "calibrated_prob": 0.13844095194687658,
-        "expected_return": -0.473924382601869,
+        "combined_score": 56.98638479138337,
+        "calibrated_prob": 0.1383556435034254,
+        "expected_return": -0.47424855468698346,
         "bet_recommendation": "QIN",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -840,7 +861,8 @@
           "Weight: Heavy weight for rating (135lbs, rated 39); 8lbs above field avg",
           "Freshness: Fair break (49 days)",
           "Earnings: Moderate earner ($743,950)",
-          "Going: Limited Good data (1 runs, avg 10.0)"
+          "Going: Limited Good data (1 runs, avg 10.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -856,11 +878,11 @@
         "win_odds": 18.0,
         "place_odds": 0.0,
         "last_6": "1/4/7/2/2/9",
-        "rule_score": 53.091969931409594,
+        "rule_score": 54.865862997378635,
         "ml_prob": 0.08555004000663757,
-        "combined_score": 53.091969931409594,
-        "calibrated_prob": 0.08063455212656694,
-        "expected_return": 0.45142193827820476,
+        "combined_score": 54.865862997378635,
+        "calibrated_prob": 0.07878231563863575,
+        "expected_return": 0.41808168149544356,
         "bet_recommendation": "PLACE",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -879,7 +901,8 @@
           "Freshness: Fair break (49 days)",
           "Trend: Rating up 6pts \u2014 improving fast",
           "Earnings: Moderate earner ($962,500)",
-          "Going: Fair on Good (avg 4.0 from 1)"
+          "Going: Fair on Good (avg 4.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -895,11 +918,11 @@
         "win_odds": 6.4,
         "place_odds": 0.0,
         "last_6": "2/5/6/7/6/9",
-        "rule_score": 52.30084802350428,
+        "rule_score": 54.498211091234346,
         "ml_prob": 0.017293531447649002,
-        "combined_score": 52.30084802350428,
-        "calibrated_prob": 0.09658783791617853,
-        "expected_return": -0.3818378373364574,
+        "combined_score": 54.498211091234346,
+        "calibrated_prob": 0.09663577158344225,
+        "expected_return": -0.3815310618659695,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -918,7 +941,8 @@
           "Freshness: Ideal spacing (35 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($249,375)",
-          "Going: Limited Good data (1 runs, avg 13.0)"
+          "Going: Limited Good data (1 runs, avg 13.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -934,11 +958,11 @@
         "win_odds": 10.0,
         "place_odds": 0.0,
         "last_6": "6/6/3/9/8/9",
-        "rule_score": 51.0868114165528,
+        "rule_score": 53.396868568480436,
         "ml_prob": 0.013921577483415604,
-        "combined_score": 51.0868114165528,
-        "calibrated_prob": 0.07805468303341244,
-        "expected_return": -0.21945316966587558,
+        "combined_score": 53.396868568480436,
+        "calibrated_prob": 0.07851246611676731,
+        "expected_return": -0.2148753388323269,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -957,7 +981,8 @@
           "Freshness: Ideal spacing (32 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($251,550)",
-          "Going: Limited Good data (1 runs, avg 9.0)"
+          "Going: Limited Good data (1 runs, avg 9.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -973,11 +998,11 @@
         "win_odds": 13.0,
         "place_odds": 0.0,
         "last_6": "6/6/2/2/5/6",
-        "rule_score": 45.172691771829705,
+        "rule_score": 46.725968898783655,
         "ml_prob": 0.1855544000864029,
-        "combined_score": 45.172691771829705,
-        "calibrated_prob": 0.06287025735473785,
-        "expected_return": -0.18268665438840792,
+        "combined_score": 46.725968898783655,
+        "calibrated_prob": 0.061011814453263806,
+        "expected_return": -0.2068464121075705,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -996,7 +1021,8 @@
           "Freshness: Ideal spacing (25 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($533,750)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1012,11 +1038,11 @@
         "win_odds": 20.0,
         "place_odds": 0.0,
         "last_6": "9/4/10/4/7/8",
-        "rule_score": 45.97021933889404,
+        "rule_score": 48.034095634095635,
         "ml_prob": 0.013658364303410053,
-        "combined_score": 45.97021933889404,
-        "calibrated_prob": 0.05009612141129785,
-        "expected_return": 0.0019224282259568959,
+        "combined_score": 48.034095634095635,
+        "calibrated_prob": 0.04978400551338818,
+        "expected_return": -0.004319889732236404,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1034,7 +1060,8 @@
           "Freshness: Ideal spacing (35 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($205,625)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1050,11 +1077,11 @@
         "win_odds": 12.0,
         "place_odds": 0.0,
         "last_6": "10/13/1/7/8/6",
-        "rule_score": 45.091788380395975,
+        "rule_score": 47.38360418923799,
         "ml_prob": 0.015198424458503723,
-        "combined_score": 45.091788380395975,
-        "calibrated_prob": 0.05606325584710816,
-        "expected_return": -0.3272409298347021,
+        "combined_score": 47.38360418923799,
+        "calibrated_prob": 0.05632347190411466,
+        "expected_return": -0.3241183371506241,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1071,7 +1098,8 @@
           "Weight: Heavy weight for rating (135lbs, rated 39); 8lbs above field avg",
           "Freshness: Fair break (49 days)",
           "Earnings: Moderate earner ($507,500)",
-          "Going: Limited Good data (1 runs, avg 12.0)"
+          "Going: Limited Good data (1 runs, avg 12.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1087,11 +1115,11 @@
         "win_odds": 22.0,
         "place_odds": 0.0,
         "last_6": "7/12/10/10/10/4",
-        "rule_score": 44.436041324930216,
+        "rule_score": 46.52107614607615,
         "ml_prob": 0.022273331880569458,
-        "combined_score": 44.436041324930216,
-        "calibrated_prob": 0.04558763122783054,
-        "expected_return": 0.002927887012271979,
+        "combined_score": 46.52107614607615,
+        "calibrated_prob": 0.045352836510315145,
+        "expected_return": -0.0022375967730667856,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1108,7 +1136,8 @@
           "Weight: Heavy weight for rating (116lbs, rated 20); 10lbs below field avg",
           "Freshness: Ideal spacing (35 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
-          "Going: Limited Good data (1 runs, avg 8.0)"
+          "Going: Limited Good data (1 runs, avg 8.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1124,11 +1153,11 @@
         "win_odds": 11.0,
         "place_odds": 0.0,
         "last_6": "6/4/6/4/5/5",
-        "rule_score": 43.55573342320331,
+        "rule_score": 45.81544131544132,
         "ml_prob": 0.022125305607914925,
-        "combined_score": 43.55573342320331,
-        "calibrated_prob": 0.05462196889134694,
-        "expected_return": -0.39915834219518365,
+        "combined_score": 45.81544131544132,
+        "calibrated_prob": 0.05478687559603587,
+        "expected_return": -0.39734436844360543,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1146,7 +1175,8 @@
           "Freshness: Long absence (84 days) \u2014 fitness query",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($201,250)",
-          "Going: Limited Good data (1 runs, avg 7.0)"
+          "Going: Limited Good data (1 runs, avg 7.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1162,11 +1192,11 @@
         "win_odds": 21.0,
         "place_odds": 0.0,
         "last_6": "8/13/13/7/7/4",
-        "rule_score": 42.46375481059025,
+        "rule_score": 44.77728937728938,
         "ml_prob": 0.020855866372585297,
-        "combined_score": 42.46375481059025,
-        "calibrated_prob": 0.04172713116660411,
-        "expected_return": -0.12373024550131362,
+        "combined_score": 44.77728937728938,
+        "calibrated_prob": 0.041991136229652684,
+        "expected_return": -0.11818613917729359,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1183,7 +1213,8 @@
           "Weight: Heavy weight for rating (115lbs, rated 15); 12lbs below field avg",
           "Freshness: Ideal spacing (18 days)",
           "Earnings: Low earner ($153,125)",
-          "Going: Limited Good data (1 runs, avg 6.0)"
+          "Going: Limited Good data (1 runs, avg 6.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1199,11 +1230,11 @@
         "win_odds": 33.0,
         "place_odds": 0.0,
         "last_6": "9/5/2/7/14/9",
-        "rule_score": 42.04072794675204,
+        "rule_score": 44.47375417375417,
         "ml_prob": 0.005999254994094372,
-        "combined_score": 42.04072794675204,
-        "calibrated_prob": 0.03614596167406404,
-        "expected_return": 0.19281673524411325,
+        "combined_score": 44.47375417375417,
+        "calibrated_prob": 0.03663481650920005,
+        "expected_return": 0.2089489448036017,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1221,7 +1252,8 @@
           "Freshness: Fair break (49 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($214,375)",
-          "Going: Limited Good data (1 runs, avg 11.0)"
+          "Going: Limited Good data (1 runs, avg 11.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1237,11 +1269,11 @@
         "win_odds": 48.0,
         "place_odds": 0.0,
         "last_6": "13/13/8/10/10/10",
-        "rule_score": 41.562140871177014,
+        "rule_score": 43.75246015246015,
         "ml_prob": 0.017082683742046356,
-        "combined_score": 41.562140871177014,
-        "calibrated_prob": 0.03329592168541493,
-        "expected_return": 0.5982042408999169,
+        "combined_score": 43.75246015246015,
+        "calibrated_prob": 0.03330547951258907,
+        "expected_return": 0.5986630166042752,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1259,7 +1291,8 @@
           "Freshness: Ideal spacing (35 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($183,750)",
-          "Going: Fair on Good (avg 5.0 from 1)"
+          "Going: Fair on Good (avg 5.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1275,11 +1308,11 @@
         "win_odds": 175.0,
         "place_odds": 0.0,
         "last_6": "9/11/9/7/9/13",
-        "rule_score": 41.107930623593276,
+        "rule_score": 43.58921888921889,
         "ml_prob": 0.02174409292638302,
-        "combined_score": 41.107930623593276,
-        "calibrated_prob": 0.028916330086605723,
-        "expected_return": 4.060357765156001,
+        "combined_score": 43.58921888921889,
+        "calibrated_prob": 0.0294759165974009,
+        "expected_return": 4.158285404545158,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1297,7 +1330,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 3pts \u2014 on the rise",
           "Earnings: Low earner ($23,400)",
-          "Going: Limited Good data (1 runs, avg 14.0)"
+          "Going: Limited Good data (1 runs, avg 14.0)",
+          "Margin: Won last start"
         ]
       }
     ]
@@ -1324,11 +1358,11 @@
         "win_odds": 2.1,
         "place_odds": 0.0,
         "last_6": "2/3/11/3/9/5",
-        "rule_score": 59.152800391871075,
+        "rule_score": 61.203188949530116,
         "ml_prob": 0.2280638962984085,
-        "combined_score": 59.152800391871075,
-        "calibrated_prob": 0.2180941166955607,
-        "expected_return": -0.5420023549393225,
+        "combined_score": 61.203188949530116,
+        "calibrated_prob": 0.21813959465307936,
+        "expected_return": -0.5419068512285333,
         "bet_recommendation": "WIN",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -1346,7 +1380,8 @@
           "Freshness: Ideal spacing (14 days)",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Moderate earner ($596,700)",
-          "Going: Fair on Good (avg 5.0 from 1)"
+          "Going: Fair on Good (avg 5.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1362,11 +1397,11 @@
         "win_odds": 7.0,
         "place_odds": 0.0,
         "last_6": "2/5/1/6",
-        "rule_score": 61.21108617967257,
+        "rule_score": 63.075159590196726,
         "ml_prob": 0.07534138113260269,
-        "combined_score": 61.21108617967257,
-        "calibrated_prob": 0.13304448780199707,
-        "expected_return": -0.06868858538602052,
+        "combined_score": 63.075159590196726,
+        "calibrated_prob": 0.1318479002949267,
+        "expected_return": -0.07706469793551296,
         "bet_recommendation": "PLACE",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -1385,7 +1420,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($965,250)",
-          "Going: Good on Good (1W/1P from 1)"
+          "Going: Good on Good (1W/1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1401,13 +1437,13 @@
         "win_odds": 4.4,
         "place_odds": 0.0,
         "last_6": "5/7/2",
-        "rule_score": 58.78741542621579,
+        "rule_score": 60.52756598098174,
         "ml_prob": 0.04807531461119652,
-        "combined_score": 58.78741542621579,
-        "calibrated_prob": 0.1358308243594516,
-        "expected_return": -0.40234437281841295,
+        "combined_score": 60.52756598098174,
+        "calibrated_prob": 0.13417882513857354,
+        "expected_return": -0.40961316939027637,
         "bet_recommendation": "PLACE",
-        "confidence": "LOW \u2b50",
+        "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
           "Rating 54: Average",
           "Moderate form (35)",
@@ -1423,7 +1459,8 @@
           "Weight: Heavy weight for rating (129lbs, rated 54)",
           "Freshness: Ideal spacing (21 days)",
           "Earnings: Low earner ($286,650)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1439,11 +1476,11 @@
         "win_odds": 14.0,
         "place_odds": 0.0,
         "last_6": "2/8/7/10/7/2",
-        "rule_score": 54.9152090964591,
+        "rule_score": 57.11811909021211,
         "ml_prob": 0.04017726331949234,
-        "combined_score": 54.9152090964591,
-        "calibrated_prob": 0.0788107525942084,
-        "expected_return": 0.10335053631891755,
+        "combined_score": 57.11811909021211,
+        "calibrated_prob": 0.07947961469413706,
+        "expected_return": 0.11271460571791891,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1462,7 +1499,8 @@
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($636,300)",
-          "Going: Fair on Good (avg 4.0 from 1)"
+          "Going: Fair on Good (avg 4.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1478,11 +1516,11 @@
         "win_odds": 12.0,
         "place_odds": 0.0,
         "last_6": "12/6/5/2/5/3",
-        "rule_score": 51.9114981876762,
+        "rule_score": 54.16941403091409,
         "ml_prob": 0.0727546438574791,
-        "combined_score": 51.9114981876762,
-        "calibrated_prob": 0.07232678510142518,
-        "expected_return": -0.13207857878289786,
+        "combined_score": 54.16941403091409,
+        "calibrated_prob": 0.07309138452550623,
+        "expected_return": -0.12290338569392523,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1500,7 +1538,8 @@
           "Freshness: Long absence (63 days) \u2014 fitness query",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($841,400)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1516,11 +1555,11 @@
         "win_odds": 11.0,
         "place_odds": 0.0,
         "last_6": "5/6",
-        "rule_score": 51.39253400395417,
+        "rule_score": 53.40565996769577,
         "ml_prob": 0.0064000329002738,
-        "combined_score": 51.39253400395417,
-        "calibrated_prob": 0.0684989845537122,
-        "expected_return": -0.24651116990916577,
+        "combined_score": 53.40565996769577,
+        "calibrated_prob": 0.06840184134954043,
+        "expected_return": -0.24757974515505532,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1539,7 +1578,8 @@
           "Freshness: Fair break (42 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($64,350)",
-          "Going: Limited Good data (1 runs, avg 10.0)"
+          "Going: Limited Good data (1 runs, avg 10.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1555,11 +1595,11 @@
         "win_odds": 12.0,
         "place_odds": 0.0,
         "last_6": "3/1/1/3/3/8",
-        "rule_score": 49.317594363896724,
+        "rule_score": 50.59013071834209,
         "ml_prob": 0.043963100761175156,
-        "combined_score": 49.317594363896724,
-        "calibrated_prob": 0.062408524279855805,
-        "expected_return": -0.2510977086417303,
+        "combined_score": 50.59013071834209,
+        "calibrated_prob": 0.06025029640311501,
+        "expected_return": -0.27699644316261995,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1578,7 +1618,8 @@
           "Freshness: Ideal spacing (35 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Solid earner ($1,400,000)",
-          "Going: Limited Good data (1 runs, avg 7.0)"
+          "Going: Limited Good data (1 runs, avg 7.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1594,11 +1635,11 @@
         "win_odds": 52.0,
         "place_odds": 0.0,
         "last_6": "11/14/2/9/5/7",
-        "rule_score": 47.08767377201112,
+        "rule_score": 48.95571725571726,
         "ml_prob": 0.0042954604141414165,
-        "combined_score": 47.08767377201112,
-        "calibrated_prob": 0.03926123755630194,
-        "expected_return": 1.0415843529277007,
+        "combined_score": 48.95571725571726,
+        "calibrated_prob": 0.038849909866233184,
+        "expected_return": 1.0201953130441255,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1616,11 +1657,47 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($286,650)",
-          "Going: Limited Good data (1 runs, avg 11.0)"
+          "Going: Limited Good data (1 runs, avg 11.0)",
+          "Margin: Won last start"
         ]
       },
       {
         "rank": 9,
+        "number": 6,
+        "name": "MASSIVE GLORY",
+        "jockey": "C L Chau",
+        "trainer": "F C Lor",
+        "draw": 12,
+        "weight": "127",
+        "gear": "CP1/TT1",
+        "rating": 52.0,
+        "win_odds": 76.0,
+        "place_odds": 0.0,
+        "last_6": "",
+        "rule_score": 47.960101867572156,
+        "ml_prob": 0.057995330542325974,
+        "combined_score": 47.960101867572156,
+        "calibrated_prob": 0.03726844793420722,
+        "expected_return": 1.8324020429997487,
+        "bet_recommendation": "SKIP",
+        "confidence": "LOW \u2b50",
+        "reasoning": [
+          "Rating 52: Average",
+          "No form \u2014 outsider ($76)",
+          "Market: 1.3% implied @ $76.0 (LIVE)",
+          "Rising star - C L Chau",
+          "Elite trainer - F C Lor",
+          "Average barrier (12)",
+          "Midfield - Neutral pace (x1.00)",
+          "Odds: Stable market ($76.0)",
+          "Gear: Gear: CP1/TT1 (no significant impact)",
+          "Weight: Heavy weight for rating (127lbs, rated 52)",
+          "Going: Limited Good data (1 runs, avg 6.0)",
+          "Margin: Won last start"
+        ]
+      },
+      {
+        "rank": 10,
         "number": 8,
         "name": "CHEERFUL WONGCHOY",
         "jockey": "K Teetan",
@@ -1632,11 +1709,11 @@
         "win_odds": 125.0,
         "place_odds": 0.0,
         "last_6": "8/6",
-        "rule_score": 46.17479147358666,
+        "rule_score": 48.33804573804574,
         "ml_prob": 0.013918069191277027,
-        "combined_score": 46.17479147358666,
-        "calibrated_prob": 0.034837375850038425,
-        "expected_return": 3.3546719812548034,
+        "combined_score": 48.33804573804574,
+        "calibrated_prob": 0.03510552073931209,
+        "expected_return": 3.3881900924140114,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1654,41 +1731,8 @@
           "Freshness: Ideal spacing (32 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($23,400)",
-          "Going: Limited Good data (1 runs, avg 8.0)"
-        ]
-      },
-      {
-        "rank": 10,
-        "number": 6,
-        "name": "MASSIVE GLORY",
-        "jockey": "C L Chau",
-        "trainer": "F C Lor",
-        "draw": 12,
-        "weight": "127",
-        "gear": "CP1/TT1",
-        "rating": 52.0,
-        "win_odds": 76.0,
-        "place_odds": 0.0,
-        "last_6": "",
-        "rule_score": 45.07120743034056,
-        "ml_prob": 0.057995330542325974,
-        "combined_score": 45.07120743034056,
-        "calibrated_prob": 0.035365209030201065,
-        "expected_return": 1.6877558862952808,
-        "bet_recommendation": "SKIP",
-        "confidence": "LOW \u2b50",
-        "reasoning": [
-          "Rating 52: Average",
-          "No form \u2014 outsider ($76)",
-          "Market: 1.3% implied @ $76.0 (LIVE)",
-          "Rising star - C L Chau",
-          "Elite trainer - F C Lor",
-          "Average barrier (12)",
-          "Midfield - Neutral pace (x1.00)",
-          "Odds: Stable market ($76.0)",
-          "Gear: Gear: CP1/TT1 (no significant impact)",
-          "Weight: Heavy weight for rating (127lbs, rated 52)",
-          "Going: Limited Good data (1 runs, avg 6.0)"
+          "Going: Limited Good data (1 runs, avg 8.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1704,11 +1748,11 @@
         "win_odds": 181.0,
         "place_odds": 0.0,
         "last_6": "12/11/12/13/11/14",
-        "rule_score": 45.35768365050133,
+        "rule_score": 47.547498465316146,
         "ml_prob": 0.00912092998623848,
-        "combined_score": 45.35768365050133,
-        "calibrated_prob": 0.03228134174894407,
-        "expected_return": 4.842922856558877,
+        "combined_score": 47.547498465316146,
+        "calibrated_prob": 0.03258993273111663,
+        "expected_return": 4.898777824332109,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1725,7 +1769,8 @@
           "Weight: Heavy weight for rating (130lbs, rated 55)",
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 3pts \u2014 on the rise",
-          "Going: Limited Good data (1 runs, avg 12.0)"
+          "Going: Limited Good data (1 runs, avg 12.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1741,11 +1786,11 @@
         "win_odds": 143.0,
         "place_odds": 0.0,
         "last_6": "12/8/8/11/6/13",
-        "rule_score": 44.979874743730164,
+        "rule_score": 47.10179550179551,
         "ml_prob": 0.006476691924035549,
-        "combined_score": 44.979874743730164,
-        "calibrated_prob": 0.03175634482316549,
-        "expected_return": 3.5411573097126654,
+        "combined_score": 47.10179550179551,
+        "calibrated_prob": 0.03191629780916711,
+        "expected_return": 3.5640305867108966,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1763,7 +1808,8 @@
           "Freshness: Ideal spacing (35 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($23,400)",
-          "Going: Limited Good data (1 runs, avg 13.0)"
+          "Going: Limited Good data (1 runs, avg 13.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1779,11 +1825,11 @@
         "win_odds": 241.0,
         "place_odds": 0.0,
         "last_6": "10/7/13/8",
-        "rule_score": 44.619703435747695,
+        "rule_score": 46.85059137496897,
         "ml_prob": 0.008921618573367596,
-        "combined_score": 44.619703435747695,
-        "calibrated_prob": 0.0304268034868227,
-        "expected_return": 6.33285964032427,
+        "combined_score": 46.85059137496897,
+        "calibrated_prob": 0.030803331801755325,
+        "expected_return": 6.423602964223034,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1800,7 +1846,8 @@
           "Weight: Heavy weight for rating (121lbs, rated 46); 5lbs below field avg",
           "Freshness: Ideal spacing (32 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
-          "Going: Limited Good data (1 runs, avg 14.0)"
+          "Going: Limited Good data (1 runs, avg 14.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1816,11 +1863,11 @@
         "win_odds": 145.0,
         "place_odds": 0.0,
         "last_6": "8/14/10",
-        "rule_score": 42.386219995415395,
+        "rule_score": 45.00932066018273,
         "ml_prob": 0.012578516267240047,
-        "combined_score": 42.386219995415395,
-        "calibrated_prob": 0.027057212118315462,
-        "expected_return": 2.923295757155742,
+        "combined_score": 45.00932066018273,
+        "calibrated_prob": 0.028077102059330086,
+        "expected_return": 3.071179798602863,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -1836,7 +1883,8 @@
           "Weight: Heavy weight for rating (123lbs, rated 48)",
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
-          "Going: Limited Good data (1 runs, avg 9.0)"
+          "Going: Limited Good data (1 runs, avg 9.0)",
+          "Margin: Won last start"
         ]
       }
     ]
@@ -1863,11 +1911,11 @@
         "win_odds": 4.4,
         "place_odds": 0.0,
         "last_6": "1",
-        "rule_score": 68.30776515151516,
+        "rule_score": 69.18393234672304,
         "ml_prob": 0.15017485618591309,
-        "combined_score": 68.30776515151516,
-        "calibrated_prob": 0.20161217950165802,
-        "expected_return": -0.11290641019270464,
+        "combined_score": 69.18393234672304,
+        "calibrated_prob": 0.19325234046540474,
+        "expected_return": -0.1496897019522191,
         "bet_recommendation": "BANKER WIN",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -1887,7 +1935,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 6pts \u2014 improving fast",
           "Earnings: Moderate earner ($655,200)",
-          "Going: Fair on Good (avg 4.0 from 1)"
+          "Going: Fair on Good (avg 4.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1903,11 +1952,11 @@
         "win_odds": 4.5,
         "place_odds": 0.0,
         "last_6": "9/1/3/2",
-        "rule_score": 62.80749186787007,
+        "rule_score": 64.32452183161871,
         "ml_prob": 0.08784279227256775,
-        "combined_score": 62.80749186787007,
-        "calibrated_prob": 0.14760452843145433,
-        "expected_return": -0.33577962205845546,
+        "combined_score": 64.32452183161871,
+        "calibrated_prob": 0.14617950820697928,
+        "expected_return": -0.34219221306859327,
         "bet_recommendation": "PLACE",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -1925,7 +1974,8 @@
           "Weight: Heavy weight for rating (134lbs, rated 59); 7lbs above field avg",
           "Freshness: Ideal spacing (21 days)",
           "Earnings: Solid earner ($1,035,450)",
-          "Going: Fair on Good (avg 5.0 from 1)"
+          "Going: Fair on Good (avg 5.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1941,11 +1991,11 @@
         "win_odds": 3.2,
         "place_odds": 0.0,
         "last_6": "7/2/1/4/10",
-        "rule_score": 60.375174668987945,
+        "rule_score": 62.29407619942362,
         "ml_prob": 0.15248939394950867,
-        "combined_score": 60.375174668987945,
-        "calibrated_prob": 0.16189098206519933,
-        "expected_return": -0.48194885739136206,
+        "combined_score": 62.29407619942362,
+        "calibrated_prob": 0.16291348714431922,
+        "expected_return": -0.47867684113817843,
         "bet_recommendation": "PLACE",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -1962,7 +2012,8 @@
           "Weight: Heavy weight for rating (135lbs, rated 60); 8lbs above field avg",
           "Freshness: Ideal spacing (21 days)",
           "Earnings: Moderate earner ($900,900)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -1978,11 +2029,11 @@
         "win_odds": 8.6,
         "place_odds": 0.0,
         "last_6": "",
-        "rule_score": 55.67369100012192,
+        "rule_score": 58.265401272569164,
         "ml_prob": 0.26267871260643005,
-        "combined_score": 55.67369100012192,
-        "calibrated_prob": 0.09922884246355555,
-        "expected_return": -0.14663195481342228,
+        "combined_score": 58.265401272569164,
+        "calibrated_prob": 0.10342781472519648,
+        "expected_return": -0.11052079336331033,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -1996,7 +2047,8 @@
           "Midfield - Neutral pace (x1.00)",
           "Odds: Stable market ($8.6)",
           "Weight: Heavy weight for rating (127lbs, rated 52)",
-          "Going: Good on Good (1W/1P from 1)"
+          "Going: Good on Good (1W/1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2012,11 +2064,11 @@
         "win_odds": 14.0,
         "place_odds": 0.0,
         "last_6": "9/3/6/2",
-        "rule_score": 54.93527883360932,
+        "rule_score": 56.93001288294375,
         "ml_prob": 0.13195130228996277,
-        "combined_score": 54.93527883360932,
-        "calibrated_prob": 0.07500831681335934,
-        "expected_return": 0.05011643538703092,
+        "combined_score": 56.93001288294375,
+        "calibrated_prob": 0.07599833588756434,
+        "expected_return": 0.06397670242590081,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2034,7 +2086,8 @@
           "Freshness: Long absence (119 days) \u2014 fitness query",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($403,650)",
-          "Going: Limited Good data (1 runs, avg 9.0)"
+          "Going: Limited Good data (1 runs, avg 9.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2050,11 +2103,11 @@
         "win_odds": 175.0,
         "place_odds": 0.0,
         "last_6": "12",
-        "rule_score": 53.94391322962752,
+        "rule_score": 55.67606306736741,
         "ml_prob": 0.11611885577440262,
-        "combined_score": 53.94391322962752,
-        "calibrated_prob": 0.0541470773873693,
-        "expected_return": 8.475738542789626,
+        "combined_score": 55.67606306736741,
+        "calibrated_prob": 0.054105591190428196,
+        "expected_return": 8.468478458324935,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2070,7 +2123,8 @@
           "Gear: Gear: CP (no significant impact)",
           "Weight: Heavy weight for rating (127lbs, rated 52)",
           "Freshness: Long absence (63 days) \u2014 fitness query",
-          "Going: Limited Good data (1 runs, avg 10.0)"
+          "Going: Limited Good data (1 runs, avg 10.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2086,11 +2140,11 @@
         "win_odds": 14.0,
         "place_odds": 0.0,
         "last_6": "2/10/9/9",
-        "rule_score": 52.539335735611424,
+        "rule_score": 54.683167978883176,
         "ml_prob": 0.012552176602184772,
-        "combined_score": 52.539335735611424,
-        "calibrated_prob": 0.0598399121700516,
-        "expected_return": -0.16224122961927756,
+        "combined_score": 54.683167978883176,
+        "calibrated_prob": 0.061007676636161676,
+        "expected_return": -0.14589252709373657,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2109,7 +2163,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($245,700)",
-          "Going: Limited Good data (1 runs, avg 7.0)"
+          "Going: Limited Good data (1 runs, avg 7.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2125,11 +2180,11 @@
         "win_odds": 46.0,
         "place_odds": 0.0,
         "last_6": "4/2/3/1/6/6",
-        "rule_score": 50.12854380988668,
+        "rule_score": 52.15827405907014,
         "ml_prob": 0.07376737892627716,
-        "combined_score": 50.12854380988668,
-        "calibrated_prob": 0.04400309209809027,
-        "expected_return": 1.0241422365121524,
+        "combined_score": 52.15827405907014,
+        "calibrated_prob": 0.04476266637338483,
+        "expected_return": 1.059082653175702,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2146,7 +2201,8 @@
           "Weight: Heavy weight for rating (135lbs, rated 60); 8lbs above field avg",
           "Freshness: Ideal spacing (18 days)",
           "Earnings: Solid earner ($1,365,200)",
-          "Going: Limited Good data (1 runs, avg 6.0)"
+          "Going: Limited Good data (1 runs, avg 6.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2162,11 +2218,11 @@
         "win_odds": 8.9,
         "place_odds": 0.0,
         "last_6": "9/10/8/5/11/1",
-        "rule_score": 50.81180729833769,
+        "rule_score": 52.52342965264314,
         "ml_prob": 0.012282393872737885,
-        "combined_score": 50.81180729833769,
-        "calibrated_prob": 0.06516349758002483,
-        "expected_return": -0.4200448715377789,
+        "combined_score": 52.52342965264314,
+        "calibrated_prob": 0.06508144274089465,
+        "expected_return": -0.4207751596060375,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2184,7 +2240,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($696,150)",
-          "Going: Limited Good data (1 runs, avg 8.0)"
+          "Going: Limited Good data (1 runs, avg 8.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2200,11 +2257,11 @@
         "win_odds": 184.0,
         "place_odds": 0.0,
         "last_6": "11/8/14/6",
-        "rule_score": 45.63261071040013,
+        "rule_score": 47.697008044834135,
         "ml_prob": 0.005043008830398321,
-        "combined_score": 45.63261071040013,
-        "calibrated_prob": 0.027565346484877264,
-        "expected_return": 4.072023753217417,
+        "combined_score": 47.697008044834135,
+        "calibrated_prob": 0.02814368317952892,
+        "expected_return": 4.178437705033321,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2222,11 +2279,51 @@
           "Freshness: Ideal spacing (25 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($23,400)",
-          "Going: Limited Good data (1 runs, avg 12.0)"
+          "Going: Limited Good data (1 runs, avg 12.0)",
+          "Margin: Won last start"
         ]
       },
       {
         "rank": 11,
+        "number": 10,
+        "name": "GORGEOUS VICTORY",
+        "jockey": "Y L Chung",
+        "trainer": "C S Shum",
+        "draw": 8,
+        "weight": "123",
+        "gear": "TT",
+        "rating": 48.0,
+        "win_odds": 51.0,
+        "place_odds": 0.0,
+        "last_6": "10/6/13",
+        "rule_score": 47.009273979862215,
+        "ml_prob": 0.006322513800114393,
+        "combined_score": 47.009273979862215,
+        "calibrated_prob": 0.030430492235855693,
+        "expected_return": 0.5519551040286403,
+        "bet_recommendation": "SKIP",
+        "confidence": "LOW \u2b50",
+        "reasoning": [
+          "Rating 48: Average",
+          "Moderate form (5)",
+          "Market: 2.0% implied @ $51.0 (LIVE)",
+          "Local jockey - Y L Chung",
+          "Experienced trainer - C S Shum",
+          "Average barrier (8)",
+          "Midfield - Neutral pace (x1.00)",
+          "Finish: Improving trend",
+          "Odds: Stable market ($51.0)",
+          "Gear: Tongue-tie ON (aids breathing)",
+          "Weight: Heavy weight for rating (123lbs, rated 48)",
+          "Freshness: Ideal spacing (21 days)",
+          "Trend: Rating up 2pts \u2014 on the rise",
+          "Earnings: Low earner ($23,400)",
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
+        ]
+      },
+      {
+        "rank": 12,
         "number": 9,
         "name": "CHATER FLASH",
         "jockey": "L Ferraris",
@@ -2238,11 +2335,11 @@
         "win_odds": 26.0,
         "place_odds": 0.0,
         "last_6": "5/12/7/13",
-        "rule_score": 44.70644538110292,
+        "rule_score": 46.663391084862894,
         "ml_prob": 0.014368884265422821,
-        "combined_score": 44.70644538110292,
-        "calibrated_prob": 0.03433315612434913,
-        "expected_return": -0.1073379407669226,
+        "combined_score": 46.663391084862894,
+        "calibrated_prob": 0.034696961214281924,
+        "expected_return": -0.09787900842867003,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2261,45 +2358,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Low earner ($40,950)",
-          "Going: Limited Good data (1 runs, avg 11.0)"
-        ]
-      },
-      {
-        "rank": 12,
-        "number": 10,
-        "name": "GORGEOUS VICTORY",
-        "jockey": "Y L Chung",
-        "trainer": "C S Shum",
-        "draw": 8,
-        "weight": "123",
-        "gear": "TT",
-        "rating": 48.0,
-        "win_odds": 51.0,
-        "place_odds": 0.0,
-        "last_6": "10/6/13",
-        "rule_score": 44.78289629104654,
-        "ml_prob": 0.006322513800114393,
-        "combined_score": 44.78289629104654,
-        "calibrated_prob": 0.02960306888001105,
-        "expected_return": 0.5097565128805635,
-        "bet_recommendation": "SKIP",
-        "confidence": "LOW \u2b50",
-        "reasoning": [
-          "Rating 48: Average",
-          "Moderate form (5)",
-          "Market: 2.0% implied @ $51.0 (LIVE)",
-          "Local jockey - Y L Chung",
-          "Experienced trainer - C S Shum",
-          "Average barrier (8)",
-          "Midfield - Neutral pace (x1.00)",
-          "Finish: Improving trend",
-          "Odds: Stable market ($51.0)",
-          "Gear: Tongue-tie ON (aids breathing)",
-          "Weight: Heavy weight for rating (123lbs, rated 48)",
-          "Freshness: Ideal spacing (21 days)",
-          "Trend: Rating up 2pts \u2014 on the rise",
-          "Earnings: Low earner ($23,400)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Limited Good data (1 runs, avg 11.0)",
+          "Margin: Won last start"
         ]
       }
     ]
@@ -2326,11 +2386,11 @@
         "win_odds": 1.7,
         "place_odds": 0.0,
         "last_6": "3/1",
-        "rule_score": 71.35230179028133,
+        "rule_score": 72.3805811481219,
         "ml_prob": 0.07493621855974197,
-        "combined_score": 71.35230179028133,
-        "calibrated_prob": 0.31560593825496436,
-        "expected_return": -0.4634699049665606,
+        "combined_score": 72.3805811481219,
+        "calibrated_prob": 0.3064629705906005,
+        "expected_return": -0.4790129499959791,
         "bet_recommendation": "WIN",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -2348,7 +2408,8 @@
           "Weight: Heavy weight for rating (135lbs, rated 60); 7lbs above field avg",
           "Freshness: Ideal spacing (21 days)",
           "Earnings: Moderate earner ($789,750)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2364,11 +2425,11 @@
         "win_odds": 6.8,
         "place_odds": 0.0,
         "last_6": "2/1/5",
-        "rule_score": 62.82819570135747,
+        "rule_score": 64.60412501315375,
         "ml_prob": 0.3254784643650055,
-        "combined_score": 62.82819570135747,
-        "calibrated_prob": 0.16612641815162169,
-        "expected_return": 0.12965964343102754,
+        "combined_score": 64.60412501315375,
+        "calibrated_prob": 0.1656429445555403,
+        "expected_return": 0.12637202297767391,
         "bet_recommendation": "PLACE",
         "confidence": "HIGH \u2b50\u2b50\u2b50",
         "reasoning": [
@@ -2387,7 +2448,8 @@
           "Freshness: Fair break (52 days)",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Moderate earner ($941,850)",
-          "Going: Good on Good (1W/1P from 1)"
+          "Going: Good on Good (1W/1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2403,11 +2465,11 @@
         "win_odds": 14.0,
         "place_odds": 0.0,
         "last_6": "2/4/1/1/12/12",
-        "rule_score": 56.53049021291209,
+        "rule_score": 58.6034947610529,
         "ml_prob": 0.2532210052013397,
-        "combined_score": 56.53049021291209,
-        "calibrated_prob": 0.09525644209073382,
-        "expected_return": 0.3335901892702735,
+        "combined_score": 58.6034947610529,
+        "calibrated_prob": 0.09655014760660814,
+        "expected_return": 0.3517020664925139,
         "bet_recommendation": "PLACE",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -2425,7 +2487,8 @@
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Solid earner ($1,626,300)",
-          "Going: Limited Good data (1 runs, avg 9.0)"
+          "Going: Limited Good data (1 runs, avg 9.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2441,11 +2504,11 @@
         "win_odds": 98.0,
         "place_odds": 0.0,
         "last_6": "12",
-        "rule_score": 52.71067707802402,
+        "rule_score": 54.59768388960935,
         "ml_prob": 0.11611885577440262,
-        "combined_score": 52.71067707802402,
-        "calibrated_prob": 0.05341580204455777,
-        "expected_return": 4.234748600366662,
+        "combined_score": 54.59768388960935,
+        "calibrated_prob": 0.05361149373062234,
+        "expected_return": 4.253926385600989,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2461,7 +2524,8 @@
           "Gear: Gear: H- (no significant impact)",
           "Weight: Heavy weight for rating (127lbs, rated 52)",
           "Freshness: Long absence (77 days) \u2014 fitness query",
-          "Going: Limited Good data (1 runs, avg 7.0)"
+          "Going: Limited Good data (1 runs, avg 7.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2477,11 +2541,11 @@
         "win_odds": 13.0,
         "place_odds": 0.0,
         "last_6": "",
-        "rule_score": 52.05017410572966,
+        "rule_score": 54.46673596673597,
         "ml_prob": 0.04926200583577156,
-        "combined_score": 52.05017410572966,
-        "calibrated_prob": 0.06369123962073157,
-        "expected_return": -0.17201388493048952,
+        "combined_score": 54.46673596673597,
+        "calibrated_prob": 0.06551791769433037,
+        "expected_return": -0.1482670699737052,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2496,7 +2560,8 @@
           "Odds: Stable market ($13.0)",
           "Gear: Gear: TT1 (no significant impact)",
           "Weight: Heavy weight for rating (127lbs, rated 52)",
-          "Going: Limited Good data (1 runs, avg 6.0)"
+          "Going: Limited Good data (1 runs, avg 6.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2512,11 +2577,11 @@
         "win_odds": 13.0,
         "place_odds": 0.0,
         "last_6": "7",
-        "rule_score": 51.52571225071225,
+        "rule_score": 53.84615384615384,
         "ml_prob": 0.022098610177636147,
-        "combined_score": 51.52571225071225,
-        "calibrated_prob": 0.06072618050880155,
-        "expected_return": -0.21055965338557991,
+        "combined_score": 53.84615384615384,
+        "calibrated_prob": 0.06214777111853311,
+        "expected_return": -0.1920789754590696,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2532,7 +2597,8 @@
           "Odds: Stable market ($13.0)",
           "Weight: Heavy weight for rating (127lbs, rated 52)",
           "Freshness: Ideal spacing (28 days)",
-          "Going: Fair on Good (avg 5.0 from 1)"
+          "Going: Fair on Good (avg 5.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2548,11 +2614,11 @@
         "win_odds": 46.0,
         "place_odds": 0.0,
         "last_6": "10/14/12/7/13/7",
-        "rule_score": 50.67897462026199,
+        "rule_score": 52.6749883332037,
         "ml_prob": 0.008897471241652966,
-        "combined_score": 50.67897462026199,
-        "calibrated_prob": 0.044301187819630695,
-        "expected_return": 1.0378546397030122,
+        "combined_score": 52.6749883332037,
+        "calibrated_prob": 0.04474233474399914,
+        "expected_return": 1.0581473982239604,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2571,7 +2637,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($37,200)",
-          "Going: Limited Good data (1 runs, avg 12.0)"
+          "Going: Limited Good data (1 runs, avg 12.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2587,11 +2654,11 @@
         "win_odds": 21.0,
         "place_odds": 0.0,
         "last_6": "4/7/9/11/9/14",
-        "rule_score": 50.03751430860807,
+        "rule_score": 52.157368600391855,
         "ml_prob": 0.00697353295981884,
-        "combined_score": 50.03751430860807,
-        "calibrated_prob": 0.04885995603559245,
-        "expected_return": 0.026059076747441345,
+        "combined_score": 52.157368600391855,
+        "calibrated_prob": 0.049599880032823174,
+        "expected_return": 0.0415974806892867,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2610,7 +2677,8 @@
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Low earner ($70,200)",
-          "Going: Fair on Good (avg 4.0 from 1)"
+          "Going: Fair on Good (avg 4.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2626,11 +2694,11 @@
         "win_odds": 7.7,
         "place_odds": 0.0,
         "last_6": "5/6/5",
-        "rule_score": 47.615101911976915,
+        "rule_score": 49.91739655693144,
         "ml_prob": 0.005645622964948416,
-        "combined_score": 47.615101911976915,
-        "calibrated_prob": 0.06320509296726896,
-        "expected_return": -0.513320784152029,
+        "combined_score": 49.91739655693144,
+        "calibrated_prob": 0.06423322143315781,
+        "expected_return": -0.5054041949646848,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2649,7 +2717,8 @@
           "Freshness: Fair break (49 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($105,300)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2665,11 +2734,11 @@
         "win_odds": 50.0,
         "place_odds": 0.0,
         "last_6": "5",
-        "rule_score": 45.392405063291136,
+        "rule_score": 47.816901408450704,
         "ml_prob": 0.007059117313474417,
-        "combined_score": 45.392405063291136,
-        "calibrated_prob": 0.032040180638925844,
-        "expected_return": 0.6020090319462923,
+        "combined_score": 47.816901408450704,
+        "calibrated_prob": 0.033159643678624375,
+        "expected_return": 0.6579821839312188,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2686,7 +2755,8 @@
           "Weight: Heavy weight for rating (127lbs, rated 52)",
           "Freshness: Ideal spacing (35 days)",
           "Earnings: Low earner ($40,950)",
-          "Going: Limited Good data (1 runs, avg 11.0)"
+          "Going: Limited Good data (1 runs, avg 11.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2702,11 +2772,11 @@
         "win_odds": 41.0,
         "place_odds": 0.0,
         "last_6": "12/8/6/9/12/13",
-        "rule_score": 44.04643112788867,
+        "rule_score": 46.28717103595152,
         "ml_prob": 0.006816009525209665,
-        "combined_score": 44.04643112788867,
-        "calibrated_prob": 0.030727436829339136,
-        "expected_return": 0.25982491000290464,
+        "combined_score": 46.28717103595152,
+        "calibrated_prob": 0.03142828483144506,
+        "expected_return": 0.28855967808924743,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2724,7 +2794,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 3pts \u2014 on the rise",
           "Earnings: Low earner ($23,400)",
-          "Going: Limited Good data (1 runs, avg 8.0)"
+          "Going: Limited Good data (1 runs, avg 8.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2740,11 +2811,11 @@
         "win_odds": 62.0,
         "place_odds": 0.0,
         "last_6": "7/3/11/11/13/12",
-        "rule_score": 42.40016343288788,
+        "rule_score": 44.79141573335122,
         "ml_prob": 0.005132150836288929,
-        "combined_score": 42.40016343288788,
-        "calibrated_prob": 0.026044125037832242,
-        "expected_return": 0.614735752345599,
+        "combined_score": 44.79141573335122,
+        "calibrated_prob": 0.026903389983715775,
+        "expected_return": 0.6680101789903781,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2762,7 +2833,8 @@
           "Freshness: Fair break (42 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($134,550)",
-          "Going: Limited Good data (1 runs, avg 10.0)"
+          "Going: Limited Good data (1 runs, avg 10.0)",
+          "Margin: Won last start"
         ]
       }
     ]
@@ -2789,11 +2861,11 @@
         "win_odds": 2.2,
         "place_odds": 0.0,
         "last_6": "1/2/3/1/2/6",
-        "rule_score": 66.36900252525253,
+        "rule_score": 67.62367864693447,
         "ml_prob": 0.053220320492982864,
-        "combined_score": 66.36900252525253,
-        "calibrated_prob": 0.24971072073941025,
-        "expected_return": -0.4506364143732974,
+        "combined_score": 67.62367864693447,
+        "calibrated_prob": 0.24311873703159226,
+        "expected_return": -0.465138778530497,
         "bet_recommendation": "WIN",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -2812,7 +2884,8 @@
           "Freshness: Ideal spacing (14 days)",
           "Trend: Rating up 8pts \u2014 improving fast",
           "Earnings: Solid earner ($1,726,700)",
-          "Going: Fair on Good (avg 4.0 from 1)"
+          "Going: Fair on Good (avg 4.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2828,11 +2901,11 @@
         "win_odds": 4.8,
         "place_odds": 0.0,
         "last_6": "2/2/4/10/8/7",
-        "rule_score": 55.84031784188035,
+        "rule_score": 57.84156231365534,
         "ml_prob": 0.039487384259700775,
-        "combined_score": 55.84031784188035,
-        "calibrated_prob": 0.11753596950259043,
-        "expected_return": -0.43582734638756593,
+        "combined_score": 57.84156231365534,
+        "calibrated_prob": 0.11764922258535584,
+        "expected_return": -0.435283731590292,
         "bet_recommendation": "PLACE",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2851,7 +2924,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($561,600)",
-          "Going: Limited Good data (1 runs, avg 7.0)"
+          "Going: Limited Good data (1 runs, avg 7.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2867,11 +2941,11 @@
         "win_odds": 8.2,
         "place_odds": 0.0,
         "last_6": "14/1/9/10/3/5",
-        "rule_score": 55.39515755431383,
+        "rule_score": 57.44878839937612,
         "ml_prob": 0.03711115941405296,
-        "combined_score": 55.39515755431383,
-        "calibrated_prob": 0.09409201437170181,
-        "expected_return": -0.2284454821520452,
+        "combined_score": 57.44878839937612,
+        "calibrated_prob": 0.09443050117459423,
+        "expected_return": -0.2256698903683274,
         "bet_recommendation": "PLACE",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2889,7 +2963,8 @@
           "Weight: Heavy weight for rating (135lbs, rated 60); 9lbs above field avg",
           "Freshness: Ideal spacing (28 days)",
           "Earnings: Solid earner ($1,550,250)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2905,11 +2980,11 @@
         "win_odds": 6.3,
         "place_odds": 0.0,
         "last_6": "6/3/3/11/6/9",
-        "rule_score": 55.85897865155678,
+        "rule_score": 57.913008632194675,
         "ml_prob": 0.00814514234662056,
-        "combined_score": 55.85897865155678,
-        "calibrated_prob": 0.10294967892453644,
-        "expected_return": -0.3514170227754204,
+        "combined_score": 57.913008632194675,
+        "calibrated_prob": 0.10328881946061536,
+        "expected_return": -0.3492804373981233,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2928,7 +3003,8 @@
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($366,900)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2944,11 +3020,11 @@
         "win_odds": 11.0,
         "place_odds": 0.0,
         "last_6": "6/6/2/8",
-        "rule_score": 52.09190614073427,
+        "rule_score": 54.312347536184745,
         "ml_prob": 0.0328640379011631,
-        "combined_score": 52.09190614073427,
-        "calibrated_prob": 0.07329867977055368,
-        "expected_return": -0.19371452252390953,
+        "combined_score": 54.312347536184745,
+        "calibrated_prob": 0.07415136730408314,
+        "expected_return": -0.1843349596550854,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -2966,7 +3042,8 @@
           "Freshness: Long absence (77 days) \u2014 fitness query",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Low earner ($292,500)",
-          "Going: Fair on Good (avg 5.0 from 1)"
+          "Going: Fair on Good (avg 5.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -2982,11 +3059,11 @@
         "win_odds": 26.0,
         "place_odds": 0.0,
         "last_6": "11/6/11/4/2/12",
-        "rule_score": 52.256086404914534,
+        "rule_score": 54.046109123434704,
         "ml_prob": 0.009440453723073006,
-        "combined_score": 52.256086404914534,
-        "calibrated_prob": 0.059518819255515866,
-        "expected_return": 0.5474893006434125,
+        "combined_score": 54.046109123434704,
+        "calibrated_prob": 0.058889610572003946,
+        "expected_return": 0.5311298748721025,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3005,7 +3082,8 @@
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($404,400)",
-          "Going: Limited Good data (1 runs, avg 10.0)"
+          "Going: Limited Good data (1 runs, avg 10.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3021,11 +3099,11 @@
         "win_odds": 41.0,
         "place_odds": 0.0,
         "last_6": "4/9/7/2/6/8",
-        "rule_score": 51.79084031799766,
+        "rule_score": 53.860434232238525,
         "ml_prob": 0.010177931748330593,
-        "combined_score": 51.79084031799766,
-        "calibrated_prob": 0.054535786254825705,
-        "expected_return": 1.2359672364478538,
+        "combined_score": 53.860434232238525,
+        "calibrated_prob": 0.05484525241067863,
+        "expected_return": 1.2486553488378238,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3043,7 +3121,8 @@
           "Weight: Heavy weight for rating (130lbs, rated 55)",
           "Freshness: Ideal spacing (28 days)",
           "Earnings: Moderate earner ($339,300)",
-          "Going: Limited Good data (1 runs, avg 8.0)"
+          "Going: Limited Good data (1 runs, avg 8.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3059,11 +3138,11 @@
         "win_odds": 14.0,
         "place_odds": 0.0,
         "last_6": "4/6/10/3/9/12",
-        "rule_score": 48.748453153272436,
+        "rule_score": 50.99028809028809,
         "ml_prob": 0.009232694283127785,
-        "combined_score": 48.748453153272436,
-        "calibrated_prob": 0.05701417024987504,
-        "expected_return": -0.20180161650174944,
+        "combined_score": 50.99028809028809,
+        "calibrated_prob": 0.05773279919295967,
+        "expected_return": -0.19174081129856457,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3081,7 +3160,8 @@
           "Freshness: Ideal spacing (14 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($269,100)",
-          "Going: Good on Good (1W/1P from 1)"
+          "Going: Good on Good (1W/1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3097,11 +3177,11 @@
         "win_odds": 74.0,
         "place_odds": 0.0,
         "last_6": "",
-        "rule_score": 45.767090620031794,
+        "rule_score": 48.60985178727115,
         "ml_prob": 0.04926200583577156,
-        "combined_score": 45.767090620031794,
-        "calibrated_prob": 0.03709332000851079,
-        "expected_return": 1.7449056806297985,
+        "combined_score": 48.60985178727115,
+        "calibrated_prob": 0.03914286849967086,
+        "expected_return": 1.8965722689756435,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3115,7 +3195,8 @@
           "Odds: Stable market ($74.0)",
           "Gear: Gear: TT1 (no significant impact)",
           "Weight: Heavy weight for rating (127lbs, rated 52)",
-          "Going: Limited Good data (1 runs, avg 11.0)"
+          "Going: Limited Good data (1 runs, avg 11.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3131,11 +3212,11 @@
         "win_odds": 91.0,
         "place_odds": 0.0,
         "last_6": "14/10/10/11/4/4",
-        "rule_score": 45.94640540182709,
+        "rule_score": 48.02046332046332,
         "ml_prob": 0.007504754234105349,
-        "combined_score": 45.94640540182709,
-        "calibrated_prob": 0.035215026661153115,
-        "expected_return": 2.2045674261649335,
+        "combined_score": 48.02046332046332,
+        "calibrated_prob": 0.03543226951612814,
+        "expected_return": 2.224336525967661,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3153,7 +3234,8 @@
           "Freshness: Fair break (49 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Low earner ($140,400)",
-          "Going: Limited Good data (1 runs, avg 13.0)"
+          "Going: Limited Good data (1 runs, avg 13.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3169,11 +3251,11 @@
         "win_odds": 114.0,
         "place_odds": 0.0,
         "last_6": "11/9/8/12/11/9",
-        "rule_score": 44.75292647573349,
+        "rule_score": 46.93058554505923,
         "ml_prob": 0.004908159840852022,
-        "combined_score": 44.75292647573349,
-        "calibrated_prob": 0.03204147764521586,
-        "expected_return": 2.6527284515546077,
+        "combined_score": 46.93058554505923,
+        "calibrated_prob": 0.03245381755982018,
+        "expected_return": 2.6997352018195,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3190,7 +3272,8 @@
           "Weight: Heavy weight for rating (115lbs, rated 40); 11lbs below field avg",
           "Freshness: Ideal spacing (32 days)",
           "Trend: Rating up 4pts \u2014 on the rise",
-          "Going: Limited Good data (1 runs, avg 9.0)"
+          "Going: Limited Good data (1 runs, avg 9.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3206,11 +3289,11 @@
         "win_odds": 239.0,
         "place_odds": 0.0,
         "last_6": "14/11/10/12",
-        "rule_score": 44.70081099230332,
+        "rule_score": 46.865934449093444,
         "ml_prob": 0.005230749491602182,
-        "combined_score": 44.70081099230332,
-        "calibrated_prob": 0.030816716373731037,
-        "expected_return": 6.365195213321718,
+        "combined_score": 46.865934449093444,
+        "calibrated_prob": 0.031202027368364027,
+        "expected_return": 6.4572845410390025,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3227,7 +3310,8 @@
           "Weight: Heavy weight for rating (121lbs, rated 46); 5lbs below field avg",
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
-          "Going: Limited Good data (1 runs, avg 14.0)"
+          "Going: Limited Good data (1 runs, avg 14.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3243,11 +3327,11 @@
         "win_odds": 283.0,
         "place_odds": 0.0,
         "last_6": "13/10",
-        "rule_score": 43.199755703878196,
+        "rule_score": 45.73370632116215,
         "ml_prob": 0.013575374148786068,
-        "combined_score": 43.199755703878196,
-        "calibrated_prob": 0.0280368206368474,
-        "expected_return": 6.934420240227815,
+        "combined_score": 45.73370632116215,
+        "calibrated_prob": 0.029087116335437146,
+        "expected_return": 7.231653922928713,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3263,7 +3347,8 @@
           "Weight: Heavy weight for rating (125lbs, rated 50)",
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
-          "Going: Limited Good data (1 runs, avg 12.0)"
+          "Going: Limited Good data (1 runs, avg 12.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3279,11 +3364,11 @@
         "win_odds": 131.0,
         "place_odds": 0.0,
         "last_6": "10/10/12",
-        "rule_score": 42.76878789724433,
+        "rule_score": 44.98639131225009,
         "ml_prob": 0.00971825048327446,
-        "combined_score": 42.76878789724433,
-        "calibrated_prob": 0.028140799605532597,
-        "expected_return": 2.6864447483247704,
+        "combined_score": 44.98639131225009,
+        "calibrated_prob": 0.028575590988696532,
+        "expected_return": 2.7434024195192457,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3301,7 +3386,8 @@
           "Weight: Heavy weight for rating (135lbs, rated 60); 9lbs above field avg",
           "Freshness: Fair break (52 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
-          "Going: Limited Good data (1 runs, avg 6.0)"
+          "Going: Limited Good data (1 runs, avg 6.0)",
+          "Margin: Won last start"
         ]
       }
     ]
@@ -3328,11 +3414,11 @@
         "win_odds": 2.8,
         "place_odds": 0.0,
         "last_6": "2/1/3/4/6/1",
-        "rule_score": 68.87305402930403,
+        "rule_score": 69.99399437771531,
         "ml_prob": 0.07093007117509842,
-        "combined_score": 68.87305402930403,
-        "calibrated_prob": 0.2035940787929508,
-        "expected_return": -0.42993657937973784,
+        "combined_score": 69.99399437771531,
+        "calibrated_prob": 0.20047536801866245,
+        "expected_return": -0.43866896954774515,
         "bet_recommendation": "QIN",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -3351,7 +3437,8 @@
           "Freshness: Ideal spacing (14 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Top earner ($4,379,150)",
-          "Going: Limited Good data (1 runs, avg 8.0)"
+          "Going: Limited Good data (1 runs, avg 8.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3367,11 +3454,11 @@
         "win_odds": 5.4,
         "place_odds": 0.0,
         "last_6": "3/1/1/3/3",
-        "rule_score": 64.68411973846756,
+        "rule_score": 66.3361034806818,
         "ml_prob": 0.23438355326652527,
-        "combined_score": 64.68411973846756,
-        "calibrated_prob": 0.15177607304201055,
-        "expected_return": -0.180409205573143,
+        "combined_score": 66.3361034806818,
+        "calibrated_prob": 0.1527377568192909,
+        "expected_return": -0.1752161131758292,
         "bet_recommendation": "QIN",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -3389,7 +3476,8 @@
           "Weight: Fair weight (123lbs, rated 65)",
           "Freshness: Ideal spacing (21 days)",
           "Earnings: Solid earner ($1,793,400)",
-          "Going: Good on Good (1W/1P from 1)"
+          "Going: Good on Good (1W/1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3405,11 +3493,11 @@
         "win_odds": 5.6,
         "place_odds": 0.0,
         "last_6": "13/1/8/2/5/3",
-        "rule_score": 62.144646677255366,
+        "rule_score": 63.72655576270034,
         "ml_prob": 0.03432629629969597,
-        "combined_score": 62.144646677255366,
-        "calibrated_prob": 0.11410638295382775,
-        "expected_return": -0.3610042554585646,
+        "combined_score": 63.72655576270034,
+        "calibrated_prob": 0.11440437334550471,
+        "expected_return": -0.35933550926517366,
         "bet_recommendation": "PLACE",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -3427,7 +3515,8 @@
           "Weight: Light weight for rating (132lbs, rated 74)",
           "Freshness: Fair break (49 days)",
           "Earnings: Solid earner ($1,148,000)",
-          "Going: Limited Good data (1 runs, avg 12.0)"
+          "Going: Limited Good data (1 runs, avg 12.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3443,11 +3532,11 @@
         "win_odds": 13.0,
         "place_odds": 0.0,
         "last_6": "7/1/11/2/2/7",
-        "rule_score": 60.68388773388773,
+        "rule_score": 62.32802144127446,
         "ml_prob": 0.06899434328079224,
-        "combined_score": 60.68388773388773,
-        "calibrated_prob": 0.0853632954973009,
-        "expected_return": 0.10972284146491162,
+        "combined_score": 62.32802144127446,
+        "calibrated_prob": 0.085928193645927,
+        "expected_return": 0.1170665173970511,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -3465,7 +3554,8 @@
           "Weight: Light weight for rating (135lbs, rated 77); 8lbs above field avg",
           "Freshness: Ideal spacing (32 days)",
           "Earnings: Solid earner ($2,009,000)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3481,11 +3571,11 @@
         "win_odds": 13.0,
         "place_odds": 0.0,
         "last_6": "6/10/2/5/1/2",
-        "rule_score": 60.736945599445605,
+        "rule_score": 61.90460281390514,
         "ml_prob": 0.042474955320358276,
-        "combined_score": 60.736945599445605,
-        "calibrated_prob": 0.08351021371880127,
-        "expected_return": 0.0856327783444164,
+        "combined_score": 61.90460281390514,
+        "calibrated_prob": 0.08197744910070719,
+        "expected_return": 0.06570683830919344,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -3504,7 +3594,8 @@
           "Freshness: Ideal spacing (35 days)",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Solid earner ($2,367,850)",
-          "Going: Limited Good data (1 runs, avg 11.0)"
+          "Going: Limited Good data (1 runs, avg 11.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3520,13 +3611,13 @@
         "win_odds": 7.5,
         "place_odds": 0.0,
         "last_6": "5/8/9/1/5/1",
-        "rule_score": 59.70590052517764,
+        "rule_score": 60.871794871794876,
         "ml_prob": 0.08450736105442047,
-        "combined_score": 59.70590052517764,
-        "calibrated_prob": 0.09600319188411144,
-        "expected_return": -0.27997606086916416,
+        "combined_score": 60.871794871794876,
+        "calibrated_prob": 0.09449285483750756,
+        "expected_return": -0.2913035887186932,
         "bet_recommendation": "SKIP",
-        "confidence": "LOW \u2b50",
+        "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
           "Rating 62: Average",
           "Recent winner: 2W/0P (65)",
@@ -3542,7 +3633,8 @@
           "Freshness: Ideal spacing (14 days)",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Solid earner ($1,692,200)",
-          "Going: Fair on Good (avg 4.0 from 1)"
+          "Going: Fair on Good (avg 4.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3558,11 +3650,11 @@
         "win_odds": 8.6,
         "place_odds": 0.0,
         "last_6": "7/5/3/3/11/3",
-        "rule_score": 58.0219380046415,
+        "rule_score": 59.67723217247284,
         "ml_prob": 0.040531717240810394,
-        "combined_score": 58.0219380046415,
-        "calibrated_prob": 0.08206461438601972,
-        "expected_return": -0.2942443162802304,
+        "combined_score": 59.67723217247284,
+        "calibrated_prob": 0.08256127611313595,
+        "expected_return": -0.28997302542703085,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3581,7 +3673,8 @@
           "Freshness: Ideal spacing (25 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($820,000)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3597,11 +3690,11 @@
         "win_odds": 24.0,
         "place_odds": 0.0,
         "last_6": "4/12/8/3/8",
-        "rule_score": 55.43228300415801,
+        "rule_score": 56.96774484681462,
         "ml_prob": 0.013207337819039822,
-        "combined_score": 55.43228300415801,
-        "calibrated_prob": 0.05374657369192034,
-        "expected_return": 0.2899177686060881,
+        "combined_score": 56.96774484681462,
+        "calibrated_prob": 0.05379260738715413,
+        "expected_return": 0.291022577291699,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3620,49 +3713,12 @@
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($347,350)",
-          "Going: Limited Good data (1 runs, avg 9.0)"
+          "Going: Limited Good data (1 runs, avg 9.0)",
+          "Margin: Won last start"
         ]
       },
       {
         "rank": 9,
-        "number": 3,
-        "name": "WINDLORD",
-        "jockey": "C L Chau",
-        "trainer": "W K Mo",
-        "draw": 6,
-        "weight": "134",
-        "gear": "H2/TT",
-        "rating": 76.0,
-        "win_odds": 83.0,
-        "place_odds": 0.0,
-        "last_6": "12/10/12/5",
-        "rule_score": 50.29931775293947,
-        "ml_prob": 0.009931803680956364,
-        "combined_score": 50.29931775293947,
-        "calibrated_prob": 0.03356182358726949,
-        "expected_return": 1.7856313577433673,
-        "bet_recommendation": "SKIP",
-        "confidence": "LOW \u2b50",
-        "reasoning": [
-          "Rating 76: Average",
-          "Moderate form (7)",
-          "Market: 1.2% implied @ $83.0 (LIVE)",
-          "Rising star - C L Chau",
-          "Trainer - W K Mo",
-          "Good barrier (6)",
-          "Closer - Neutral pace (x1.00)",
-          "Finish: Improving trend | Best: 1.34.52",
-          "Odds: Stable market ($83.0)",
-          "Gear: Tongue-tie ON (aids breathing)",
-          "Weight: Light weight for rating (134lbs, rated 76); 7lbs above field avg",
-          "Freshness: Ideal spacing (21 days)",
-          "Trend: Rating up 2pts \u2014 on the rise",
-          "Earnings: Low earner ($109,200)",
-          "Going: Limited Good data (1 runs, avg 7.0)"
-        ]
-      },
-      {
-        "rank": 10,
         "number": 6,
         "name": "SHANWAH",
         "jockey": "H Bowman",
@@ -3674,11 +3730,11 @@
         "win_odds": 96.0,
         "place_odds": 0.0,
         "last_6": "14/11/14/10/14/11",
-        "rule_score": 50.28576049453709,
+        "rule_score": 52.10913110913111,
         "ml_prob": 0.01024527009576559,
-        "combined_score": 50.28576049453709,
-        "calibrated_prob": 0.03314730414725706,
-        "expected_return": 2.1821411981366783,
+        "combined_score": 52.10913110913111,
+        "calibrated_prob": 0.033785399016413684,
+        "expected_return": 2.2433983055757136,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3696,7 +3752,47 @@
           "Weight: Light weight for rating (131lbs, rated 73)",
           "Freshness: Fair break (42 days)",
           "Trend: Rating up 3pts \u2014 on the rise",
-          "Going: Limited Good data (1 runs, avg 6.0)"
+          "Going: Limited Good data (1 runs, avg 6.0)",
+          "Margin: Won last start"
+        ]
+      },
+      {
+        "rank": 10,
+        "number": 3,
+        "name": "WINDLORD",
+        "jockey": "C L Chau",
+        "trainer": "W K Mo",
+        "draw": 6,
+        "weight": "134",
+        "gear": "H2/TT",
+        "rating": 76.0,
+        "win_odds": 83.0,
+        "place_odds": 0.0,
+        "last_6": "12/10/12/5",
+        "rule_score": 52.10322370563335,
+        "ml_prob": 0.009931803680956364,
+        "combined_score": 52.10322370563335,
+        "calibrated_prob": 0.034158915092844445,
+        "expected_return": 1.8351899527060889,
+        "bet_recommendation": "SKIP",
+        "confidence": "LOW \u2b50",
+        "reasoning": [
+          "Rating 76: Average",
+          "Moderate form (7)",
+          "Market: 1.2% implied @ $83.0 (LIVE)",
+          "Rising star - C L Chau",
+          "Trainer - W K Mo",
+          "Good barrier (6)",
+          "Closer - Neutral pace (x1.00)",
+          "Finish: Improving trend | Best: 1.34.52",
+          "Odds: Stable market ($83.0)",
+          "Gear: Tongue-tie ON (aids breathing)",
+          "Weight: Light weight for rating (134lbs, rated 76); 7lbs above field avg",
+          "Freshness: Ideal spacing (21 days)",
+          "Trend: Rating up 2pts \u2014 on the rise",
+          "Earnings: Low earner ($109,200)",
+          "Going: Limited Good data (1 runs, avg 7.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3712,11 +3808,11 @@
         "win_odds": 28.0,
         "place_odds": 0.0,
         "last_6": "12/7",
-        "rule_score": 48.29046262379595,
+        "rule_score": 50.56028693528694,
         "ml_prob": 0.025305382907390594,
-        "combined_score": 48.29046262379595,
-        "calibrated_prob": 0.03591949969916547,
-        "expected_return": 0.005745991576633136,
+        "combined_score": 50.56028693528694,
+        "calibrated_prob": 0.03734305433298431,
+        "expected_return": 0.04560552132356066,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3732,7 +3828,8 @@
           "Weight: Fair weight (122lbs, rated 64); 5lbs below field avg",
           "Freshness: Ideal spacing (35 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
-          "Going: Fair on Good (avg 5.0 from 1)"
+          "Going: Fair on Good (avg 5.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3748,11 +3845,11 @@
         "win_odds": 162.0,
         "place_odds": 0.0,
         "last_6": "12/13",
-        "rule_score": 47.648834019204386,
+        "rule_score": 49.804698216735254,
         "ml_prob": 0.014104188419878483,
-        "combined_score": 47.648834019204386,
-        "calibrated_prob": 0.027206948599365285,
-        "expected_return": 3.407525673097176,
+        "combined_score": 49.804698216735254,
+        "calibrated_prob": 0.02834275228986775,
+        "expected_return": 3.5915258709585753,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3769,7 +3866,8 @@
           "Weight: Fair weight (122lbs, rated 64); 5lbs below field avg",
           "Freshness: Fair break (39 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
-          "Going: Limited Good data (1 runs, avg 10.0)"
+          "Going: Limited Good data (1 runs, avg 10.0)",
+          "Margin: Won last start"
         ]
       }
     ]
@@ -3796,11 +3894,11 @@
         "win_odds": 3.3,
         "place_odds": 0.0,
         "last_6": "7/2/8/3/4/8",
-        "rule_score": 60.245363332319855,
+        "rule_score": 62.01345241104277,
         "ml_prob": 0.029546363279223442,
-        "combined_score": 60.245363332319855,
-        "calibrated_prob": 0.1522779922745839,
-        "expected_return": -0.4974826254938731,
+        "combined_score": 62.01345241104277,
+        "calibrated_prob": 0.15123082492071085,
+        "expected_return": -0.5009382777616542,
         "bet_recommendation": "QIN",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -3818,7 +3916,8 @@
           "Weight: Fair weight (122lbs, rated 64)",
           "Freshness: Ideal spacing (28 days)",
           "Earnings: Moderate earner ($716,100)",
-          "Going: Limited Good data (1 runs, avg 10.0)"
+          "Going: Limited Good data (1 runs, avg 10.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3834,13 +3933,13 @@
         "win_odds": 6.6,
         "place_odds": 0.0,
         "last_6": "3/1/12/7/2/11",
-        "rule_score": 59.187383709766976,
+        "rule_score": 61.110388031484206,
         "ml_prob": 0.06042170897126198,
-        "combined_score": 59.187383709766976,
-        "calibrated_prob": 0.11269928756571189,
-        "expected_return": -0.2561847020663016,
+        "combined_score": 61.110388031484206,
+        "calibrated_prob": 0.1124801674382249,
+        "expected_return": -0.2576308949077156,
         "bet_recommendation": "QIN",
-        "confidence": "LOW \u2b50",
+        "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
           "Rating 68: Average",
           "Winner in form: 1W/2P (29)",
@@ -3857,7 +3956,8 @@
           "Freshness: Quick backup (11 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Solid earner ($1,638,900)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3873,13 +3973,13 @@
         "win_odds": 6.5,
         "place_odds": 0.0,
         "last_6": "8/1/8/4/2/9",
-        "rule_score": 58.31062706398032,
+        "rule_score": 60.03180435034188,
         "ml_prob": 0.06634626537561417,
-        "combined_score": 58.31062706398032,
-        "calibrated_prob": 0.10938857393450513,
-        "expected_return": -0.2889742694257167,
+        "combined_score": 60.03180435034188,
+        "calibrated_prob": 0.10820299655364904,
+        "expected_return": -0.2966805224012813,
         "bet_recommendation": "PLACE",
-        "confidence": "LOW \u2b50",
+        "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
           "Rating 65: Average",
           "Winner in form: 1W/1P (32)",
@@ -3895,7 +3995,8 @@
           "Weight: Fair weight (123lbs, rated 65)",
           "Freshness: Ideal spacing (14 days)",
           "Earnings: Solid earner ($1,105,650)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -3911,11 +4012,11 @@
         "win_odds": 17.0,
         "place_odds": 0.0,
         "last_6": "5/9/6/2/3/9",
-        "rule_score": 57.065941590737516,
+        "rule_score": 58.76535426654354,
         "ml_prob": 0.045100871473550797,
-        "combined_score": 57.065941590737516,
-        "calibrated_prob": 0.0787533972332947,
-        "expected_return": 0.33880775296601007,
+        "combined_score": 58.76535426654354,
+        "calibrated_prob": 0.07759773899592705,
+        "expected_return": 0.3191615629307598,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -3934,49 +4035,12 @@
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Moderate earner ($855,600)",
-          "Going: Limited Good data (1 runs, avg 8.0)"
+          "Going: Limited Good data (1 runs, avg 8.0)",
+          "Margin: Won last start"
         ]
       },
       {
         "rank": 5,
-        "number": 11,
-        "name": "POSITIVE SMILE",
-        "jockey": "M L Yeung",
-        "trainer": "D A Hayes",
-        "draw": 7,
-        "weight": "120",
-        "gear": "B/TT",
-        "rating": 62.0,
-        "win_odds": 11.0,
-        "place_odds": 0.0,
-        "last_6": "9/6/1/1/3/10",
-        "rule_score": 55.88237706299661,
-        "ml_prob": 0.06289640069007874,
-        "combined_score": 55.88237706299661,
-        "calibrated_prob": 0.08286539382793055,
-        "expected_return": -0.08848066789276388,
-        "bet_recommendation": "SKIP",
-        "confidence": "LOW \u2b50",
-        "reasoning": [
-          "Rating 62: Average",
-          "Winner in form: 2W/1P (44)",
-          "Market: 9.1% implied @ $11.0 (LIVE)",
-          "Local jockey - M L Yeung",
-          "Skilled trainer - D A Hayes",
-          "Good barrier (7)",
-          "Tips Index: 37.1",
-          "Midfield - Neutral pace (x1.00)",
-          "Finish: Improving trend | Best: 1.21.25",
-          "Odds: Stable market ($11.0)",
-          "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)",
-          "Weight: Fair weight (120lbs, rated 62)",
-          "Freshness: Ideal spacing (18 days)",
-          "Earnings: Solid earner ($1,798,050)",
-          "Going: Limited Good data (1 runs, avg 6.0)"
-        ]
-      },
-      {
-        "rank": 6,
         "number": 3,
         "name": "CHARMING LEGEND",
         "jockey": "J Moreira",
@@ -3988,11 +4052,11 @@
         "win_odds": 6.5,
         "place_odds": 0.0,
         "last_6": "7/12/11/9/5/7",
-        "rule_score": 56.7105789338403,
+        "rule_score": 58.72590373949241,
         "ml_prob": 0.010856079868972301,
-        "combined_score": 56.7105789338403,
-        "calibrated_prob": 0.09781638484871436,
-        "expected_return": -0.3641934984833567,
+        "combined_score": 58.72590373949241,
+        "calibrated_prob": 0.09802095513872666,
+        "expected_return": -0.36286379159827664,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4010,11 +4074,86 @@
           "Weight: Fair weight (125lbs, rated 67)",
           "Freshness: Long absence (101 days) \u2014 fitness query",
           "Trend: Rating up 2pts \u2014 on the rise",
-          "Going: Limited Good data (1 runs, avg 12.0)"
+          "Going: Limited Good data (1 runs, avg 12.0)",
+          "Margin: Won last start"
+        ]
+      },
+      {
+        "rank": 6,
+        "number": 7,
+        "name": "FORTUNE LINK",
+        "jockey": "H Y Yuen",
+        "trainer": "P F Yiu",
+        "draw": 12,
+        "weight": "123",
+        "gear": "B-",
+        "rating": 65.0,
+        "win_odds": 17.0,
+        "place_odds": 0.0,
+        "last_6": "",
+        "rule_score": 52.678368121442126,
+        "ml_prob": 0.3508823812007904,
+        "combined_score": 52.678368121442126,
+        "calibrated_prob": 0.07469390087531722,
+        "expected_return": 0.2697963148803926,
+        "bet_recommendation": "SKIP",
+        "confidence": "HIGH \u2b50\u2b50\u2b50",
+        "reasoning": [
+          "Rating 65: Average",
+          "No form \u2014 outsider ($17)",
+          "Market: 5.9% implied @ $17.0 (LIVE)",
+          "Apprentice - H Y Yuen",
+          "Experienced trainer - P F Yiu",
+          "Average barrier (12)",
+          "Midfield - Neutral pace (x1.00)",
+          "Odds: Stable market ($17.0)",
+          "Gear: Gear: B- (no significant impact)",
+          "Weight: Fair weight (123lbs, rated 65)",
+          "Going: Good on Good (1W/1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
         "rank": 7,
+        "number": 11,
+        "name": "POSITIVE SMILE",
+        "jockey": "M L Yeung",
+        "trainer": "D A Hayes",
+        "draw": 7,
+        "weight": "120",
+        "gear": "B/TT",
+        "rating": 62.0,
+        "win_odds": 11.0,
+        "place_odds": 0.0,
+        "last_6": "9/6/1/1/3/10",
+        "rule_score": 57.32260271871392,
+        "ml_prob": 0.06289640069007874,
+        "combined_score": 57.32260271871392,
+        "calibrated_prob": 0.08073408629772896,
+        "expected_return": -0.11192505072498138,
+        "bet_recommendation": "SKIP",
+        "confidence": "LOW \u2b50",
+        "reasoning": [
+          "Rating 62: Average",
+          "Winner in form: 2W/1P (44)",
+          "Market: 9.1% implied @ $11.0 (LIVE)",
+          "Local jockey - M L Yeung",
+          "Skilled trainer - D A Hayes",
+          "Good barrier (7)",
+          "Tips Index: 37.1",
+          "Midfield - Neutral pace (x1.00)",
+          "Finish: Improving trend | Best: 1.21.25",
+          "Odds: Stable market ($11.0)",
+          "Gear: Blinkers ON (improves focus); Tongue-tie ON (aids breathing)",
+          "Weight: Fair weight (120lbs, rated 62)",
+          "Freshness: Ideal spacing (18 days)",
+          "Earnings: Solid earner ($1,798,050)",
+          "Going: Limited Good data (1 runs, avg 6.0)",
+          "Margin: Won last start"
+        ]
+      },
+      {
+        "rank": 8,
         "number": 10,
         "name": "FLASH CURRENT",
         "jockey": "H Bentley",
@@ -4026,11 +4165,11 @@
         "win_odds": 27.0,
         "place_odds": 0.0,
         "last_6": "5/5/2/4/8/12",
-        "rule_score": 55.06099889238662,
+        "rule_score": 57.00219669876079,
         "ml_prob": 0.043552059680223465,
-        "combined_score": 55.06099889238662,
-        "calibrated_prob": 0.06513304066674992,
-        "expected_return": 0.7585920980022478,
+        "combined_score": 57.00219669876079,
+        "calibrated_prob": 0.06504011524403673,
+        "expected_return": 0.7560831115889917,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4049,41 +4188,8 @@
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($632,400)",
-          "Going: Limited Good data (1 runs, avg 9.0)"
-        ]
-      },
-      {
-        "rank": 8,
-        "number": 7,
-        "name": "FORTUNE LINK",
-        "jockey": "H Y Yuen",
-        "trainer": "P F Yiu",
-        "draw": 12,
-        "weight": "123",
-        "gear": "B-",
-        "rating": 65.0,
-        "win_odds": 17.0,
-        "place_odds": 0.0,
-        "last_6": "",
-        "rule_score": 49.63148788927335,
-        "ml_prob": 0.3508823812007904,
-        "combined_score": 49.63148788927335,
-        "calibrated_prob": 0.07041399412838874,
-        "expected_return": 0.19703790018260858,
-        "bet_recommendation": "SKIP",
-        "confidence": "HIGH \u2b50\u2b50\u2b50",
-        "reasoning": [
-          "Rating 65: Average",
-          "No form \u2014 outsider ($17)",
-          "Market: 5.9% implied @ $17.0 (LIVE)",
-          "Apprentice - H Y Yuen",
-          "Experienced trainer - P F Yiu",
-          "Average barrier (12)",
-          "Midfield - Neutral pace (x1.00)",
-          "Odds: Stable market ($17.0)",
-          "Gear: Gear: B- (no significant impact)",
-          "Weight: Fair weight (123lbs, rated 65)",
-          "Going: Good on Good (1W/1P from 1)"
+          "Going: Limited Good data (1 runs, avg 9.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4099,11 +4205,11 @@
         "win_odds": 17.0,
         "place_odds": 0.0,
         "last_6": "10/4/3/12/5",
-        "rule_score": 55.1745119454877,
+        "rule_score": 57.095782891336356,
         "ml_prob": 0.02003147080540657,
-        "combined_score": 55.1745119454877,
-        "calibrated_prob": 0.06929802502474572,
-        "expected_return": 0.1780664254206772,
+        "combined_score": 57.095782891336356,
+        "calibrated_prob": 0.06913266375318257,
+        "expected_return": 0.1752552838041037,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4122,7 +4228,8 @@
           "Freshness: Fair break (49 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($390,600)",
-          "Going: Fair on Good (avg 4.0 from 1)"
+          "Going: Fair on Good (avg 4.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4138,11 +4245,11 @@
         "win_odds": 19.0,
         "place_odds": 0.0,
         "last_6": "6/6/1/12/4/10",
-        "rule_score": 54.254760623690004,
+        "rule_score": 56.12858346479452,
         "ml_prob": 0.04234682396054268,
-        "combined_score": 54.254760623690004,
-        "calibrated_prob": 0.06585908024358035,
-        "expected_return": 0.2513225246280266,
+        "combined_score": 56.12858346479452,
+        "calibrated_prob": 0.0655291676170389,
+        "expected_return": 0.2450541847237393,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4160,7 +4267,8 @@
           "Weight: Fair weight (125lbs, rated 67)",
           "Freshness: Ideal spacing (21 days)",
           "Earnings: Solid earner ($1,445,300)",
-          "Going: Limited Good data (1 runs, avg 11.0)"
+          "Going: Limited Good data (1 runs, avg 11.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4176,11 +4284,11 @@
         "win_odds": 10.0,
         "place_odds": 0.0,
         "last_6": "5",
-        "rule_score": 50.102650668369904,
+        "rule_score": 52.33487149015791,
         "ml_prob": 0.011646741069853306,
-        "combined_score": 50.102650668369904,
-        "calibrated_prob": 0.06289586269259416,
-        "expected_return": -0.3710413730740584,
+        "combined_score": 52.33487149015791,
+        "calibrated_prob": 0.06360124769905871,
+        "expected_return": -0.36398752300941284,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4198,7 +4306,8 @@
           "Weight: Fair weight (122lbs, rated 64)",
           "Freshness: Very long layoff (154 days)",
           "Earnings: Low earner ($65,100)",
-          "Going: Limited Good data (1 runs, avg 7.0)"
+          "Going: Limited Good data (1 runs, avg 7.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4214,11 +4323,11 @@
         "win_odds": 77.0,
         "place_odds": 0.0,
         "last_6": "8",
-        "rule_score": 46.047900151796256,
+        "rule_score": 48.57086391869,
         "ml_prob": 0.01665664277970791,
-        "combined_score": 46.047900151796256,
-        "calibrated_prob": 0.03259896755920068,
-        "expected_return": 1.5101205020584523,
+        "combined_score": 48.57086391869,
+        "calibrated_prob": 0.033736135466398455,
+        "expected_return": 1.597682430912681,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4234,7 +4343,8 @@
           "Gear: Tongue-tie ON (aids breathing)",
           "Weight: Fair weight (123lbs, rated 65)",
           "Freshness: Ideal spacing (21 days)",
-          "Going: Fair on Good (avg 5.0 from 1)"
+          "Going: Fair on Good (avg 5.0 from 1)",
+          "Margin: Won last start"
         ]
       }
     ]
@@ -4261,12 +4371,12 @@
         "win_odds": 2.4,
         "place_odds": 0.0,
         "last_6": "",
-        "rule_score": 65.12504091224487,
+        "rule_score": 66.83874542623218,
         "ml_prob": 0.16651304066181183,
-        "combined_score": 65.12504091224487,
-        "calibrated_prob": 0.20393184611803444,
-        "expected_return": -0.5105635693167174,
-        "bet_recommendation": "QNL PL",
+        "combined_score": 66.83874542623218,
+        "calibrated_prob": 0.2056247754648299,
+        "expected_return": -0.5065005388844083,
+        "bet_recommendation": "QIN",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
           "Rating 66: Average",
@@ -4279,7 +4389,8 @@
           "Midfield - Neutral pace (x1.00)",
           "Odds: Stable market ($2.4)",
           "Weight: Fair weight (122lbs, rated 66)",
-          "Going: Limited Good data (1 runs, avg 9.0)"
+          "Going: Limited Good data (1 runs, avg 9.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4295,12 +4406,12 @@
         "win_odds": 3.9,
         "place_odds": 0.0,
         "last_6": "2/4/1/2/1/1",
-        "rule_score": 69.22233240204476,
+        "rule_score": 70.10680588411236,
         "ml_prob": 0.10862915217876434,
-        "combined_score": 69.22233240204476,
-        "calibrated_prob": 0.18888562644364246,
-        "expected_return": -0.2633460568697944,
-        "bet_recommendation": "QNL PL",
+        "combined_score": 70.10680588411236,
+        "calibrated_prob": 0.1838788706458939,
+        "expected_return": -0.2828724044810138,
+        "bet_recommendation": "QIN",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
           "Rating 79: Average",
@@ -4318,7 +4429,8 @@
           "Freshness: Long absence (101 days) \u2014 fitness query",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($390,600)",
-          "Going: Fair on Good (avg 5.0 from 1)"
+          "Going: Fair on Good (avg 5.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4334,11 +4446,11 @@
         "win_odds": 11.0,
         "place_odds": 0.0,
         "last_6": "1/1/11/1",
-        "rule_score": 63.09741121962756,
+        "rule_score": 64.18364546253027,
         "ml_prob": 0.13389550149440765,
-        "combined_score": 63.09741121962756,
-        "calibrated_prob": 0.1081225774782201,
-        "expected_return": 0.18934835226042113,
+        "combined_score": 64.18364546253027,
+        "calibrated_prob": 0.10584673344740146,
+        "expected_return": 0.16431406792141612,
         "bet_recommendation": "PLACE",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -4356,7 +4468,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 5pts \u2014 improving fast",
           "Earnings: Solid earner ($2,412,900)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4372,11 +4485,11 @@
         "win_odds": 6.5,
         "place_odds": 0.0,
         "last_6": "1/6/2/3/4",
-        "rule_score": 63.38942307692308,
+        "rule_score": 64.8479427549195,
         "ml_prob": 0.057092491537332535,
-        "combined_score": 63.38942307692308,
-        "calibrated_prob": 0.11741287472872586,
-        "expected_return": -0.23681631426328198,
+        "combined_score": 64.8479427549195,
+        "calibrated_prob": 0.11730478421252684,
+        "expected_return": -0.23751890261857556,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -4395,7 +4508,8 @@
           "Freshness: Fair break (57 days)",
           "Trend: Rating up 6pts \u2014 improving fast",
           "Earnings: Top earner ($3,360,000)",
-          "Going: Fair on Good (avg 4.0 from 1)"
+          "Going: Fair on Good (avg 4.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4411,11 +4525,11 @@
         "win_odds": 29.0,
         "place_odds": 0.0,
         "last_6": "",
-        "rule_score": 52.39756592292089,
+        "rule_score": 55.090100111234705,
         "ml_prob": 0.25990423560142517,
-        "combined_score": 52.39756592292089,
-        "calibrated_prob": 0.05672359027486111,
-        "expected_return": 0.6449841179709721,
+        "combined_score": 55.090100111234705,
+        "calibrated_prob": 0.06087321004461665,
+        "expected_return": 0.7653230912938829,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -4428,7 +4542,8 @@
           "Midfield - Neutral pace (x1.00)",
           "Odds: Stable market ($29.0)",
           "Weight: Fair weight (120lbs, rated 64); 6lbs below field avg",
-          "Going: Good on Good (1W/1P from 1)"
+          "Going: Good on Good (1W/1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4444,11 +4559,11 @@
         "win_odds": 52.0,
         "place_odds": 0.0,
         "last_6": "8/7/2",
-        "rule_score": 55.457117673183426,
+        "rule_score": 56.98643142105373,
         "ml_prob": 0.06508497893810272,
-        "combined_score": 55.457117673183426,
-        "calibrated_prob": 0.05178963485026568,
-        "expected_return": 1.6930610122138154,
+        "combined_score": 56.98643142105373,
+        "calibrated_prob": 0.05194093172573056,
+        "expected_return": 1.7009284497379893,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4466,7 +4581,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Moderate earner ($390,600)",
-          "Going: Limited Good data (1 runs, avg 7.0)"
+          "Going: Limited Good data (1 runs, avg 7.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4482,11 +4598,11 @@
         "win_odds": 26.0,
         "place_odds": 0.0,
         "last_6": "3/4/8/1/11/6",
-        "rule_score": 55.060759493670886,
+        "rule_score": 56.86955579631636,
         "ml_prob": 0.02995738759636879,
-        "combined_score": 55.060759493670886,
-        "calibrated_prob": 0.05331597320305471,
-        "expected_return": 0.38621530327942244,
+        "combined_score": 56.86955579631636,
+        "calibrated_prob": 0.05430693933514127,
+        "expected_return": 0.41198042271367297,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4503,7 +4619,8 @@
           "Weight: Light weight for rating (131lbs, rated 75)",
           "Freshness: Ideal spacing (21 days)",
           "Earnings: Solid earner ($1,404,300)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4519,11 +4636,11 @@
         "win_odds": 12.0,
         "place_odds": 0.0,
         "last_6": "4/1/4/3/14/8",
-        "rule_score": 53.0182485272577,
+        "rule_score": 54.79087256932125,
         "ml_prob": 0.05424477532505989,
-        "combined_score": 53.0182485272577,
-        "calibrated_prob": 0.059648047620603384,
-        "expected_return": -0.2842234285527594,
+        "combined_score": 54.79087256932125,
+        "calibrated_prob": 0.06044531023725312,
+        "expected_return": -0.2746562771529626,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4541,7 +4658,8 @@
           "Weight: Fair weight (120lbs, rated 64); 6lbs below field avg",
           "Freshness: Ideal spacing (18 days)",
           "Earnings: Moderate earner ($971,550)",
-          "Going: Limited Good data (1 runs, avg 6.0)"
+          "Going: Limited Good data (1 runs, avg 6.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4557,11 +4675,11 @@
         "win_odds": 10.0,
         "place_odds": 0.0,
         "last_6": "3/4/12/1/11/9",
-        "rule_score": 53.41173926475132,
+        "rule_score": 55.194802494802495,
         "ml_prob": 0.02995738759636879,
-        "combined_score": 53.41173926475132,
-        "calibrated_prob": 0.06360353517927592,
-        "expected_return": -0.36396464820724084,
+        "combined_score": 55.194802494802495,
+        "calibrated_prob": 0.0644302140022067,
+        "expected_return": -0.3556978599779329,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4579,7 +4697,8 @@
           "Freshness: Ideal spacing (32 days)",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Solid earner ($1,367,100)",
-          "Going: Limited Good data (1 runs, avg 8.0)"
+          "Going: Limited Good data (1 runs, avg 8.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4595,11 +4714,11 @@
         "win_odds": 136.0,
         "place_odds": 0.0,
         "last_6": "12/12/13/13/2/2",
-        "rule_score": 53.27583819440659,
+        "rule_score": 54.87616485263544,
         "ml_prob": 0.033391039818525314,
-        "combined_score": 53.27583819440659,
-        "calibrated_prob": 0.04089261544721719,
-        "expected_return": 4.561395700821538,
+        "combined_score": 54.87616485263544,
+        "calibrated_prob": 0.04120662338977751,
+        "expected_return": 4.604100781009741,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4617,7 +4736,8 @@
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Solid earner ($1,822,800)",
-          "Going: Limited Good data (1 runs, avg 11.0)"
+          "Going: Limited Good data (1 runs, avg 11.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4633,11 +4753,11 @@
         "win_odds": 35.0,
         "place_odds": 0.0,
         "last_6": "9/10/9/3/8/2",
-        "rule_score": 50.83369080718479,
+        "rule_score": 52.64713394713395,
         "ml_prob": 0.05416683107614517,
-        "combined_score": 50.83369080718479,
-        "calibrated_prob": 0.04090054406778473,
-        "expected_return": 0.43151904237246574,
+        "combined_score": 52.64713394713395,
+        "calibrated_prob": 0.04167664281243661,
+        "expected_return": 0.4586824984352813,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4655,7 +4775,8 @@
           "Freshness: Ideal spacing (28 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Moderate earner ($818,400)",
-          "Going: Limited Good data (1 runs, avg 10.0)"
+          "Going: Limited Good data (1 runs, avg 10.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4671,10 +4792,10 @@
         "win_odds": 0.0,
         "place_odds": 0.0,
         "last_6": "",
-        "rule_score": 29.838709677419356,
+        "rule_score": 28.823529411764703,
         "ml_prob": 0.2530424892902374,
-        "combined_score": 29.838709677419356,
-        "calibrated_prob": 0.014773134588314349,
+        "combined_score": 28.823529411764703,
+        "calibrated_prob": 0.012464964682185414,
         "expected_return": -1.0,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
@@ -4713,11 +4834,11 @@
         "win_odds": 13.0,
         "place_odds": 0.0,
         "last_6": "1/11/7/5/2/1",
-        "rule_score": 71.63942105476018,
+        "rule_score": 72.51995112949555,
         "ml_prob": 0.07736393064260483,
-        "combined_score": 71.63942105476018,
-        "calibrated_prob": 0.12596952765285133,
-        "expected_return": 0.6376038594870672,
+        "combined_score": 72.51995112949555,
+        "calibrated_prob": 0.12303070155814491,
+        "expected_return": 0.5993991202558839,
         "bet_recommendation": "BANKER WIN",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -4737,7 +4858,8 @@
           "Freshness: Ideal spacing (25 days)",
           "Trend: Rating up 7pts \u2014 improving fast",
           "Earnings: Top earner ($4,827,800)",
-          "Going: Good on Good (1W/1P from 1)"
+          "Going: Good on Good (1W/1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4753,11 +4875,11 @@
         "win_odds": 2.4,
         "place_odds": 0.0,
         "last_6": "1/2/2/1/7/2",
-        "rule_score": 68.79861111111111,
+        "rule_score": 70.13178294573643,
         "ml_prob": 0.0881156325340271,
-        "combined_score": 68.79861111111111,
-        "calibrated_prob": 0.1917116092557047,
-        "expected_return": -0.5398921377863087,
+        "combined_score": 70.13178294573643,
+        "calibrated_prob": 0.19197598320941484,
+        "expected_return": -0.5392576402974044,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -4775,7 +4897,8 @@
           "Freshness: Ideal spacing (14 days)",
           "Trend: Rating up 9pts \u2014 improving fast",
           "Earnings: Solid earner ($2,864,400)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4791,11 +4914,11 @@
         "win_odds": 9.9,
         "place_odds": 0.0,
         "last_6": "6/2/2/1/2/2",
-        "rule_score": 66.57066236465495,
+        "rule_score": 67.73172408442828,
         "ml_prob": 0.13928456604480743,
-        "combined_score": 66.57066236465495,
-        "calibrated_prob": 0.10651404048157863,
-        "expected_return": 0.054489000767628415,
+        "combined_score": 67.73172408442828,
+        "calibrated_prob": 0.10580203553335177,
+        "expected_return": 0.04744015178018257,
         "bet_recommendation": "PLACE",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -4813,7 +4936,8 @@
           "Weight: Light weight for rating (135lbs, rated 100); 10lbs above field avg",
           "Freshness: Ideal spacing (25 days)",
           "Earnings: Top earner ($5,818,400)",
-          "Going: Limited Good data (1 runs, avg 6.0)"
+          "Going: Limited Good data (1 runs, avg 6.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4829,11 +4953,11 @@
         "win_odds": 5.2,
         "place_odds": 0.0,
         "last_6": "5/1/1/3/4",
-        "rule_score": 67.83744535764149,
+        "rule_score": 69.0509029566458,
         "ml_prob": 0.06022506579756737,
-        "combined_score": 67.83744535764149,
-        "calibrated_prob": 0.12821718545752064,
-        "expected_return": -0.33327063562089265,
+        "combined_score": 69.0509029566458,
+        "calibrated_prob": 0.1277979824394679,
+        "expected_return": -0.3354504913147668,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -4851,7 +4975,8 @@
           "Weight: Light weight for rating (116lbs, rated 81); 8lbs below field avg",
           "Freshness: Ideal spacing (14 days)",
           "Earnings: Top earner ($4,008,100)",
-          "Going: Fair on Good (avg 4.0 from 1)"
+          "Going: Fair on Good (avg 4.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4867,11 +4992,11 @@
         "win_odds": 14.0,
         "place_odds": 0.0,
         "last_6": "8/2/1/7/4/1",
-        "rule_score": 67.57679144793394,
+        "rule_score": 68.78282471585653,
         "ml_prob": 0.05594397708773613,
-        "combined_score": 67.57679144793394,
-        "calibrated_prob": 0.09671059503370484,
-        "expected_return": 0.3539483304718678,
+        "combined_score": 68.78282471585653,
+        "calibrated_prob": 0.09626111206368167,
+        "expected_return": 0.34765556889154325,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -4889,7 +5014,8 @@
           "Weight: Light weight for rating (133lbs, rated 98); 8lbs above field avg",
           "Freshness: Ideal spacing (14 days)",
           "Earnings: Top earner ($5,312,400)",
-          "Going: Fair on Good (avg 5.0 from 1)"
+          "Going: Fair on Good (avg 5.0 from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4905,11 +5031,11 @@
         "win_odds": 6.0,
         "place_odds": 0.0,
         "last_6": "1/3/2/2/11/10",
-        "rule_score": 65.86053091887084,
+        "rule_score": 67.22207543514124,
         "ml_prob": 0.057036008685827255,
-        "combined_score": 65.86053091887084,
-        "calibrated_prob": 0.11146244473425677,
-        "expected_return": -0.3312253315944593,
+        "combined_score": 67.22207543514124,
+        "calibrated_prob": 0.11180765731976372,
+        "expected_return": -0.3291540560814177,
         "bet_recommendation": "SKIP",
         "confidence": "MEDIUM \u2b50\u2b50",
         "reasoning": [
@@ -4928,7 +5054,8 @@
           "Freshness: Ideal spacing (14 days)",
           "Trend: Rating up 6pts \u2014 improving fast",
           "Earnings: Top earner ($3,166,600)",
-          "Going: Placed on Good (1P from 1)"
+          "Going: Placed on Good (1P from 1)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4944,11 +5071,11 @@
         "win_odds": 69.0,
         "place_odds": 0.0,
         "last_6": "6/7/11/11/5/1",
-        "rule_score": 58.66842621321406,
+        "rule_score": 59.880171141040705,
         "ml_prob": 0.026633933186531067,
-        "combined_score": 58.66842621321406,
-        "calibrated_prob": 0.04526705505104179,
-        "expected_return": 2.1234267985218835,
+        "combined_score": 59.880171141040705,
+        "calibrated_prob": 0.04504637966140225,
+        "expected_return": 2.1082001966367554,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -4966,7 +5093,8 @@
           "Freshness: Ideal spacing (14 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Solid earner ($1,197,800)",
-          "Going: Limited Good data (1 runs, avg 9.0)"
+          "Going: Limited Good data (1 runs, avg 9.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -4982,11 +5110,11 @@
         "win_odds": 7.5,
         "place_odds": 0.0,
         "last_6": "2/1/2/7/12/6",
-        "rule_score": 57.34216546685001,
+        "rule_score": 58.92272854673266,
         "ml_prob": 0.04106231406331062,
-        "combined_score": 57.34216546685001,
-        "calibrated_prob": 0.07151094628149178,
-        "expected_return": -0.46366790288881166,
+        "combined_score": 58.92272854673266,
+        "calibrated_prob": 0.07228540022011234,
+        "expected_return": -0.4578594983491574,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -5005,7 +5133,8 @@
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Solid earner ($1,860,000)",
-          "Going: Limited Good data (1 runs, avg 11.0)"
+          "Going: Limited Good data (1 runs, avg 11.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -5021,11 +5150,11 @@
         "win_odds": 100.0,
         "place_odds": 0.0,
         "last_6": "8/9/2/11/1/10",
-        "rule_score": 56.70911337658326,
+        "rule_score": 58.28711018711019,
         "ml_prob": 0.027169937267899513,
-        "combined_score": 56.70911337658326,
-        "calibrated_prob": 0.03898482241263031,
-        "expected_return": 2.898482241263031,
+        "combined_score": 58.28711018711019,
+        "calibrated_prob": 0.03970787965146934,
+        "expected_return": 2.970787965146934,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -5043,7 +5172,8 @@
           "Freshness: Ideal spacing (21 days)",
           "Trend: Rating up 1pts \u2014 on the rise",
           "Earnings: Solid earner ($2,468,800)",
-          "Going: Limited Good data (1 runs, avg 10.0)"
+          "Going: Limited Good data (1 runs, avg 10.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -5059,11 +5189,11 @@
         "win_odds": 67.0,
         "place_odds": 0.0,
         "last_6": "9/5/5/10/5/2",
-        "rule_score": 54.00595631665583,
+        "rule_score": 55.74680237068297,
         "ml_prob": 0.01966959983110428,
-        "combined_score": 54.00595631665583,
-        "calibrated_prob": 0.03378791998865042,
-        "expected_return": 1.263790639239578,
+        "combined_score": 55.74680237068297,
+        "calibrated_prob": 0.03472625419881322,
+        "expected_return": 1.326659031320486,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -5081,7 +5211,8 @@
           "Freshness: Ideal spacing (25 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Solid earner ($1,425,200)",
-          "Going: Limited Good data (1 runs, avg 8.0)"
+          "Going: Limited Good data (1 runs, avg 8.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -5097,11 +5228,11 @@
         "win_odds": 137.0,
         "place_odds": 0.0,
         "last_6": "10/11/9/8/10/14",
-        "rule_score": 50.550238803280166,
+        "rule_score": 52.553325223033255,
         "ml_prob": 0.00930474977940321,
-        "combined_score": 50.550238803280166,
-        "calibrated_prob": 0.025312820146921506,
-        "expected_return": 2.467856360128246,
+        "combined_score": 52.553325223033255,
+        "calibrated_prob": 0.026481854889369116,
+        "expected_return": 2.6280141198435687,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -5118,7 +5249,8 @@
           "Weight: Light weight for rating (122lbs, rated 87)",
           "Freshness: Ideal spacing (14 days)",
           "Trend: Rating up 4pts \u2014 on the rise",
-          "Going: Limited Good data (1 runs, avg 7.0)"
+          "Going: Limited Good data (1 runs, avg 7.0)",
+          "Margin: Won last start"
         ]
       },
       {
@@ -5134,11 +5266,11 @@
         "win_odds": 59.0,
         "place_odds": 0.0,
         "last_6": "11/8/9/1/11/4",
-        "rule_score": 48.14358075810316,
+        "rule_score": 49.80770124123659,
         "ml_prob": 0.026647761464118958,
-        "combined_score": 48.14358075810316,
-        "calibrated_prob": 0.024551033503647342,
-        "expected_return": 0.44851097671519313,
+        "combined_score": 49.80770124123659,
+        "calibrated_prob": 0.025076759255008893,
+        "expected_return": 0.4795287960455248,
         "bet_recommendation": "SKIP",
         "confidence": "LOW \u2b50",
         "reasoning": [
@@ -5157,7 +5289,8 @@
           "Freshness: Very long layoff (126 days)",
           "Trend: Rating up 2pts \u2014 on the rise",
           "Earnings: Top earner ($3,990,000)",
-          "Going: Limited Good data (1 runs, avg 12.0)"
+          "Going: Limited Good data (1 runs, avg 12.0)",
+          "Margin: Won last start"
         ]
       }
     ]

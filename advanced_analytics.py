@@ -963,3 +963,162 @@ class GoingPreferenceAnalyzer:
             reason += " — WET TRACK SPECIALIST"
 
         return score, reason
+
+
+class RollingFormAnalyzer:
+    """Analyze rolling performance stats over recent races.
+
+    Rolling averages are among the highest-impact ML features — they capture
+    whether a horse is trending up, stable, or declining. CodeWorks Paris
+    found these among their top features out of 1,618 engineered.
+    """
+
+    @staticmethod
+    def analyze_rolling_form(rolling_stats: dict) -> tuple:
+        """Score based on rolling stats. Returns (score 0-100, reason)."""
+        runs = rolling_stats.get('runs', 0)
+        if runs == 0:
+            return 0.0, ""
+
+        avg_pos = rolling_stats.get('avg_pos', 0)
+        win_rate = rolling_stats.get('win_rate', 0)
+        place_rate = rolling_stats.get('place_rate', 0)
+        trend = rolling_stats.get('trend', 'unknown')
+
+        # Base score from average position
+        if avg_pos <= 2.0:
+            score = 90.0
+        elif avg_pos <= 3.0:
+            score = 78.0
+        elif avg_pos <= 4.5:
+            score = 65.0
+        elif avg_pos <= 6.0:
+            score = 50.0
+        elif avg_pos <= 8.0:
+            score = 35.0
+        else:
+            score = 20.0
+
+        # Win/place rate bonus
+        if win_rate >= 0.30:
+            score = min(95, score + 10)
+        elif place_rate >= 0.50:
+            score = min(90, score + 5)
+
+        # Trend adjustment
+        if trend == 'improving':
+            score = min(95, score + 8)
+            trend_label = "IMPROVING"
+        elif trend == 'declining':
+            score = max(15, score - 8)
+            trend_label = "declining"
+        else:
+            trend_label = "steady"
+
+        reason = f"Rolling {runs}R: avg {avg_pos}, {win_rate:.0%}W, {place_rate:.0%}P ({trend_label})"
+        return score, reason
+
+
+class BeatenMarginAnalyzer:
+    """Analyze beaten margins — key professional handicapping signal.
+
+    Horses finishing within 2.75 lengths of the winner are strong
+    next-out contenders. This is one of the most reliable predictors
+    in horse racing ML models.
+    """
+
+    @staticmethod
+    def analyze_margins(margin_stats: dict) -> tuple:
+        """Score based on beaten margins. Returns (score 0-100, reason)."""
+        runs = margin_stats.get('runs', 0)
+        if runs == 0:
+            return 0.0, ""
+
+        close = margin_stats.get('close_finishes', 0)
+        avg_margin = margin_stats.get('avg_margin', 0)
+        last_margin = margin_stats.get('last_margin', 0)
+
+        # Last-start margin is the strongest signal
+        if last_margin == 0:
+            # Winner last start
+            score = 88.0
+            reason = "Won last start"
+        elif last_margin <= 1.0:
+            score = 82.0
+            reason = f"Narrowly beaten last ({last_margin}L)"
+        elif last_margin <= 2.75:
+            score = 72.0
+            reason = f"Close up last ({last_margin}L) — strong next-out signal"
+        elif last_margin <= 5.0:
+            score = 55.0
+            reason = f"Fair effort last ({last_margin}L)"
+        elif last_margin <= 8.0:
+            score = 38.0
+            reason = f"Well beaten last ({last_margin}L)"
+        else:
+            score = 22.0
+            reason = f"Tailed off last ({last_margin}L)"
+
+        # Bonus for consistently close finishes
+        if runs >= 3 and close >= 2:
+            score = min(92, score + 5)
+            reason += f" — {close}/{runs} close finishes"
+
+        # Average margin context
+        if avg_margin > 0 and avg_margin <= 2.0:
+            score = min(95, score + 3)
+
+        return score, reason
+
+
+class JockeyChangeAnalyzer:
+    """Detect jockey changes — a strategic trainer signal.
+
+    When a trainer books a different (usually better) jockey, it often
+    signals they expect the horse to run well. Jockey upgrades are a
+    strong positive indicator; downgrades are neutral to negative.
+    """
+
+    TIER_1 = {'Z Purton', 'J Moreira', 'H Bowman', 'R Moore', 'J McDonald'}
+    TIER_2 = {'K Teetan', 'A Badel', 'A Atzeni', 'B Avdulla', 'R Kingscote',
+              'L Ferraris', 'D J Whyte', 'M Newnham'}
+
+    @staticmethod
+    def _jockey_tier(name: str) -> int:
+        """Return jockey tier: 1=elite, 2=strong, 3=other."""
+        if name in JockeyChangeAnalyzer.TIER_1:
+            return 1
+        if name in JockeyChangeAnalyzer.TIER_2:
+            return 2
+        return 3
+
+    @staticmethod
+    def analyze_jockey_change(current_jockey: str, last_jockey: str) -> tuple:
+        """Score jockey change impact. Returns (score 0-100, reason)."""
+        if not last_jockey or not current_jockey:
+            return 0.0, ""
+
+        if current_jockey == last_jockey:
+            return 0.0, ""  # No change — neutral, don't add as factor
+
+        curr_tier = JockeyChangeAnalyzer._jockey_tier(current_jockey)
+        last_tier = JockeyChangeAnalyzer._jockey_tier(last_jockey)
+
+        if curr_tier < last_tier:
+            # Upgrade — positive signal
+            if curr_tier == 1:
+                score = 82.0
+                reason = f"Jockey UPGRADE: {last_jockey} → {current_jockey} (elite booking)"
+            else:
+                score = 70.0
+                reason = f"Jockey upgrade: {last_jockey} → {current_jockey}"
+        elif curr_tier > last_tier:
+            # Downgrade — mild negative
+            score = 35.0
+            reason = f"Jockey downgrade: {last_jockey} → {current_jockey}"
+        else:
+            # Lateral move — neutral positive (trainer making a move)
+            score = 58.0
+            reason = f"Jockey change: {last_jockey} → {current_jockey}"
+
+        return score, reason

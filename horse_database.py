@@ -79,9 +79,16 @@ class HorseDatabase:
                 rating_change INTEGER DEFAULT 0,
                 horse_weight INTEGER DEFAULT 0,
                 gear TEXT,
+                margin REAL DEFAULT 0,
                 UNIQUE(race_date, race_number, horse_name)
             )
         """)
+
+        # Add margin column if upgrading from older schema
+        try:
+            c.execute("ALTER TABLE race_results ADD COLUMN margin REAL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
         # Jockey season stats
         c.execute("""
@@ -359,6 +366,105 @@ class HorseDatabase:
                 result = dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
 
         return result
+
+    def get_rolling_stats(self, horse_name: str, n_races: int = 5) -> Dict:
+        """Get rolling performance stats over last N races.
+
+        Returns avg position, win rate, place rate, and trend direction.
+        This is one of the highest-impact features in ML racing models.
+        """
+        c = self.conn.cursor()
+        c.execute("""
+            SELECT finish_position, is_winner, is_top3, margin, win_odds
+            FROM race_results
+            WHERE horse_name = ? AND finish_position > 0
+            ORDER BY race_date DESC, race_number DESC
+            LIMIT ?
+        """, (horse_name, n_races))
+        rows = c.fetchall()
+        if not rows:
+            return {'runs': 0, 'avg_pos': 0, 'win_rate': 0, 'place_rate': 0,
+                    'avg_margin': 0, 'trend': 'unknown', 'recent_3_avg': 0}
+
+        positions = [r['finish_position'] for r in rows]
+        wins = sum(r['is_winner'] for r in rows)
+        places = sum(r['is_top3'] for r in rows)
+        margins = [r['margin'] for r in rows if r['margin'] and r['margin'] > 0]
+        n = len(rows)
+
+        avg_pos = sum(positions) / n
+        recent_3 = positions[:3] if len(positions) >= 3 else positions
+        recent_3_avg = sum(recent_3) / len(recent_3)
+
+        # Trend: compare recent 3 vs older runs
+        if len(positions) >= 4:
+            older = positions[3:]
+            older_avg = sum(older) / len(older)
+            # Lower position = better, so improving means recent < older
+            if recent_3_avg < older_avg - 1:
+                trend = 'improving'
+            elif recent_3_avg > older_avg + 1:
+                trend = 'declining'
+            else:
+                trend = 'stable'
+        else:
+            trend = 'limited'
+
+        return {
+            'runs': n,
+            'avg_pos': round(avg_pos, 1),
+            'win_rate': round(wins / n, 3) if n else 0,
+            'place_rate': round(places / n, 3) if n else 0,
+            'avg_margin': round(sum(margins) / len(margins), 2) if margins else 0,
+            'trend': trend,
+            'recent_3_avg': round(recent_3_avg, 1),
+        }
+
+    def get_last_jockey(self, horse_name: str) -> Optional[str]:
+        """Get the jockey who rode this horse in its most recent race.
+
+        Used to detect jockey changes — a new jockey booking often signals
+        the trainer is making a strategic move.
+        """
+        c = self.conn.cursor()
+        c.execute("""
+            SELECT jockey FROM race_results
+            WHERE horse_name = ? AND jockey != ''
+            ORDER BY race_date DESC, race_number DESC
+            LIMIT 1
+        """, (horse_name,))
+        row = c.fetchone()
+        return row['jockey'] if row else None
+
+    def get_beaten_margins(self, horse_name: str, n_races: int = 5) -> Dict:
+        """Get beaten margin stats for recent races.
+
+        Margins < 2.75 lengths behind winner = strong next-out signal.
+        This is a key feature in professional handicapping.
+        """
+        c = self.conn.cursor()
+        c.execute("""
+            SELECT finish_position, margin
+            FROM race_results
+            WHERE horse_name = ? AND finish_position > 0
+            ORDER BY race_date DESC, race_number DESC
+            LIMIT ?
+        """, (horse_name, n_races))
+        rows = c.fetchall()
+        if not rows:
+            return {'runs': 0, 'close_finishes': 0, 'avg_margin': 0, 'last_margin': 0}
+
+        margins = [r['margin'] for r in rows if r['margin'] and r['margin'] > 0]
+        # Close finishes: within 2.75 lengths of winner (non-winners)
+        close = [m for m in margins if m <= 2.75]
+        last_margin = margins[0] if margins else 0
+
+        return {
+            'runs': len(rows),
+            'close_finishes': len(close),
+            'avg_margin': round(sum(margins) / len(margins), 2) if margins else 0,
+            'last_margin': round(last_margin, 2),
+        }
 
     def get_horse_days_since_last(self, horse_name: str,
                                    current_date: str) -> int:

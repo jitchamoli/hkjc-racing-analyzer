@@ -37,6 +37,9 @@ from advanced_analytics import (
     GearChangeAnalyzer,
     WeightAnalyzer,
     GoingPreferenceAnalyzer,
+    RollingFormAnalyzer,
+    BeatenMarginAnalyzer,
+    JockeyChangeAnalyzer,
 )
 from odds_tracker import OddsMovementAnalyzer
 
@@ -195,24 +198,28 @@ def convert_race(rc: RaceCard) -> Race:
 class BettingStrategy:
     # Full 17-factor weights (when all data available)
     # Tips Index is the strongest signal — aggregates expert tipster consensus
-    RATING_WEIGHT = 0.08
-    FORM_WEIGHT = 0.11       # Recency-weighted form (recent wins boosted)
-    ODDS_WEIGHT = 0.09       # Market implied probability
-    JOCKEY_WEIGHT = 0.06
-    TRAINER_WEIGHT = 0.04
-    DRAW_WEIGHT = 0.05       # Enhanced with rail bias
-    TIPS_WEIGHT = 0.13       # HKJC expert tips index (strongest signal)
-    PACE_WEIGHT = 0.04       # Running style + pace scenario
-    SECTIONAL_WEIGHT = 0.04  # Finishing speed
+    RATING_WEIGHT = 0.07
+    FORM_WEIGHT = 0.09       # Recency-weighted form (recent wins boosted)
+    ODDS_WEIGHT = 0.08       # Market implied probability
+    JOCKEY_WEIGHT = 0.05
+    TRAINER_WEIGHT = 0.03
+    DRAW_WEIGHT = 0.04       # Enhanced with rail bias
+    TIPS_WEIGHT = 0.12       # HKJC expert tips index (strongest signal)
+    PACE_WEIGHT = 0.03       # Running style + pace scenario
+    SECTIONAL_WEIGHT = 0.03  # Finishing speed
     CD_FORM_WEIGHT = 0.04    # Course & Distance record
-    ODDS_MOVE_WEIGHT = 0.05  # Odds movement / steam detection
+    ODDS_MOVE_WEIGHT = 0.04  # Odds movement / steam detection
     CLASS_MOVE_WEIGHT = 0.03 # Class drop/rise advantage
-    GEAR_WEIGHT = 0.03       # Equipment changes
-    WEIGHT_WEIGHT = 0.05     # Weight carried vs rating
-    FRESHNESS_WEIGHT = 0.05  # Days since last run
-    RATING_TREND_WEIGHT = 0.04  # Rating going up or down
+    GEAR_WEIGHT = 0.02       # Equipment changes
+    WEIGHT_WEIGHT = 0.04     # Weight carried vs rating
+    FRESHNESS_WEIGHT = 0.04  # Days since last run
+    RATING_TREND_WEIGHT = 0.03  # Rating going up or down
     STAKES_WEIGHT = 0.02     # Season prize money earned
     GOING_WEIGHT = 0.05      # Going (track condition) preference — high impact
+    # New high-impact features (from CodeWorks Paris research)
+    ROLLING_FORM_WEIGHT = 0.06  # Rolling avg position, win rate, trend
+    MARGIN_WEIGHT = 0.05     # Beaten margins — <2.75L = strong next-out signal
+    JOCKEY_CHANGE_WEIGHT = 0.04  # Jockey upgrade/downgrade detection
 
     @staticmethod
     def analyze_form(last_6: str) -> tuple:
@@ -459,7 +466,10 @@ class CombinedRaceAnalyzer:
         self.gear_analyzer = GearChangeAnalyzer()
         self.weight_analyzer = WeightAnalyzer()
         self.going_analyzer = GoingPreferenceAnalyzer()
-        # Try to connect to horse database for going preference lookups
+        self.rolling_analyzer = RollingFormAnalyzer()
+        self.margin_analyzer = BeatenMarginAnalyzer()
+        self.jockey_change_analyzer = JockeyChangeAnalyzer()
+        # Try to connect to horse database for historical lookups
         self._horse_db = None
         try:
             from horse_database import HorseDatabase
@@ -720,6 +730,41 @@ class CombinedRaceAnalyzer:
         if going_score > 0:
             reasoning.append(f"Going: {going_reason}")
 
+        # --- NEW: Rolling Form Stats ---
+        rolling_score = 0.0
+        rolling_reason = ""
+        if self._horse_db:
+            rolling_stats = self._horse_db.get_rolling_stats(horse.name, n_races=5)
+            if rolling_stats.get('runs', 0) >= 2:
+                rolling_score, rolling_reason = self.rolling_analyzer.analyze_rolling_form(rolling_stats)
+        factors["rolling_form"] = rolling_score
+        if rolling_score > 0:
+            reasoning.append(f"Form trend: {rolling_reason}")
+
+        # --- NEW: Beaten Margins ---
+        margin_score = 0.0
+        margin_reason = ""
+        if self._horse_db:
+            margin_stats = self._horse_db.get_beaten_margins(horse.name, n_races=5)
+            if margin_stats.get('runs', 0) > 0:
+                margin_score, margin_reason = self.margin_analyzer.analyze_margins(margin_stats)
+        factors["margin"] = margin_score
+        if margin_score > 0:
+            reasoning.append(f"Margin: {margin_reason}")
+
+        # --- NEW: Jockey Change Detection ---
+        jc_score = 0.0
+        jc_reason = ""
+        if self._horse_db:
+            last_jockey = self._horse_db.get_last_jockey(horse.name)
+            if last_jockey:
+                jc_score, jc_reason = self.jockey_change_analyzer.analyze_jockey_change(
+                    horse.jockey, last_jockey
+                )
+        factors["jockey_change"] = jc_score
+        if jc_score > 0:
+            reasoning.append(jc_reason)
+
         # --- Weighted score calculation (dynamic) ---
         # Build weight map only for available factors (score > 0)
         weight_map = {
@@ -755,6 +800,12 @@ class CombinedRaceAnalyzer:
             weight_map["season_stakes"] = BettingStrategy.STAKES_WEIGHT
         if going_score > 0:
             weight_map["going_pref"] = BettingStrategy.GOING_WEIGHT
+        if rolling_score > 0:
+            weight_map["rolling_form"] = BettingStrategy.ROLLING_FORM_WEIGHT
+        if margin_score > 0:
+            weight_map["margin"] = BettingStrategy.MARGIN_WEIGHT
+        if jc_score > 0:
+            weight_map["jockey_change"] = BettingStrategy.JOCKEY_CHANGE_WEIGHT
 
         # Normalize weights to sum to 1.0
         total_weight = sum(weight_map.values())
