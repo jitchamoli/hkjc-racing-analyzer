@@ -176,56 +176,80 @@ def convert_race(rc: RaceCard) -> Race:
 
 class BettingStrategy:
     # Full 14-factor weights (when all data available)
-    RATING_WEIGHT = 0.12
-    FORM_WEIGHT = 0.12
-    ODDS_WEIGHT = 0.09
+    # Tips Index is the strongest signal — aggregates expert tipster consensus
+    RATING_WEIGHT = 0.10
+    FORM_WEIGHT = 0.13       # Recency-weighted form (recent wins boosted)
+    ODDS_WEIGHT = 0.10       # Market implied probability
     JOCKEY_WEIGHT = 0.07
     TRAINER_WEIGHT = 0.05
-    DRAW_WEIGHT = 0.06       # Enhanced with rail bias
-    TIPS_WEIGHT = 0.12       # HKJC expert tips index
-    PACE_WEIGHT = 0.06       # Running style + pace scenario
-    SECTIONAL_WEIGHT = 0.05  # Finishing speed
-    CD_FORM_WEIGHT = 0.06    # Course & Distance record
+    DRAW_WEIGHT = 0.05       # Enhanced with rail bias
+    TIPS_WEIGHT = 0.16       # HKJC expert tips index (strongest signal)
+    PACE_WEIGHT = 0.05       # Running style + pace scenario
+    SECTIONAL_WEIGHT = 0.04  # Finishing speed
+    CD_FORM_WEIGHT = 0.05    # Course & Distance record
     ODDS_MOVE_WEIGHT = 0.06  # Odds movement / steam detection
-    CLASS_MOVE_WEIGHT = 0.05 # Class drop/rise advantage
+    CLASS_MOVE_WEIGHT = 0.04 # Class drop/rise advantage
     GEAR_WEIGHT = 0.04       # Equipment changes
-    WEIGHT_WEIGHT = 0.05     # Weight carried vs rating
+    WEIGHT_WEIGHT = 0.06     # Weight carried vs rating
 
     @staticmethod
     def analyze_form(last_6: str) -> tuple:
         if not last_6 or len(last_6) < 1:
             return 0.0, "No recent form data"
 
-        total_score = 0.0
-        wins = places = seconds = 0
+        # Position scores
+        pos_scores = {"1": 100, "2": 60, "3": 40, "4": 25, "5": 15, "6": 10}
 
-        for pos in str(last_6):
-            if pos == "1":
-                total_score += 100
+        positions = []
+        for ch in str(last_6):
+            if ch.isdigit():
+                positions.append(int(ch))
+
+        if not positions:
+            return 0.0, "No recent form data"
+
+        # Recency-weighted scoring: most recent race gets highest weight
+        # Weights: [1.0, 0.85, 0.7, 0.55, 0.4, 0.3, ...] (most recent first)
+        # HKJC form reads LEFT = oldest, RIGHT = most recent
+        weights = []
+        n = len(positions)
+        for i in range(n):
+            w = 0.3 + 0.7 * (i / max(1, n - 1))  # 0.3 for oldest → 1.0 for most recent
+            weights.append(w)
+
+        weighted_total = 0.0
+        weight_sum = 0.0
+        wins = 0
+        places = 0  # 2nd or 3rd
+        recent_win = False
+
+        for i, pos in enumerate(positions):
+            score = pos_scores.get(str(pos), 0)
+            weighted_total += score * weights[i]
+            weight_sum += weights[i]
+            if pos == 1:
                 wins += 1
-            elif pos == "2":
-                total_score += 60
-                seconds += 1
-            elif pos == "3":
-                total_score += 40
+                if i >= n - 2:  # last 2 runs
+                    recent_win = True
+            elif pos in (2, 3):
                 places += 1
-            elif pos == "4":
-                total_score += 25
-            elif pos == "5":
-                total_score += 15
-            elif pos == "6":
-                total_score += 10
 
-        avg_score = total_score / max(1, len(str(last_6)))
+        avg_score = weighted_total / max(0.01, weight_sum)
+
+        # Bonus for recent winner (last 1-2 starts)
+        if recent_win:
+            avg_score = min(100, avg_score + 15)
 
         if wins >= 3:
-            reason = f"Strong form: {wins} wins in last 6 races"
-        elif wins >= 1 and avg_score > 50:
-            reason = f"Good recent form: {wins}W/{places}P"
+            reason = f"Strong form: {wins}W in last {n} ({avg_score:.0f})"
+        elif recent_win:
+            reason = f"Recent winner: {wins}W/{places}P ({avg_score:.0f})"
+        elif wins >= 1:
+            reason = f"Winner in form: {wins}W/{places}P ({avg_score:.0f})"
         elif places >= 2:
-            reason = f"Consistent placer: {places} places"
+            reason = f"Consistent placer: {places}P ({avg_score:.0f})"
         else:
-            reason = f"Moderate form: avg score {avg_score:.0f}"
+            reason = f"Moderate form ({avg_score:.0f})"
 
         return avg_score, reason
 
