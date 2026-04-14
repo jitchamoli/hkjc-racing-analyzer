@@ -212,44 +212,11 @@ class HorseDatabase:
                     is_winner, is_top3, race_date,
                 ))
 
-                # Update jockey stats
-                jockey = entry.get('jockey', '')
-                if jockey:
-                    c.execute("""
-                        INSERT INTO jockey_stats (name, season, rides, wins, places, last_updated)
-                        VALUES (?, ?, 1, ?, ?, ?)
-                        ON CONFLICT(name) DO UPDATE SET
-                            rides=jockey_stats.rides + 1,
-                            wins=jockey_stats.wins + ?,
-                            places=jockey_stats.places + ?,
-                            win_rate=CAST(jockey_stats.wins + ? AS REAL) / (jockey_stats.rides + 1),
-                            place_rate=CAST(jockey_stats.places + ? AS REAL) / (jockey_stats.rides + 1),
-                            last_updated=?
-                    """, (
-                        jockey, '2025-26', is_winner, is_top3, now,
-                        is_winner, is_top3, is_winner, is_top3, now,
-                    ))
-
-                # Update trainer stats
-                trainer = entry.get('trainer', '')
-                if trainer:
-                    c.execute("""
-                        INSERT INTO trainer_stats (name, season, runners, wins, places, last_updated)
-                        VALUES (?, ?, 1, ?, ?, ?)
-                        ON CONFLICT(name) DO UPDATE SET
-                            runners=trainer_stats.runners + 1,
-                            wins=trainer_stats.wins + ?,
-                            places=trainer_stats.places + ?,
-                            win_rate=CAST(trainer_stats.wins + ? AS REAL) / (trainer_stats.runners + 1),
-                            place_rate=CAST(trainer_stats.places + ? AS REAL) / (trainer_stats.runners + 1),
-                            last_updated=?
-                    """, (
-                        trainer, '2025-26', is_winner, is_top3, now,
-                        is_winner, is_top3, is_winner, is_top3, now,
-                    ))
-
         self.conn.commit()
         logger.info(f"Ingested {len(race_data)} races into horse database")
+
+        # Rebuild stats from source of truth to avoid double-counting on re-ingestion
+        self.rebuild_stats()
 
     # ------------------------------------------------------------------
     # Query methods — used by analyzer at prediction time
@@ -619,6 +586,53 @@ class HorseDatabase:
             ORDER BY win_rate DESC
         """, (min_runners,))
         return [dict(r) for r in c.fetchall()]
+
+    def rebuild_stats(self):
+        """Rebuild jockey_stats and trainer_stats from race_results.
+
+        Fixes drift caused by re-ingestion double-counting.  Safe to call
+        at any time — it replaces the stats tables entirely.
+        """
+        c = self.conn.cursor()
+
+        # Rebuild jockey_stats
+        c.execute("DELETE FROM jockey_stats")
+        c.execute("""
+            INSERT INTO jockey_stats (name, season, rides, wins, places, win_rate, place_rate, last_updated)
+            SELECT
+                jockey,
+                '2025-26',
+                COUNT(*) as rides,
+                SUM(is_winner) as wins,
+                SUM(is_top3) as places,
+                CAST(SUM(is_winner) AS REAL) / COUNT(*) as win_rate,
+                CAST(SUM(is_top3) AS REAL) / COUNT(*) as place_rate,
+                MAX(race_date) as last_updated
+            FROM race_results
+            WHERE jockey != ''
+            GROUP BY jockey
+        """)
+
+        # Rebuild trainer_stats
+        c.execute("DELETE FROM trainer_stats")
+        c.execute("""
+            INSERT INTO trainer_stats (name, season, runners, wins, places, win_rate, place_rate, last_updated)
+            SELECT
+                trainer,
+                '2025-26',
+                COUNT(*) as runners,
+                SUM(is_winner) as wins,
+                SUM(is_top3) as places,
+                CAST(SUM(is_winner) AS REAL) / COUNT(*) as win_rate,
+                CAST(SUM(is_top3) AS REAL) / COUNT(*) as place_rate,
+                MAX(race_date) as last_updated
+            FROM race_results
+            WHERE trainer != ''
+            GROUP BY trainer
+        """)
+
+        self.conn.commit()
+        logger.info("Rebuilt jockey_stats and trainer_stats from race_results")
 
     def close(self):
         self.conn.close()
