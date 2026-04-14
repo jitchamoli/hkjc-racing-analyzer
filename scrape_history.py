@@ -215,6 +215,22 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
                     lbw_clean = lbw.replace("\xa0", " ").strip()
                     margin = _parse_lbw(lbw_clean)
 
+            # Running position — column 9 (e.g. "2 1 1" or "10 8 6 3")
+            running_position = ""
+            if len(row) > 9:
+                rp = row[9].strip()
+                # Normalize: keep digits and spaces
+                rp_clean = re.sub(r"[^\d\s]", " ", rp).strip()
+                if rp_clean and any(c.isdigit() for c in rp_clean):
+                    running_position = rp_clean
+
+            # Finish time — column 10 (e.g. "0:57.32" or "1:09.84")
+            finish_time = ""
+            if len(row) > 10:
+                ft = row[10].strip()
+                if re.match(r"\d+:\d{2}\.\d{1,2}", ft):
+                    finish_time = ft
+
             # Win odds (last column)
             win_odds = 0.0
             if len(row) > 11:
@@ -249,6 +265,8 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
                 "actual_position": pos,
                 "gear": "",
                 "margin": margin,
+                "running_position": running_position,
+                "finish_time": finish_time,
             })
 
         if entries:
@@ -358,14 +376,241 @@ async def get_recent_meeting_dates(n_days: int = 60, max_meetings: int = 10) -> 
     return dates
 
 
+async def scrape_jockey_rankings() -> List[Dict]:
+    """Scrape full-season jockey rankings from HKJC (JS-rendered page).
+
+    Returns list of dicts: {name, rides, wins, seconds, thirds, fourths,
+                            win_rate, place_rate, stakes}.
+    """
+    from playwright.async_api import async_playwright
+
+    url = "https://racing.hkjc.com/racing/information/English/Jockey/JockeyRanking.aspx"
+    results = []
+
+    pw = await async_playwright().start()
+    try:
+        browser = await pw.chromium.launch(headless=True)
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            viewport={"width": 1440, "height": 900},
+        )
+        page = await context.new_page()
+        await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+        await page.wait_for_timeout(5000)
+
+        table_data = await page.evaluate("""
+            () => {
+                const tables = document.querySelectorAll('table');
+                for (const table of tables) {
+                    const rows = table.querySelectorAll('tr');
+                    if (rows.length < 5) continue;
+                    const text = table.textContent.toLowerCase();
+                    if (!text.includes('jockey') || !text.includes('win')) continue;
+                    const data = [];
+                    for (const row of rows) {
+                        const cells = Array.from(row.querySelectorAll('td, th'));
+                        data.push(cells.map(c => c.textContent.trim()));
+                    }
+                    return data;
+                }
+                return [];
+            }
+        """)
+
+        if not table_data or len(table_data) < 3:
+            logger.warning("No jockey ranking table found")
+            await browser.close()
+            await pw.stop()
+            return results
+
+        # Header rows: Row 0 = "Jockeys' Ranking", Row 1 = column names
+        # Data starts at row 2
+        # Columns: Jockey(0) | Win(1) | 2nd(2) | 3rd(3) | 4th(4) | 5th(5) | Total Rides(6) | Stakes(7)
+        for row in table_data[2:]:
+            if len(row) < 6:
+                continue
+            name = row[0].strip()
+            if not name or name.lower() in ('total', '', 'jockey'):
+                continue
+            try:
+                wins = int(re.sub(r'[^\d]', '', row[1]) or 0)
+                seconds = int(re.sub(r'[^\d]', '', row[2]) or 0)
+                thirds = int(re.sub(r'[^\d]', '', row[3]) or 0)
+                rides = int(re.sub(r'[^\d]', '', row[6]) or 0) if len(row) > 6 else 0
+                if rides == 0:
+                    rides = wins + seconds + thirds
+                if rides > 0:
+                    results.append({
+                        'name': name,
+                        'rides': rides,
+                        'wins': wins,
+                        'places': wins + seconds + thirds,
+                        'win_rate': round(wins / rides, 4) if rides else 0,
+                        'place_rate': round((wins + seconds + thirds) / rides, 4) if rides else 0,
+                    })
+            except (ValueError, IndexError):
+                continue
+
+        await browser.close()
+    except Exception as e:
+        logger.error(f"Jockey ranking scrape failed: {e}")
+    finally:
+        await pw.stop()
+
+    logger.info(f"Scraped {len(results)} jockey rankings")
+    return results
+
+
+async def scrape_trainer_rankings() -> List[Dict]:
+    """Scrape full-season trainer rankings from HKJC (JS-rendered page)."""
+    from playwright.async_api import async_playwright
+
+    url = "https://racing.hkjc.com/racing/information/English/Trainers/TrainerRanking.aspx"
+    results = []
+
+    pw = await async_playwright().start()
+    try:
+        browser = await pw.chromium.launch(headless=True)
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            viewport={"width": 1440, "height": 900},
+        )
+        page = await context.new_page()
+        await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+        await page.wait_for_timeout(5000)
+
+        table_data = await page.evaluate("""
+            () => {
+                const tables = document.querySelectorAll('table');
+                for (const table of tables) {
+                    const rows = table.querySelectorAll('tr');
+                    if (rows.length < 5) continue;
+                    const text = table.textContent.toLowerCase();
+                    if (!text.includes('trainer') || !text.includes('win')) continue;
+                    const data = [];
+                    for (const row of rows) {
+                        const cells = Array.from(row.querySelectorAll('td, th'));
+                        data.push(cells.map(c => c.textContent.trim()));
+                    }
+                    return data;
+                }
+                return [];
+            }
+        """)
+
+        if not table_data or len(table_data) < 3:
+            logger.warning("No trainer ranking table found")
+            await browser.close()
+            await pw.stop()
+            return results
+
+        # Same layout as jockey: Row 0 title, Row 1 column names, Row 2+ data
+        # Columns: Trainer(0) | Win(1) | 2nd(2) | 3rd(3) | 4th(4) | 5th(5) | Total Runners(6) | Stakes(7)
+        for row in table_data[2:]:
+            if len(row) < 6:
+                continue
+            name = row[0].strip()
+            if not name or name.lower() in ('total', '', 'trainer'):
+                continue
+            try:
+                wins = int(re.sub(r'[^\d]', '', row[1]) or 0)
+                seconds = int(re.sub(r'[^\d]', '', row[2]) or 0)
+                thirds = int(re.sub(r'[^\d]', '', row[3]) or 0)
+                runners = int(re.sub(r'[^\d]', '', row[6]) or 0) if len(row) > 6 else 0
+                if runners == 0:
+                    runners = wins + seconds + thirds
+                if runners > 0:
+                    results.append({
+                        'name': name,
+                        'runners': runners,
+                        'wins': wins,
+                        'places': wins + seconds + thirds,
+                        'win_rate': round(wins / runners, 4) if runners else 0,
+                        'place_rate': round((wins + seconds + thirds) / runners, 4) if runners else 0,
+                    })
+            except (ValueError, IndexError):
+                continue
+
+        await browser.close()
+    except Exception as e:
+        logger.error(f"Trainer ranking scrape failed: {e}")
+    finally:
+        await pw.stop()
+
+    logger.info(f"Scraped {len(results)} trainer rankings")
+    return results
+
+
+async def _scrape_and_store_rankings(db):
+    """Scrape HKJC rankings and merge into DB stats tables.
+
+    HKJC full-season stats are more accurate than our DB-only stats
+    (we only have ~10 meets vs ~80 in a full season). We use HKJC
+    numbers when they have more rides/runners than our local data.
+    """
+    from datetime import datetime
+    now = datetime.now().strftime('%Y-%m-%d')
+
+    jockeys = await scrape_jockey_rankings()
+    if jockeys:
+        c = db.conn.cursor()
+        for j in jockeys:
+            # Only update if HKJC has more rides than our local data
+            c.execute("SELECT rides FROM jockey_stats WHERE name = ?", (j['name'],))
+            row = c.fetchone()
+            local_rides = row[0] if row else 0
+            if j['rides'] >= local_rides:
+                c.execute("""
+                    INSERT INTO jockey_stats (name, season, rides, wins, places, win_rate, place_rate, last_updated)
+                    VALUES (?, '2025-26', ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(name) DO UPDATE SET
+                        rides=excluded.rides, wins=excluded.wins, places=excluded.places,
+                        win_rate=excluded.win_rate, place_rate=excluded.place_rate,
+                        last_updated=excluded.last_updated
+                """, (j['name'], j['rides'], j['wins'], j['places'],
+                      j['win_rate'], j['place_rate'], now))
+        db.conn.commit()
+        logger.info(f"Updated {len(jockeys)} jockey rankings in DB")
+    else:
+        logger.warning("No jockey rankings scraped")
+
+    trainers = await scrape_trainer_rankings()
+    if trainers:
+        c = db.conn.cursor()
+        for t in trainers:
+            c.execute("SELECT runners FROM trainer_stats WHERE name = ?", (t['name'],))
+            row = c.fetchone()
+            local_runners = row[0] if row else 0
+            if t['runners'] >= local_runners:
+                c.execute("""
+                    INSERT INTO trainer_stats (name, season, runners, wins, places, win_rate, place_rate, last_updated)
+                    VALUES (?, '2025-26', ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(name) DO UPDATE SET
+                        runners=excluded.runners, wins=excluded.wins, places=excluded.places,
+                        win_rate=excluded.win_rate, place_rate=excluded.place_rate,
+                        last_updated=excluded.last_updated
+                """, (t['name'], t['runners'], t['wins'], t['places'],
+                      t['win_rate'], t['place_rate'], now))
+        db.conn.commit()
+        logger.info(f"Updated {len(trainers)} trainer rankings in DB")
+    else:
+        logger.warning("No trainer rankings scraped")
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Scrape HKJC historical results")
     parser.add_argument("--date", help="Specific date (YYYY/MM/DD)")
     parser.add_argument("--days", type=int, default=60, help="Look back N days for meetings")
+    parser.add_argument("--rankings", action="store_true", help="Scrape jockey/trainer season rankings")
     args = parser.parse_args()
 
     from horse_database import HorseDatabase
     db = HorseDatabase()
+
+    if args.rankings:
+        await _scrape_and_store_rankings(db)
+        db.close()
+        return
 
     if args.date:
         dates = [args.date]

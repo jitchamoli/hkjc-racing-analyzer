@@ -89,6 +89,8 @@ class HorseDatabase:
             "margin REAL DEFAULT 0",
             "last_6 TEXT DEFAULT ''",
             "age TEXT DEFAULT ''",
+            "running_position TEXT DEFAULT ''",
+            "finish_time TEXT DEFAULT ''",
         ]:
             try:
                 c.execute(f"ALTER TABLE race_results ADD COLUMN {col_def}")
@@ -167,14 +169,19 @@ class HorseDatabase:
                 hw = entry.get('horse_weight', 0) or 0
                 last_6 = entry.get('last_6', '') or ''
                 age = entry.get('age', '') or ''
+                running_pos = entry.get('running_position', '') or ''
+                finish_time = entry.get('finish_time', '') or ''
+                days_since = entry.get('days_since_last_run', 0) or 0
+                rat_change = entry.get('rating_change', 0) or 0
                 c.execute("""
                     INSERT INTO race_results (
                         race_date, race_number, venue, distance, class_type,
                         going, course, horse_name, horse_number, jockey, trainer,
                         draw, weight, rating, win_odds, finish_position,
                         is_winner, is_top3, gear, margin, horse_weight,
-                        last_6, age
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        last_6, age, running_position, finish_time,
+                        days_since_last_run, rating_change
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(race_date, race_number, horse_name)
                     DO UPDATE SET
                         finish_position=excluded.finish_position,
@@ -184,7 +191,11 @@ class HorseDatabase:
                         margin=CASE WHEN excluded.margin > 0 THEN excluded.margin ELSE race_results.margin END,
                         horse_weight=CASE WHEN excluded.horse_weight > 0 THEN excluded.horse_weight ELSE race_results.horse_weight END,
                         last_6=CASE WHEN excluded.last_6 != '' THEN excluded.last_6 ELSE race_results.last_6 END,
-                        age=CASE WHEN excluded.age != '' THEN excluded.age ELSE race_results.age END
+                        age=CASE WHEN excluded.age != '' THEN excluded.age ELSE race_results.age END,
+                        running_position=CASE WHEN excluded.running_position != '' THEN excluded.running_position ELSE race_results.running_position END,
+                        finish_time=CASE WHEN excluded.finish_time != '' THEN excluded.finish_time ELSE race_results.finish_time END,
+                        days_since_last_run=CASE WHEN excluded.days_since_last_run > 0 THEN excluded.days_since_last_run ELSE race_results.days_since_last_run END,
+                        rating_change=CASE WHEN excluded.rating_change != 0 THEN excluded.rating_change ELSE race_results.rating_change END
                 """, (
                     race_date, race_no, venue, distance, class_type,
                     going, course, horse_name, entry.get('number', 0),
@@ -192,7 +203,8 @@ class HorseDatabase:
                     entry.get('draw', 0), entry.get('weight', ''),
                     entry.get('rating', 0), entry.get('win_odds', 0),
                     pos, is_winner, is_top3, entry.get('gear', ''), margin, hw,
-                    last_6, age,
+                    last_6, age, running_pos, finish_time,
+                    days_since, rat_change,
                 ))
 
                 # Upsert horse master record
@@ -213,6 +225,27 @@ class HorseDatabase:
                 ))
 
         self.conn.commit()
+
+        # Backfill days_since_last_run from race_results where missing
+        # REPLACE converts YYYY/MM/DD to YYYY-MM-DD for julianday()
+        c.execute("""
+            UPDATE race_results SET days_since_last_run = (
+                SELECT CAST(julianday(REPLACE(race_results.race_date,'/','-'))
+                          - julianday(REPLACE(prev.race_date,'/','-')) AS INTEGER)
+                FROM race_results AS prev
+                WHERE prev.horse_name = race_results.horse_name
+                  AND prev.race_date < race_results.race_date
+                ORDER BY prev.race_date DESC LIMIT 1
+            )
+            WHERE (days_since_last_run IS NULL OR days_since_last_run = 0)
+              AND EXISTS (
+                SELECT 1 FROM race_results AS prev
+                WHERE prev.horse_name = race_results.horse_name
+                  AND prev.race_date < race_results.race_date
+              )
+        """)
+        self.conn.commit()
+
         logger.info(f"Ingested {len(race_data)} races into horse database")
 
         # Rebuild stats from source of truth to avoid double-counting on re-ingestion
