@@ -256,11 +256,22 @@ class HorseDatabase:
     # ------------------------------------------------------------------
 
     def get_horse_record(self, horse_name: str) -> Optional[Dict]:
-        """Get horse's complete racing record."""
+        """Get horse's complete racing record (computed from race_results)."""
         c = self.conn.cursor()
-        c.execute("SELECT * FROM horses WHERE name = ?", (horse_name,))
+        c.execute("""
+            SELECT
+                horse_name as name,
+                COUNT(*) as total_starts,
+                SUM(is_winner) as total_wins,
+                SUM(is_top3) as total_places,
+                MAX(rating) as rating,
+                MAX(trainer) as trainer,
+                MAX(race_date) as last_seen_date
+            FROM race_results
+            WHERE horse_name = ?
+        """, (horse_name,))
         row = c.fetchone()
-        if not row:
+        if not row or not row['total_starts']:
             return None
         return dict(row)
 

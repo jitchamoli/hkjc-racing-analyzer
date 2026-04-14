@@ -96,18 +96,27 @@ async def main():
     
     json_data = json.dumps(all_races)
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    html = generate_html(json_data, now, race_date)
+
+    # Detect venue from race data
+    venue = "Happy Valley" if any(r.get("venue", "").startswith("Happy") for r in all_races) else "Sha Tin"
+
+    html = generate_html(json_data, now, race_date, venue)
     
     html_file = os.path.join(results_dir, f"racing_dashboard_{date_str}.html")
     with open(html_file, 'w') as f:
         f.write(html)
-    
+
+    # Always write to a fixed URL so you can bookmark one path
+    latest_file = os.path.join(results_dir, "racing_dashboard.html")
+    with open(latest_file, 'w') as f:
+        f.write(html)
+
     logger.info(f"Saved dashboard to {html_file}")
+    logger.info(f"Saved latest dashboard to {latest_file}")
     logger.info("Done!")
 
 
-def generate_html(races_json, now, race_date):
+def generate_html(races_json, now, race_date, venue="Sha Tin"):
     html = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -209,7 +218,7 @@ button{{font-family:inherit;cursor:pointer}}
     <h1>HKJC Racing Dashboard</h1>
     <div class="header-meta">
       <span class="live-dot"></span>
-      <span>Sha Tin | {race_date}</span>
+      <span>{venue} | {race_date}</span>
       <span>|</span>
       <span id="clock">{now}</span>
       <span class="version">v5.0 | 26 FACTORS | REAL DATA ML</span>
