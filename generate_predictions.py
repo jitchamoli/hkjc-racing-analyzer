@@ -360,6 +360,14 @@ function renderDashboard() {{
     '<div class="item"><div class="dot" style="background:var(--pink)"></div>TRIO</div>' +
     '<div class="item"><div class="dot" style="background:var(--dim)"></div>SKIP</div>' +
   '</div>' +
+  '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-size:.72rem;color:var(--dim);align-items:center">' +
+    '<span style="font-weight:700;color:var(--text)">Race Grades:</span>' +
+    '<span><span class="grade aplus" style="font-size:.62rem;padding:2px 6px">A+</span> Strong favourite \\u2014 back to win</span>' +
+    '<span><span class="grade a" style="font-size:.62rem;padding:2px 6px">A</span> Good edge \\u2014 win or quinella</span>' +
+    '<span><span class="grade bplus" style="font-size:.62rem;padding:2px 6px">B+</span> Decent pick \\u2014 quinella or place</span>' +
+    '<span><span class="grade b" style="font-size:.62rem;padding:2px 6px">B</span> Open race \\u2014 exotic bets (trio)</span>' +
+    '<span><span class="grade c" style="font-size:.62rem;padding:2px 6px">B-</span> Wide open \\u2014 small bets or skip</span>' +
+  '</div>' +
   '<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button id="wa-btn-all" onclick="copyAllToWhatsApp()" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s"><svg width=\\"16\\" height=\\"16\\" viewBox=\\"0 0 24 24\\" fill=\\"white\\"><path d=\\"M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z\\"/><path d=\\"M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.608-1.467A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.188 0-4.214-.696-5.869-1.879l-.421-.314-2.732.87.907-2.677-.346-.449A9.95 9.95 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z\\"/></svg>Copy All Races</button></div>' +
   '<div class="race-grid">';
   
