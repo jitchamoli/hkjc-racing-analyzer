@@ -309,9 +309,9 @@ function updateNextBadge() {{
 
 function betColor(bt) {{return {{'BANKER WIN':'#fbbf24','WIN':'#10b981','PLACE':'#8b5cf6','QIN':'#f59e0b','QNL PL':'#06b6d4','TRIO':'#ec4899','SKIP':'#64748b','E/W':'#3b82f6'}}[bt] || '#64748b'}}
 function betBg(bt) {{return {{'BANKER WIN':'rgba(251,191,36,.25)','WIN':'rgba(16,185,129,.15)','PLACE':'rgba(139,92,246,.15)','QIN':'rgba(245,158,11,.15)','QNL PL':'rgba(6,182,212,.15)','TRIO':'rgba(236,72,153,.15)','SKIP':'rgba(100,116,139,.1)'}}[bt] || 'rgba(100,116,139,.1)'}}
-function gradeRace(race) {{const p = race.horses[0]?.calibrated_prob || 0;if(p>=18)return'A+';if(p>=14)return'A';if(p>=11)return'B+';if(p>=9)return'B';return'B-'}}
+function gradeRace(race) {{const p = (race.horses[0]?.calibrated_prob || 0) * 100;if(p>=18)return'A+';if(p>=14)return'A';if(p>=11)return'B+';if(p>=9)return'B';return'B-'}}
 function gradeClass(g) {{return {{'A+':'aplus','A':'a','B+':'bplus','B':'b','B-':'c'}}[g]||'c'}}
-function probColor(p) {{if(p>=15)return'var(--green)';if(p>=10)return'var(--accent)';return'var(--dim)'}}
+function probColor(p) {{var pct=p*100;if(pct>=15)return'var(--green)';if(pct>=10)return'var(--accent)';return'var(--dim)'}}
 
 function initTabs() {{
   const tabs = document.getElementById('race-tabs');
@@ -404,7 +404,7 @@ function renderDashboard() {{
         '<div class="rc-rank">' + h.rank + '</div>' +
         '<div class="rc-name">#' + h.number + ' ' + h.name + posLabel + '<div style="font-size:.65rem;color:var(--dim);font-weight:400;margin-top:1px">' + h.jockey + ' | ' + h.trainer + '</div></div>' +
         '<div class="rc-odds">$' + h.win_odds + '</div>' +
-        '<div class="rc-prob" style="color:' + probColor(h.calibrated_prob) + '">' + h.calibrated_prob.toFixed(1) + '%</div>' +
+        '<div class="rc-prob" style="color:' + probColor(h.calibrated_prob) + '">' + (h.calibrated_prob * 100).toFixed(1) + '%</div>' +
         '<div class="bt" style="background:' + betBg(h.bet_recommendation) + ';color:' + betColor(h.bet_recommendation) + '">' + h.bet_recommendation + '</div>' +
       '</div>';
     }});
@@ -715,8 +715,8 @@ function renderRaceDetail(race) {{
   const top = race.horses[0];
 
   const topBet = top ? top.bet_recommendation : 'N/A';
-  const topML = top ? top.ml_prob.toFixed(1) : '0';
-  const topCal = top ? top.calibrated_prob.toFixed(1) : '0';
+  const topML = top ? (top.ml_prob * 100).toFixed(1) : '0';
+  const topCal = top ? (top.calibrated_prob * 100).toFixed(1) : '0';
 
   let html = '<div class="detail-header">' +
     '<div><div class="detail-title">Race ' + race.race_number + '</div><div class="detail-meta">' + race.time + ' | ' + race.distance + 'm | ' + race.class_type + ' | ' + race.going + '</div></div>' +
@@ -786,8 +786,8 @@ function renderRaceDetail(race) {{
       '<td>' + h.draw + '</td>' +
       '<td style="color:var(--cyan)">$' + h.win_odds + '</td>' +
       finCell +
-      '<td>' + h.ml_prob.toFixed(1) + '%</td>' +
-      '<td style="color:' + probColor(h.calibrated_prob) + '">' + h.calibrated_prob.toFixed(1) + '%</td>' +
+      '<td>' + (h.ml_prob * 100).toFixed(1) + '%</td>' +
+      '<td style="color:' + probColor(h.calibrated_prob) + '">' + (h.calibrated_prob * 100).toFixed(1) + '%</td>' +
       '<td><div class="bt" style="background:' + betBg(h.bet_recommendation) + ';color:' + betColor(h.bet_recommendation) + '">' + h.bet_recommendation + '</div></td>' +
       '<td class="reasoning-cell">' + reasoning + '</td>' +
     '</tr>';
