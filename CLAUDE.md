@@ -14,6 +14,7 @@ python3 generate_predictions.py '2026/04/15'
 python3 scrape_history.py                    # Last 10 meeting dates
 python3 scrape_history.py --date 2026/04/09  # Specific date
 python3 scrape_history.py --rankings         # Scrape full-season jockey/trainer stats from HKJC
+python3 scrape_history.py --days 90          # Look back 90 days (default: 60)
 
 # Fetch results after races, score predictions, regenerate dashboard with results overlay
 python3 results_fetcher.py '2026/04/15'
@@ -44,10 +45,19 @@ train_ml_model.py → models/hkjc_racing_model.pkl
 ### Scoring System
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
-- **Rule engine (75%)**: 26 factors with dynamic weighting — factors with missing data are excluded and remaining weights renormalize to 1.0. Factors grouped into Core (~56%), Expert (~37%), Technical (~7%).
+- **Rule engine (75%)**: 26 factors with dynamic weighting — factors with missing data are excluded and remaining weights renormalize to 1.0. Approximate grouping: Core (rating, form, odds, jockey, trainer, draw, tips), Expert (going, rolling form, margins, field size, career stats), Technical (pace, sectionals, C&D, class movement, gear, weight, freshness). Actual percentages vary per race due to renormalization.
 - **ML model (25%)**: XGBoost classifier with 14 features (`ml_predictor.py`). Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `train_ml_model.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
 
 The 12 specialized analyzers live in `advanced_analytics.py` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change).
+
+### Supplementary Scripts
+
+- `odds_tracker.py` / `odds_scraper.py` — SQLite odds history, movement tracking, multi-method odds fetching.
+- `betting_optimizer.py` — Kelly Criterion value bet optimization.
+- `interactive_analyzer.py` — Interactive mode with manual odds input.
+- `racing_scheduler.py` — Automated daily race analysis scheduler.
+- `results_tracker.py` / `update_results.py` — Track predictions vs actuals, manual result entry.
+- `mark6_analyzer.py` — HKJC Mark Six lottery analyzer (separate from racing).
 
 ### Key Data Structures
 
