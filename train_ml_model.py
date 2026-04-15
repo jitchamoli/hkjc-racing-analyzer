@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hkjc_data_fetcher import HKJCApiClient, HKJCParser, HKJCDataFetcher
 from ml_predictor import (
     FeatureEngineering, HKJCRacingMLModel, RaceResult,
-    generate_synthetic_training_data, ML_AVAILABLE
+    generate_synthetic_training_data, build_training_data_from_db, ML_AVAILABLE
 )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -228,30 +228,37 @@ def main():
             json.dump(all_races, f)
         logger.info(f"Saved {len(all_races)} total races to {TRAINING_DATA_FILE}")
 
-    # Step 3: Build features
-    total_entries = sum(len(r['entries']) for r in all_races)
-    logger.info(f"Building features from {len(all_races)} races, {total_entries} entries...")
+    # Step 3: Build features — prefer DB data (richer, more complete)
+    X_db, y_db, sw_db = build_training_data_from_db()
 
-    X_real, y_real = build_training_data(all_races)
-    logger.info(f"Real data: {X_real.shape[0]} samples, {y_real.sum():.0f} winners "
-                f"({y_real.mean()*100:.1f}% win rate)")
-
-    # Step 4: Augment with synthetic data if real data is small
-    if X_real.shape[0] < 500:
-        logger.info("Augmenting with synthetic data (real data < 500 samples)...")
-        X_syn, y_syn = generate_synthetic_training_data(2000)
-        X_combined = np.vstack([X_real, X_syn])
-        y_combined = np.concatenate([y_real, y_syn])
-        # Weight real data 3x more than synthetic
-        sample_weights = np.ones(len(y_combined))
-        sample_weights[:len(y_real)] = 3.0
-        logger.info(f"Combined: {X_combined.shape[0]} samples "
-                    f"(real={X_real.shape[0]}, synthetic={X_syn.shape[0]})")
+    if X_db is not None and len(X_db) >= 200:
+        logger.info(f"Using DB training data: {len(X_db)} samples, "
+                    f"{y_db.sum():.0f} winners ({y_db.mean()*100:.1f}%)")
+        X_combined = X_db
+        y_combined = y_db
+        sample_weights = sw_db
     else:
-        X_combined = X_real
-        y_combined = y_real
-        sample_weights = None
-        logger.info("Enough real data — training without synthetic augmentation")
+        # Fallback to scraped training_data
+        total_entries = sum(len(r['entries']) for r in all_races)
+        logger.info(f"Building features from {len(all_races)} scraped races, {total_entries} entries...")
+        X_real, y_real = build_training_data(all_races)
+        logger.info(f"Scraped data: {X_real.shape[0]} samples, {y_real.sum():.0f} winners "
+                    f"({y_real.mean()*100:.1f}% win rate)")
+
+        if X_real.shape[0] < 500:
+            logger.info("Augmenting with synthetic data (real data < 500 samples)...")
+            X_syn, y_syn = generate_synthetic_training_data(2000)
+            X_combined = np.vstack([X_real, X_syn])
+            y_combined = np.concatenate([y_real, y_syn])
+            sample_weights = np.ones(len(y_combined))
+            sample_weights[:len(y_real)] = 3.0
+            logger.info(f"Combined: {X_combined.shape[0]} samples "
+                        f"(real={X_real.shape[0]}, synthetic={X_syn.shape[0]})")
+        else:
+            X_combined = X_real
+            y_combined = y_real
+            sample_weights = None
+            logger.info("Enough real data — training without synthetic augmentation")
 
     # Step 5: Train model
     if not ML_AVAILABLE:

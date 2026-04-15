@@ -444,7 +444,7 @@ function showRace(raceNum) {{
 function buildStrategyPanel(race) {{
   var horses = race.horses;
   var active = horses.filter(function(h) {{ return h.bet_recommendation !== 'SKIP'; }});
-  if (!active.length) return '<div class="strategy-panel"><h3>Strategy: SKIP</h3><p style="color:var(--dim);font-size:.82rem">No value bets identified. Consider sitting this race out.</p></div>';
+  if (!active.length) return '<div class="strategy-panel"><h3>Strategy: SKIP</h3><p style="color:var(--dim);font-size:.82rem">No strong picks in this race. Save your money for a better one.</p></div>';
 
   // Determine primary bet type
   var betTypes = {{}};
@@ -463,13 +463,13 @@ function buildStrategyPanel(race) {{
   var top3 = horses.slice(0, 3);
   var gap = top3.length >= 2 ? (top3[0].calibrated_prob - top3[1].calibrated_prob) : 0;
   var topShare = top3.reduce(function(s, h) {{ return s + h.calibrated_prob; }}, 0);
-  var fieldType = gap > 0.05 ? 'Dominant favourite' : gap > 0.02 ? 'Clear leader' : topShare > 0.4 ? 'Competitive top 3' : 'Wide open';
+  var fieldType = gap > 0.05 ? 'One horse stands out' : gap > 0.02 ? 'Clear top pick' : topShare > 0.4 ? 'Top 3 are close' : 'Wide open race';
 
-  // Value bets (positive EV)
+  // Best bets (odds in our favour)
   var valueBets = horses.filter(function(h) {{ return h.expected_return > 0.05 && h.bet_recommendation !== 'SKIP'; }});
 
   var s = '<div class="strategy-panel">';
-  s += '<h3 style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="font-size:1.1rem">Betting Strategy</span><span style="font-size:.7rem;padding:3px 10px;border-radius:12px;background:' + betBg(primaryBet) + ';color:' + betColor(primaryBet) + ';font-weight:700">' + primaryBet + ' RACE</span><span style="font-size:.72rem;color:var(--dim)">' + fieldType + ' | ' + race.horses.length + ' runners</span></h3>';
+  s += '<h3 style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="font-size:1.1rem">What To Bet</span><span style="font-size:.7rem;padding:3px 10px;border-radius:12px;background:' + betBg(primaryBet) + ';color:' + betColor(primaryBet) + ';font-weight:700">' + primaryBet + '</span><span style="font-size:.72rem;color:var(--dim)">' + fieldType + ' | ' + race.horses.length + ' runners</span></h3>';
 
   // Primary recommendation
   s += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:14px">';
@@ -490,13 +490,14 @@ function buildStrategyPanel(race) {{
 
   if (winPicks.length && !bankerPicks.length) {{
     winPicks.forEach(function(h) {{
-      var evColor = h.expected_return > 0 ? 'var(--green)' : 'var(--red)';
+      var edgeLabel = h.expected_return > 0 ? 'Good odds' : 'Tight odds';
+      var edgeColor = h.expected_return > 0 ? 'var(--green)' : 'var(--dim)';
       s += '<div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.25);border-radius:10px;padding:12px 16px">'
         + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
         + '<span style="font-size:.72rem;font-weight:700;color:var(--green);text-transform:uppercase">WIN Bet</span>'
-        + '<span style="font-size:.72rem;color:' + evColor + ';font-weight:700">EV: ' + (h.expected_return * 100).toFixed(0) + '%</span></div>'
+        + '<span style="font-size:.72rem;color:' + edgeColor + ';font-weight:700">' + edgeLabel + '</span></div>'
         + '<div style="font-size:1rem;font-weight:800">#' + h.number + ' ' + h.name + '</div>'
-        + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + h.jockey + ' | $' + h.win_odds + ' | ' + (h.calibrated_prob * 100).toFixed(1) + '% chance</div>'
+        + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + h.jockey + ' | $' + h.win_odds + ' | ' + (h.calibrated_prob * 100).toFixed(1) + '% win chance</div>'
         + '</div>';
     }});
   }}
@@ -547,14 +548,14 @@ function buildStrategyPanel(race) {{
 
   s += '</div>';
 
-  // Value alerts
+  // Best value picks — odds are better than they should be
   if (valueBets.length) {{
     s += '<div style="background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:10px 14px;margin-bottom:10px">'
-      + '<div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:6px">VALUE ALERTS (Positive Expected Value)</div>';
+      + '<div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:6px">BEST VALUE — Odds are in our favour</div>';
     valueBets.forEach(function(h) {{
       s += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:.8rem">'
         + '<span><span style="font-weight:700">#' + h.number + '</span> ' + h.name + ' @ $' + h.win_odds + '</span>'
-        + '<span style="color:var(--green);font-weight:700">+' + (h.expected_return * 100).toFixed(0) + '% EV</span></div>';
+        + '<span style="color:var(--green);font-weight:700">Paying more than it should</span></div>';
     }});
     s += '</div>';
   }}
@@ -604,76 +605,91 @@ function buildWhatsAppText(race) {{
   var top3 = h.slice(0, 3);
   var gap = top3.length >= 2 ? (top3[0].calibrated_prob - top3[1].calibrated_prob) : 0;
   var topShare = top3.reduce(function(s, x) {{ return s + x.calibrated_prob; }}, 0);
-  var fieldType = gap > 0.05 ? 'Dominant favourite' : gap > 0.02 ? 'Clear leader' : topShare > 0.4 ? 'Competitive top 3' : 'Wide open';
-  var bestBet = bankerPicks.length ? 'BANKER' : winPicks.length ? 'WIN' : qinPicks.length >= 2 ? 'QIN' : qnlPicks.length >= 2 ? 'QNL' : trioPicks.length >= 3 ? 'TRIO' : placePicks.length ? 'PLACE' : '';
+  var fieldType = gap > 0.05 ? 'One horse stands out' : gap > 0.02 ? 'Clear top pick' : topShare > 0.4 ? 'Top 3 are close' : 'Wide open race';
 
   var t = '';
-  t += '\\ud83c\\udfc7 *R' + race.race_number + ' ' + race.venue + '* ' + race.time + ' | ' + race.distance + 'm | ' + (race.class_type || '') + ' | ' + (race.going || '') + '\\n';
-  t += fieldType + ' | ' + race.horses.length + ' runners\\n';
-  t += '\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n';
 
-  // Top 4 picks with key factors
-  h.slice(0, 4).forEach(function(x) {{
-    var medal = x.rank === 1 ? '\\ud83e\\udd47' : x.rank === 2 ? '\\ud83e\\udd48' : x.rank === 3 ? '\\ud83e\\udd49' : '4\\ufe0f\\u20e3';
-    t += medal + ' #' + x.number + ' *' + x.name + '* @ $' + x.win_odds + ' (' + (x.calibrated_prob * 100).toFixed(1) + '%)\\n';
-    // Key ML/rule factors (top 3 reasoning points)
-    var reasons = x.reasoning || [];
-    if (reasons.length) {{
-      var topReasons = reasons.slice(0, 3).join(' | ');
-      t += '   \\u2514 ' + topReasons + '\\n';
-    }}
-  }});
+  // ── HEADER ──
+  t += '\\ud83c\\udfc7 *R' + race.race_number + ' — ' + race.venue + ' ' + race.time + '*\\n';
+  t += race.distance + 'm | ' + (race.class_type || '') + ' | ' + (race.going || '') + ' | ' + h.length + ' runners\\n';
+  t += fieldType + '\\n';
 
-  t += '\\n\\ud83c\\udfaf *BET STRATEGY* (' + (bestBet || 'SKIP') + ')\\n';
-
-  if (bankerPicks.length) {{
-    bankerPicks.forEach(function(x) {{
-      t += '\\ud83d\\udca5 *BANKER WIN* #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + ' (' + (x.calibrated_prob * 100).toFixed(1) + '%) \\u2b05 BEST\\n';
-    }});
-  }}
-
-  if (winPicks.length && !bankerPicks.length) {{
-    winPicks.forEach(function(x) {{
-      t += '\\u2705 *WIN* #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + ' (EV: ' + (x.expected_return > 0 ? '+' : '') + (x.expected_return * 100).toFixed(0) + '%)' + (bestBet === 'WIN' ? ' \\u2b05 BEST' : '') + '\\n';
-    }});
-  }}
-
-  if (qinPicks.length >= 2) {{
-    t += '\\ud83d\\udd04 *QIN* ' + qinPicks.map(function(x) {{ return '#' + x.number + ' ' + x.name; }}).join(' + ') + (bestBet === 'QIN' ? ' \\u2b05 BEST' : '') + '\\n';
-    t += '   1st & 2nd any order\\n';
-  }}
-
-  if (qnlPicks.length >= 2) {{
-    t += '\\ud83d\\udd35 *QNL PL* ' + qnlPicks.map(function(x) {{ return '#' + x.number + ' ' + x.name; }}).join(' + ') + (bestBet === 'QNL' ? ' \\u2b05 BEST' : '') + '\\n';
-    t += '   Both in top 3 any order\\n';
-  }}
-
-  if (trioPicks.length >= 3) {{
-    t += '\\ud83d\\udccd *TRIO* ' + trioPicks.map(function(x) {{ return '#' + x.number + ' ' + x.name; }}).join(' + ') + (bestBet === 'TRIO' ? ' \\u2b05 BEST' : '') + '\\n';
-    t += '   1st, 2nd & 3rd any order\\n';
-  }}
-
-  if (placePicks.length) {{
-    t += '\\ud83d\\udfe3 *PLACE* ' + placePicks.map(function(x) {{ return '#' + x.number + ' ' + x.name + ' $' + x.win_odds; }}).join(', ') + (bestBet === 'PLACE' ? ' \\u2b05 BEST' : '') + '\\n';
-  }}
-
-  // Value alerts
-  if (valueBets.length) {{
-    t += '\\n\\ud83d\\udcb0 *VALUE* ';
-    t += valueBets.map(function(x) {{ return '#' + x.number + ' ' + x.name + ' +' + (x.expected_return * 100).toFixed(0) + '% EV'; }}).join(', ') + '\\n';
-  }}
-
-  // Wildcard
-  if (dangers.length && h.length >= 3) {{
-    var wd = dangers[0];
-    t += '\\ud83c\\udfb2 *WILDCARD* #' + h[0].number + '+#' + h[1].number + '+#' + wd.number + ' ' + wd.name + ' $' + wd.win_odds + '\\n';
-  }}
+  // ── QUICK ACTION (what to bet) ──
+  t += '\\n\\ud83c\\udfaf *WHAT TO BET:*\\n';
 
   if (!active.length) {{
-    t += '\\u274c *SKIP* - No value\\n';
+    t += '\\u274c SKIP this race — no strong picks\\n';
+  }} else {{
+    if (bankerPicks.length) {{
+      bankerPicks.forEach(function(x) {{
+        t += '\\ud83d\\udca5 *BANKER* \\u2192 #' + x.number + ' ' + x.name + ' WIN @ $' + x.win_odds + '\\n';
+        t += '     Confidence: ' + (x.calibrated_prob * 100).toFixed(0) + '% | Strong bet\\n';
+      }});
+    }}
+
+    if (winPicks.length && !bankerPicks.length) {{
+      winPicks.forEach(function(x) {{
+        t += '\\u2705 *WIN* \\u2192 #' + x.number + ' ' + x.name + ' @ $' + x.win_odds;
+        if (x.expected_return > 0) t += ' (good odds)';
+        t += '\\n';
+      }});
+    }}
+
+    if (qinPicks.length >= 2) {{
+      t += '\\ud83d\\udd04 *QUINELLA* \\u2192 ';
+      t += qinPicks.map(function(x) {{ return '#' + x.number; }}).join(' \\u00d7 ') + '\\n';
+      t += '     ' + qinPicks.map(function(x) {{ return x.name; }}).join(' & ') + '\\n';
+      t += '     (1st & 2nd in any order)\\n';
+    }}
+
+    if (qnlPicks.length >= 2) {{
+      t += '\\ud83d\\udd35 *QNL PLACE* \\u2192 ';
+      t += qnlPicks.map(function(x) {{ return '#' + x.number; }}).join(' \\u00d7 ') + '\\n';
+      t += '     ' + qnlPicks.map(function(x) {{ return x.name; }}).join(' & ') + '\\n';
+      t += '     (Both finish top 3 in any order)\\n';
+    }}
+
+    if (trioPicks.length >= 3) {{
+      t += '\\ud83d\\udccd *TRIO* \\u2192 ';
+      t += trioPicks.map(function(x) {{ return '#' + x.number; }}).join(' \\u00d7 ') + '\\n';
+      t += '     ' + trioPicks.map(function(x) {{ return x.name; }}).join(' + ') + '\\n';
+      t += '     (1st, 2nd & 3rd in any order)\\n';
+    }}
+
+    if (placePicks.length) {{
+      placePicks.forEach(function(x) {{
+        t += '\\ud83d\\udfe3 *PLACE* \\u2192 #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + '\\n';
+        t += '     (Finish top 3)\\n';
+      }});
+    }}
+
+    if (valueBets.length) {{
+      t += '\\n\\ud83d\\udcb0 *BEST VALUE:*\\n';
+      valueBets.forEach(function(x) {{
+        t += '     #' + x.number + ' ' + x.name + ' @ $' + x.win_odds + ' \\u2192 Odds better than expected\\n';
+      }});
+    }}
   }}
 
-  t += '\\n_\\u26a0\\ufe0f For entertainment only. Gamble responsibly._';
+  // ── TOP PICKS (analysis) ──
+  t += '\\n\\ud83d\\udcca *TOP PICKS:*\\n';
+  h.slice(0, 4).forEach(function(x) {{
+    var medal = x.rank === 1 ? '\\ud83e\\udd47' : x.rank === 2 ? '\\ud83e\\udd48' : x.rank === 3 ? '\\ud83e\\udd49' : '4\\ufe0f\\u20e3';
+    var bet = x.bet_recommendation !== 'SKIP' ? ' \\u2192 ' + x.bet_recommendation : '';
+    t += medal + ' #' + x.number + ' *' + x.name + '* $' + x.win_odds + ' (' + (x.calibrated_prob * 100).toFixed(1) + '%)' + bet + '\\n';
+
+    // Top 3 reasons, one per line for readability
+    var reasons = x.reasoning || [];
+    reasons.slice(0, 3).forEach(function(r) {{
+      t += '      \\u2022 ' + r + '\\n';
+    }});
+  }});
+
+  // Wildcard longshot trio suggestion
+  if (dangers.length && active.length) {{
+    var wd = dangers[0];
+    t += '\\n\\ud83c\\udfb2 *LONGSHOT TRIO:* #' + h[0].number + ' \\u00d7 #' + h[1].number + ' \\u00d7 #' + wd.number + ' (' + wd.name + ' @ $' + wd.win_odds + ')\\n';
+  }}
 
   return t;
 }}
@@ -681,7 +697,7 @@ function buildWhatsAppText(race) {{
 function copyToWhatsApp(raceNum) {{
   var race = RACES.find(function(r) {{ return r.race_number === raceNum; }});
   if (!race) return;
-  var text = buildWhatsAppText(race).replace(/\\n{3,}/g, '\\n\\n').trim();
+  var text = buildWhatsAppText(race).replace(/\\n{{3,}}/g, '\\n\\n').trim();
   navigator.clipboard.writeText(text).then(function() {{
     var btn = document.getElementById('wa-btn-' + raceNum);
     if (btn) {{
@@ -698,12 +714,14 @@ function copyToWhatsApp(raceNum) {{
 }}
 
 function copyAllToWhatsApp() {{
-  var text = '\\ud83c\\udfc7 *HKJC RACE DAY - ' + RACE_DATE + '*\\n';
+  var text = '\\ud83c\\udfc7 *HKJC RACE DAY — ' + RACE_DATE + '*\\n';
+  text += '\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n\\n';
   RACES.forEach(function(race) {{
-    text += buildWhatsAppText(race) + '\\n';
+    text += buildWhatsAppText(race) + '\\n\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n\\n';
   }});
-  text += '\\n_HKJC Analyzer v5.0 | 26 Factors | Real Data ML_';
-  text = text.replace(/\\n{3,}/g, '\\n\\n').trim();
+  text += '_\\u26a0\\ufe0f For entertainment only. Gamble responsibly._\\n';
+  text += '_HKJC Analyzer | 26 Factors + ML_';
+  text = text.replace(/\\n{{3,}}/g, '\\n\\n').trim();
   navigator.clipboard.writeText(text).then(function() {{
     var btn = document.getElementById('wa-btn-all');
     if (btn) {{

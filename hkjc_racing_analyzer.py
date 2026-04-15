@@ -1143,6 +1143,9 @@ class CombinedRaceAnalyzer:
             "gear": horse.gear if hasattr(horse, 'gear') else "",
             "weight": horse.weight,
             "class_type": race.class_type,
+            "field_size": len(all_horses),
+            "going": race.going if hasattr(race, 'going') else "",
+            "days_since_last_run": horse.days_since_last_run if hasattr(horse, 'days_since_last_run') else 0,
         }
 
         ml_prediction = self.ml_analyzer.predict(horse_data, all_results or [], "")
@@ -1155,6 +1158,10 @@ class CombinedRaceAnalyzer:
             ml_available=ML_AVAILABLE,
         )
 
+        # value_score blends rule + ML (on 0-100 scale) for ranking
+        # combined_prob is 0-1 scale; convert back to 0-100 for value_score
+        value_score = combined_prob * 100
+
         # Store raw combined score — bet recommendation assigned at race level
         return HorseAnalysis(
             horse=horse,
@@ -1164,7 +1171,7 @@ class CombinedRaceAnalyzer:
             ml_prediction=ml_prediction,
             combined_probability=combined_prob,
             combined_confidence=combined_confidence,
-            value_score=rule_score,
+            value_score=value_score,
             expected_return=0.0,  # calculated at race level
             bet_recommendation="",  # assigned at race level
             reasoning=reasoning,
@@ -1338,19 +1345,36 @@ class CombinedRaceAnalyzer:
                 race_bet_type = "QNL PL"  # very tight top 2
         # else: stays QIN (default)
 
+        # --- Race-level skip: if our top pick has no edge, skip entire race ---
+        # Minimum EV threshold: only bet if expected return > 5%
+        MIN_EV = 0.05
+        # Minimum probability edge over market: our prob must exceed implied prob
+        top_ev = analyses[0].expected_return if analyses else -1
+        top_cal_prob = calibrated_probs[0] if calibrated_probs else 0
+        top_market_prob = (1 / analyses[0].horse.win_odds) if analyses and analyses[0].horse.win_odds > 0 else 1
+        has_edge = top_cal_prob > top_market_prob  # we rate horse higher than market does
+
+        skip_race = top_ev < MIN_EV and not has_edge and not (banker_horse and banker_horse.rank == 1)
+
         for i, a in enumerate(analyses):
             rank = a.rank
+
+            # Skip entire race if no edge found
+            if skip_race:
+                a.bet_recommendation = "SKIP"
+                continue
+
+            # Per-bet EV filter: each individual bet must have positive EV
+            # (relaxed for rank 1-2 in QIN since they work as a pair)
+            bet_has_ev = a.expected_return >= MIN_EV
             # Use place odds if available, otherwise estimate from win odds
             has_place_value = (a.horse.place_odds > 1.2) if a.horse.place_odds > 0 else (a.horse.win_odds >= 3.0)
 
             if race_bet_type == "WIN":
                 if rank == 1:
-                    # Check if this horse has BANKER flag in reasoning
                     is_banker = any("BANKER" in r for r in a.reasoning)
                     a.bet_recommendation = "BANKER WIN" if is_banker else "WIN"
-                elif rank == 2 and (a.expected_return > 0.0 or has_place_value):
-                    a.bet_recommendation = "PLACE"
-                elif rank == 3 and has_place_value:
+                elif rank == 2 and bet_has_ev and has_place_value:
                     a.bet_recommendation = "PLACE"
                 else:
                     a.bet_recommendation = "SKIP"
@@ -1358,7 +1382,7 @@ class CombinedRaceAnalyzer:
             elif race_bet_type == "QIN":
                 if rank <= 2:
                     a.bet_recommendation = "QIN"
-                elif rank == 3 and has_place_value:
+                elif rank == 3 and bet_has_ev and has_place_value:
                     a.bet_recommendation = "PLACE"
                 else:
                     a.bet_recommendation = "SKIP"
@@ -1366,7 +1390,7 @@ class CombinedRaceAnalyzer:
             elif race_bet_type == "QNL PL":
                 if rank <= 2:
                     a.bet_recommendation = "QNL PL"
-                elif rank == 3 and has_place_value:
+                elif rank == 3 and bet_has_ev and has_place_value:
                     a.bet_recommendation = "PLACE"
                 else:
                     a.bet_recommendation = "SKIP"
@@ -1374,15 +1398,15 @@ class CombinedRaceAnalyzer:
             elif race_bet_type == "TRIO":
                 if rank <= 3:
                     a.bet_recommendation = "TRIO"
-                elif rank == 4 and has_place_value:
+                elif rank == 4 and bet_has_ev and has_place_value:
                     a.bet_recommendation = "PLACE"
                 else:
                     a.bet_recommendation = "SKIP"
 
             elif race_bet_type == "PLACE":
-                if rank <= 2:
+                if rank <= 2 and bet_has_ev:
                     a.bet_recommendation = "PLACE"
-                elif rank == 3 and (a.expected_return > 0.0 or has_place_value):
+                elif rank == 3 and bet_has_ev and has_place_value:
                     a.bet_recommendation = "PLACE"
                 else:
                     a.bet_recommendation = "SKIP"

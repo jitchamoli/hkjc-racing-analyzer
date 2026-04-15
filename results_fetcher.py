@@ -598,17 +598,20 @@ def auto_learn(race_date: str = None):
 
     # 2. Retrain ML model
     logger.info("Auto-retraining ML model...")
-    result = subprocess.run(
-        [sys.executable, str(Path(__file__).parent / 'train_ml_model.py')],
-        capture_output=True, text=True, timeout=300
-    )
-    if result.returncode == 0:
-        # Extract accuracy from output
-        for line in result.stdout.split('\n'):
-            if 'Win accuracy' in line:
-                logger.info(f"ML retrain: {line.strip()}")
-    else:
-        logger.warning(f"ML retrain failed: {result.stderr[:200]}")
+    try:
+        result = subprocess.run(
+            [sys.executable, str(Path(__file__).parent / 'train_ml_model.py')],
+            capture_output=True, text=True, timeout=300
+        )
+        if result.returncode == 0:
+            # Extract accuracy from output
+            for line in result.stdout.split('\n'):
+                if 'Win accuracy' in line:
+                    logger.info(f"ML retrain: {line.strip()}")
+        else:
+            logger.warning(f"ML retrain failed: {result.stderr[:200]}")
+    except subprocess.TimeoutExpired:
+        logger.warning("ML retrain timed out (300s) — run 'python3 train_ml_model.py' manually")
 
 
 if __name__ == '__main__':

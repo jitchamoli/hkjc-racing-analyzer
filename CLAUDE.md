@@ -45,7 +45,7 @@ train_ml_model.py → models/hkjc_racing_model.pkl
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
 - **Rule engine (75%)**: 26 factors with dynamic weighting — factors with missing data are excluded and remaining weights renormalize to 1.0. Factors grouped into Core (~56%), Expert (~37%), Technical (~7%).
-- **ML model (25%)**: XGBoost classifier with 14 features (`ml_predictor.py`). Trained on real race results from DB; falls back to synthetic data if <50 results.
+- **ML model (25%)**: XGBoost classifier with 14 features (`ml_predictor.py`). Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `train_ml_model.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
 
 The 12 specialized analyzers live in `advanced_analytics.py` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change).
 
@@ -92,3 +92,34 @@ Uses Playwright to scrape HKJC results pages (JS-rendered). Extracts from result
 - The HTML parser (`HKJCParser`) expects specific HKJC table layouts (27 cells per row with documented column indices). HKJC site changes can break parsing — check `_parse_horse_table()` if horses come back empty.
 - ML model saved as pickle dict with keys: `model`, `version`, `feature_importance`, `trained_date`.
 - Dashboard probabilities are stored as decimals (0.178) in JSON but displayed as percentages (17.8%) — multiply by 100 in JavaScript display code.
+
+## ML Model — Lessons Learned (2026-04-15 Audit)
+
+### Critical Rules for ML Features
+
+1. **No data leakage**: Every feature must use ONLY data available BEFORE the race. Never use finish_position, finish_time, running_position, or margin from the CURRENT race. For horse history features (C&D form, pace, speed), use strictly `prior_date < current_date`.
+
+2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. The DB (race_results) has different fields than race cards: rating, last_6, gear are ~97% missing in DB but always present on race cards. Use DB-available proxies (prior finishes, prior win rate) instead.
+
+3. **No constant features**: If a feature has std < 0.01 in training data, it's wasted. Common cause: field is mostly null and falls back to 0.5. Check with `np.std()` after building features.
+
+4. **value_score must use ML blend**: `value_score` in HorseAnalysis feeds `combined_score` in the JSON. It must be `combined_prob * 100` (the 75/25 rule+ML blend), NOT raw `rule_score`.
+
+### Current 14 ML Features (all prior-race only)
+
+`prior_win_rate, recent_form, draw_advantage, jockey_win_rate, trainer_win_rate, field_size, field_rel_draw, prior_pace, prior_speed, cd_form_prior, odds_implied_prob, class_level, freshness, going_pref`
+
+Top signal: `odds_implied_prob` (17.9%) — market odds are the single best predictor.
+
+### DB Data Gaps
+
+- `rating`, `last_6`, `gear`, `age`, `rating_change` — only populated for dates where predictions were generated before results ingestion (~3% of rows). The scraper (`scrape_history.py`) doesn't capture these from results pages.
+- `running_position` has two formats: space-separated (`"6 5 6"`) and concatenated (`"665"`). Always handle both when parsing.
+- `horse_weight` is in lbs (900-1350 range), `weight` is carried weight assignment (113-133 lbs).
+
+### Betting Strategy
+
+- Race-skip logic: if top pick has no edge over market odds AND expected return < 5%, skip entire race.
+- Per-bet EV filter: each bet must have expected return ≥ 5% (except rank 1-2 in QIN which work as a pair).
+- Races without live odds (pre-race or post-race) will show all SKIP — this is correct behaviour.
+- `results_fetcher.py --auto-learn` retraining timeout is caught gracefully; run `python3 train_ml_model.py` separately if it times out.

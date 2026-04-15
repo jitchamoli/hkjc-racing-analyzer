@@ -222,7 +222,7 @@ class FeatureEngineering:
     @staticmethod
     def calculate_win_rate(history: List[RaceResult]) -> float:
         if not history:
-            return 0.15
+            return 0.08  # ~1/12 base rate for typical HK field
         
         wins = sum(1 for r in history if r.is_win)
         return min(0.8, wins / len(history))
@@ -230,7 +230,7 @@ class FeatureEngineering:
     @staticmethod
     def calculate_place_rate(history: List[RaceResult]) -> float:
         if not history:
-            return 0.35
+            return 0.25  # ~3/12 base rate for typical HK field
         
         places = sum(1 for r in history if r.is_place)
         return min(0.9, places / len(history))
@@ -291,87 +291,164 @@ class FeatureEngineering:
 
     @staticmethod
     def extract_features(horse_data: dict, all_results: List[RaceResult], venue: str) -> np.ndarray:
+        """Extract 14 features matching training features exactly.
+
+        Must match build_training_data_from_db() feature order:
+        1. prior_win_rate  2. recent_form  3. draw_advantage
+        4. jockey_win_rate 5. trainer_win_rate 6. field_size
+        7. field_rel_draw  8. prior_pace   9. prior_speed
+        10. cd_form_prior  11. odds_implied 12. class_level
+        13. freshness      14. going_pref
+        """
+        import sqlite3
+        from pathlib import Path
+
         features = []
+        horse_name = horse_data.get('name', '')
+        distance = horse_data.get('distance', 1200)
+        going = horse_data.get('going', '')
 
-        # Original 6 features
-        features.append(horse_data.get('rating', 70) / 100)
-        features.append(FeatureEngineering.calculate_form_score(horse_data.get('last_6', '')) / 100)
-        features.append(FeatureEngineering.calculate_draw_advantage(
-            horse_data.get('draw', 8),
-            horse_data.get('distance', 1200)
-        ))
+        # Load prior race history from DB
+        prior = []
+        try:
+            db_path = Path(__file__).parent / 'tracking_data' / 'horse_history.db'
+            if db_path.exists():
+                conn = sqlite3.connect(str(db_path))
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(
+                    "SELECT * FROM race_results WHERE horse_name = ? ORDER BY race_date",
+                    (horse_name,)
+                ).fetchall()
+                prior = [dict(r) for r in rows]
+                conn.close()
+        except Exception:
+            pass
 
+        # Feature 1: prior win rate
+        if prior:
+            prior_wins = sum(1 for p in prior if p.get('is_winner', 0))
+            prior_top3 = sum(1 for p in prior if p.get('is_top3', 0))
+            feat_form_proxy = min(1.0, (prior_wins * 2 + prior_top3) / (len(prior) * 3))
+        else:
+            feat_form_proxy = 0.5
+        features.append(feat_form_proxy)
+
+        # Feature 2: recent form from prior finishes
+        if prior:
+            recent = prior[-6:]
+            form_pts = 0
+            for p in recent:
+                pos = p.get('finish_position', 7)
+                if pos == 1: form_pts += 10
+                elif pos == 2: form_pts += 7
+                elif pos == 3: form_pts += 5
+                elif pos <= 5: form_pts += 2
+            features.append(form_pts / (len(recent) * 10))
+        else:
+            # Fallback to race card last_6 if no DB history
+            last_6 = horse_data.get('last_6', '')
+            if last_6:
+                features.append(FeatureEngineering.calculate_form_score(last_6) / 100)
+            else:
+                features.append(0.5)
+
+        # Feature 3: draw advantage
+        draw = horse_data.get('draw', 8)
+        features.append(FeatureEngineering.calculate_draw_advantage(draw, distance))
+
+        # Feature 4: jockey win rate
         jockey = horse_data.get('jockey', '')
-        trainer = horse_data.get('trainer', '')
-
         jockey_rate = FeatureEngineering.calculate_jockey_win_rate(jockey, all_results)
+        features.append(min(0.5, jockey_rate) if jockey_rate > 0 else 0.08)
+
+        # Feature 5: trainer win rate
+        trainer = horse_data.get('trainer', '')
         trainer_rate = FeatureEngineering.calculate_trainer_win_rate(trainer, all_results)
+        features.append(min(0.4, trainer_rate) if trainer_rate > 0 else 0.06)
 
-        features.append(jockey_rate)
-        features.append(trainer_rate)
+        # Feature 6: field size
+        field_size = horse_data.get('field_size', 12)
+        features.append(field_size / 14.0)
 
-        features.append(1.0 if 'Sha Tin' in venue else 0.7)
+        # Feature 7: field-relative draw
+        features.append(draw / max(1, field_size) if draw > 0 else 0.5)
 
-        # 5 new features
-        # 7: rail_draw_bias (0-1 scale from draw analyzer)
-        features.append(features[2])  # Same as draw_advantage as baseline; enhanced externally
+        # Feature 8: prior pace (avg early position from prior races)
+        pace_vals = []
+        for p in prior[-5:]:
+            rp = p.get('running_position', '') or ''
+            if rp:
+                if ' ' in rp:
+                    positions = [int(x) for x in rp.split() if x.isdigit()]
+                else:
+                    positions = [int(c) for c in rp if c.isdigit()]
+                if positions:
+                    early = min(positions[0], 14)
+                    # Approximate field size from prior race
+                    pace_vals.append(1.0 - (early - 1) / 13.0)
+        features.append(sum(pace_vals) / len(pace_vals) if pace_vals else 0.5)
 
-        # 8: pace_advantage
-        features.append(FeatureEngineering._style_to_float(horse_data.get('running_style', 'Midfield')))
+        # Feature 9: prior finishing speed
+        speed_vals = []
+        for p in prior[-5:]:
+            ft = p.get('finish_time', '') or ''
+            d = p.get('distance', 0) or 0
+            if ft and ':' in ft and d > 0:
+                try:
+                    parts = ft.split(':')
+                    secs = float(parts[0]) * 60 + float(parts[1])
+                    if secs > 0:
+                        speed = d / secs
+                        speed_vals.append(max(0.0, min(1.0, (speed - 14) / 4)))
+                except (ValueError, IndexError):
+                    pass
+        features.append(sum(speed_vals) / len(speed_vals) if speed_vals else 0.5)
 
-        # 9: finishing_speed (last 400m normalized)
-        l4 = horse_data.get('last_400m_avg', 0.0)
-        if l4 > 0:
-            features.append(max(0.0, min(1.0, (25.0 - l4) / 5.0)))  # 20s=1.0, 25s=0.0
+        # Feature 10: C&D form from prior races at same distance
+        prior_at_dist = [p for p in prior if p.get('distance') == distance]
+        if prior_at_dist:
+            cd_wins = sum(1 for p in prior_at_dist if p.get('is_winner', 0))
+            features.append(min(1.0, cd_wins / len(prior_at_dist) + 0.2))
         else:
             features.append(0.5)
 
-        # 10: cd_form_score
-        cd_wins = horse_data.get('cd_wins', 0)
-        cd_runs = horse_data.get('cd_runs', 0)
-        if cd_runs > 0:
-            features.append(min(1.0, cd_wins / max(1, cd_runs) + 0.2))
-        else:
-            features.append(0.5)
+        # Feature 11: odds-implied probability
+        win_odds = horse_data.get('win_odds', 0)
+        features.append(min(1.0, 1.0 / win_odds) if win_odds > 0 else 0.5)
 
-        # 11: odds_movement_score
-        opening = horse_data.get('opening_odds', 0) or horse_data.get('tips_odds', 0)
-        current = horse_data.get('win_odds', 0)
-        if opening > 0 and current > 0:
-            pct = (opening - current) / opening
-            features.append(max(0.0, min(1.0, 0.5 + pct)))
-        else:
-            features.append(0.5)
-
-        # 12: class_movement (0=rise, 0.5=same, 1.0=drop)
-        class_type = horse_data.get('class_type', '')
+        # Feature 12: class level
         import re as _re
+        class_type = horse_data.get('class_type', '')
         cm = _re.search(r'(\d)', class_type)
         class_rank = int(cm.group(1)) if cm else 3
         features.append(max(0.0, min(1.0, class_rank / 5.0)))
 
-        # 13: gear_impact (0.5 = none, higher = positive gear)
-        gear = horse_data.get('gear', '')
-        if gear and gear.strip() not in ('--', '-', ''):
-            gear_upper = gear.strip().upper()
-            if 'B' in gear_upper:
-                features.append(0.72)
-            elif 'TT' in gear_upper:
-                features.append(0.65)
-            elif 'V' in gear_upper:
-                features.append(0.62)
-            else:
-                features.append(0.55)
+        # Feature 13: freshness (days since last run)
+        dslr = horse_data.get('days_since_last_run', 0) or 0
+        if not dslr and prior:
+            # Estimate from last prior race date
+            last_date = prior[-1].get('race_date', '')
+            if last_date:
+                try:
+                    from datetime import datetime
+                    last_dt = datetime.strptime(last_date.replace('/', '-'), '%Y-%m-%d')
+                    dslr = (datetime.now() - last_dt).days
+                except Exception:
+                    pass
+        if dslr > 0:
+            features.append(max(0.0, min(1.0, 1.0 - abs(dslr - 21) / 60)))
         else:
             features.append(0.5)
 
-        # 14: weight_ratio (rating / weight, normalized)
-        weight_str = horse_data.get('weight', '')
-        rating = horse_data.get('rating', 0)
-        wm = _re.match(r'(\d+)', str(weight_str))
-        if wm and rating > 0:
-            w = float(wm.group(1))
-            features.append(max(0.0, min(1.0, rating / max(1, w))))
+        # Feature 14: going preference (prior results on same going)
+        if prior and going:
+            prior_same_going = [p for p in prior if p.get('going', '') == going]
+            if prior_same_going:
+                going_wins = sum(1 for p in prior_same_going if p.get('is_winner', 0))
+                going_top3 = sum(1 for p in prior_same_going if p.get('is_top3', 0))
+                features.append(min(1.0, (going_wins * 2 + going_top3) / (len(prior_same_going) * 3) + 0.2))
+            else:
+                features.append(0.5)
         else:
             features.append(0.5)
 
@@ -382,11 +459,11 @@ class HKJCRacingMLModel:
     MODEL_FILE = MODEL_DIR / 'hkjc_racing_model.pkl'
     
     FEATURE_NAMES = [
-        'rating_norm', 'form_score', 'draw_advantage',
-        'jockey_win_rate', 'trainer_win_rate', 'venue_advantage',
-        'rail_draw_bias', 'pace_advantage', 'finishing_speed',
-        'cd_form_score', 'odds_movement_score',
-        'class_movement', 'gear_impact', 'weight_ratio',
+        'prior_win_rate', 'recent_form', 'draw_advantage',
+        'jockey_win_rate', 'trainer_win_rate', 'field_size',
+        'field_rel_draw', 'prior_pace', 'prior_speed',
+        'cd_form_prior', 'odds_implied_prob',
+        'class_level', 'freshness', 'going_pref',
     ]
     
     def __init__(self):
@@ -532,19 +609,21 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             return None, None, None
 
         conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
+        try:
+            conn.row_factory = sqlite3.Row
 
-        # Get all race results grouped by race
-        rows = conn.execute("""
-            SELECT r.*, j.win_rate as jockey_wr, j.place_rate as jockey_pr,
-                   t.win_rate as trainer_wr, t.place_rate as trainer_pr
-            FROM race_results r
-            LEFT JOIN jockey_stats j ON r.jockey = j.name
-            LEFT JOIN trainer_stats t ON r.trainer = t.name
-            WHERE r.finish_position > 0
-            ORDER BY r.race_date, r.race_number
-        """).fetchall()
-        conn.close()
+            # Get all race results grouped by race
+            rows = conn.execute("""
+                SELECT r.*, j.win_rate as jockey_wr, j.place_rate as jockey_pr,
+                       t.win_rate as trainer_wr, t.place_rate as trainer_pr
+                FROM race_results r
+                LEFT JOIN jockey_stats j ON r.jockey = j.name
+                LEFT JOIN trainer_stats t ON r.trainer = t.name
+                WHERE r.finish_position > 0
+                ORDER BY r.race_date, r.race_number
+            """).fetchall()
+        finally:
+            conn.close()
 
         if len(rows) < 50:  # Need at least ~5 races worth
             logger.info(f"Only {len(rows)} results in DB — not enough for real training")
@@ -552,102 +631,167 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
 
         logger.info(f"Building training data from {len(rows)} real race results")
 
+        # Precompute field sizes per race
+        field_sizes = {}
+        for row in rows:
+            r = dict(row)
+            rk = f"{r.get('race_date', '')}-{r.get('race_number', 0)}"
+            field_sizes[rk] = field_sizes.get(rk, 0) + 1
+
+        # Build per-horse chronological race history for PRIOR-only lookups
+        # Key principle: for each race, only use data from BEFORE that race
+        horse_history = {}  # horse_name -> list of dicts sorted by date
+        for row in rows:
+            r = dict(row)
+            name = r.get('horse_name', '')
+            if name:
+                if name not in horse_history:
+                    horse_history[name] = []
+                horse_history[name].append(r)
+        # Sort each horse's history by date
+        for name in horse_history:
+            horse_history[name].sort(key=lambda x: x.get('race_date', ''))
+
         X, y, weights = [], [], []
         for row in rows:
             r = dict(row)
-            rating = r.get('rating', 0) or 0
             draw = r.get('draw', 0) or 0
             distance = r.get('distance', 1200) or 1200
-            venue = r.get('venue', '')
             jockey_wr = r.get('jockey_wr', 0) or 0
             trainer_wr = r.get('trainer_wr', 0) or 0
             win_odds = r.get('win_odds', 0) or 0
-            gear = r.get('gear', '') or ''
             weight_str = r.get('weight', '') or ''
+            horse_name = r.get('horse_name', '')
+            race_date = r.get('race_date', '')
+            race_no = r.get('race_number', 0)
+            race_key = f"{race_date}-{race_no}"
+            field_size = field_sizes.get(race_key, 12)
+            going = r.get('going', '') or ''
 
-            # Feature 1: rating normalized
-            feat_rating = min(1.0, rating / 100) if rating > 0 else 0.5
+            # Get PRIOR races for this horse (strictly before current race date)
+            prior = [h for h in horse_history.get(horse_name, [])
+                     if h.get('race_date', '') < race_date]
 
-            # Feature 2: form score — use real last_6 from DB when available
-            last_6 = r.get('last_6', '') or ''
-            if last_6:
-                feat_form = FeatureEngineering.calculate_form_score(last_6) / 100
+            # Feature 1: prior win rate (replaces rating — available for all horses)
+            if prior:
+                prior_wins = sum(1 for p in prior if p.get('is_winner', 0))
+                prior_top3 = sum(1 for p in prior if p.get('is_top3', 0))
+                feat_form_proxy = (prior_wins * 2 + prior_top3) / (len(prior) * 3)
+                feat_form_proxy = min(1.0, feat_form_proxy)
             else:
-                # Fallback: estimate from this race's finishing position
-                pos = r.get('finish_position', 7)
-                feat_form = max(0.05, min(1.0, 1.0 - (pos - 1) * 0.08))
+                feat_form_proxy = 0.5  # no history = unknown
+
+            # Feature 2: recent form from prior finishes (replaces last_6)
+            if prior:
+                recent = prior[-6:]  # last 6 races
+                form_pts = 0
+                for p in recent:
+                    pos = p.get('finish_position', 7)
+                    if pos == 1: form_pts += 10
+                    elif pos == 2: form_pts += 7
+                    elif pos == 3: form_pts += 5
+                    elif pos <= 5: form_pts += 2
+                feat_form = form_pts / (len(recent) * 10)
+            else:
+                feat_form = 0.5
 
             # Feature 3: draw advantage
             feat_draw = FeatureEngineering.calculate_draw_advantage(draw, distance)
 
-            # Feature 4: jockey win rate (from DB stats)
-            feat_jockey = min(0.6, jockey_wr) if jockey_wr > 0 else 0.10
+            # Feature 4: jockey win rate (from DB stats, with minimum sample)
+            feat_jockey = min(0.5, jockey_wr) if jockey_wr > 0 else 0.08
 
-            # Feature 5: trainer win rate (from DB stats)
-            feat_trainer = min(0.5, trainer_wr) if trainer_wr > 0 else 0.08
+            # Feature 5: trainer win rate (with minimum sample guard)
+            feat_trainer = min(0.4, trainer_wr) if trainer_wr > 0 else 0.06
 
-            # Feature 6: venue
-            feat_venue = 1.0 if 'Sha Tin' in venue else 0.7
+            # Feature 6: field size (replaces useless venue — actual predictive signal)
+            feat_field_size = field_size / 14.0  # normalize: 14 is max field
 
-            # Feature 7: rail draw bias (same as draw for now)
-            feat_rail = feat_draw
+            # Feature 7: field-relative draw position
+            feat_field_draw = draw / max(1, field_size) if draw > 0 else 0.5
 
-            # Feature 8: pace advantage (estimate from position + distance)
-            if pos <= 3 and distance <= 1200:
-                feat_pace = 0.8
-            elif pos <= 3 and distance >= 1800:
-                feat_pace = 0.6
-            elif pos >= 8 and distance >= 1800:
-                feat_pace = 0.7
+            # Feature 8: prior pace style (avg early position from PRIOR races)
+            pace_vals = []
+            for p in prior[-5:]:  # last 5 prior races
+                rp = p.get('running_position', '') or ''
+                fs = field_sizes.get(f"{p.get('race_date','')}-{p.get('race_number',0)}", 12)
+                if rp:
+                    if ' ' in rp:
+                        positions = [int(x) for x in rp.split() if x.isdigit()]
+                    else:
+                        positions = [int(c) for c in rp if c.isdigit()]
+                    if positions and fs > 1:
+                        early = min(positions[0], fs)
+                        pace_vals.append(1.0 - (early - 1) / max(1, fs - 1))
+            feat_pace = sum(pace_vals) / len(pace_vals) if pace_vals else 0.5
+
+            # Feature 9: prior finishing speed (avg speed from PRIOR races)
+            speed_vals = []
+            for p in prior[-5:]:
+                ft = p.get('finish_time', '') or ''
+                d = p.get('distance', 0) or 0
+                if ft and ':' in ft and d > 0:
+                    try:
+                        parts = ft.split(':')
+                        secs = float(parts[0]) * 60 + float(parts[1])
+                        if secs > 0:
+                            speed = d / secs
+                            speed_vals.append(max(0.0, min(1.0, (speed - 14) / 4)))
+                    except (ValueError, IndexError):
+                        pass
+            feat_finish = sum(speed_vals) / len(speed_vals) if speed_vals else 0.5
+
+            # Feature 10: C&D form (PRIOR wins at same distance, excluding current)
+            prior_at_dist = [p for p in prior if p.get('distance') == distance]
+            if prior_at_dist:
+                cd_wins = sum(1 for p in prior_at_dist if p.get('is_winner', 0))
+                feat_cd = min(1.0, cd_wins / len(prior_at_dist) + 0.2)
             else:
-                feat_pace = 0.5
+                feat_cd = 0.5
 
-            # Feature 9: finishing speed (not available, use 0.5)
-            feat_finish = 0.5
+            # Feature 11: odds-implied probability (market strength signal)
+            if win_odds > 0:
+                feat_odds = min(1.0, 1.0 / win_odds)
+            else:
+                feat_odds = 0.5
 
-            # Feature 10: C&D form (not available per-row, use 0.5)
-            feat_cd = 0.5
-
-            # Feature 11: odds movement (not available, use 0.5)
-            feat_odds_move = 0.5
-
-            # Feature 12: class movement
+            # Feature 12: class level
             class_type = r.get('class_type', '') or ''
             cm = re.search(r'(\d)', class_type)
             class_rank = int(cm.group(1)) if cm else 3
             feat_class = max(0.0, min(1.0, class_rank / 5.0))
 
-            # Feature 13: gear impact
-            gear_upper = gear.strip().upper()
-            if 'B' in gear_upper:
-                feat_gear = 0.72
-            elif 'TT' in gear_upper:
-                feat_gear = 0.65
-            elif 'V' in gear_upper:
-                feat_gear = 0.62
-            elif gear_upper and gear_upper not in ('--', '-', ''):
-                feat_gear = 0.55
+            # Feature 13: days since last run (freshness — available from DB)
+            dslr = r.get('days_since_last_run', 0) or 0
+            if dslr > 0:
+                # Optimal is ~14-28 days; too fresh or too long is bad
+                feat_freshness = max(0.0, min(1.0, 1.0 - abs(dslr - 21) / 60))
             else:
-                feat_gear = 0.5
+                feat_freshness = 0.5
 
-            # Feature 14: weight ratio
-            wm = re.match(r'(\d+)', str(weight_str))
-            if wm and rating > 0:
-                w = float(wm.group(1))
-                feat_weight = max(0.0, min(1.0, rating / max(1, w)))
+            # Feature 14: going preference (does horse perform on this going?)
+            # Use prior results on same going condition
+            if prior and going:
+                prior_same_going = [p for p in prior if p.get('going', '') == going]
+                if prior_same_going:
+                    going_wins = sum(1 for p in prior_same_going if p.get('is_winner', 0))
+                    going_top3 = sum(1 for p in prior_same_going if p.get('is_top3', 0))
+                    feat_going = min(1.0, (going_wins * 2 + going_top3) / (len(prior_same_going) * 3) + 0.2)
+                else:
+                    feat_going = 0.5
             else:
-                feat_weight = 0.5
+                feat_going = 0.5
 
             features = [
-                feat_rating, feat_form, feat_draw,
-                feat_jockey, feat_trainer, feat_venue,
-                feat_rail, feat_pace, feat_finish, feat_cd, feat_odds_move,
-                feat_class, feat_gear, feat_weight,
+                feat_form_proxy, feat_form, feat_draw,
+                feat_jockey, feat_trainer, feat_field_size,
+                feat_field_draw, feat_pace, feat_finish, feat_cd, feat_odds,
+                feat_class, feat_freshness, feat_going,
             ]
             X.append(features)
             y.append(1 if r.get('is_winner', 0) else 0)
 
-            # Weight recent races more (simple: all equal for now)
+            # Weight recent races more
             weights.append(1.0)
 
     except Exception as e:
