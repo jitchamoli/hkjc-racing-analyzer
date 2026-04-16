@@ -547,7 +547,10 @@ var RESULTS_DATA = ''' + results_json + ''';
 // ===== END RESULTS =====
 '''
 
-        html = html.replace('</script>', inject + '\n</script>')
+        # Insert before the LAST </script> tag to avoid corrupting injected JS on re-runs
+        pos = html.rfind('</script>')
+        if pos != -1:
+            html = html[:pos] + inject + '\n</script>' + html[pos + 9:]
 
         with open(dashboard_path, 'w') as f:
             f.write(html)
@@ -577,24 +580,30 @@ async def main():
 def auto_learn(race_date: str = None):
     """Automatically ingest results into horse DB and retrain ML model."""
     from horse_database import HorseDatabase
+    from scrape_history import scrape_meeting_results
     from pathlib import Path
     import subprocess
 
     race_date = race_date or datetime.now().strftime('%Y/%m/%d')
 
-    # 1. Ingest into horse database
-    training_file = Path(__file__).parent / 'training_data' / 'historical_races.json'
-    if training_file.exists():
-        with open(training_file) as f:
-            races = json.load(f)
-        today_races = [r for r in races if r.get('date') == race_date]
-        if today_races:
-            db = HorseDatabase()
-            db.ingest_race_day(today_races)
-            summary = db.get_summary()
-            logger.info(f"Horse DB updated: {summary['horses']} horses, "
-                        f"{summary['race_results']} results, {summary['race_days']} days")
-            db.close()
+    # 1. Scrape actual results from HKJC and ingest into horse database
+    try:
+        today_races = asyncio.run(scrape_meeting_results(race_date))
+    except RuntimeError:
+        # Event loop already running — use nest_asyncio or new loop
+        loop = asyncio.new_event_loop()
+        today_races = loop.run_until_complete(scrape_meeting_results(race_date))
+        loop.close()
+
+    if today_races:
+        db = HorseDatabase()
+        db.ingest_race_day(today_races)
+        summary = db.get_summary()
+        logger.info(f"Horse DB updated: {summary['horses']} horses, "
+                    f"{summary['race_results']} results, {summary['race_days']} days")
+        db.close()
+    else:
+        logger.warning(f"No results scraped for {race_date} — DB not updated")
 
     # 2. Retrain ML model
     logger.info("Auto-retraining ML model...")

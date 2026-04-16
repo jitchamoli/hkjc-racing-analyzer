@@ -144,21 +144,35 @@ class Mark6DataFetcher:
 
     def _post_requests(self, payload: dict) -> dict:
         try:
-            import urllib3
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
             resp = requests.post(
                 GRAPHQL_ENDPOINT, json=payload, headers=self.HEADERS,
-                timeout=15, verify=False
+                timeout=15
             )
             resp.raise_for_status()
             return resp.json()
+        except requests.exceptions.SSLError:
+            # Fallback: retry without verification only if SSL fails
+            # (HKJC occasionally has cert issues)
+            try:
+                import urllib3
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                resp = requests.post(
+                    GRAPHQL_ENDPOINT, json=payload, headers=self.HEADERS,
+                    timeout=15, verify=False
+                )
+                resp.raise_for_status()
+                print("  Warning: SSL verification failed, used insecure fallback")
+                return resp.json()
+            except Exception as e:
+                print(f"  GraphQL request failed (SSL fallback): {e}")
+                return {}
         except Exception as e:
             print(f"  GraphQL request failed: {e}")
             return {}
 
     def _post_httpx(self, payload: dict) -> dict:
         try:
-            with httpx.Client(timeout=15, verify=False) as client:
+            with httpx.Client(timeout=15) as client:
                 resp = client.post(GRAPHQL_ENDPOINT, json=payload, headers=self.HEADERS)
                 resp.raise_for_status()
                 return resp.json()

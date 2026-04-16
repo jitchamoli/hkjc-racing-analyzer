@@ -1290,14 +1290,16 @@ class CombinedRaceAnalyzer:
             # Re-sort: swap market fav to position 0
             old_idx = next(i for i, a in enumerate(analyses) if a is market_fav)
             analyses[0], analyses[old_idx] = analyses[old_idx], analyses[0]
-            analyses[0].rank = 1
+            calibrated_probs[0], calibrated_probs[old_idx] = calibrated_probs[old_idx], calibrated_probs[0]
             for i, a in enumerate(analyses):
                 a.rank = i + 1
+                a.combined_probability = calibrated_probs[i]
+                if a.horse.win_odds > 0:
+                    a.expected_return = (a.horse.win_odds * calibrated_probs[i]) - 1
             # Recalculate field shape
             top = analyses[0]
             second = analyses[1] if n >= 2 else None
-            top_prob = calibrated_probs[old_idx]
-            calibrated_probs[0], calibrated_probs[old_idx] = calibrated_probs[old_idx], calibrated_probs[0]
+            top_prob = calibrated_probs[0]
             second_prob = calibrated_probs[1] if n >= 2 else 0
             third_prob = calibrated_probs[2] if n >= 3 else 0
             gap_1_2 = top_prob - second_prob
@@ -1316,9 +1318,12 @@ class CombinedRaceAnalyzer:
             # Promote BANKER to rank 1
             old_idx = next(i for i, a in enumerate(analyses) if a is banker_horse)
             analyses[0], analyses[old_idx] = analyses[old_idx], analyses[0]
+            calibrated_probs[0], calibrated_probs[old_idx] = calibrated_probs[old_idx], calibrated_probs[0]
             for i, a in enumerate(analyses):
                 a.rank = i + 1
-            calibrated_probs[0], calibrated_probs[old_idx] = calibrated_probs[old_idx], calibrated_probs[0]
+                a.combined_probability = calibrated_probs[i]
+                if a.horse.win_odds > 0:
+                    a.expected_return = (a.horse.win_odds * calibrated_probs[i]) - 1
             top = analyses[0]
             top_prob = calibrated_probs[0]
             second_prob = calibrated_probs[1] if n >= 2 else 0

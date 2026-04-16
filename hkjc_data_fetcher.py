@@ -916,7 +916,9 @@ class HKJCParser:
     @staticmethod
     def _safe_int(text: str) -> int:
         try:
-            return int(re.sub(r"[^\d]", "", str(text)))
+            cleaned = re.sub(r"[^\d\-]", "", str(text))
+            # Handle edge cases like empty string or lone minus
+            return int(cleaned) if cleaned and cleaned != '-' else 0
         except (ValueError, TypeError):
             return 0
 

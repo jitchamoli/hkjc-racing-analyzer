@@ -32,32 +32,35 @@ class OddsScraper:
             await self.browser.close()
     
     async def scrape_odds_page(self, race_date: str, race_number: int) -> Optional[Dict[int, float]]:
+        page = None
         try:
             page = await self.context.new_page()
-            
+
             url = f"https://racing.hkjc.com/racing/information/English/racing/DisplayOdds.aspx?RaceDate={race_date}&RaceNo={race_number}"
-            
+
             await page.goto(url, wait_until='domcontentloaded', timeout=60000)
             await page.wait_for_timeout(5000)
-            
+
             html = await page.content()
-            
+
             odds = self._parse_odds_html(html)
-            
+
             if odds:
                 logger.info(f"Found {len(odds)} odds for Race {race_number}")
                 return odds
-            
+
             odds = await self._try_json_endpoint(race_date, race_number)
             if odds:
                 return odds
-            
-            await page.close()
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Error scraping odds: {e}")
             return None
+        finally:
+            if page:
+                await page.close()
     
     def _parse_odds_html(self, html: str) -> Dict[int, float]:
         odds = {}
@@ -82,26 +85,29 @@ class OddsScraper:
         return odds
     
     async def _try_json_endpoint(self, race_date: str, race_number: int) -> Optional[Dict[int, float]]:
+        page = None
         try:
             page = await self.context.new_page()
-            
+
             url = f"https://racing.hkjc.com/racing/content/json/racecard?date={race_date}&venue=ST&race={race_number}"
-            
+
             response = await page.goto(url, timeout=30000)
-            
+
             if response and response.ok:
                 content = await response.text()
                 data = json.loads(content)
                 odds = self._extract_odds_from_json(data)
                 if odds:
                     return odds
-            
-            await page.close()
+
             return None
-            
+
         except Exception as e:
             logger.warning(f"JSON endpoint failed: {e}")
             return None
+        finally:
+            if page:
+                await page.close()
     
     def _extract_odds_from_json(self, data) -> Dict[int, float]:
         odds = {}

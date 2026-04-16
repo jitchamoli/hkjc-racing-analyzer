@@ -19,6 +19,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
+import requests
 from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -29,75 +30,62 @@ RESULTS_BASE = "https://racing.hkjc.com/racing/information/English/Racing/LocalR
 
 
 async def scrape_meeting_results(race_date: str, max_races: int = 12) -> List[Dict]:
-    """Scrape all race results for a single meeting date using Playwright.
+    """Scrape all race results for a single meeting date.
 
-    Uses JS-based table extraction since the page renders via Angular.
+    Uses requests + BeautifulSoup (fast, reliable for results pages which are
+    server-rendered HTML). Falls back to Playwright only if needed.
     Returns list of race dicts compatible with HorseDatabase.ingest_race_day().
     """
-    from playwright.async_api import async_playwright
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+    })
 
     races = []
-    pw = await async_playwright().start()
-    try:
-        browser = await pw.chromium.launch(headless=True)
-        context = await browser.new_context(
-            user_agent=(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
-            ),
-            viewport={"width": 1440, "height": 900},
+    for race_no in range(1, max_races + 1):
+        url = f"{RESULTS_BASE}?RaceDate={race_date}&RaceNo={race_no}"
+        try:
+            resp = session.get(url, timeout=30)
+            if resp.status_code != 200 or len(resp.text) < 5000:
+                if race_no == 1:
+                    logger.warning(f"  Race 1: unexpected response (status={resp.status_code}, "
+                                   f"len={len(resp.text)}) — no results or network issue, skipping meeting")
+                else:
+                    logger.info(f"  Race {race_no}: no results (end of card)")
+                break
+
+            # Parse HTML tables into same format as Playwright JS extraction
+            soup = BeautifulSoup(resp.text, "html.parser")
+            table_data = []
+            for table in soup.find_all("table"):
+                rows = table.find_all("tr")
+                if len(rows) >= 3:
+                    data = []
+                    for row in rows:
+                        cells = row.find_all(["td", "th"])
+                        data.append([c.get_text(strip=True) for c in cells])
+                    table_data.append(data)
+
+        except Exception as e:
+            logger.warning(f"  Race {race_no}: failed to load ({e})")
+            break
+
+        race_data = _parse_tables(table_data, race_date, race_no)
+        if not race_data or not race_data.get('entries'):
+            logger.info(f"  Race {race_no}: no results (end of card)")
+            break
+
+        races.append(race_data)
+        winner = next((e['name'] for e in race_data['entries'] if e.get('actual_position') == 1), '?')
+        logger.info(
+            f"  Race {race_no}: {len(race_data['entries'])} runners, "
+            f"winner = {winner}"
         )
-
-        for race_no in range(1, max_races + 1):
-            url = f"{RESULTS_BASE}?RaceDate={race_date}&RaceNo={race_no}"
-            page = await context.new_page()
-            try:
-                await page.goto(url, wait_until="networkidle", timeout=45000)
-                await page.wait_for_timeout(4000)
-
-                # Extract tables via JavaScript (handles Angular-rendered content)
-                table_data = await page.evaluate("""
-                    () => {
-                        const tables = document.querySelectorAll('table');
-                        const result = [];
-                        tables.forEach(table => {
-                            const rows = table.querySelectorAll('tr');
-                            if (rows.length >= 3) {
-                                const data = [];
-                                rows.forEach(row => {
-                                    const cells = Array.from(row.querySelectorAll('td, th'));
-                                    data.push(cells.map(c => c.textContent.trim()));
-                                });
-                                result.push(data);
-                            }
-                        });
-                        return result;
-                    }
-                """)
-            except Exception as e:
-                logger.warning(f"  Race {race_no}: failed to load ({e})")
-                await page.close()
-                break
-            await page.close()
-
-            race_data = _parse_tables(table_data, race_date, race_no)
-            if not race_data or not race_data.get('entries'):
-                logger.info(f"  Race {race_no}: no results (end of card)")
-                break
-
-            races.append(race_data)
-            winner = next((e['name'] for e in race_data['entries'] if e.get('actual_position') == 1), '?')
-            logger.info(
-                f"  Race {race_no}: {len(race_data['entries'])} runners, "
-                f"winner = {winner}"
-            )
-
-        await browser.close()
-    except Exception as e:
-        logger.error(f"Browser error: {e}")
-    finally:
-        await pw.stop()
+        time.sleep(0.5)  # Be polite between race pages
 
     return races
 
@@ -305,12 +293,12 @@ def _parse_lbw(lbw: str) -> float:
 
     # "2-1/4" → 2.25
     m = re.match(r"(\d+)\s*-\s*(\d+)/(\d+)", lbw)
-    if m:
+    if m and int(m.group(3)) > 0:
         return int(m.group(1)) + int(m.group(2)) / int(m.group(3))
 
     # "3/4" → 0.75
     m = re.match(r"(\d+)/(\d+)", lbw)
-    if m:
+    if m and int(m.group(2)) > 0:
         return int(m.group(1)) / int(m.group(2))
 
     # Plain number "2"
@@ -321,12 +309,15 @@ def _parse_lbw(lbw: str) -> float:
 
 
 async def get_recent_meeting_dates(n_days: int = 60, max_meetings: int = 10) -> List[str]:
-    """Get HKJC meeting dates by checking recent dates with Playwright.
+    """Get HKJC meeting dates by checking recent dates with requests.
 
     HK racing typically runs Wed + Sat/Sun, sometimes with midweek extras.
-    We check all likely dates in the range.
+    We probe each candidate date with a lightweight HTTP request.
     """
-    from playwright.async_api import async_playwright
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    })
 
     dates = []
     today = datetime.now()
@@ -341,37 +332,23 @@ async def get_recent_meeting_dates(n_days: int = 60, max_meetings: int = 10) -> 
     if not candidates:
         return []
 
-    pw = await async_playwright().start()
-    try:
-        browser = await pw.chromium.launch(headless=True)
-        context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-        )
+    for date_str in candidates:
+        if len(dates) >= max_meetings:
+            break
 
-        for date_str in candidates:
-            if len(dates) >= max_meetings:
-                break
-
-            page = await context.new_page()
-            url = f"{RESULTS_BASE}?RaceDate={date_str}&RaceNo=1"
-            try:
-                await page.goto(url, wait_until="networkidle", timeout=20000)
-                await page.wait_for_timeout(3000)
-                text = await page.evaluate("document.body.innerText")
-                # Check if it has actual race results (horse names are uppercase)
-                has_data = "Jockey" in text and "Trainer" in text and len(text) > 3000
-                if has_data:
-                    dates.append(date_str)
-                    logger.info(f"Found meeting: {date_str}")
-            except Exception:
-                pass
-            await page.close()
-
-        await browser.close()
-    except Exception as e:
-        logger.error(f"Browser error scanning dates: {e}")
-    finally:
-        await pw.stop()
+        url = f"{RESULTS_BASE}?RaceDate={date_str}&RaceNo=1"
+        try:
+            resp = session.get(url, timeout=15)
+            has_data = (resp.status_code == 200
+                        and "Jockey" in resp.text
+                        and "Trainer" in resp.text
+                        and len(resp.text) > 5000)
+            if has_data:
+                dates.append(date_str)
+                logger.info(f"Found meeting: {date_str}")
+        except Exception:
+            pass
+        time.sleep(0.3)  # Be polite
 
     return dates
 
@@ -419,37 +396,34 @@ async def scrape_jockey_rankings() -> List[Dict]:
 
         if not table_data or len(table_data) < 3:
             logger.warning("No jockey ranking table found")
-            await browser.close()
-            await pw.stop()
-            return results
-
-        # Header rows: Row 0 = "Jockeys' Ranking", Row 1 = column names
-        # Data starts at row 2
-        # Columns: Jockey(0) | Win(1) | 2nd(2) | 3rd(3) | 4th(4) | 5th(5) | Total Rides(6) | Stakes(7)
-        for row in table_data[2:]:
-            if len(row) < 6:
-                continue
-            name = row[0].strip()
-            if not name or name.lower() in ('total', '', 'jockey'):
-                continue
-            try:
-                wins = int(re.sub(r'[^\d]', '', row[1]) or 0)
-                seconds = int(re.sub(r'[^\d]', '', row[2]) or 0)
-                thirds = int(re.sub(r'[^\d]', '', row[3]) or 0)
-                rides = int(re.sub(r'[^\d]', '', row[6]) or 0) if len(row) > 6 else 0
-                if rides == 0:
-                    rides = wins + seconds + thirds
-                if rides > 0:
-                    results.append({
-                        'name': name,
-                        'rides': rides,
-                        'wins': wins,
-                        'places': wins + seconds + thirds,
-                        'win_rate': round(wins / rides, 4) if rides else 0,
-                        'place_rate': round((wins + seconds + thirds) / rides, 4) if rides else 0,
-                    })
-            except (ValueError, IndexError):
-                continue
+        else:
+            # Header rows: Row 0 = "Jockeys' Ranking", Row 1 = column names
+            # Data starts at row 2
+            # Columns: Jockey(0) | Win(1) | 2nd(2) | 3rd(3) | 4th(4) | 5th(5) | Total Rides(6) | Stakes(7)
+            for row in table_data[2:]:
+                if len(row) < 6:
+                    continue
+                name = row[0].strip()
+                if not name or name.lower() in ('total', '', 'jockey'):
+                    continue
+                try:
+                    wins = int(re.sub(r'[^\d]', '', row[1]) or 0)
+                    seconds = int(re.sub(r'[^\d]', '', row[2]) or 0)
+                    thirds = int(re.sub(r'[^\d]', '', row[3]) or 0)
+                    rides = int(re.sub(r'[^\d]', '', row[6]) or 0) if len(row) > 6 else 0
+                    if rides == 0:
+                        rides = wins + seconds + thirds
+                    if rides > 0:
+                        results.append({
+                            'name': name,
+                            'rides': rides,
+                            'wins': wins,
+                            'places': wins + seconds + thirds,
+                            'win_rate': round(wins / rides, 4) if rides else 0,
+                            'place_rate': round((wins + seconds + thirds) / rides, 4) if rides else 0,
+                        })
+                except (ValueError, IndexError):
+                    continue
 
         await browser.close()
     except Exception as e:
@@ -500,36 +474,33 @@ async def scrape_trainer_rankings() -> List[Dict]:
 
         if not table_data or len(table_data) < 3:
             logger.warning("No trainer ranking table found")
-            await browser.close()
-            await pw.stop()
-            return results
-
-        # Same layout as jockey: Row 0 title, Row 1 column names, Row 2+ data
-        # Columns: Trainer(0) | Win(1) | 2nd(2) | 3rd(3) | 4th(4) | 5th(5) | Total Runners(6) | Stakes(7)
-        for row in table_data[2:]:
-            if len(row) < 6:
-                continue
-            name = row[0].strip()
-            if not name or name.lower() in ('total', '', 'trainer'):
-                continue
-            try:
-                wins = int(re.sub(r'[^\d]', '', row[1]) or 0)
-                seconds = int(re.sub(r'[^\d]', '', row[2]) or 0)
-                thirds = int(re.sub(r'[^\d]', '', row[3]) or 0)
-                runners = int(re.sub(r'[^\d]', '', row[6]) or 0) if len(row) > 6 else 0
-                if runners == 0:
-                    runners = wins + seconds + thirds
-                if runners > 0:
-                    results.append({
-                        'name': name,
-                        'runners': runners,
-                        'wins': wins,
-                        'places': wins + seconds + thirds,
-                        'win_rate': round(wins / runners, 4) if runners else 0,
-                        'place_rate': round((wins + seconds + thirds) / runners, 4) if runners else 0,
-                    })
-            except (ValueError, IndexError):
-                continue
+        else:
+            # Same layout as jockey: Row 0 title, Row 1 column names, Row 2+ data
+            # Columns: Trainer(0) | Win(1) | 2nd(2) | 3rd(3) | 4th(4) | 5th(5) | Total Runners(6) | Stakes(7)
+            for row in table_data[2:]:
+                if len(row) < 6:
+                    continue
+                name = row[0].strip()
+                if not name or name.lower() in ('total', '', 'trainer'):
+                    continue
+                try:
+                    wins = int(re.sub(r'[^\d]', '', row[1]) or 0)
+                    seconds = int(re.sub(r'[^\d]', '', row[2]) or 0)
+                    thirds = int(re.sub(r'[^\d]', '', row[3]) or 0)
+                    runners = int(re.sub(r'[^\d]', '', row[6]) or 0) if len(row) > 6 else 0
+                    if runners == 0:
+                        runners = wins + seconds + thirds
+                    if runners > 0:
+                        results.append({
+                            'name': name,
+                            'runners': runners,
+                            'wins': wins,
+                            'places': wins + seconds + thirds,
+                            'win_rate': round(wins / runners, 4) if runners else 0,
+                            'place_rate': round((wins + seconds + thirds) / runners, 4) if runners else 0,
+                        })
+                except (ValueError, IndexError):
+                    continue
 
         await browser.close()
     except Exception as e:
@@ -616,7 +587,7 @@ async def main():
         dates = [args.date]
     else:
         logger.info(f"Finding meeting dates in last {args.days} days...")
-        dates = await get_recent_meeting_dates(args.days)
+        dates = await get_recent_meeting_dates(args.days, max_meetings=60)
 
     if not dates:
         logger.warning("No meeting dates found")

@@ -26,7 +26,7 @@ class HorseDatabase:
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or str(DB_FILE)
-        self.conn = sqlite3.connect(self.db_path)
+        self.conn = sqlite3.connect(self.db_path, timeout=10)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self._create_tables()
@@ -207,7 +207,8 @@ class HorseDatabase:
                     days_since, rat_change,
                 ))
 
-                # Upsert horse master record
+                # Upsert horse master record — derive stats from race_results
+                # to avoid double-counting on re-ingestion
                 c.execute("""
                     INSERT INTO horses (name, trainer, rating, total_starts,
                         total_wins, total_places, last_seen_date)
@@ -215,10 +216,10 @@ class HorseDatabase:
                     ON CONFLICT(name) DO UPDATE SET
                         trainer=excluded.trainer,
                         rating=CASE WHEN excluded.rating > 0 THEN excluded.rating ELSE horses.rating END,
-                        total_starts=horses.total_starts + 1,
-                        total_wins=horses.total_wins + excluded.total_wins,
-                        total_places=horses.total_places + excluded.total_places,
-                        last_seen_date=excluded.last_seen_date
+                        total_starts=(SELECT COUNT(*) FROM race_results WHERE horse_name = excluded.name),
+                        total_wins=(SELECT COUNT(*) FROM race_results WHERE horse_name = excluded.name AND is_winner = 1),
+                        total_places=(SELECT COUNT(*) FROM race_results WHERE horse_name = excluded.name AND is_top3 = 1),
+                        last_seen_date=MAX(horses.last_seen_date, excluded.last_seen_date)
                 """, (
                     horse_name, entry.get('trainer', ''), entry.get('rating', 0),
                     is_winner, is_top3, race_date,

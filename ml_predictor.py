@@ -308,17 +308,24 @@ class FeatureEngineering:
         distance = horse_data.get('distance', 1200)
         going = horse_data.get('going', '')
 
-        # Load prior race history from DB
+        # Load prior race history from DB (strictly before race_date if provided)
         prior = []
+        race_date = horse_data.get('race_date', '')
         try:
             db_path = Path(__file__).parent / 'tracking_data' / 'horse_history.db'
             if db_path.exists():
                 conn = sqlite3.connect(str(db_path))
                 conn.row_factory = sqlite3.Row
-                rows = conn.execute(
-                    "SELECT * FROM race_results WHERE horse_name = ? ORDER BY race_date",
-                    (horse_name,)
-                ).fetchall()
+                if race_date:
+                    rows = conn.execute(
+                        "SELECT * FROM race_results WHERE horse_name = ? AND race_date < ? ORDER BY race_date",
+                        (horse_name, race_date)
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT * FROM race_results WHERE horse_name = ? ORDER BY race_date",
+                        (horse_name,)
+                    ).fetchall()
                 prior = [dict(r) for r in rows]
                 conn.close()
         except Exception:
@@ -574,9 +581,9 @@ class HKJCRacingMLModel:
             'model_version': self.model_version
         }
     
-    def predict(self, features: np.ndarray) -> Tuple[float, str]:
+    def predict(self, features: np.ndarray, field_size: int = 12) -> Tuple[float, str]:
         if not self.is_trained or self.model is None:
-            base_prob = 1.0 / len(features)
+            base_prob = 1.0 / max(field_size, 1)
             return base_prob, "MODEL_NOT_TRAINED"
         
         proba = self.model.predict_proba(features.reshape(1, -1))[0]
@@ -830,22 +837,40 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
              np.random.uniform(0.02, 0.06)],
             p=[0.15, 0.40, 0.45]
         )
-        venue_adv = np.random.choice([0.7, 1.0], p=[0.35, 0.65])  # 35% HV, 65% ST
+        # Feature 6: field_size / 14.0 (continuous, matching real schema)
+        field_size = np.random.choice([6, 8, 10, 12, 14], p=[0.05, 0.15, 0.25, 0.35, 0.20])
+        feat_field_size = field_size / 14.0
 
-        rail_draw = np.random.uniform(0.3, 1.0)
-        pace_adv = np.random.uniform(0.3, 0.9)
-        finish_speed = np.random.uniform(0.2, 0.9)
+        # Feature 7: field-relative draw
+        feat_field_draw = draw_adv * np.random.uniform(0.3, 1.0)
+
+        # Feature 8: prior pace (avg early position normalized)
+        prior_pace = np.random.uniform(0.3, 0.9)
+
+        # Feature 9: prior finishing speed
+        prior_speed = np.random.uniform(0.2, 0.9)
+
+        # Feature 10: C&D form from prior races
         cd_form = np.random.uniform(0.2, 1.0)
-        odds_move = np.random.uniform(0.2, 0.8)
-        class_move = np.random.uniform(0.2, 0.9)
-        gear_impact = np.random.choice([0.5, 0.55, 0.62, 0.65, 0.72], p=[0.5, 0.1, 0.15, 0.1, 0.15])
-        weight_ratio = np.random.uniform(0.35, 0.75)
+
+        # Feature 11: odds-implied probability (1/win_odds, capped at 1.0)
+        odds_implied = np.random.uniform(0.03, 0.50)
+
+        # Feature 12: class level (class_rank / 5.0)
+        class_level = np.random.choice([1, 2, 3, 4, 5], p=[0.05, 0.15, 0.40, 0.25, 0.15]) / 5.0
+
+        # Feature 13: freshness (days since last run, optimal ~21 days)
+        dslr = np.random.choice([7, 14, 21, 28, 45, 90], p=[0.10, 0.25, 0.30, 0.20, 0.10, 0.05])
+        freshness = max(0.0, min(1.0, 1.0 - abs(dslr - 21) / 60))
+
+        # Feature 14: going preference
+        going_pref = np.random.uniform(0.3, 0.8)
 
         features = [
             rating / 100, form_score / 100, draw_adv,
-            jockey_rate, trainer_rate, venue_adv,
-            rail_draw, pace_adv, finish_speed, cd_form, odds_move,
-            class_move, gear_impact, weight_ratio,
+            jockey_rate, trainer_rate, feat_field_size,
+            feat_field_draw, prior_pace, prior_speed, cd_form, odds_implied,
+            class_level, freshness, going_pref,
         ]
         X.append(features)
 
@@ -857,15 +882,15 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 0.5 * (draw_adv - 0.6)
             + 3.0 * (jockey_rate - 0.10)    # jockey matters
             + 2.0 * (trainer_rate - 0.08)
-            + 0.3 * (venue_adv - 0.8)
-            + 0.4 * (rail_draw - 0.6)
-            + 0.5 * (pace_adv - 0.5)
-            + 0.3 * (finish_speed - 0.5)
+            + 0.3 * (feat_field_size - 0.8)
+            + 0.4 * (feat_field_draw - 0.5)
+            + 0.5 * (prior_pace - 0.5)
+            + 0.3 * (prior_speed - 0.5)
             + 0.5 * (cd_form - 0.5)
-            + 0.6 * (odds_move - 0.5)
-            + 0.3 * (class_move - 0.5)
-            + 0.2 * (gear_impact - 0.5)
-            + 0.4 * (weight_ratio - 0.5)
+            + 1.5 * (odds_implied - 0.1)    # odds is top signal
+            + 0.3 * (class_level - 0.5)
+            + 0.2 * (freshness - 0.5)
+            + 0.3 * (going_pref - 0.5)
             - 2.3  # base offset to get ~8% win rate
         )
         win_prob = 1.0 / (1.0 + np.exp(-win_logit))  # sigmoid
@@ -940,8 +965,9 @@ class CombinedRacingAnalyzer:
     
     def predict(self, horse_data: dict, all_results: List[RaceResult], venue: str) -> MLPrediction:
         features = self.feature_eng.extract_features(horse_data, all_results, venue)
-        
-        ml_prob, ml_confidence = self.ml_model.predict(features)
+
+        field_size = horse_data.get('field_size', 12)
+        ml_prob, ml_confidence = self.ml_model.predict(features, field_size=field_size)
         
         return MLPrediction(
             horse_number=horse_data.get('number', 0),

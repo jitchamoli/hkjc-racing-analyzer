@@ -98,6 +98,8 @@ async def main():
     logger.info(f"Total races: {len(all_races)}")
     
     json_data = json.dumps(all_races)
+    # Prevent </script> in JSON from breaking the <script> block (XSS defense)
+    json_data = json_data.replace('</script>', r'<\/script>').replace('</Script>', r'<\/Script>')
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     # Detect venue from race data
@@ -236,6 +238,7 @@ button{{font-family:inherit;cursor:pointer}}
   <div id="race-detail-view"></div>
 </div>
 <script>
+function esc(s){{var d=document.createElement('div');d.textContent=String(s!=null?s:'');return d.innerHTML;}}
 const RACES = {races_json};
 const RACE_DATE = "{race_date}";
 const GENERATED = "{now}";
@@ -400,7 +403,7 @@ function renderDashboard() {{
       var resultIcon = winCorrect ? '\\u2705' : (winnerOurRank <= 3 ? '\\ud83d\\udfe1' : '\\u274c');
       var resultLabel = winCorrect ? 'WIN CORRECT!' : (winnerOurRank <= 3 ? 'Top 3 hit (Rank ' + winnerOurRank + ')' : 'Winner was Rank ' + winnerOurRank);
       html += '<div style="background:' + resultBg + ';border-left:3px solid ' + resultBorder + ';padding:8px 12px;margin:0 -1px;display:flex;justify-content:space-between;align-items:center">' +
-        '<div style="font-size:.78rem;font-weight:700">' + resultIcon + ' Winner: #' + winner + ' ' + winnerName + ' @ $' + winOdds + '</div>' +
+        '<div style="font-size:.78rem;font-weight:700">' + resultIcon + ' Winner: #' + esc(winner) + ' ' + esc(winnerName) + ' @ $' + esc(winOdds) + '</div>' +
         '<div style="font-size:.68rem;color:var(--dim)">' + resultLabel + ' | Top3: ' + top3Overlap + '/3</div>' +
       '</div>';
     }}
@@ -413,14 +416,14 @@ function renderDashboard() {{
       const posLabel = hasResults && actualPos ? '<span style="font-size:.6rem;padding:1px 4px;border-radius:3px;margin-left:4px;' + (actualPos === 1 ? 'background:var(--green);color:#000' : actualPos <= 3 ? 'background:var(--accent);color:#000' : 'background:var(--surface);color:var(--dim)') + '">Fin:' + actualPos + '</span>' : '';
       html += '<div class="rc-horse' + tc + '"' + (isActualWinner ? ' style="background:rgba(16,185,129,.12);border-radius:6px"' : '') + '>' +
         '<div class="rc-rank">' + h.rank + '</div>' +
-        '<div class="rc-name">#' + h.number + ' ' + h.name + posLabel + '<div style="font-size:.65rem;color:var(--dim);font-weight:400;margin-top:1px">' + h.jockey + ' | ' + h.trainer + '</div></div>' +
+        '<div class="rc-name">#' + esc(h.number) + ' ' + esc(h.name) + posLabel + '<div style="font-size:.65rem;color:var(--dim);font-weight:400;margin-top:1px">' + esc(h.jockey) + ' | ' + esc(h.trainer) + '</div></div>' +
         '<div class="rc-odds">$' + h.win_odds + '</div>' +
         '<div class="rc-prob" style="color:' + probColor(h.calibrated_prob) + '">' + (h.calibrated_prob * 100).toFixed(1) + '%</div>' +
         '<div class="bt" style="background:' + betBg(h.bet_recommendation) + ';color:' + betColor(h.bet_recommendation) + '">' + h.bet_recommendation + '</div>' +
       '</div>';
     }});
     html += '</div>' +
-      '<div class="rc-footer"><span>' + r.horses.length + ' runners | Top: #' + r.horses[0].number + ' ' + r.horses[0].name + '</span><span class="click-hint">Click to expand</span></div>' +
+      '<div class="rc-footer"><span>' + r.horses.length + ' runners | Top: #' + esc(r.horses[0].number) + ' ' + esc(r.horses[0].name) + '</span><span class="click-hint">Click to expand</span></div>' +
     '</div>';
   }});
   
@@ -481,9 +484,9 @@ function buildStrategyPanel(race) {{
         + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
         + '<span style="font-size:.8rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px">BANKER WIN</span>'
         + '<span style="font-size:.68rem;background:rgba(251,191,36,.2);color:var(--gold);padding:2px 8px;border-radius:8px;font-weight:700">BET BIG</span></div>'
-        + '<div style="font-size:1.1rem;font-weight:800">#' + h.number + ' ' + h.name + '</div>'
-        + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + h.jockey + ' | $' + h.win_odds + ' | ' + (h.calibrated_prob * 100).toFixed(1) + '% chance</div>'
-        + (bankerReason ? '<div style="font-size:.7rem;color:var(--gold);margin-top:6px;font-weight:600">' + bankerReason + '</div>' : '')
+        + '<div style="font-size:1.1rem;font-weight:800">#' + esc(h.number) + ' ' + esc(h.name) + '</div>'
+        + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + esc(h.jockey) + ' | $' + h.win_odds + ' | ' + (h.calibrated_prob * 100).toFixed(1) + '% chance</div>'
+        + (bankerReason ? '<div style="font-size:.7rem;color:var(--gold);margin-top:6px;font-weight:600">' + esc(bankerReason) + '</div>' : '')
         + '</div>';
     }});
   }}
@@ -496,15 +499,15 @@ function buildStrategyPanel(race) {{
         + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
         + '<span style="font-size:.72rem;font-weight:700;color:var(--green);text-transform:uppercase">WIN Bet</span>'
         + '<span style="font-size:.72rem;color:' + edgeColor + ';font-weight:700">' + edgeLabel + '</span></div>'
-        + '<div style="font-size:1rem;font-weight:800">#' + h.number + ' ' + h.name + '</div>'
-        + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + h.jockey + ' | $' + h.win_odds + ' | ' + (h.calibrated_prob * 100).toFixed(1) + '% win chance</div>'
+        + '<div style="font-size:1rem;font-weight:800">#' + esc(h.number) + ' ' + esc(h.name) + '</div>'
+        + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + esc(h.jockey) + ' | $' + h.win_odds + ' | ' + (h.calibrated_prob * 100).toFixed(1) + '% win chance</div>'
         + '</div>';
     }});
   }}
 
   if (qinPicks.length >= 2) {{
-    var nums = qinPicks.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    var names = qinPicks.map(function(h) {{ return h.name; }}).join(' & ');
+    var nums = qinPicks.map(function(h) {{ return '#' + esc(h.number); }}).join(' + ');
+    var names = qinPicks.map(function(h) {{ return esc(h.name); }}).join(' &amp; ');
     s += '<div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:12px 16px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:6px">Quinella (QIN)</div>'
       + '<div style="font-size:1rem;font-weight:800">' + nums + '</div>'
@@ -748,7 +751,7 @@ function renderRaceDetail(race) {{
   const topCal = top ? (top.calibrated_prob * 100).toFixed(1) : '0';
 
   let html = '<div class="detail-header">' +
-    '<div><div class="detail-title">Race ' + race.race_number + '</div><div class="detail-meta">' + race.time + ' | ' + race.distance + 'm | ' + race.class_type + ' | ' + race.going + '</div></div>' +
+    '<div><div class="detail-title">Race ' + race.race_number + '</div><div class="detail-meta">' + esc(race.time) + ' | ' + esc(race.distance) + 'm | ' + esc(race.class_type) + ' | ' + esc(race.going) + '</div></div>' +
     '<div style="display:flex;gap:8px;align-items:center">' +
     '<button id="wa-btn-' + race.race_number + '" onclick="copyToWhatsApp(' + race.race_number + ')" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"white\"><path d=\"M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z\"/><path d=\"M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.608-1.467A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.188 0-4.214-.696-5.869-1.879l-.421-.314-2.732.87.907-2.677-.346-.449A9.95 9.95 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z\"/></svg>Copy to WhatsApp</button>' +
     '<button class="back-btn" onclick="showDashboard()">Back to All Races</button>' +
@@ -780,12 +783,12 @@ function renderRaceDetail(race) {{
     // Show top 3 results
     var top3Results = (race.actual_top3 || []).map(function(num) {{
       var rh = race.horses.find(function(h) {{ return h.number === num; }});
-      return rh ? '#' + num + ' ' + rh.name : '#' + num;
+      return rh ? '#' + esc(num) + ' ' + esc(rh.name) : '#' + esc(num);
     }});
     html += '<div style="background:' + dBg + ';border-left:4px solid ' + dBorder + ';padding:12px 16px;border-radius:8px;margin-bottom:16px">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
         '<div>' +
-          '<div style="font-size:.9rem;font-weight:700">' + dIcon + ' RESULT: #' + dWinner + ' ' + (dWinnerHorse ? dWinnerHorse.name : '') + ' WON @ $' + dWinOdds + '</div>' +
+          '<div style="font-size:.9rem;font-weight:700">' + dIcon + ' RESULT: #' + esc(dWinner) + ' ' + esc(dWinnerHorse ? dWinnerHorse.name : '') + ' WON @ $' + esc(dWinOdds) + '</div>' +
           '<div style="font-size:.75rem;color:var(--dim);margin-top:4px">Top 3: ' + top3Results.join(' | ') + '</div>' +
         '</div>' +
         '<div style="text-align:right">' +
@@ -803,15 +806,15 @@ function renderRaceDetail(race) {{
 
   race.horses.forEach((h, i) => {{
     const isTop = i === 0;
-    const reasoning = h.reasoning ? h.reasoning.join('<br>') : '';
+    const reasoning = h.reasoning ? h.reasoning.map(function(r){{return esc(r);}}).join('<br>') : '';
     const isWinner = hasAnyResults && h.number === dWinner;
     const actualPos = h.actual_position || '';
     const finBg = actualPos === 1 ? 'background:var(--green);color:#000' : actualPos <= 3 ? 'background:var(--accent);color:#000' : 'background:var(--surface);color:var(--dim)';
     const finCell = hasAnyResults ? '<td>' + (actualPos ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-weight:700;font-size:.75rem;' + finBg + '">' + actualPos + '</span>' : '-') + '</td>' : '';
     html += '<tr class="' + (isTop?'top-row':'') + '"' + (isWinner ? ' style="background:rgba(16,185,129,.1)"' : '') + '>' +
       '<td><div class="rc-rank">' + h.rank + '</div></td>' +
-      '<td><div class="rc-name">#' + h.number + ' ' + h.name + (isWinner ? ' <span style="font-size:.6rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:700">WINNER</span>' : '') + '</div><div style="font-size:.7rem;color:var(--dim)">' + h.trainer + '</div></td>' +
-      '<td>' + h.jockey + '</td>' +
+      '<td><div class="rc-name">#' + esc(h.number) + ' ' + esc(h.name) + (isWinner ? ' <span style="font-size:.6rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:700">WINNER</span>' : '') + '</div><div style="font-size:.7rem;color:var(--dim)">' + esc(h.trainer) + '</div></td>' +
+      '<td>' + esc(h.jockey) + '</td>' +
       '<td>' + h.draw + '</td>' +
       '<td style="color:var(--cyan)">$' + h.win_odds + '</td>' +
       finCell +
