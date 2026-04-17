@@ -151,3 +151,58 @@ class PaceAnalyzer:
 
         reason = f"{style} - {pace_label} (x{multiplier:.2f})"
         return score, reason
+
+    @classmethod
+    def generate_speed_map(
+        cls, horses: List[Dict], distance: int, venue: str = "ST"
+    ) -> List[Dict]:
+        """Generate predicted running positions for all horses in a race.
+
+        Each horse dict needs: 'number', 'name', 'draw', 'running_style' (or 'last_6').
+        Returns list of dicts sorted by predicted early position:
+        [{'number': 1, 'name': 'HORSE', 'style': 'Leader', 'predicted_pos': 1, 'lane': 'inside'}, ...]
+        """
+        entries = []
+        for h in horses:
+            style = h.get('running_style', '')
+            if not style or style == 'Midfield':
+                style = cls.estimate_style_from_form(
+                    h.get('last_6', ''),
+                    h.get('draw', 0),
+                    distance,
+                )
+
+            draw = h.get('draw', 0)
+            field_size = len(horses)
+
+            style_base = {
+                'Leader': 1.5,
+                'Stalker': 4.0,
+                'Midfield': 7.0,
+                'Closer': 10.0,
+            }.get(style, 7.0)
+
+            draw_adj = (draw - field_size / 2) * 0.15 if draw > 0 else 0
+            predicted = max(1.0, min(float(field_size), style_base + draw_adj))
+
+            if draw <= field_size * 0.33:
+                lane = 'inside'
+            elif draw <= field_size * 0.66:
+                lane = 'middle'
+            else:
+                lane = 'outside'
+
+            entries.append({
+                'number': h.get('number', 0),
+                'name': h.get('name', ''),
+                'style': style,
+                'predicted_pos': round(predicted, 1),
+                'lane': lane,
+                'draw': draw,
+            })
+
+        entries.sort(key=lambda x: x['predicted_pos'])
+        for i, e in enumerate(entries):
+            e['predicted_pos'] = i + 1
+
+        return entries
