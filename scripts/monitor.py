@@ -8,5 +8,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-print("Race day monitor not yet implemented. Coming in Phase 2.")
-sys.exit(1)
+from monitor.race_day import main
+
+if __name__ == '__main__':
+    main()
