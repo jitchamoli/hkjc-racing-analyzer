@@ -1,0 +1,285 @@
+#!/usr/bin/env python3
+"""XGBoost model for HKJC race prediction — train, predict, save, load."""
+
+import pickle
+import logging
+from datetime import datetime
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional, Tuple
+from pathlib import Path
+
+import numpy as np
+
+import config
+from ml.feature_schema import FEATURE_NAMES, NUM_FEATURES
+
+try:
+    import xgboost as xgb
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import accuracy_score, log_loss, precision_score, recall_score
+    ML_AVAILABLE = True
+except ImportError:
+    ML_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RaceResult:
+    date: str
+    venue: str
+    race_number: int
+    distance: int
+    going: str
+    class_type: str
+    horse_number: int
+    horse_name: str
+    draw: int
+    jockey: str
+    trainer: str
+    weight: int
+    rating: float
+    position: int
+    win_odds: float
+    place_odds: float
+    last_6: str
+    is_win: bool
+    is_place: bool
+
+
+@dataclass
+class HorseFeatures:
+    horse_number: int
+    horse_name: str
+    rating: float
+    draw: int
+    weight: int
+    recent_form_score: float
+    win_rate: float
+    place_rate: float
+    avg_position: float
+    jockey_win_rate: float
+    trainer_win_rate: float
+    distance_suitability: float
+    draw_advantage: float
+    going_suitability: float
+
+
+@dataclass
+class MLPrediction:
+    horse_number: int
+    horse_name: str
+    win_probability: float
+    place_probability: float
+    ml_confidence: str
+    feature_importance: Dict[str, float]
+    model_version: str
+
+
+class HKJCRacingMLModel:
+    MODEL_DIR = config.MODEL_DIR
+    MODEL_FILE = config.MODEL_PATH
+
+    def __init__(self):
+        self.model = None
+        self.is_trained = False
+        self.model_version = "1.0"
+        self.feature_importance = {}
+
+        if ML_AVAILABLE:
+            self._load_model()
+
+    def _load_model(self):
+        if self.MODEL_FILE.exists():
+            try:
+                with open(self.MODEL_FILE, 'rb') as f:
+                    data = pickle.load(f)
+                    self.model = data.get('model')
+                    self.model_version = data.get('version', '1.0')
+                    self.feature_importance = data.get('feature_importance', {})
+                    self.is_trained = self.model is not None
+                    logger.info(f"Loaded model version {self.model_version}")
+            except Exception as e:
+                logger.warning(f"Could not load model: {e}")
+
+    def _save_model(self):
+        self.MODEL_DIR.mkdir(exist_ok=True)
+
+        data = {
+            'model': self.model,
+            'version': self.model_version,
+            'feature_importance': self.feature_importance,
+            'trained_date': datetime.now().isoformat()
+        }
+
+        with open(self.MODEL_FILE, 'wb') as f:
+            pickle.dump(data, f)
+
+        logger.info(f"Saved model version {self.model_version}")
+
+    def train(self, features: np.ndarray, labels: np.ndarray,
+              sample_weight: np.ndarray = None) -> Dict:
+        if not ML_AVAILABLE:
+            return {'error': 'ML libraries not available'}
+
+        logger.info(f"Training with {len(features)} samples "
+                    f"({labels.sum():.0f} winners, {labels.mean()*100:.1f}% win rate)")
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, labels, test_size=0.2, random_state=42,
+            stratify=labels if labels.sum() >= 10 else None
+        )
+
+        sw_train = None
+        if sample_weight is not None:
+            sw_train, _ = train_test_split(
+                sample_weight, test_size=0.2, random_state=42,
+                stratify=labels if labels.sum() >= 10 else None
+            )
+
+        n_pos = max(1, y_train.sum())
+        n_neg = max(1, len(y_train) - n_pos)
+        scale = n_neg / n_pos
+
+        params = dict(config.XGBOOST_PARAMS)
+        params['scale_pos_weight'] = scale
+
+        self.model = xgb.XGBClassifier(**params)
+        self.model.fit(X_train, y_train, sample_weight=sw_train)
+
+        y_pred = self.model.predict(X_test)
+        y_pred_proba = self.model.predict_proba(X_test)[:, 1]
+
+        accuracy = accuracy_score(y_test, y_pred)
+        logloss = log_loss(y_test, y_pred_proba)
+        precision = precision_score(y_test, y_pred, zero_division=0)
+        recall = recall_score(y_test, y_pred, zero_division=0)
+
+        self.feature_importance = dict(zip(
+            FEATURE_NAMES,
+            self.model.feature_importances_.tolist()
+        ))
+
+        self.is_trained = True
+        self.model_version = datetime.now().strftime('%Y%m%d-%H%M%S')
+        self._save_model()
+
+        # Log experiment
+        from ml.experiments import log_experiment
+        result = {
+            'accuracy': accuracy,
+            'logloss': logloss,
+            'precision': precision,
+            'recall': recall,
+            'feature_importance': self.feature_importance,
+            'model_version': self.model_version
+        }
+        log_experiment(result, FEATURE_NAMES, n_samples=len(features))
+
+        return result
+
+    def predict(self, features: np.ndarray, field_size: int = 12) -> Tuple[float, str]:
+        if not self.is_trained or self.model is None:
+            base_prob = 1.0 / max(field_size, 1)
+            return base_prob, "MODEL_NOT_TRAINED"
+
+        proba = self.model.predict_proba(features.reshape(1, -1))[0]
+
+        win_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])
+
+        if win_prob > 0.30:
+            confidence = "HIGH"
+        elif win_prob > 0.15:
+            confidence = "MEDIUM"
+        elif win_prob > 0.08:
+            confidence = "LOW"
+        else:
+            confidence = "VERY_LOW"
+
+        return win_prob, confidence
+
+
+def create_combined_prediction(
+    rule_score: float,
+    rule_confidence: str,
+    ml_prob: float,
+    ml_confidence: str,
+    ml_available: bool
+) -> Tuple[float, str, Dict]:
+    weights = {'rule': config.RULE_WEIGHT, 'ml': config.ML_WEIGHT}
+
+    if not ml_available:
+        weights = {'rule': 1.0, 'ml': 0.0}
+
+    ml_prob_adjusted = ml_prob * weights['ml']
+    rule_prob = (rule_score / 100) * weights['rule']
+
+    combined_prob = rule_prob + ml_prob_adjusted
+
+    if 'HIGH' in rule_confidence and 'HIGH' in ml_confidence:
+        combined_confidence = "VERY_HIGH"
+    elif 'HIGH' in rule_confidence or 'HIGH' in ml_confidence:
+        combined_confidence = "HIGH"
+    elif 'MEDIUM' in rule_confidence or 'MEDIUM' in ml_confidence:
+        combined_confidence = "MEDIUM"
+    else:
+        combined_confidence = "LOW"
+
+    breakdown = {
+        'rule_based': {
+            'score': rule_score,
+            'contribution': rule_prob,
+            'confidence': rule_confidence
+        },
+        'ml_based': {
+            'probability': ml_prob,
+            'contribution': ml_prob_adjusted,
+            'confidence': ml_confidence if ml_available else 'NOT_AVAILABLE'
+        },
+        'final_probability': combined_prob,
+        'weights': weights
+    }
+
+    return combined_prob, combined_confidence, breakdown
+
+
+class CombinedRacingAnalyzer:
+    """Thin wrapper that combines ML model with feature engineering."""
+
+    def __init__(self):
+        from ml.features import FeatureEngineering
+        from ml.training import build_training_data_from_db, generate_synthetic_training_data
+
+        self.ml_model = HKJCRacingMLModel()
+        self.feature_eng = FeatureEngineering()
+
+        if ML_AVAILABLE and not self.ml_model.is_trained:
+            X_real, y_real, sw_real = build_training_data_from_db()
+            if X_real is not None and len(X_real) >= config.MIN_REAL_SAMPLES:
+                logger.info(f"Training ML model with {len(X_real)} REAL race results...")
+                result = self.ml_model.train(X_real, y_real, sample_weight=sw_real)
+                logger.info(f"Model trained on REAL data: accuracy={result['accuracy']:.2%}")
+            else:
+                logger.info("Insufficient real data — training ML model with synthetic data...")
+                X, y = generate_synthetic_training_data()
+                result = self.ml_model.train(X, y)
+                logger.info(f"Model trained on synthetic data: accuracy={result['accuracy']:.2%}")
+
+    def predict(self, horse_data: dict, all_results, venue: str) -> MLPrediction:
+        features = self.feature_eng.extract_features(horse_data, all_results, venue)
+
+        field_size = horse_data.get('field_size', 12)
+        ml_prob, ml_confidence = self.ml_model.predict(features, field_size=field_size)
+
+        return MLPrediction(
+            horse_number=horse_data.get('number', 0),
+            horse_name=horse_data.get('name', ''),
+            win_probability=ml_prob,
+            place_probability=min(1.0, ml_prob * 2.5),
+            ml_confidence=ml_confidence,
+            feature_importance=dict(zip(
+                FEATURE_NAMES,
+                (features * self.ml_model.feature_importance.get(f, 0.1) for f in FEATURE_NAMES)
+            )),
+            model_version=self.ml_model.model_version
+        )
