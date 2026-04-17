@@ -453,6 +453,92 @@ class HorseDatabase:
 
         return result
 
+    def get_horse_going_form(self, horse_name: str, going: str, before_date: str = '') -> dict:
+        """Get horse's record on a specific going condition.
+        Returns: {'runs': int, 'wins': int, 'places': int, 'avg_pos': float}
+        """
+        params = [horse_name, going]
+        date_filter = ''
+        if before_date:
+            date_filter = ' AND race_date < ?'
+            params.append(before_date)
+
+        row = self.conn.execute(f"""
+            SELECT COUNT(*) as runs,
+                   COALESCE(SUM(is_winner), 0) as wins,
+                   COALESCE(SUM(is_top3), 0) as places,
+                   COALESCE(AVG(CASE WHEN finish_position > 0 THEN finish_position END), 0) as avg_pos
+            FROM race_results
+            WHERE horse_name = ? AND going = ?{date_filter}
+        """, params).fetchone()
+
+        return {
+            'runs': row['runs'] or 0,
+            'wins': row['wins'] or 0,
+            'places': row['places'] or 0,
+            'avg_pos': round(row['avg_pos'] or 0, 1),
+        }
+
+    def get_jockey_horse_stats(self, jockey: str, horse_name: str, before_date: str = '') -> dict:
+        """Get jockey's record on a specific horse.
+        Returns: {'rides': int, 'wins': int, 'places': int, 'avg_pos': float}
+        """
+        params = [jockey, horse_name]
+        date_filter = ''
+        if before_date:
+            date_filter = ' AND race_date < ?'
+            params.append(before_date)
+
+        row = self.conn.execute(f"""
+            SELECT COUNT(*) as rides,
+                   COALESCE(SUM(is_winner), 0) as wins,
+                   COALESCE(SUM(is_top3), 0) as places,
+                   COALESCE(AVG(CASE WHEN finish_position > 0 THEN finish_position END), 0) as avg_pos
+            FROM race_results
+            WHERE jockey = ? AND horse_name = ?{date_filter}
+        """, params).fetchone()
+
+        return {
+            'rides': row['rides'] or 0,
+            'wins': row['wins'] or 0,
+            'places': row['places'] or 0,
+            'avg_pos': round(row['avg_pos'] or 0, 1),
+        }
+
+    def get_distance_best_time(self, horse_name: str, distance: int, before_date: str = '') -> str:
+        """Get horse's personal best finish time at a given distance.
+        Returns: time string like '1:09.2' or '' if no data.
+        """
+        params = [horse_name, distance]
+        date_filter = ''
+        if before_date:
+            date_filter = ' AND race_date < ?'
+            params.append(before_date)
+
+        row = self.conn.execute(f"""
+            SELECT finish_time FROM race_results
+            WHERE horse_name = ? AND distance = ?{date_filter}
+            AND finish_time IS NOT NULL AND finish_time != ''
+            ORDER BY finish_time ASC
+            LIMIT 1
+        """, params).fetchone()
+
+        return row['finish_time'] if row else ''
+
+    def get_distance_record(self, venue: str, distance: int) -> str:
+        """Get track record (fastest time) at venue + distance.
+        Returns: time string like '1:08.1' or '' if no data.
+        """
+        row = self.conn.execute("""
+            SELECT finish_time FROM race_results
+            WHERE venue LIKE ? AND distance = ?
+            AND finish_time IS NOT NULL AND finish_time != ''
+            ORDER BY finish_time ASC
+            LIMIT 1
+        """, (f'%{venue}%', distance)).fetchone()
+
+        return row['finish_time'] if row else ''
+
     def get_rolling_stats(self, horse_name: str, n_races: int = 5) -> Dict:
         """Get rolling performance stats over last N races.
 

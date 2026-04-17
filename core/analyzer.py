@@ -25,7 +25,7 @@ from core.predictor import (
     ML_AVAILABLE,
 )
 
-from betting_optimizer import BettingOptimizer, BettingReportGenerator
+from betting.optimizer import BettingOptimizer, BettingReportGenerator
 
 from analytics.draw_bias import DrawBiasAnalyzer
 from analytics.pace import PaceAnalyzer
@@ -39,7 +39,7 @@ from analytics.going_pref import GoingPreferenceAnalyzer
 from analytics.rolling_form import RollingFormAnalyzer
 from analytics.beaten_margins import BeatenMarginAnalyzer
 from analytics.jockey_change import JockeyChangeAnalyzer
-from odds_tracker import OddsMovementAnalyzer
+from data.odds_tracker import OddsMovementAnalyzer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
