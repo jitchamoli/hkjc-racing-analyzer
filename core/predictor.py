@@ -291,14 +291,15 @@ class FeatureEngineering:
 
     @staticmethod
     def extract_features(horse_data: dict, all_results: List[RaceResult], venue: str) -> np.ndarray:
-        """Extract 14 features matching training features exactly.
+        """Extract 18 features matching training features exactly.
 
         Must match build_training_data_from_db() feature order:
         1. prior_win_rate  2. recent_form  3. draw_advantage
         4. jockey_win_rate 5. trainer_win_rate 6. field_size
         7. field_rel_draw  8. prior_pace   9. prior_speed
         10. cd_form_prior  11. odds_implied 12. class_level
-        13. freshness      14. going_pref
+        13. freshness      14. going_pref  15. going_form_rate
+        16. jockey_horse_coop 17. distance_pb_ratio 18. odds_movement
         """
         import sqlite3
         from pathlib import Path
@@ -459,6 +460,88 @@ class FeatureEngineering:
         else:
             features.append(0.5)
 
+        # Feature 15: going form rate (win rate on current going condition)
+        going_form_rate = 0.5
+        if prior and going:
+            prior_same_going = [p for p in prior if p.get('going', '') == going]
+            if len(prior_same_going) >= 2:
+                going_wins = sum(1 for p in prior_same_going if p.get('is_winner', 0))
+                going_form_rate = going_wins / len(prior_same_going)
+        features.append(going_form_rate)
+
+        # Feature 16: jockey-horse cooperation rate
+        jockey_horse_coop = 0.5
+        jockey = horse_data.get('jockey', '')
+        if prior and jockey:
+            prior_same_jockey = [p for p in prior if p.get('jockey', '') == jockey]
+            if len(prior_same_jockey) >= 2:
+                jh_wins = sum(1 for p in prior_same_jockey if p.get('is_winner', 0))
+                jh_places = sum(1 for p in prior_same_jockey if p.get('is_top3', 0))
+                jockey_horse_coop = min(1.0, (jh_wins * 2 + jh_places) / (len(prior_same_jockey) * 3))
+        features.append(jockey_horse_coop)
+
+        # Feature 17: distance personal best ratio (horse PB / track record)
+        distance_pb_ratio = 0.5
+        if prior:
+            prior_at_dist = [p for p in prior
+                             if p.get('distance') == distance
+                             and p.get('finish_time', '')
+                             and ':' in str(p.get('finish_time', ''))]
+            if prior_at_dist:
+                def _parse_time(t):
+                    try:
+                        parts = str(t).split(':')
+                        return float(parts[0]) * 60 + float(parts[1])
+                    except (ValueError, IndexError):
+                        return 999.0
+
+                times = [_parse_time(p['finish_time']) for p in prior_at_dist]
+                valid_times = [t for t in times if t < 999]
+                if valid_times:
+                    horse_pb = min(valid_times)
+                    try:
+                        db_path_pb = Path(__file__).parent.parent / 'tracking_data' / 'horse_history.db'
+                        if db_path_pb.exists():
+                            conn_pb = sqlite3.connect(str(db_path_pb))
+                            row_pb = conn_pb.execute(
+                                "SELECT MIN(finish_time) FROM race_results WHERE distance = ? AND finish_time != '' AND finish_time IS NOT NULL",
+                                (distance,)
+                            ).fetchone()
+                            conn_pb.close()
+                            if row_pb and row_pb[0]:
+                                track_record = _parse_time(row_pb[0])
+                                if track_record < 999 and horse_pb < 999:
+                                    distance_pb_ratio = min(1.0, track_record / horse_pb)
+                    except Exception:
+                        pass
+        features.append(distance_pb_ratio)
+
+        # Feature 18: odds movement (opening → current, from odds_history.db)
+        odds_movement = 0.5
+        win_odds = horse_data.get('win_odds', 0)
+        horse_number = horse_data.get('number', 0)
+        race_date_for_odds = horse_data.get('race_date', '')
+        race_number = horse_data.get('race_number', 0)
+        if win_odds > 0 and horse_number > 0 and race_date_for_odds:
+            try:
+                odds_db_path = Path(__file__).parent.parent / 'tracking_data' / 'odds_history.db'
+                if odds_db_path.exists():
+                    conn_odds = sqlite3.connect(str(odds_db_path))
+                    row_odds = conn_odds.execute(
+                        """SELECT win_odds FROM odds_snapshots
+                           WHERE race_date = ? AND race_number = ? AND horse_number = ?
+                           ORDER BY timestamp ASC LIMIT 1""",
+                        (race_date_for_odds, race_number, horse_number)
+                    ).fetchone()
+                    conn_odds.close()
+                    if row_odds and row_odds[0] > 0:
+                        opening = row_odds[0]
+                        movement = (opening - win_odds) / opening
+                        odds_movement = max(0.0, min(1.0, (movement + 1) / 2))
+            except Exception:
+                pass
+        features.append(odds_movement)
+
         return np.array(features, dtype=np.float32)
 
 class HKJCRacingMLModel:
@@ -471,6 +554,7 @@ class HKJCRacingMLModel:
         'field_rel_draw', 'prior_pace', 'prior_speed',
         'cd_form_prior', 'odds_implied_prob',
         'class_level', 'freshness', 'going_pref',
+        'going_form_rate', 'jockey_horse_coop', 'distance_pb_ratio', 'odds_movement',
     ]
     
     def __init__(self):
@@ -616,21 +700,18 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             return None, None, None
 
         conn = sqlite3.connect(str(db_path))
-        try:
-            conn.row_factory = sqlite3.Row
+        conn.row_factory = sqlite3.Row
 
-            # Get all race results grouped by race
-            rows = conn.execute("""
-                SELECT r.*, j.win_rate as jockey_wr, j.place_rate as jockey_pr,
-                       t.win_rate as trainer_wr, t.place_rate as trainer_pr
-                FROM race_results r
-                LEFT JOIN jockey_stats j ON r.jockey = j.name
-                LEFT JOIN trainer_stats t ON r.trainer = t.name
-                WHERE r.finish_position > 0
-                ORDER BY r.race_date, r.race_number
-            """).fetchall()
-        finally:
-            conn.close()
+        # Get all race results grouped by race
+        rows = conn.execute("""
+            SELECT r.*, j.win_rate as jockey_wr, j.place_rate as jockey_pr,
+                   t.win_rate as trainer_wr, t.place_rate as trainer_pr
+            FROM race_results r
+            LEFT JOIN jockey_stats j ON r.jockey = j.name
+            LEFT JOIN trainer_stats t ON r.trainer = t.name
+            WHERE r.finish_position > 0
+            ORDER BY r.race_date, r.race_number
+        """).fetchall()
 
         if len(rows) < 50:  # Need at least ~5 races worth
             logger.info(f"Only {len(rows)} results in DB — not enough for real training")
@@ -789,11 +870,68 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             else:
                 feat_going = 0.5
 
+            # Feature 15: going form rate
+            if prior and going:
+                prior_same_going_f = [p for p in prior if p.get('going', '') == going]
+                if len(prior_same_going_f) >= 2:
+                    gf_wins = sum(1 for p in prior_same_going_f if p.get('is_winner', 0))
+                    feat_going_form = gf_wins / len(prior_same_going_f)
+                else:
+                    feat_going_form = 0.5
+            else:
+                feat_going_form = 0.5
+
+            # Feature 16: jockey-horse cooperation
+            jockey_name = r.get('jockey', '') or ''
+            if prior and jockey_name:
+                prior_same_jh = [p for p in prior if p.get('jockey', '') == jockey_name]
+                if len(prior_same_jh) >= 2:
+                    jh_w = sum(1 for p in prior_same_jh if p.get('is_winner', 0))
+                    jh_p = sum(1 for p in prior_same_jh if p.get('is_top3', 0))
+                    feat_jh_coop = min(1.0, (jh_w * 2 + jh_p) / (len(prior_same_jh) * 3))
+                else:
+                    feat_jh_coop = 0.5
+            else:
+                feat_jh_coop = 0.5
+
+            # Feature 17: distance PB ratio
+            feat_dist_pb = 0.5
+            prior_dist_times = [p for p in prior
+                                if p.get('distance') == distance
+                                and p.get('finish_time', '')
+                                and ':' in str(p.get('finish_time', ''))]
+            if prior_dist_times:
+                def _pt(t):
+                    try:
+                        parts = str(t).split(':')
+                        return float(parts[0]) * 60 + float(parts[1])
+                    except (ValueError, IndexError):
+                        return 999.0
+                horse_times = [_pt(p['finish_time']) for p in prior_dist_times]
+                valid_ht = [t for t in horse_times if t < 999]
+                if valid_ht:
+                    horse_pb_t = min(valid_ht)
+                    try:
+                        tr_row = conn.execute(
+                            "SELECT MIN(finish_time) FROM race_results WHERE distance = ? AND finish_time != '' AND finish_time IS NOT NULL AND race_date < ?",
+                            (distance, race_date)
+                        ).fetchone()
+                        if tr_row and tr_row[0]:
+                            tr_secs = _pt(tr_row[0])
+                            if tr_secs < 999 and horse_pb_t < 999:
+                                feat_dist_pb = min(1.0, tr_secs / horse_pb_t)
+                    except Exception:
+                        pass
+
+            # Feature 18: odds movement (not available in historical DB — use fallback)
+            feat_odds_move = 0.5
+
             features = [
                 feat_form_proxy, feat_form, feat_draw,
                 feat_jockey, feat_trainer, feat_field_size,
                 feat_field_draw, feat_pace, feat_finish, feat_cd, feat_odds,
                 feat_class, feat_freshness, feat_going,
+                feat_going_form, feat_jh_coop, feat_dist_pb, feat_odds_move,
             ]
             X.append(features)
             y.append(1 if r.get('is_winner', 0) else 0)
@@ -801,8 +939,14 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             # Weight recent races more
             weights.append(1.0)
 
+        conn.close()
+
     except Exception as e:
         logger.warning(f"Error building training data from DB: {e}")
+        try:
+            conn.close()
+        except Exception:
+            pass
         return None, None, None
 
     return np.array(X, dtype=np.float32), np.array(y), np.array(weights)
@@ -866,11 +1010,24 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         # Feature 14: going preference
         going_pref = np.random.uniform(0.3, 0.8)
 
+        # Feature 15: going form rate
+        going_form_rate = np.random.uniform(0.0, 0.5)
+
+        # Feature 16: jockey-horse cooperation
+        jockey_horse_coop = np.random.uniform(0.0, 0.5)
+
+        # Feature 17: distance PB ratio
+        distance_pb_ratio = np.random.uniform(0.7, 1.0)
+
+        # Feature 18: odds movement
+        odds_movement_feat = np.random.uniform(0.3, 0.7)
+
         features = [
             rating / 100, form_score / 100, draw_adv,
             jockey_rate, trainer_rate, feat_field_size,
             feat_field_draw, prior_pace, prior_speed, cd_form, odds_implied,
             class_level, freshness, going_pref,
+            going_form_rate, jockey_horse_coop, distance_pb_ratio, odds_movement_feat,
         ]
         X.append(features)
 
@@ -891,6 +1048,10 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 0.3 * (class_level - 0.5)
             + 0.2 * (freshness - 0.5)
             + 0.3 * (going_pref - 0.5)
+            + 0.4 * (going_form_rate - 0.25)
+            + 0.3 * (jockey_horse_coop - 0.25)
+            + 0.2 * (distance_pb_ratio - 0.85)
+            + 0.1 * (odds_movement_feat - 0.5)
             - 2.3  # base offset to get ~8% win rate
         )
         win_prob = 1.0 / (1.0 + np.exp(-win_logit))  # sigmoid
