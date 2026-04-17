@@ -25,30 +25,53 @@ python3 train_ml_model.py
 
 # Ingest training_data/historical_races.json into horse_database
 python3 -c "from horse_database import ingest_from_training_data; ingest_from_training_data()"
+
+# Race day monitor (auto-polls odds 6min before each race, regenerates dashboard)
+python3 -m scripts.monitor '2026/04/16'
+
+# New CLI entry points (equivalent to root scripts)
+python3 -m scripts.generate '2026/04/16'
+python3 -m scripts.scrape --date 2026/04/09
+python3 -m scripts.train
+python3 -m scripts.fetch_results '2026/04/16'
 ```
 
 ## Architecture
 
+### Package Structure
+
+```
+core/       — fetcher, analyzer, ML predictor
+analytics/  — 12 specialized analyzers (draw bias, pace, sectionals, etc.)
+data/       — database, odds tracker, scraper
+monitor/    — race day monitor
+dashboard/  — prediction generator, HTML template
+betting/    — Kelly Criterion optimizer
+scripts/    — CLI entry points
+```
+
+Root-level shims exist for backwards compatibility (e.g., `hkjc_data_fetcher.py` re-exports from `core/fetcher.py`).
+
 ### Data Pipeline
 
 ```
-hkjc_data_fetcher.py  →  hkjc_racing_analyzer.py  →  generate_predictions.py  →  results/
-(fetch from HKJC)        (26-factor + ML scoring)     (JSON + HTML dashboard)
-        ↑                         ↑
-        |                         |
-horse_database.py ←── results_fetcher.py (post-race: ingest results, update stats)
+core/fetcher.py  →  core/analyzer.py  →  dashboard/generator.py  →  results/
+(fetch from HKJC)   (26-factor + ML)     (JSON + HTML dashboard)
+        ↑                   ↑
+        |                   |
+data/database.py ←── dashboard/results_fetcher.py (post-race: ingest results, update stats)
 (SQLite: tracking_data/horse_history.db)
         ↓
-train_ml_model.py → models/hkjc_racing_model.pkl
+scripts/train.py → models/hkjc_racing_model.pkl
 ```
 
 ### Scoring System
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
 - **Rule engine (75%)**: 26 factors with dynamic weighting — factors with missing data are excluded and remaining weights renormalize to 1.0. Approximate grouping: Core (rating, form, odds, jockey, trainer, draw, tips), Expert (going, rolling form, margins, field size, career stats), Technical (pace, sectionals, C&D, class movement, gear, weight, freshness). Actual percentages vary per race due to renormalization.
-- **ML model (25%)**: XGBoost classifier with 14 features (`ml_predictor.py`). Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `train_ml_model.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
+- **ML model (25%)**: XGBoost classifier with 18 features (`core/predictor.py`). Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `scripts/train.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
 
-The 12 specialized analyzers live in `advanced_analytics.py` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change).
+The 12 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change).
 
 ### Supplementary Scripts
 
@@ -90,13 +113,21 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 
 `generate_predictions.py` generates a self-contained HTML dashboard with embedded race data as JSON. The venue is detected dynamically from race data. `results/racing_dashboard.html` is always overwritten with the latest run (date-stamped archive also saved). Dashboard includes grade legend (A+/A/B+/B/B-), WhatsApp copy with full betting strategy, and race detail views. All scraped data (horse names, jockeys, trainers, reasoning) is HTML-escaped via a JS `esc()` helper before `innerHTML` injection (XSS protection). The JSON embedding sanitizes `</script>` tags to prevent script block injection.
 
+### Race Day Monitor
+
+`python3 -m scripts.monitor '2026/04/16'` — polls odds 6 minutes before each race (every 5 min), snapshots to odds_history.db, detects steam/drift/cold horses, regenerates dashboard with auto-refresh (60s). Dashboard at `results/racing_dashboard.html` reloads automatically in browser.
+
+### Enhanced Dashboard Fields
+
+JSON output now includes per-horse: `going_form`, `jockey_horse_stats`, `distance_pb`, `distance_record`, `odds_movement`, `steam_move`, `cold_horse`. Per-race: `speed_map`. Dashboard renders these as enhanced stats grid, market move badges (steam/drift/cold), and a visual speed map.
+
 ### Historical Scraping (scrape_history.py)
 
 Uses Playwright to scrape HKJC results pages (JS-rendered). Extracts from results table columns: position(0), horse_no(1), name(2), jockey(3), trainer(4), weight(5), horse_weight(6), draw(7), LBW/margin(8), running_position(9), finish_time(10), win_odds(11). The `--rankings` flag scrapes the HKJC Jockey/Trainer Ranking pages for full-season stats.
 
 ## Codebase Conventions
 
-- All Python files are standalone scripts in the project root (no package structure).
+- Code is organized into packages (`core/`, `analytics/`, `data/`, `monitor/`, `dashboard/`, `betting/`, `scripts/`). Root-level shims provide backwards compatibility.
 - Async/await used in data fetching pipeline (`HKJCDataFetcher.get_race_card` is async).
 - Race dates use `YYYY/MM/DD` format in HKJC URLs and data, but `YYYYMMDD` in filenames. SQLite `julianday()` requires `YYYY-MM-DD` — always use `REPLACE(date,'/','-')`.
 - The HTML parser (`HKJCParser`) expects specific HKJC table layouts (27 cells per row with documented column indices). HKJC site changes can break parsing — check `_parse_horse_table()` if horses come back empty.
@@ -110,7 +141,7 @@ Uses Playwright to scrape HKJC results pages (JS-rendered). Extracts from result
 
 1. **No data leakage**: Every feature must use ONLY data available BEFORE the race. Never use finish_position, finish_time, running_position, or margin from the CURRENT race. For horse history features (C&D form, pace, speed), use strictly `prior_date < current_date`. `extract_features()` now accepts `race_date` via `horse_data` and filters DB queries with `AND race_date < ?`.
 
-2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. `generate_synthetic_training_data()` must also match the same 14-feature schema. The DB (race_results) has different fields than race cards: rating, last_6, gear are ~97% missing in DB but always present on race cards. Use DB-available proxies (prior finishes, prior win rate) instead.
+2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. `generate_synthetic_training_data()` must also match the same 18-feature schema. The DB (race_results) has different fields than race cards: rating, last_6, gear are ~97% missing in DB but always present on race cards. Use DB-available proxies (prior finishes, prior win rate) instead.
 
 3. **No constant features**: If a feature has std < 0.01 in training data, it's wasted. Common cause: field is mostly null and falls back to 0.5. Check with `np.std()` after building features.
 
@@ -118,11 +149,17 @@ Uses Playwright to scrape HKJC results pages (JS-rendered). Extracts from result
 
 5. **Probability sync after rank swaps**: When `_assign_bet_recommendations` swaps horse positions (market-favourite promotion or BANKER override), `combined_probability` and `expected_return` on ALL `HorseAnalysis` objects must be re-written from the swapped `calibrated_probs` list.
 
-6. **ML fallback probability**: `predict()` accepts `field_size` param (default 12). When model is untrained, returns `1/field_size` — not `1/len(features)` which is always 14.
+6. **ML fallback probability**: `predict()` accepts `field_size` param (default 12). When model is untrained, returns `1/field_size` — not `1/len(features)` which is always 18.
 
-### Current 14 ML Features (all prior-race only)
+### Current 18 ML Features (all prior-race only)
 
-`prior_win_rate, recent_form, draw_advantage, jockey_win_rate, trainer_win_rate, field_size, field_rel_draw, prior_pace, prior_speed, cd_form_prior, odds_implied_prob, class_level, freshness, going_pref`
+Features 1-14: `prior_win_rate, recent_form, draw_advantage, jockey_win_rate, trainer_win_rate, field_size, field_rel_draw, prior_pace, prior_speed, cd_form_prior, odds_implied_prob, class_level, freshness, going_pref`
+
+Features 15-18 (new):
+- `going_form_rate`: win% on current going condition (DB query)
+- `jockey_horse_coop`: win% of this jockey on this horse (DB query)
+- `distance_pb_ratio`: horse's PB / track record at distance (DB query)
+- `odds_movement`: opening→current odds change (odds_history.db, builds up over time via race day monitor)
 
 Top signal: `odds_implied_prob` (17.9%) — market odds are the single best predictor.
 
