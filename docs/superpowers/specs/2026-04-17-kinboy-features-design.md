@@ -1,4 +1,4 @@
-# Kinboy-Inspired Feature Integration — Design Spec
+# Enhanced Analytics & Race Day Monitor — Design Spec
 
 **Date:** 2026-04-17
 **Status:** Draft
@@ -6,7 +6,7 @@
 
 ## Overview
 
-Integrate features inspired by the Kinboy (堅仔) HKJC racing app into our analyzer. Two phases: structural refactor, then feature additions. No external data sources needed — features 15-17 use existing DB data; feature 18 builds up via new race day monitor.
+Add enhanced analytics features to the HKJC racing analyzer: going-filtered form, jockey-horse cooperation stats, distance personal bests, odds movement tracking, steam/cold horse detection, speed maps, and a race day monitor with auto-refresh dashboard. Two phases: structural refactor, then feature additions. No external data sources needed — features 15-17 use existing DB data; feature 18 builds up via new race day monitor.
 
 ## Phase 1: Package Refactor
 
@@ -86,7 +86,7 @@ After refactor, run:
 3. `python3 -m scripts.scrape --date 2026/04/09` — must scrape correctly
 4. Compare output JSON diff against pre-refactor output — should be identical
 
-## Phase 2: Kinboy-Inspired Features
+## Phase 2: Enhanced Analytics Features
 
 ### 2A. Going-Filtered Horse Form
 
@@ -160,14 +160,14 @@ AND finish_time != '' AND finish_time IS NOT NULL
 
 ### 2E. Steam Move / Drift / Cold Horse Detection
 
-**What:** Enhance `OddsMovementAnalyzer` with specific detection for Kinboy-style market signals.
+**What:** Enhance `OddsMovementAnalyzer` with specific detection for market signals.
 
 **Where:** `data/odds_tracker.py`
 
 **New methods on `OddsMovementAnalyzer`:**
 
 - `detect_steam_move(opening, current, threshold=0.20)` — returns True + severity if odds shortened >= threshold. Levels: STEAM (>=30%), STRONG SUPPORT (>=20%).
-- `detect_cold_horse(opening, current, rule_score, threshold=0.25)` — returns True if odds drifted >= threshold BUT horse has rule_score >= 65 (strong fundamentals). These are potentially undervalued.
+- `detect_cold_horse(opening, current, rule_score, threshold=0.25)` — returns True if odds drifted >= threshold BUT horse has rule_score >= 65 (strong fundamentals). Potentially undervalued by market.
 
 **Dashboard:** Badges on horse cards:
 - Green "STEAM -18%" for shortening
