@@ -155,6 +155,27 @@ class OddsDatabase:
         finally:
             conn.close()
 
+    def get_movement_summary(
+        self, race_date: str, race_number: int
+    ) -> Dict[int, Dict]:
+        """Get odds movement summary for all horses in a race.
+        Returns: {horse_number: {'opening': float, 'current': float, 'change_pct': float}}
+        """
+        opening = self.get_opening_odds(race_date, race_number)
+        current = self.get_latest_odds(race_date, race_number)
+
+        summary = {}
+        for num in set(list(opening.keys()) + list(current.keys())):
+            o = opening.get(num, 0)
+            c = current.get(num, 0)
+            change = (o - c) / o * 100 if o > 0 else 0
+            summary[num] = {
+                'opening': o,
+                'current': c,
+                'change_pct': round(change, 1),
+            }
+        return summary
+
     def snapshot_count(self, race_date: str, race_number: int) -> int:
         """Number of distinct snapshots recorded for a race."""
         conn = self._get_conn()
@@ -234,6 +255,46 @@ class OddsMovementAnalyzer:
             score = max(10.0, score - 8)
 
         return score, label + late_move
+
+    @staticmethod
+    def detect_steam_move(
+        opening_odds: float, current_odds: float, threshold: float = 0.20
+    ) -> Tuple[bool, str, str]:
+        """Detect if a horse has steamed (odds shortened significantly).
+        Returns (is_steam, severity, label).
+        severity: 'STEAM' (>=30%), 'STRONG_SUPPORT' (>=20%), or ''
+        """
+        if opening_odds <= 0 or current_odds <= 0:
+            return False, '', ''
+
+        pct_change = (opening_odds - current_odds) / opening_odds
+
+        if pct_change >= 0.30:
+            return True, 'STEAM', f"STEAM -{pct_change:.0%} (${opening_odds:.1f}\u2192${current_odds:.1f})"
+        elif pct_change >= threshold:
+            return True, 'STRONG_SUPPORT', f"Strong support -{pct_change:.0%} (${opening_odds:.1f}\u2192${current_odds:.1f})"
+        return False, '', ''
+
+    @staticmethod
+    def detect_cold_horse(
+        opening_odds: float,
+        current_odds: float,
+        rule_score: float,
+        drift_threshold: float = 0.25,
+        form_threshold: float = 65.0,
+    ) -> Tuple[bool, str]:
+        """Detect cold horse: drifting in market but strong fundamentals.
+        Returns (is_cold, label).
+        """
+        if opening_odds <= 0 or current_odds <= 0:
+            return False, ''
+
+        pct_change = (opening_odds - current_odds) / opening_odds
+
+        if pct_change <= -drift_threshold and rule_score >= form_threshold:
+            drift_pct = abs(pct_change)
+            return True, f"COLD HORSE: Drifted +{drift_pct:.0%} but rule score {rule_score:.0f}"
+        return False, ''
 
     @staticmethod
     def analyze_from_tips(
