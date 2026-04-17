@@ -1,2 +1,2 @@
-"""Backwards-compatible shim — import from core.predictor."""
-from core.predictor import *  # noqa: F401,F403
+"""Backwards compatibility shim — imports from ml/ package."""
+from ml import *  # noqa: F401,F403
