@@ -333,12 +333,21 @@ class HorseDatabase:
         """, (horse_name, limit))
         return [dict(r) for r in c.fetchall()]
 
+    @staticmethod
+    def _normalize_venue(venue: str) -> str:
+        """Normalize venue string to canonical form for exact matching."""
+        v = (venue or '').lower()
+        if 'sha' in v or v == 'st':
+            return 'Sha Tin'
+        if 'happy' in v or v == 'hv':
+            return 'Happy Valley'
+        return venue or ''
+
     def get_horse_at_venue_distance(self, horse_name: str, venue: str,
                                      distance: int, tolerance: int = 100) -> Dict:
         """Get horse's record at specific venue and distance (C&D form)."""
         c = self.conn.cursor()
-        # Normalize venue
-        venue_pattern = '%' + ('Sha Tin' if 'sha' in venue.lower() or 'ST' in venue else 'Happy Valley') + '%'
+        venue_norm = self._normalize_venue(venue)
         c.execute("""
             SELECT
                 COUNT(*) as runs,
@@ -347,9 +356,9 @@ class HorseDatabase:
                 AVG(finish_position) as avg_pos
             FROM race_results
             WHERE horse_name = ?
-              AND venue LIKE ?
+              AND venue = ?
               AND ABS(distance - ?) <= ?
-        """, (horse_name, venue_pattern, distance, tolerance))
+        """, (horse_name, venue_norm, distance, tolerance))
         row = c.fetchone()
         return dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
 
@@ -429,15 +438,15 @@ class HorseDatabase:
     def get_jockey_at_venue(self, jockey_name: str, venue: str) -> Dict:
         """Get jockey's record at specific venue."""
         c = self.conn.cursor()
-        venue_pattern = '%' + ('Sha Tin' if 'sha' in venue.lower() or 'ST' in venue else 'Happy Valley') + '%'
+        venue_norm = self._normalize_venue(venue)
         c.execute("""
             SELECT
                 COUNT(*) as rides,
                 SUM(is_winner) as wins,
                 SUM(is_top3) as places
             FROM race_results
-            WHERE jockey = ? AND venue LIKE ?
-        """, (jockey_name, venue_pattern))
+            WHERE jockey = ? AND venue = ?
+        """, (jockey_name, venue_norm))
         row = c.fetchone()
         return dict(row) if row else {'rides': 0, 'wins': 0, 'places': 0}
 
@@ -459,16 +468,14 @@ class HorseDatabase:
     def get_horse_going_record(self, horse_name: str, going: str) -> Dict:
         """Get horse's record on a specific going (track condition).
 
-        Going values: GOOD, GOOD TO FIRM, GOOD TO YIELDING, YIELDING, SOFT, etc.
-        Uses LIKE matching so 'GOOD' matches 'GOOD' and 'GOOD TO FIRM'.
+        Single query: exact match OR primary keyword match (e.g. 'Good' matches 'Good To Firm').
         """
         c = self.conn.cursor()
-        # Normalize: extract primary going keyword
         going_upper = going.upper().strip() if going else ''
         if not going_upper:
             return {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
 
-        # Exact match first, then fallback to partial
+        primary = going_upper.split(' TO ')[0].split()[0] if going_upper else going_upper
         c.execute("""
             SELECT
                 COUNT(*) as runs,
@@ -476,28 +483,10 @@ class HorseDatabase:
                 SUM(is_top3) as places,
                 AVG(CASE WHEN finish_position > 0 THEN finish_position END) as avg_pos
             FROM race_results
-            WHERE horse_name = ? AND UPPER(going) = ?
-        """, (horse_name, going_upper))
+            WHERE horse_name = ? AND (UPPER(going) = ? OR UPPER(going) LIKE ?)
+        """, (horse_name, going_upper, f'{primary}%'))
         row = c.fetchone()
-        result = dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
-
-        # If no exact match, try partial (e.g. 'GOOD' matches 'GOOD TO FIRM')
-        if result['runs'] == 0:
-            primary = going_upper.split(' TO ')[0].split()[0] if going_upper else ''
-            if primary:
-                c.execute("""
-                    SELECT
-                        COUNT(*) as runs,
-                        SUM(is_winner) as wins,
-                        SUM(is_top3) as places,
-                        AVG(CASE WHEN finish_position > 0 THEN finish_position END) as avg_pos
-                    FROM race_results
-                    WHERE horse_name = ? AND UPPER(going) LIKE ?
-                """, (horse_name, f'%{primary}%'))
-                row = c.fetchone()
-                result = dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
-
-        return result
+        return dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
 
     def get_horse_going_form(self, horse_name: str, going: str, before_date: str = '') -> dict:
         """Get horse's record on a specific going condition.
@@ -583,16 +572,17 @@ class HorseDatabase:
         """Get track record (fastest time) at venue + distance.
         Returns: time string like '1:08.1' or '' if no data.
         """
+        venue_norm = self._normalize_venue(venue)
         row = self.conn.execute("""
             SELECT finish_time FROM race_results
-            WHERE venue LIKE ? AND distance = ?
+            WHERE venue = ? AND distance = ?
             AND finish_time IS NOT NULL AND finish_time != ''
             AND finish_time LIKE '%:%'
             ORDER BY
               CAST(SUBSTR(finish_time, 1, INSTR(finish_time,':')-1) AS REAL)*60
               + CAST(SUBSTR(finish_time, INSTR(finish_time,':')+1) AS REAL)
             ASC LIMIT 1
-        """, (f'%{venue}%', distance)).fetchone()
+        """, (venue_norm, distance)).fetchone()
 
         return row['finish_time'] if row else ''
 

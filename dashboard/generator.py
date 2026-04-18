@@ -46,6 +46,9 @@ def build_race_data(race, analyses, race_date, db, odds_db):
     # Odds movement
     odds_summary = odds_db.get_movement_summary(race_date, race.race_number)
 
+    # Loop-invariant: same venue+distance for all horses in this race
+    dist_record = db.get_distance_record(race.venue or '', race_distance)
+
     race_data = {
         "race_number": race.race_number,
         "venue": race.venue,
@@ -66,7 +69,6 @@ def build_race_data(race, analyses, race_date, db, odds_db):
         going_form = db.get_horse_going_form(h.name, race_going, race_date)
         jh_stats = db.get_jockey_horse_stats(h.jockey, h.name, race_date)
         dist_pb = db.get_distance_best_time(h.name, race_distance, race_date)
-        dist_record = db.get_distance_record(race.venue or '', race_distance)
 
         horse_odds_move = odds_summary.get(h.number, {})
         is_steam, steam_severity, steam_label = OddsMovementAnalyzer.detect_steam_move(
