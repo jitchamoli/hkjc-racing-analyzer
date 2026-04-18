@@ -187,8 +187,9 @@ class InteractiveRacingAnalyzer:
             self.tracker.print_performance_report()
     
     def _get_rank(self, analysis):
+        target_num = analysis['horse_data']['number'] if isinstance(analysis, dict) else analysis.horse.number
         for i, a in enumerate(self.current_analyses, 1):
-            if a.horse.number == analysis.horse.number:
+            if a.horse.number == target_num:
                 return i
         return 99
 

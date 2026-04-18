@@ -91,18 +91,18 @@ def _dynamic_blend_weights(field_size: int, distance: int) -> Tuple[float, float
 
     Returns (model_weight, market_weight) summing to 1.0.
     """
-    # Base weights from config
+    # Base weights from config (always respected as starting point)
     model_w = config.MODEL_BLEND_WEIGHT
     market_w = config.MARKET_BLEND_WEIGHT
 
-    # Large field (10+) + sprint (≤1400m): market is sharpest → lean market
+    # Large field (10+) + sprint (≤1400m): market is sharpest → shift +15% toward market
     if field_size >= 10 and distance <= 1400:
-        market_w = 0.55
-        model_w = 0.45
-    # Small field (<8) or long distance (≥1800m): thinner pool → lean model
+        market_w = min(0.70, market_w + 0.15)
+        model_w = 1.0 - market_w
+    # Small field (<8) or long distance (≥1800m): thinner pool → shift +15% toward model
     elif field_size < 8 or distance >= 1800:
-        market_w = 0.35
-        model_w = 0.65
+        model_w = min(0.70, model_w + 0.15)
+        market_w = 1.0 - model_w
 
     return model_w, market_w
 

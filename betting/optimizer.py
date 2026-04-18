@@ -231,7 +231,6 @@ class BettingOptimizer:
             'max_return': max_return,
             'tickets': tickets,
             'best_single_roi': ((best_single - total_cost) / total_cost * 100) if total_cost > 0 else 0,
-            'max_roi_percent': ((max_return - total_cost) / total_cost * 100) if total_cost > 0 else 0,
         }
     
     def _get_risk_level(self, probability: float, expected_return: float) -> str:
@@ -345,7 +344,6 @@ class BettingReportGenerator:
         print(f"\nTotal Investment: ${ticket['total_investment']:.0f}")
         print(f"Maximum Return: ${ticket['max_return']:.0f}")
         print(f"Best Single Bet ROI: {ticket['best_single_roi']:.0f}%")
-        print(f"Max ROI (all win): {ticket['max_roi_percent']:.0f}%")
         
         if ticket['tickets']:
             print("\nBets:")

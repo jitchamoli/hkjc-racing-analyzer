@@ -6,6 +6,7 @@ and regenerates the interactive dashboard with results overlaid.
 """
 
 import asyncio
+import re
 import sys
 import os
 import json
@@ -371,7 +372,7 @@ class ResultsFetcher:
 
                 results_obj['races'][r['race_number']] = race_results
 
-        results_json = json.dumps(results_obj).replace('</script>', '<\\/script>').replace('</Script>', '<\\/Script>')
+        results_json = re.sub(r'<(/script)', r'<\\/\1', json.dumps(results_obj), flags=re.IGNORECASE)
 
         # Inject as a simple data constant + DOM manipulation code
         # Using string concatenation to avoid template literal issues
@@ -496,11 +497,13 @@ var RESULTS_DATA = ''' + results_json + ''';
     });
   }
 
+  function _esc(s){var d=document.createElement('div');d.textContent=String(s!=null?s:'');return d.innerHTML;}
+
   function overlayDetailResults(race) {
     var el = document.getElementById('race-detail-view');
     if (!el) return;
     var a = race.accuracy || {};
-    var winnerName = race.winner_name || ('#' + race.actual_winner);
+    var winnerName = _esc(race.winner_name || ('#' + race.actual_winner));
 
     // Results banner
     var existing = document.getElementById('detail-results-banner');

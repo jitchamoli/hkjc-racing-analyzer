@@ -574,14 +574,14 @@ class CombinedRaceAnalyzer:
         factors["form"] = form_score
         reasoning.append(form_reason)
 
+        # Market odds: shown in reasoning for context but NOT scored here
+        # (market signal enters via 35-55% dynamic market blend in calibration)
         if horse.win_odds > 0:
             odds_prob = 1 / horse.win_odds
-            factors["odds"] = min(100, odds_prob * 100)
             reasoning.append(
-                f"Market: {odds_prob*100:.1f}% implied @ ${horse.win_odds:.1f} (LIVE)"
+                f"Market: {odds_prob*100:.1f}% implied @ ${horse.win_odds:.1f}"
             )
         else:
-            factors["odds"] = 50  # neutral when no live odds (avoid dragging score down)
             reasoning.append("No live odds available")
 
         jockey_score, jockey_reason = self.strategy.analyze_jockey(horse.jockey, db=self._horse_db)
@@ -653,20 +653,20 @@ class CombinedRaceAnalyzer:
         if cd_score > 0:
             reasoning.append(f"C&D: {cd_reason}")
 
-        # --- NEW: Odds Movement ---
+        # Odds movement: shown in reasoning for context but NOT scored here
+        # (enters via late_money_signal ML feature + steam/drift dashboard badges)
         if horse.opening_odds > 0 and horse.win_odds > 0:
-            move_score, move_reason = self.odds_movement.analyze_movement(
+            _, move_reason = self.odds_movement.analyze_movement(
                 horse.opening_odds, horse.win_odds
             )
+            if 'steam' in move_reason.lower() or 'drift' in move_reason.lower():
+                reasoning.append(f"Odds: {move_reason}")
         elif horse.tips_odds > 0 and horse.win_odds > 0:
-            move_score, move_reason = self.odds_movement.analyze_from_tips(
+            _, move_reason = self.odds_movement.analyze_from_tips(
                 horse.tips_odds, horse.win_odds
             )
-        else:
-            move_score, move_reason = 0.0, "No odds movement data"
-        factors["odds_movement"] = move_score
-        if move_score > 0:
-            reasoning.append(f"Odds: {move_reason}")
+            if 'steam' in move_reason.lower() or 'drift' in move_reason.lower():
+                reasoning.append(f"Odds: {move_reason}")
 
         # --- Class Movement (now wired to DB history) ---
         class_score = 50.0

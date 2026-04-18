@@ -110,6 +110,7 @@ def price_quinellas(probs: List[float], numbers: List[int],
                     if draw_gap <= 2 and min(d_i, d_j) <= 6:
                         boost *= 1.08  # 8% boost for adjacent good draws
 
+            boost = min(boost, 1.35)  # cap to prevent inflated edge detection
             prob = base_prob * boost
             combos.append({
                 'type': 'QUINELLA',
