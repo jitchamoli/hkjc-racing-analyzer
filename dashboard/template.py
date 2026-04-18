@@ -127,7 +127,7 @@ button{{font-family:inherit;cursor:pointer}}
       <span>{venue} | {race_date}</span>
       <span>|</span>
       <span id="clock">{now}</span>
-      <span class="version">v5.0 | 26 FACTORS | REAL DATA ML</span>
+      <span class="version">v5.1 | 24 FACTORS + 22-FEATURE ML | PLATT CALIBRATED</span>
     </div>
   </div>
 </div>
@@ -330,7 +330,7 @@ function renderDashboard() {{
   
   html += '</div>' +
     '<div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>' +
-    '<div class="footer">HKJC Racing Analyzer v5.0 | 26-Factor + Real Data ML | Generated: ' + GENERATED + '</div>';
+    '<div class="footer">HKJC Racing Analyzer v5.1 | 24-Factor + 22-Feature ML (Platt Calibrated) | Generated: ' + GENERATED + '</div>';
   el.innerHTML = html;
 }}
 
@@ -624,7 +624,7 @@ function copyAllToWhatsApp() {{
     text += buildWhatsAppText(race) + '\\n\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n\\n';
   }});
   text += '_\\u26a0\\ufe0f For entertainment only. Gamble responsibly._\\n';
-  text += '_HKJC Analyzer | 26 Factors + ML_';
+  text += '_HKJC Analyzer v5.1 | 24 Factors + 22-Feature ML_';
   text = text.replace(/\\n{{3,}}/g, '\\n\\n').trim();
   navigator.clipboard.writeText(text).then(function() {{
     var btn = document.getElementById('wa-btn-all');
@@ -673,6 +673,7 @@ function renderRaceDetail(race) {{
   const topBet = top ? top.bet_recommendation : 'N/A';
   const topML = top ? (top.ml_prob * 100).toFixed(1) : '0';
   const topCal = top ? (top.calibrated_prob * 100).toFixed(1) : '0';
+  const topPlace = top && top.place_prob ? (top.place_prob * 100).toFixed(1) : '';
 
   let html = '<div class="detail-header">' +
     '<div><div class="detail-title">Race ' + race.race_number + '</div><div class="detail-meta">' + esc(race.time) + ' | ' + esc(race.distance) + 'm | ' + esc(race.class_type) + ' | ' + esc(race.going) + '</div></div>' +
@@ -685,8 +686,9 @@ function renderRaceDetail(race) {{
   html += '<div class="detail-stats">' +
     '<div class="stat"><div class="v">' + race.horses.length + '</div><div class="l">Runners</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--gold)">' + topBet + '</div><div class="l">Top Pick</div></div>' +
-    '<div class="stat"><div class="v" style="color:var(--green)">' + topML + '%</div><div class="l">ML Prob</div></div>' +
+    '<div class="stat"><div class="v" style="color:var(--green)">' + topML + '%</div><div class="l">ML Win</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--accent)">' + topCal + '%</div><div class="l">Calibrated</div></div>' +
+    (topPlace ? '<div class="stat"><div class="v" style="color:var(--cyan)">' + topPlace + '%</div><div class="l">Place (ML)</div></div>' : '') +
   '</div>';
 
   // Result banner in detail view

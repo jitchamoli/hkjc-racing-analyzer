@@ -1141,19 +1141,20 @@ class ReportGenerator:
             pass
 
         print("\n" + "=" * 80)
-        print("  HKJC HORSE RACING ANALYZER v5.0 - REAL DATA EDITION")
+        print("  HKJC HORSE RACING ANALYZER v5.1 - PLATT CALIBRATED ML")
         print("=" * 80)
         print(f"""
-  PREDICTION METHODOLOGY (v5.0 - 26-Factor + Real Data ML)
-  --------------------------------------------------------
-  RULE-BASED (75%):  26 scoring factors with dynamic weighting
-    Core:    Rating | Form | Tips | Odds | Jockey (DB stats) | Trainer (DB stats) | Draw
-    Expert:  Pace Map | C&D Form | Odds Movement | Going Preference | Rolling Form
-             Beaten Margins | Jockey Change | Jockey/Trainer Hot Streaks
-             Field Size | Career Place Rate | Age vs Field | Freshness | Rating Trend
-    Tech:    Class Movement | Gear Changes | Weight | Sectional Speed | Season Stakes
-  ML-BASED  (25%):  XGBoost trained on {n_results} real race results
-  DATA:             Real jockey/trainer stats from DB | Live odds from HKJC
+  PREDICTION METHODOLOGY (v5.1 - 24-Factor + 22-Feature ML)
+  ----------------------------------------------------------
+  RULE-BASED (75%):  24 scoring factors with dynamic weighting
+    Core:    Rating | Form | Tips | Jockey (DB stats) | Trainer (DB stats) | Draw
+    Expert:  Going Preference | Rolling Form | Beaten Margins | Jockey Change
+             Jockey/Trainer Hot Streaks | Field Size | Career Place Rate | Age
+    Tech:    Pace Map | C&D Form | Class Movement | Gear | Weight | Sectionals
+             Freshness | Rating Trend | Season Stakes
+  ML-BASED  (25%):  22-feature XGBoost (win + place) on {n_results} results
+    Calibration:     Platt scaling | Softmax temp 1.5 | 30% market blend
+  DATA:              Real jockey/trainer stats from DB | Live odds from HKJC
         """)
 
     @staticmethod

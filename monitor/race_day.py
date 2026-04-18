@@ -137,6 +137,7 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
             for i, a in enumerate(analyses):
                 h = a.horse
                 ml_prob = a.ml_prediction.win_probability if a.ml_prediction else 0
+                place_prob = a.ml_prediction.place_probability if a.ml_prediction else 0
                 calibrated_prob = a.combined_probability if a.combined_probability else 0
 
                 going_form = db.get_horse_going_form(h.name, race_going, race_date)
@@ -165,12 +166,13 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
                     "win_odds": h.win_odds,
                     "place_odds": h.place_odds,
                     "last_6": h.last_6,
-                    "age": getattr(h, 'age', ''),
+                    "age": h.age,
                     "horse_weight": h.horse_weight,
                     "days_since_last_run": h.days_since_last_run,
                     "rating_change": h.rating_change,
                     "rule_score": a.rule_score,
                     "ml_prob": ml_prob,
+                    "place_prob": place_prob,
                     "combined_score": a.value_score,
                     "calibrated_prob": calibrated_prob,
                     "expected_return": a.expected_return,

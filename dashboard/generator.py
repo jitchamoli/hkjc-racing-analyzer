@@ -84,6 +84,7 @@ async def main():
         for i, a in enumerate(analyses):
             h = a.horse
             ml_prob = a.ml_prediction.win_probability if a.ml_prediction else 0
+            place_prob = a.ml_prediction.place_probability if a.ml_prediction else 0
             calibrated_prob = a.combined_probability if a.combined_probability else 0
 
             # Enhanced analytics
@@ -114,12 +115,13 @@ async def main():
                 "win_odds": h.win_odds,
                 "place_odds": h.place_odds,
                 "last_6": h.last_6,
-                "age": h.age if hasattr(h, 'age') else "",
+                "age": h.age,
                 "horse_weight": h.horse_weight,
                 "days_since_last_run": h.days_since_last_run,
                 "rating_change": h.rating_change,
                 "rule_score": a.rule_score,
                 "ml_prob": ml_prob,
+                "place_prob": place_prob,
                 "combined_score": a.value_score,
                 "calibrated_prob": calibrated_prob,
                 "expected_return": a.expected_return,
