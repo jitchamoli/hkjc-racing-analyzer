@@ -96,12 +96,30 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
             race_bet_type = "QNL PL"
 
     # Race-level skip check
+    # Edge detection uses model-only ranking probability (before market blend)
+    # to avoid circular comparison (blended prob will always trail pure market)
     MIN_EV = config.MIN_EXPECTED_RETURN
     top_ev = analyses[0].expected_return if analyses else -1
     top_cal_prob = calibrated_probs[0] if calibrated_probs else 0
     top_market_prob = (1 / analyses[0].horse.win_odds) if analyses and analyses[0].horse.win_odds and analyses[0].horse.win_odds > 0 else 1
-    has_edge = top_cal_prob > top_market_prob
-    skip_race = top_ev < MIN_EV and not has_edge and not (banker_horse and banker_horse.rank == 1)
+
+    # Check edge: does the model rank this horse higher than the market does?
+    # Use rank-based edge: if our #1 pick differs from market favourite, we have informational edge
+    market_fav_num = min(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds and a.horse.win_odds > 0 else 999).horse.number
+    model_top_num = analyses[0].horse.number if analyses else 0
+    has_ranking_edge = model_top_num != market_fav_num  # model disagrees with market → edge
+
+    # Also check probability edge: blended prob exceeds EV threshold
+    has_ev_edge = top_ev >= MIN_EV
+
+    # Also check: top 2 model picks in top 4 market → model adds real signal
+    top_2_model = {a.horse.number for a in analyses[:2]} if len(analyses) >= 2 else set()
+    market_sorted = sorted(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds and a.horse.win_odds > 0 else 999)
+    top_4_market = {a.horse.number for a in market_sorted[:4]}
+    model_adds_info = not top_2_model.issubset(top_4_market)
+
+    has_edge = has_ranking_edge or has_ev_edge or model_adds_info
+    skip_race = not has_edge and not (banker_horse and banker_horse.rank == 1)
 
     # Assign per-horse recommendations
     for i, a in enumerate(analyses):
