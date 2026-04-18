@@ -135,8 +135,6 @@ async def main():
         all_races.append(race_data)
         logger.info(f"  Race {race_no}: {len(race.horses)} horses, bet: {analyses[0].bet_recommendation if analyses else 'N/A'}")
 
-    db.conn.close()
-
     date_str = race_date.replace('/', '')
     json_file = os.path.join(results_dir, f"race_data_{date_str}.json")
 
@@ -146,6 +144,8 @@ async def main():
     # Log predictions to DB for longitudinal accuracy tracking
     model_ver = analyzer.ml_analyzer.ml_model.model_version if hasattr(analyzer, 'ml_analyzer') else ''
     db.log_predictions(race_date, all_races, model_version=model_ver)
+
+    db.close()
 
     logger.info(f"Saved predictions to {json_file}")
     logger.info(f"Total races: {len(all_races)}")
