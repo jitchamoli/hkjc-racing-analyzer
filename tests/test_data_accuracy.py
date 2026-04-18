@@ -306,9 +306,7 @@ class TestFeatureConsistency:
         if X is None or len(X) < 50:
             pytest.skip("Not enough training data")
 
-        # odds_movement is expected to be constant — it only populates via
-        # race day monitor (odds_history.db), not from scraped results
-        known_sparse = {"odds_movement"}
+        known_sparse = set()  # no known sparse features after odds_movement replacement
         constant = []
         for i in range(NUM_FEATURES):
             std = np.std(X[:, i])

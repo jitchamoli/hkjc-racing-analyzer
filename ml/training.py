@@ -246,15 +246,20 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                     except Exception:
                         pass
 
-            # Feature 18: odds movement (not available in historical DB)
-            feat_odds_move = 0.5
+            # Feature 18: weight carried (normalized)
+            weight_str = r.get('weight', '') or ''
+            try:
+                weight_lbs = int(weight_str)
+                feat_weight_norm = max(0.0, min(1.0, (weight_lbs - 108) / 27.0))
+            except (ValueError, TypeError):
+                feat_weight_norm = 0.65
 
             features = [
                 feat_form_proxy, feat_form, feat_draw,
                 feat_jockey, feat_trainer, feat_field_size,
                 feat_field_draw, feat_pace, feat_finish, feat_cd, feat_odds,
                 feat_class, feat_freshness, feat_going,
-                feat_going_form, feat_jh_coop, feat_dist_pb, feat_odds_move,
+                feat_going_form, feat_jh_coop, feat_dist_pb, feat_weight_norm,
             ]
             assert len(features) == NUM_FEATURES, f"Expected {NUM_FEATURES} features, got {len(features)}"
             X.append(features)
@@ -313,14 +318,17 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         going_form_rate = np.random.uniform(0.0, 0.5)
         jockey_horse_coop = np.random.uniform(0.0, 0.5)
         distance_pb_ratio = np.random.uniform(0.7, 1.0)
-        odds_movement_feat = np.random.uniform(0.3, 0.7)
+        # Weight carried: 108-135 lbs, lighter = advantage
+        weight_lbs = np.random.choice([113, 115, 118, 120, 123, 125, 128, 130, 133],
+                                      p=[0.05, 0.08, 0.12, 0.15, 0.15, 0.15, 0.12, 0.10, 0.08])
+        weight_carried_norm = (weight_lbs - 108) / 27.0
 
         features = [
             rating / 100, form_score / 100, draw_adv,
             jockey_rate, trainer_rate, feat_field_size,
             feat_field_draw, prior_pace, prior_speed, cd_form, odds_implied,
             class_level, freshness, going_pref,
-            going_form_rate, jockey_horse_coop, distance_pb_ratio, odds_movement_feat,
+            going_form_rate, jockey_horse_coop, distance_pb_ratio, weight_carried_norm,
         ]
         assert len(features) == NUM_FEATURES
         X.append(features)
@@ -343,7 +351,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 0.4 * (going_form_rate - 0.25)
             + 0.3 * (jockey_horse_coop - 0.25)
             + 0.2 * (distance_pb_ratio - 0.85)
-            + 0.1 * (odds_movement_feat - 0.5)
+            - 0.4 * (weight_carried_norm - 0.65)
             - 2.3
         )
         win_prob = 1.0 / (1.0 + np.exp(-win_logit))

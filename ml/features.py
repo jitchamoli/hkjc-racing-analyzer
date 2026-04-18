@@ -311,31 +311,14 @@ class FeatureEngineering:
                         pass
         features.append(distance_pb_ratio)
 
-        # Feature 18: odds movement
-        odds_movement = 0.5
-        win_odds = horse_data.get('win_odds', 0)
-        horse_number = horse_data.get('number', 0)
-        race_date_for_odds = horse_data.get('race_date', '')
-        race_number = horse_data.get('race_number', 0)
-        if win_odds > 0 and horse_number > 0 and race_date_for_odds:
-            try:
-                odds_db_path = config.ODDS_DB_PATH
-                if odds_db_path.exists():
-                    conn_odds = sqlite3.connect(str(odds_db_path))
-                    row_odds = conn_odds.execute(
-                        """SELECT win_odds FROM odds_snapshots
-                           WHERE race_date = ? AND race_number = ? AND horse_number = ?
-                           ORDER BY timestamp ASC LIMIT 1""",
-                        (race_date_for_odds, race_number, horse_number)
-                    ).fetchone()
-                    conn_odds.close()
-                    if row_odds and row_odds[0] > 0:
-                        opening = row_odds[0]
-                        movement = (opening - win_odds) / opening
-                        odds_movement = max(0.0, min(1.0, (movement + 1) / 2))
-            except Exception:
-                pass
-        features.append(odds_movement)
+        # Feature 18: weight carried (normalized)
+        weight_str = horse_data.get('weight', '') or ''
+        try:
+            weight_lbs = int(weight_str)
+            weight_carried_norm = max(0.0, min(1.0, (weight_lbs - 108) / 27.0))
+        except (ValueError, TypeError):
+            weight_carried_norm = 0.65  # ~126 lbs default
+        features.append(weight_carried_norm)
 
         result = np.array(features, dtype=np.float32)
         validate_features(result)

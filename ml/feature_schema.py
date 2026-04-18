@@ -24,7 +24,7 @@ FEATURE_SCHEMA = [
     {"name": "going_form_rate", "default": 0.5, "range": (0.0, 1.0)},
     {"name": "jockey_horse_coop", "default": 0.5, "range": (0.0, 1.0)},
     {"name": "distance_pb_ratio", "default": 0.5, "range": (0.0, 1.0)},
-    {"name": "odds_movement", "default": 0.5, "range": (0.0, 1.0)},
+    {"name": "weight_carried_norm", "default": 0.65, "range": (0.0, 1.0)},
 ]
 
 FEATURE_NAMES = [f["name"] for f in FEATURE_SCHEMA]
