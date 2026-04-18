@@ -8,7 +8,8 @@ import config
 
 class TestCombinedPrediction:
     def test_75_25_blend(self):
-        """Rule 60/100 + ML 0.20 -> 0.60*0.75 + 0.20*0.25 = 0.50"""
+        """Rule score is converted via sigmoid before blending."""
+        import math
         prob, conf, breakdown = create_combined_prediction(
             rule_score=60.0,
             rule_confidence="MEDIUM",
@@ -16,11 +17,14 @@ class TestCombinedPrediction:
             ml_confidence="MEDIUM",
             ml_available=True,
         )
-        expected = 60.0 / 100 * config.RULE_WEIGHT + 0.20 * config.ML_WEIGHT
+        # sigmoid(0.06 * (60 - 50)) = sigmoid(0.6) ≈ 0.6457
+        rule_prob = 1.0 / (1.0 + math.exp(-0.06 * (60 - 50)))
+        expected = rule_prob * config.RULE_WEIGHT + 0.20 * config.ML_WEIGHT
         assert abs(prob - expected) < 0.001
 
     def test_ml_unavailable_uses_rule_only(self):
-        """When ML unavailable, weight should be 100% rule."""
+        """When ML unavailable, weight should be 100% rule (via sigmoid)."""
+        import math
         prob, conf, breakdown = create_combined_prediction(
             rule_score=80.0,
             rule_confidence="HIGH",
@@ -28,7 +32,8 @@ class TestCombinedPrediction:
             ml_confidence="HIGH",
             ml_available=False,
         )
-        assert abs(prob - 0.80) < 0.001
+        expected = 1.0 / (1.0 + math.exp(-0.06 * (80 - 50)))
+        assert abs(prob - expected) < 0.001
         assert breakdown['weights']['ml'] == 0.0
 
     def test_confidence_high_high(self):

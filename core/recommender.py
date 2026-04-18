@@ -10,18 +10,20 @@ from core.scorer import calibrate_probabilities, apply_calibrated_probs
 logger = logging.getLogger(__name__)
 
 
-def assign_bet_recommendations(analyses) -> None:
+def assign_bet_recommendations(analyses, field_size: int = 12,
+                               distance: int = 1200) -> None:
     """Assign realistic bet recommendations based on field shape.
 
-    Calibrates probabilities via softmax + market blend, handles
-    market-favourite promotion and BANKER overrides, then assigns
-    bet types per horse.
+    Calibrates probabilities via softmax + market blend (dynamic weights
+    based on field size and distance), handles market-favourite promotion
+    and BANKER overrides, then assigns bet types per horse.
     """
     if not analyses:
         return
 
     n = len(analyses)
-    calibrated_probs = calibrate_probabilities(analyses)
+    calibrated_probs = calibrate_probabilities(analyses, field_size=field_size,
+                                               distance=distance)
     apply_calibrated_probs(analyses, calibrated_probs)
 
     top = analyses[0] if n >= 1 else None
@@ -35,13 +37,13 @@ def assign_bet_recommendations(analyses) -> None:
     gap_2_3 = second_prob - third_prob
     top_3_share = top_prob + second_prob + third_prob
 
-    market_prob_top = (1 / top.horse.win_odds) if top and top.horse.win_odds > 0 else 0
+    market_prob_top = (1 / top.horse.win_odds) if top and top.horse.win_odds and top.horse.win_odds > 0 else 0
 
     top_is_banker = any("BANKER" in r for r in analyses[0].reasoning) if analyses else False
 
     # Market favourite promotion (skip if BANKER)
-    market_fav = min(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds > 0 else 999)
-    market_fav_prob = (1 / market_fav.horse.win_odds) if market_fav.horse.win_odds > 0 else 0
+    market_fav = min(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds and a.horse.win_odds > 0 else 999)
+    market_fav_prob = (1 / market_fav.horse.win_odds) if market_fav.horse.win_odds and market_fav.horse.win_odds > 0 else 0
     if (market_fav_prob >= 0.30 and market_fav.rank > 1
             and market_fav.horse.win_odds > 0
             and not top_is_banker):
@@ -94,12 +96,30 @@ def assign_bet_recommendations(analyses) -> None:
             race_bet_type = "QNL PL"
 
     # Race-level skip check
+    # Edge detection uses model-only ranking probability (before market blend)
+    # to avoid circular comparison (blended prob will always trail pure market)
     MIN_EV = config.MIN_EXPECTED_RETURN
     top_ev = analyses[0].expected_return if analyses else -1
     top_cal_prob = calibrated_probs[0] if calibrated_probs else 0
-    top_market_prob = (1 / analyses[0].horse.win_odds) if analyses and analyses[0].horse.win_odds > 0 else 1
-    has_edge = top_cal_prob > top_market_prob
-    skip_race = top_ev < MIN_EV and not has_edge and not (banker_horse and banker_horse.rank == 1)
+    top_market_prob = (1 / analyses[0].horse.win_odds) if analyses and analyses[0].horse.win_odds and analyses[0].horse.win_odds > 0 else 1
+
+    # Check edge: does the model rank this horse higher than the market does?
+    # Use rank-based edge: if our #1 pick differs from market favourite, we have informational edge
+    market_fav_num = min(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds and a.horse.win_odds > 0 else 999).horse.number
+    model_top_num = analyses[0].horse.number if analyses else 0
+    has_ranking_edge = model_top_num != market_fav_num  # model disagrees with market → edge
+
+    # Also check probability edge: blended prob exceeds EV threshold
+    has_ev_edge = top_ev >= MIN_EV
+
+    # Also check: top 2 model picks in top 4 market → model adds real signal
+    top_2_model = {a.horse.number for a in analyses[:2]} if len(analyses) >= 2 else set()
+    market_sorted = sorted(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds and a.horse.win_odds > 0 else 999)
+    top_4_market = {a.horse.number for a in market_sorted[:4]}
+    model_adds_info = not top_2_model.issubset(top_4_market)
+
+    has_edge = has_ranking_edge or has_ev_edge or model_adds_info
+    skip_race = not has_edge and not (banker_horse and banker_horse.rank == 1)
 
     # Assign per-horse recommendations
     for i, a in enumerate(analyses):
@@ -154,5 +174,5 @@ def _resync_ranks_and_probs(analyses, calibrated_probs: List[float]) -> None:
     for i, a in enumerate(analyses):
         a.rank = i + 1
         a.combined_probability = calibrated_probs[i]
-        if a.horse.win_odds > 0:
+        if a.horse.win_odds and a.horse.win_odds > 0:
             a.expected_return = (a.horse.win_odds * calibrated_probs[i]) - 1

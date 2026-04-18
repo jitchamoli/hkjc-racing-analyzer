@@ -136,45 +136,46 @@ class OddsScraper:
     
     async def get_combined_odds(self, race_date: str, race_number: int) -> Dict[int, Dict[str, float]]:
         combined = {}
-        
+
         page = await self.context.new_page()
-        
-        url = f"https://racing.hkjc.com/racing/information/English/racing/RaceCard.aspx?RaceDate={race_date}&RaceNo={race_number}"
-        await page.goto(url, wait_until='domcontentloaded', timeout=60000)
-        await page.wait_for_timeout(8000)
-        
-        html = await page.content()
-        
-        win_odds = self._parse_odds_html(html)
-        
-        place_patterns = [
-            r'(\d+).*?place.*?([\d.]+)',
-            r'place.*?(\d+).*?([\d.]+)',
-        ]
-        
-        place_odds = {}
-        for pattern in place_patterns:
-            matches = re.findall(pattern, html, re.IGNORECASE)
-            for match in matches:
-                try:
-                    horse_no = int(match[0])
-                    odds_val = float(match[1])
-                    if 1.0 <= odds_val <= 10.0:
-                        place_odds[horse_no] = odds_val
-                except:
-                    continue
-        
-        for horse_no, win_odd in win_odds.items():
-            combined[horse_no] = {
-                'win': win_odd,
-                'place': place_odds.get(horse_no, win_odd / 3)
-            }
-        
-        await page.close()
-        
-        if combined:
-            logger.info(f"Combined odds: {combined}")
-        
+
+        try:
+            url = f"https://racing.hkjc.com/racing/information/English/racing/RaceCard.aspx?RaceDate={race_date}&RaceNo={race_number}"
+            await page.goto(url, wait_until='domcontentloaded', timeout=60000)
+            await page.wait_for_timeout(8000)
+
+            html = await page.content()
+
+            win_odds = self._parse_odds_html(html)
+
+            place_patterns = [
+                r'(\d+).*?place.*?([\d.]+)',
+                r'place.*?(\d+).*?([\d.]+)',
+            ]
+
+            place_odds = {}
+            for pattern in place_patterns:
+                matches = re.findall(pattern, html, re.IGNORECASE)
+                for match in matches:
+                    try:
+                        horse_no = int(match[0])
+                        odds_val = float(match[1])
+                        if 1.0 <= odds_val <= 10.0:
+                            place_odds[horse_no] = odds_val
+                    except Exception:
+                        continue
+
+            for horse_no, win_odd in win_odds.items():
+                combined[horse_no] = {
+                    'win': win_odd,
+                    'place': place_odds.get(horse_no, win_odd / 3)
+                }
+
+            if combined:
+                logger.info(f"Combined odds: {combined}")
+        finally:
+            await page.close()
+
         return combined
 
 async def test_odds_scraper():

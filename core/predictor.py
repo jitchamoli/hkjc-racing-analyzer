@@ -8,4 +8,13 @@ All ML logic has moved to the ml/ package:
   ml/experiments.py    — experiment tracking
 """
 
-from ml import *  # noqa: F401,F403
+from ml.feature_schema import (  # noqa: F401
+    FEATURE_SCHEMA, FEATURE_NAMES, FEATURE_DEFAULTS,
+    NUM_FEATURES, validate_features,
+)
+from ml.features import FeatureEngineering  # noqa: F401
+from ml.model import (  # noqa: F401
+    HKJCRacingMLModel, RaceResult, HorseFeatures, MLPrediction,
+    CombinedRacingAnalyzer, create_combined_prediction, ML_AVAILABLE,
+)
+from ml.training import build_training_data_from_db, generate_synthetic_training_data  # noqa: F401

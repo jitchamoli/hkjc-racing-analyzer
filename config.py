@@ -42,7 +42,6 @@ XGBOOST_PARAMS = {
     "min_child_weight": 3,
     "gamma": 0.1,
     "random_state": 42,
-    "use_label_encoder": False,
     "eval_metric": "logloss",
 }
 
@@ -51,12 +50,17 @@ MIN_DB_SAMPLES = 200
 MIN_REAL_SAMPLES = 50
 SYNTHETIC_FALLBACK_SIZE = 2000
 
-# Softmax temperature for probability calibration
-SOFTMAX_TEMPERATURE = 8.0
+# Softmax temperature for probability normalization
+# Used as multiplier: exp((s - max) * T). Lower = flatter distribution.
+# With Platt scaling handling calibration, temperature is for normalization only.
+# 1.5 = mild differentiation without overconfidence.
+SOFTMAX_TEMPERATURE = 1.5
 
 # Market blend ratio (model vs market)
-MARKET_BLEND_WEIGHT = 0.30
-MODEL_BLEND_WEIGHT = 0.70
+# 40% market anchors probabilities to realistic levels (bookmakers are well-calibrated)
+# 60% model preserves our ranking edge from rule engine + ML
+MARKET_BLEND_WEIGHT = 0.40
+MODEL_BLEND_WEIGHT = 0.60
 
 # HKJC URLs
 HKJC_BASE_URL = "https://racing.hkjc.com/racing/information/English"

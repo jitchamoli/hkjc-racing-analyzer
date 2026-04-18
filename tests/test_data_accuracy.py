@@ -306,7 +306,9 @@ class TestFeatureConsistency:
         if X is None or len(X) < 50:
             pytest.skip("Not enough training data")
 
-        known_sparse = set()  # no known sparse features after odds_movement replacement
+        # late_money_signal is intentionally constant in training (DB lacks opening odds)
+        # but activates at prediction time with live race card data
+        known_sparse = {"late_money_signal"}
         constant = []
         for i in range(NUM_FEATURES):
             std = np.std(X[:, i])

@@ -91,7 +91,7 @@ class BettingOptimizer:
     def calculate_place_bet(self, horse_data: dict, probability: float) -> BetOption:
         place_odds = horse_data.get('place_odds', 1.3)
         
-        place_prob = min(0.9, probability * 2.5)
+        place_prob = min(0.85, probability * 1.8)  # empirical HK top-3 ratio
         expected_return = (place_odds * place_prob) - 1
         roi_percent = expected_return * 100
         
@@ -120,7 +120,8 @@ class BettingOptimizer:
         win_bet = self.calculate_win_bet(horse_data, combined_probability)
         place_bet = self.calculate_place_bet(horse_data, combined_probability)
         
-        value_score = win_bet.value_ratio * 0.6 + win_bet.roi_percent * 0.4
+        # Normalize both to similar scale: value_ratio is ~0-3, roi as fraction ~0-2
+        value_score = win_bet.value_ratio * 0.6 + (win_bet.roi_percent / 100) * 0.4
         
         all_bets = [
             (win_bet, value_score),
@@ -222,11 +223,14 @@ class BettingOptimizer:
                 })
                 total_cost += rec.suggested_amount
         
+        max_return = sum(t.get('potential_return', 0) for t in tickets)
+        # Best single ticket return (realistic — only one bet wins per race)
+        best_single = max((t.get('potential_return', 0) for t in tickets), default=0)
         return {
             'total_investment': total_cost,
-            'max_return': sum(t.get('potential_return', 0) for t in tickets),
+            'max_return': max_return,
             'tickets': tickets,
-            'roi_percent': ((sum(t.get('potential_return', 0) for t in tickets) - total_cost) / total_cost * 100) if total_cost > 0 else 0
+            'best_single_roi': ((best_single - total_cost) / total_cost * 100) if total_cost > 0 else 0,
         }
     
     def _get_risk_level(self, probability: float, expected_return: float) -> str:
@@ -253,10 +257,15 @@ class BettingOptimizer:
         if bet.expected_return <= 0:
             return 10
         
-        Kelly_fraction = bet.probability - ((1 - bet.probability) / (bet.odds - 1))
-        Kelly_fraction = max(0.05, min(0.25, Kelly_fraction))
-        
-        optimal = self.min_investment + (self.max_investment - self.min_investment) * Kelly_fraction
+        if bet.odds <= 1.0:
+            return self.min_investment
+        b = bet.odds - 1
+        kelly_fraction = (b * bet.probability - (1 - bet.probability)) / b
+        kelly_fraction = max(0.0, min(0.25, kelly_fraction))
+        if kelly_fraction == 0:
+            return self.min_investment
+
+        optimal = self.min_investment + (self.max_investment - self.min_investment) * kelly_fraction
         
         return round(optimal / 10) * 10
 
@@ -334,7 +343,7 @@ class BettingReportGenerator:
         print("="*80)
         print(f"\nTotal Investment: ${ticket['total_investment']:.0f}")
         print(f"Maximum Return: ${ticket['max_return']:.0f}")
-        print(f"Expected ROI: {ticket['roi_percent']:.0f}%")
+        print(f"Best Single Bet ROI: {ticket['best_single_roi']:.0f}%")
         
         if ticket['tickets']:
             print("\nBets:")
