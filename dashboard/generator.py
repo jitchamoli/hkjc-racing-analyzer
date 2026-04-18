@@ -18,6 +18,7 @@ from dashboard.template import generate_html
 from data.database import HorseDatabase
 from data.odds_tracker import OddsDatabase, OddsMovementAnalyzer
 from analytics.pace import PaceAnalyzer
+from betting.exotic_calculator import find_value_exotics
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -138,6 +139,21 @@ async def main():
             })
 
         race_data["speed_map"] = speed_map
+
+        # Exotic bet value detection
+        if len(analyses) >= 4:
+            model_probs = [h['calibrated_prob'] for h in race_data['horses']]
+            market_probs = []
+            for h in race_data['horses']:
+                wo = h.get('win_odds', 0)
+                market_probs.append(1.0 / wo if wo and wo > 0 else 0)
+            mp_total = sum(market_probs) or 1.0
+            market_probs = [p / mp_total for p in market_probs]
+            horse_nums = [h['number'] for h in race_data['horses']]
+
+            exotics = find_value_exotics(model_probs, market_probs, horse_nums, min_edge=0.10)
+            race_data["exotic_value"] = exotics
+
         all_races.append(race_data)
         logger.info(f"  Race {race_no}: {len(race.horses)} horses, bet: {analyses[0].bet_recommendation if analyses else 'N/A'}")
 

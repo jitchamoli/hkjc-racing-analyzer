@@ -19,6 +19,10 @@ import numpy as np
 import config
 from ml.feature_schema import FEATURE_SCHEMA, NUM_FEATURES
 from ml.features import FeatureEngineering
+from analytics.speed_figures import (
+    compute_par_times, adjusted_speed_figure,
+    normalize_speed_figure, normalize_consistency,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +146,9 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             date_rank = {all_dates[0]: 0} if all_dates else {}
             max_rank = 1
 
+        # Precompute par times for adjusted speed figures (uses all data — date-aware per row)
+        all_par_times = compute_par_times(conn)
+
         # Build per-horse chronological race history for PRIOR-only lookups
         horse_history = {}
         for row in rows:
@@ -223,21 +230,20 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                         pace_vals.append(1.0 - (early - 1) / max(1, fs - 1))
             feat_pace = sum(pace_vals) / len(pace_vals) if pace_vals else 0.5
 
-            # Feature 9: prior finishing speed
-            speed_vals = []
+            # Feature 9: adjusted speed (Beyer-style par-adjusted, weight-corrected)
+            adj_speed_vals = []
             for p in prior[-5:]:
                 ft = p.get('finish_time', '') or ''
                 d = p.get('distance', 0) or 0
-                if ft and ':' in ft and d > 0:
-                    try:
-                        parts = ft.split(':')
-                        secs = float(parts[0]) * 60 + float(parts[1])
-                        if secs > 0:
-                            speed = d / secs
-                            speed_vals.append(max(0.0, min(1.0, (speed - 14) / 4)))
-                    except (ValueError, IndexError):
-                        pass
-            feat_finish = sum(speed_vals) / len(speed_vals) if speed_vals else 0.5
+                g = p.get('going', '') or ''
+                ct = p.get('class_type', '') or ''
+                w = p.get('weight', 0) or 0
+                fig = adjusted_speed_figure(ft, d, g, ct, w, all_par_times)
+                if fig is not None:
+                    adj_speed_vals.append(fig)
+            feat_adj_speed = normalize_speed_figure(
+                sum(adj_speed_vals) / len(adj_speed_vals)
+            ) if adj_speed_vals else 0.5
 
             # Feature 10: C&D form
             prior_at_dist = [p for p in prior if p.get('distance') == distance]
@@ -391,14 +397,25 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                         pct_change = (hw_current - avg_prior_hw) / avg_prior_hw
                         feat_hw_change = max(0.0, min(1.0, 0.5 - pct_change * 10))
 
+            # Feature 23: speed consistency (low std = reliable horse)
+            feat_speed_con = 0.5
+            if len(adj_speed_vals) >= 3:
+                feat_speed_con = normalize_consistency(float(np.std(adj_speed_vals)))
+
+            # Feature 24: late money signal (opening vs current odds)
+            # DB doesn't have opening odds — default to 0.5 (neutral)
+            # Real signal comes at prediction time from live race card data
+            feat_late_money = 0.5
+
             features = [
                 feat_form_proxy, feat_form, feat_draw,
                 feat_jockey, feat_trainer, feat_field_size,
-                feat_field_draw, feat_pace, feat_finish, feat_cd,
+                feat_field_draw, feat_pace, feat_adj_speed, feat_cd,
                 feat_class, feat_freshness, going_perf,
                 weight_vs_field, feat_jh_coop, feat_dist_pb, feat_frs,
                 feat_last_margin, feat_class_change, feat_days_last_win,
                 feat_jt_combo, feat_hw_change,
+                feat_speed_con, feat_late_money,
             ]
             assert len(features) == NUM_FEATURES, f"Expected {NUM_FEATURES} features, got {len(features)}"
             X.append(features)
@@ -473,16 +490,21 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         jt_combo = min(1.0, (jockey_rate * trainer_rate) ** 0.5 * 5.0)
         hw_change = np.random.normal(0.5, 0.1)  # body weight change
         hw_change = np.clip(hw_change, 0.0, 1.0)
+        adjusted_speed = np.random.beta(3, 3)  # par-adjusted speed figure
+        speed_con = np.random.beta(4, 2)  # most horses somewhat consistent
+        late_money = np.random.normal(0.5, 0.1)  # mostly neutral in training
+        late_money = np.clip(late_money, 0.0, 1.0)
 
         features = [
             prior_win_rate, form_score / 100, draw_adv,
             jockey_rate, trainer_rate, feat_field_size,
-            feat_field_draw, prior_pace, prior_speed, cd_form,
+            feat_field_draw, prior_pace, adjusted_speed, cd_form,
             1.0 - class_level,  # inverted: Class 1=high, Class 5=low
             freshness, going_perf,
             weight_vs_field, jockey_horse_coop, distance_pb_ratio, field_rel_speed,
             last_margin, class_change_feat, days_last_win,
             jt_combo, hw_change,
+            speed_con, late_money,
         ]
         assert len(features) == NUM_FEATURES
         X.append(features)
@@ -496,7 +518,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 0.3 * (feat_field_size - 0.8)
             + 0.4 * (feat_field_draw - 0.5)
             + 0.5 * (prior_pace - 0.5)
-            + 0.3 * (prior_speed - 0.5)
+            + 0.6 * (adjusted_speed - 0.5)
             + 0.5 * (cd_form - 0.5)
             # odds_implied removed — no longer a feature
             + 0.3 * ((1.0 - class_level) - 0.5)
@@ -511,6 +533,8 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 0.8 * (days_last_win - 0.4)  # recent winners
             + 1.0 * (jt_combo - 0.3)  # strong jockey+trainer combos
             + 0.3 * (hw_change - 0.5)  # body weight fitness
+            + 0.4 * (speed_con - 0.6)  # consistent runners
+            + 0.5 * (late_money - 0.5)  # smart money signal
             - 2.8
         )
         win_prob = 1.0 / (1.0 + np.exp(-win_logit))

@@ -664,6 +664,40 @@ function renderSpeedMap(speedMap) {{
   return html;
 }}
 
+function renderExoticPanel(race) {{
+  var ex = race.exotic_value;
+  if (!ex) return '';
+  var hasAny = (ex.exacta && ex.exacta.length) || (ex.trifecta && ex.trifecta.length) || (ex.quinella && ex.quinella.length) || (ex.first4 && ex.first4.length);
+  if (!hasAny) return '';
+  var nameMap = {{}};
+  race.horses.forEach(function(h) {{ nameMap[h.number] = h.name; }});
+  var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">';
+  html += '<div style="font-size:1rem;font-weight:800;margin-bottom:12px;color:var(--gold)">EXOTIC VALUE PICKS</div>';
+  html += '<div style="font-size:.7rem;color:var(--dim);margin-bottom:10px">Combinations where our model finds 10%+ edge vs market pricing</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">';
+  ['exacta', 'quinella', 'trifecta', 'first4'].forEach(function(type) {{
+    var bets = ex[type];
+    if (!bets || !bets.length) return;
+    var label = type.toUpperCase();
+    html += '<div style="background:var(--surface2);border-radius:8px;padding:12px">';
+    html += '<div style="font-size:.82rem;font-weight:700;color:var(--accent);margin-bottom:8px">' + label + '</div>';
+    bets.forEach(function(b) {{
+      var horses = b.horses.map(function(n) {{ return '#' + n + ' ' + esc(nameMap[n] || ''); }}).join(' \\u2192 ');
+      var edgeColor = b.edge >= 0.25 ? 'var(--green)' : 'var(--accent)';
+      html += '<div style="padding:4px 0;border-bottom:1px solid rgba(45,55,72,.3);font-size:.75rem">';
+      html += '<div style="font-weight:600">' + horses + '</div>';
+      html += '<div style="display:flex;gap:12px;color:var(--dim);margin-top:2px">';
+      html += '<span>Prob: ' + (b.probability * 100).toFixed(2) + '%</span>';
+      html += '<span>Min odds: $' + b.min_odds.toFixed(0) + '</span>';
+      html += '<span style="color:' + edgeColor + ';font-weight:700">+' + (b.edge * 100).toFixed(0) + '% edge</span>';
+      html += '</div></div>';
+    }});
+    html += '</div>';
+  }});
+  html += '</div></div>';
+  return html;
+}}
+
 function renderRaceDetail(race) {{
   const el = document.getElementById('race-detail-view');
   const g = gradeRace(race);
@@ -726,6 +760,9 @@ function renderRaceDetail(race) {{
   }}
 
   html += buildStrategyPanel(race);
+
+  // Exotic value panel
+  html += renderExoticPanel(race);
 
   // Speed map
   html += renderSpeedMap(race.speed_map);

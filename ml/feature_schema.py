@@ -3,7 +3,7 @@
 Both extract_features() and build_training_data_from_db() MUST build
 feature vectors in FEATURE_SCHEMA order. This prevents train/predict mismatch.
 
-22 features — all use data available BEFORE the race (no leakage).
+24 features — all use data available BEFORE the race (no leakage).
 No direct market odds features — ML must provide independent signal.
 """
 
@@ -18,12 +18,12 @@ FEATURE_SCHEMA = [
     {"name": "field_size", "default": 0.857, "range": (0.0, 1.5)},         # 6
     {"name": "field_rel_draw", "default": 0.5, "range": (0.0, 1.0)},       # 7
     {"name": "prior_pace", "default": 0.5, "range": (0.0, 1.0)},           # 8
-    {"name": "prior_speed", "default": 0.5, "range": (0.0, 1.0)},          # 9
+    {"name": "adjusted_speed", "default": 0.5, "range": (0.0, 1.0)},       # 9  (Beyer-style: par-adjusted, weight-corrected)
     {"name": "cd_form_prior", "default": 0.5, "range": (0.0, 1.0)},        # 10
     {"name": "class_level", "default": 0.4, "range": (0.0, 1.0)},          # 11 (inverted: Class1=0.8, Class5=0.0)
     {"name": "freshness", "default": 0.5, "range": (0.0, 1.0)},            # 12
     {"name": "going_performance", "default": 0.5, "range": (0.0, 1.0)},    # 13 (merged going_pref+going_form_rate)
-    {"name": "weight_vs_field", "default": 0.5, "range": (0.0, 1.0)},       # 14 (carried weight relative to field median)
+    {"name": "weight_vs_field", "default": 0.5, "range": (0.0, 1.0)},      # 14 (carried weight relative to field median)
     {"name": "jockey_horse_coop", "default": 0.5, "range": (0.0, 1.0)},    # 15
     {"name": "distance_pb_ratio", "default": 0.5, "range": (0.0, 1.0)},    # 16
     {"name": "field_rel_speed", "default": 0.5, "range": (0.0, 1.0)},      # 17 (avg speed percentile within prior race fields)
@@ -32,6 +32,8 @@ FEATURE_SCHEMA = [
     {"name": "days_since_last_win", "default": 0.5, "range": (0.0, 1.0)},  # 20
     {"name": "jockey_trainer_combo", "default": 0.5, "range": (0.0, 1.0)}, # 21 (interaction: jockey×trainer)
     {"name": "horse_weight_change", "default": 0.5, "range": (0.0, 1.0)},  # 22 (body weight change from prior race)
+    {"name": "speed_consistency", "default": 0.5, "range": (0.0, 1.0)},    # 23 (low std of adj speed = reliable)
+    {"name": "late_money_signal", "default": 0.5, "range": (0.0, 1.0)},    # 24 (steam=high, drift=low)
 ]
 
 FEATURE_NAMES = [f["name"] for f in FEATURE_SCHEMA]

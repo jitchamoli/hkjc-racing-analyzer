@@ -1107,14 +1107,16 @@ class CombinedRaceAnalyzer:
             analysis.rank = rank
 
         # --- Calibrate probabilities & assign bet types at race level ---
-        self._assign_bet_recommendations(analyses)
+        dist = int(race.distance) if race.distance and str(race.distance).isdigit() else 1200
+        self._assign_bet_recommendations(analyses, field_size=len(race.horses), distance=dist)
 
         return analyses
 
     @staticmethod
-    def _assign_bet_recommendations(analyses: List[HorseAnalysis]):
+    def _assign_bet_recommendations(analyses: List[HorseAnalysis],
+                                    field_size: int = 12, distance: int = 1200):
         """Delegate to core.recommender."""
-        assign_bet_recommendations(analyses)
+        assign_bet_recommendations(analyses, field_size=field_size, distance=distance)
 
 
 # ---------------------------------------------------------------------------

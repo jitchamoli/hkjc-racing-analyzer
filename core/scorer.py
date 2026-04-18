@@ -82,11 +82,38 @@ def compute_weighted_score(factors: Dict[str, float]) -> float:
     return 50.0
 
 
-def calibrate_probabilities(analyses) -> List[float]:
+def _dynamic_blend_weights(field_size: int, distance: int) -> Tuple[float, float]:
+    """Compute dynamic market/model blend weights based on race characteristics.
+
+    HK bettors are sharp — larger fields and shorter races benefit from
+    heavier market weighting. Smaller fields and longer distances have
+    thinner pools where the model has more edge.
+
+    Returns (model_weight, market_weight) summing to 1.0.
+    """
+    # Base weights from config
+    model_w = config.MODEL_BLEND_WEIGHT
+    market_w = config.MARKET_BLEND_WEIGHT
+
+    # Large field (10+) + sprint (≤1400m): market is sharpest → lean market
+    if field_size >= 10 and distance <= 1400:
+        market_w = 0.55
+        model_w = 0.45
+    # Small field (<8) or long distance (≥1800m): thinner pool → lean model
+    elif field_size < 8 or distance >= 1800:
+        market_w = 0.35
+        model_w = 0.65
+
+    return model_w, market_w
+
+
+def calibrate_probabilities(analyses, field_size: int = 12,
+                            distance: int = 1200) -> List[float]:
     """Convert combined_probability scores into calibrated race-level probabilities.
 
     Uses mild softmax normalization (to ensure probabilities sum to 1),
-    then blends with market-implied probabilities.
+    then blends with market-implied probabilities using dynamic weights
+    based on field size and distance.
 
     Note: Individual ML probabilities are already Platt-calibrated at the model
     level, so softmax here is purely for normalization, not recalibration.
@@ -95,7 +122,6 @@ def calibrate_probabilities(analyses) -> List[float]:
         return []
 
     # Mild softmax — just enough to normalize, not distort
-    # Temperature 1.0 = standard softmax (preserves relative scale)
     temp = config.SOFTMAX_TEMPERATURE
     raw_scores = [a.combined_probability for a in analyses]
     max_score = max(raw_scores) if raw_scores else 0.5
@@ -113,10 +139,13 @@ def calibrate_probabilities(analyses) -> List[float]:
     market_total = sum(market_probs) or 1.0
     market_probs = [p / market_total for p in market_probs]
 
+    # Dynamic blend weights based on race characteristics
+    model_w, market_w = _dynamic_blend_weights(field_size, distance)
+
     blended = []
     for i in range(len(cal_probs)):
         if market_probs[i] > 0:
-            b = config.MODEL_BLEND_WEIGHT * cal_probs[i] + config.MARKET_BLEND_WEIGHT * market_probs[i]
+            b = model_w * cal_probs[i] + market_w * market_probs[i]
         else:
             b = cal_probs[i]
         blended.append(b)

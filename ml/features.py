@@ -246,21 +246,31 @@ class FeatureEngineering:
                     pace_vals.append(1.0 - (early - 1) / max(1, field_size - 1))
         features.append(sum(pace_vals) / len(pace_vals) if pace_vals else 0.5)
 
-        # Feature 9: prior finishing speed
-        speed_vals = []
-        for p in prior[-5:]:
-            ft = p.get('finish_time', '') or ''
-            d = p.get('distance', 0) or 0
-            if ft and ':' in ft and d > 0:
-                try:
-                    parts = ft.split(':')
-                    secs = float(parts[0]) * 60 + float(parts[1])
-                    if secs > 0:
-                        speed = d / secs
-                        speed_vals.append(max(0.0, min(1.0, (speed - 14) / 4)))
-                except (ValueError, IndexError):
-                    pass
-        features.append(sum(speed_vals) / len(speed_vals) if speed_vals else 0.5)
+        # Feature 9: adjusted speed (Beyer-style par-adjusted, weight-corrected)
+        from analytics.speed_figures import (
+            compute_par_times, adjusted_speed_figure,
+            normalize_speed_figure, normalize_consistency,
+        )
+        adj_speed_vals = []
+        # Compute par times from DB (cached on first call via horse_data)
+        par_times = horse_data.get('_par_times')
+        if par_times is None and conn is not None:
+            par_times = compute_par_times(conn, before_date=race_date or None)
+            horse_data['_par_times'] = par_times  # cache for subsequent horses
+        if par_times and prior:
+            for p in prior[-5:]:
+                ft = p.get('finish_time', '') or ''
+                d = p.get('distance', 0) or 0
+                g = p.get('going', '') or ''
+                ct = p.get('class_type', '') or ''
+                w = p.get('weight', 0) or 0
+                fig = adjusted_speed_figure(ft, d, g, ct, w, par_times)
+                if fig is not None:
+                    adj_speed_vals.append(fig)
+        if adj_speed_vals:
+            features.append(normalize_speed_figure(sum(adj_speed_vals) / len(adj_speed_vals)))
+        else:
+            features.append(0.5)
 
         # Feature 10: C&D form from prior races
         prior_at_dist = [p for p in prior if p.get('distance') == distance]
@@ -501,6 +511,31 @@ class FeatureEngineering:
                     # Normalize: -3% → 0.8 (slimmed down = fit), +3% → 0.2 (gained = concern)
                     hw_change = max(0.0, min(1.0, 0.5 - pct_change * 10))
         features.append(hw_change)
+
+        # Feature 23: speed consistency (std of adjusted speed figures — low = reliable)
+        speed_con = 0.5
+        if len(adj_speed_vals) >= 3:
+            import numpy as _np
+            speed_con = normalize_consistency(float(_np.std(adj_speed_vals)))
+        features.append(speed_con)
+
+        # Feature 24: late money signal (opening vs current odds)
+        late_money = 0.5
+        opening = horse_data.get('opening_odds', 0) or 0
+        current = horse_data.get('win_odds', 0) or 0
+        if opening > 0 and current > 0:
+            change_pct = (current - opening) / opening
+            if change_pct < -0.20:
+                late_money = max(0.8, min(1.0, 0.8 + abs(change_pct) * 0.5))
+            elif change_pct < -0.10:
+                late_money = 0.6 + abs(change_pct) * 2
+            elif change_pct < 0.10:
+                late_money = 0.5
+            elif change_pct < 0.30:
+                late_money = 0.4 - change_pct * 0.5
+            else:
+                late_money = max(0.0, min(0.2, 0.3 - change_pct * 0.3))
+        features.append(late_money)
 
         if owns_conn and conn is not None:
             conn.close()

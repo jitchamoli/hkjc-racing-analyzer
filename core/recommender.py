@@ -10,18 +10,20 @@ from core.scorer import calibrate_probabilities, apply_calibrated_probs
 logger = logging.getLogger(__name__)
 
 
-def assign_bet_recommendations(analyses) -> None:
+def assign_bet_recommendations(analyses, field_size: int = 12,
+                               distance: int = 1200) -> None:
     """Assign realistic bet recommendations based on field shape.
 
-    Calibrates probabilities via softmax + market blend, handles
-    market-favourite promotion and BANKER overrides, then assigns
-    bet types per horse.
+    Calibrates probabilities via softmax + market blend (dynamic weights
+    based on field size and distance), handles market-favourite promotion
+    and BANKER overrides, then assigns bet types per horse.
     """
     if not analyses:
         return
 
     n = len(analyses)
-    calibrated_probs = calibrate_probabilities(analyses)
+    calibrated_probs = calibrate_probabilities(analyses, field_size=field_size,
+                                               distance=distance)
     apply_calibrated_probs(analyses, calibrated_probs)
 
     top = analyses[0] if n >= 1 else None
