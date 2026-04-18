@@ -512,6 +512,8 @@ class CombinedRaceAnalyzer:
         reasoning = []
         # Normalize distance to string (some paths pass int, some str)
         distance = str(race.distance) if race.distance else "1200"
+        # Cache horse record once — used by going_pref and career_place sections
+        horse_record = self._horse_db.get_horse_record(horse.name) if self._horse_db else None
 
         # --- Core factors (same as before) ---
 
@@ -773,8 +775,6 @@ class CombinedRaceAnalyzer:
         # --- NEW: Going (Track Condition) Preference ---
         going_score = 0.0
         going_reason = ""
-        # Cache horse_record for reuse (also used in Career Place Rate below)
-        horse_record = self._horse_db.get_horse_record(horse.name) if self._horse_db else None
         if race.going and self._horse_db:
             going_record = self._horse_db.get_horse_going_record(horse.name, race.going)
             total_runs = horse_record.get('total_starts', 0) if horse_record else 0
