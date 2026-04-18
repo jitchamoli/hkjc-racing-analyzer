@@ -256,6 +256,8 @@ class HorseDatabase:
 
                 # Upsert horse master record — derive stats from race_results
                 # to avoid double-counting on re-ingestion
+                # Upsert horse master record — stats are recomputed by rebuild_stats()
+                # so no need for correlated subqueries here
                 c.execute("""
                     INSERT INTO horses (name, trainer, rating, total_starts,
                         total_wins, total_places, last_seen_date)
@@ -263,9 +265,6 @@ class HorseDatabase:
                     ON CONFLICT(name) DO UPDATE SET
                         trainer=excluded.trainer,
                         rating=CASE WHEN excluded.rating > 0 THEN excluded.rating ELSE horses.rating END,
-                        total_starts=(SELECT COUNT(*) FROM race_results WHERE horse_name = excluded.name),
-                        total_wins=(SELECT COUNT(*) FROM race_results WHERE horse_name = excluded.name AND is_winner = 1),
-                        total_places=(SELECT COUNT(*) FROM race_results WHERE horse_name = excluded.name AND is_top3 = 1),
                         last_seen_date=MAX(horses.last_seen_date, excluded.last_seen_date)
                 """, (
                     horse_name, entry.get('trainer', ''), entry.get('rating', 0),

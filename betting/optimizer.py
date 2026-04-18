@@ -223,11 +223,15 @@ class BettingOptimizer:
                 })
                 total_cost += rec.suggested_amount
         
+        max_return = sum(t.get('potential_return', 0) for t in tickets)
+        # Best single ticket return (realistic — only one bet wins per race)
+        best_single = max((t.get('potential_return', 0) for t in tickets), default=0)
         return {
             'total_investment': total_cost,
-            'max_return': sum(t.get('potential_return', 0) for t in tickets),
+            'max_return': max_return,
             'tickets': tickets,
-            'roi_percent': ((sum(t.get('potential_return', 0) for t in tickets) - total_cost) / total_cost * 100) if total_cost > 0 else 0
+            'best_single_roi': ((best_single - total_cost) / total_cost * 100) if total_cost > 0 else 0,
+            'max_roi_percent': ((max_return - total_cost) / total_cost * 100) if total_cost > 0 else 0,
         }
     
     def _get_risk_level(self, probability: float, expected_return: float) -> str:

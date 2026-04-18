@@ -374,45 +374,60 @@ class FeatureEngineering:
 
         # Feature 17: field-relative speed (avg percentile within prior race fields)
         # Solves the problem of absolute speed conflating sprinters with stayers
+        # Uses a single batched query for all prior races instead of per-race queries
         field_rel_speed = 0.5
         if prior and conn is not None:
-            percentiles = []
+            # Collect race keys for the last 5 prior races that have finish times
+            race_lookups = []
             for p in prior[-5:]:
-                p_date = p.get('race_date', '')
-                p_rn = p.get('race_number', 0)
                 p_ft = p.get('finish_time', '') or ''
-                p_dist = p.get('distance', 0) or 0
-                if not (p_ft and ':' in p_ft and p_dist > 0):
-                    continue
+                if p_ft and ':' in p_ft:
+                    race_lookups.append((p.get('race_date', ''), p.get('race_number', 0), p_ft))
+
+            if race_lookups:
                 try:
-                    parts = p_ft.split(':')
-                    horse_secs = float(parts[0]) * 60 + float(parts[1])
-                    if horse_secs <= 0 or horse_secs >= 999:
-                        continue
-                    # Get all finish times from the same race
-                    race_times = conn.execute(
-                        "SELECT finish_time FROM race_results "
-                        "WHERE race_date = ? AND race_number = ? "
-                        "AND finish_time LIKE '%:%'",
-                        (p_date, p_rn)
+                    # Batch query: get all finish times for all relevant races at once
+                    placeholders = ' OR '.join(['(race_date = ? AND race_number = ?)'] * len(race_lookups))
+                    params = []
+                    for rd, rn, _ in race_lookups:
+                        params.extend([rd, rn])
+                    batch_rows = conn.execute(
+                        f"SELECT race_date, race_number, finish_time FROM race_results "
+                        f"WHERE ({placeholders}) AND finish_time LIKE '%:%'",
+                        params
                     ).fetchall()
-                    all_secs = []
-                    for rt in race_times:
+
+                    # Group finish times by race
+                    race_times_map = {}
+                    for row in batch_rows:
+                        rk = (row[0], row[1])
                         try:
-                            rp = str(rt[0]).split(':')
-                            s = float(rp[0]) * 60 + float(rp[1])
+                            parts = str(row[2]).split(':')
+                            s = float(parts[0]) * 60 + float(parts[1])
                             if 0 < s < 999:
-                                all_secs.append(s)
+                                race_times_map.setdefault(rk, []).append(s)
                         except (ValueError, IndexError):
                             pass
-                    if len(all_secs) >= 3:
-                        # Percentile: 0% = slowest, 100% = fastest
-                        rank = sum(1 for s in all_secs if s > horse_secs)
-                        percentiles.append(rank / (len(all_secs) - 1) if len(all_secs) > 1 else 0.5)
-                except (ValueError, IndexError):
-                    pass
-            if percentiles:
-                field_rel_speed = sum(percentiles) / len(percentiles)
+
+                    # Compute percentile for each prior race
+                    percentiles = []
+                    for rd, rn, p_ft in race_lookups:
+                        try:
+                            parts = p_ft.split(':')
+                            horse_secs = float(parts[0]) * 60 + float(parts[1])
+                            if horse_secs <= 0 or horse_secs >= 999:
+                                continue
+                        except (ValueError, IndexError):
+                            continue
+                        all_secs = race_times_map.get((rd, rn), [])
+                        if len(all_secs) >= 3:
+                            rank = sum(1 for s in all_secs if s > horse_secs)
+                            percentiles.append(rank / (len(all_secs) - 1) if len(all_secs) > 1 else 0.5)
+
+                    if percentiles:
+                        field_rel_speed = sum(percentiles) / len(percentiles)
+                except Exception as e:
+                    logger.warning(f"Failed to compute field_rel_speed for {horse_name}: {e}")
         features.append(field_rel_speed)
 
         # Feature 18: last start margin (NEW — how far behind winner last race)

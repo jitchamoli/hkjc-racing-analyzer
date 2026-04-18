@@ -92,7 +92,7 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
                                analyzer: CombinedRaceAnalyzer = None,
                                db: HorseDatabase = None, odds_db: OddsDatabase = None):
     """Regenerate dashboard with auto-refresh enabled."""
-    owns_resources = fetcher is None
+    owns_db = db is None
     try:
         fetcher = fetcher or HKJCDataFetcher()
         analyzer = analyzer or CombinedRaceAnalyzer()
@@ -188,7 +188,7 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
 
             all_races.append(race_data)
 
-        if owns_resources:
+        if owns_db:
             db.conn.close()
 
         date_str = race_date.replace('/', '')
@@ -258,7 +258,11 @@ async def run_monitor(race_date: str):
 
 
 def main():
+    import re
     race_date = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime('%Y/%m/%d')
+    if not re.fullmatch(r'\d{4}/\d{2}/\d{2}', race_date):
+        print(f"Invalid date format: {race_date}. Expected YYYY/MM/DD")
+        sys.exit(1)
     asyncio.run(run_monitor(race_date))
 
 

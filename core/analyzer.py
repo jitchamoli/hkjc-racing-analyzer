@@ -774,9 +774,10 @@ class CombinedRaceAnalyzer:
         # --- NEW: Going (Track Condition) Preference ---
         going_score = 0.0
         going_reason = ""
+        # Cache horse_record for reuse (also used in Career Place Rate below)
+        horse_record = self._horse_db.get_horse_record(horse.name) if self._horse_db else None
         if race.going and self._horse_db:
             going_record = self._horse_db.get_horse_going_record(horse.name, race.going)
-            horse_record = self._horse_db.get_horse_record(horse.name)
             total_runs = horse_record.get('total_starts', 0) if horse_record else 0
             going_score, going_reason = self.going_analyzer.analyze_going_preference(
                 going_record, race.going, total_runs
@@ -906,7 +907,7 @@ class CombinedRaceAnalyzer:
         cp_score = 0.0
         cp_reason = ""
         if self._horse_db:
-            hr = self._horse_db.get_horse_record(horse.name)
+            hr = horse_record  # reuse cached result from going_pref section
             if hr and hr.get('total_starts', 0) >= 3:
                 starts = hr['total_starts']
                 places = hr.get('total_places', 0) or 0

@@ -4,6 +4,7 @@ Generate race predictions and dashboard - non-interactive
 """
 
 import asyncio
+import re
 import sys
 import os
 import json
@@ -25,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 async def main():
     race_date = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime('%Y/%m/%d')
+    if not re.fullmatch(r'\d{4}/\d{2}/\d{2}', race_date):
+        print(f"Invalid date format: {race_date}. Expected YYYY/MM/DD")
+        sys.exit(1)
 
     logger.info(f"Generating predictions for {race_date}")
 

@@ -5,6 +5,7 @@ Allows manual entry of real odds for accurate predictions
 """
 
 import asyncio
+import re
 import sys
 from datetime import datetime
 import logging
@@ -41,9 +42,19 @@ class InteractiveRacingAnalyzer:
         race_date = input("Date (YYYY/MM/DD): ").strip()
         if not race_date:
             race_date = datetime.now().strftime('%Y/%m/%d')
-        
-        race_number = input("Race number (1-10): ").strip() or "1"
-        race_number = int(race_number)
+        if not re.fullmatch(r'\d{4}/\d{2}/\d{2}', race_date):
+            print("Invalid date format. Expected YYYY/MM/DD")
+            return
+
+        race_input = input("Race number (1-12): ").strip() or "1"
+        try:
+            race_number = int(race_input)
+            if not 1 <= race_number <= 12:
+                print("Race number must be between 1 and 12")
+                return
+        except ValueError:
+            print("Race number must be a number")
+            return
         
         print(f"\n📡 Fetching race data...")
         self.current_race = await self.fetcher.get_race_card(race_date, race_number)
@@ -114,7 +125,9 @@ class InteractiveRacingAnalyzer:
         budget = input("\nEnter budget (HK$) [default: 100]: ").strip()
         try:
             budget = float(budget) if budget else 100
-        except:
+            if not (0 < budget < 1_000_000) or budget != budget:  # catches nan
+                budget = 100
+        except (ValueError, TypeError):
             budget = 100
         
         race_dict = {

@@ -154,6 +154,7 @@ def build_features_from_record(entry: Dict, race: Dict) -> np.ndarray:
         'trainer': entry['trainer'],
         'last_6': entry['last_6'],
         'distance': race['distance'],
+        'race_date': race.get('date', ''),
         'running_style': '',
         'last_400m_avg': 0.0,
         'cd_wins': 0,
