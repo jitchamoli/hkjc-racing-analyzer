@@ -18,7 +18,8 @@ from data.database import HorseDatabase
 
 def print_summary(summary: dict):
     print("\n" + "=" * 60)
-    print(f"  PREDICTION ACCURACY — Last {summary['period_days']} days")
+    period = "All time" if summary['period_days'] >= 9999 else f"Last {summary['period_days']} days"
+    print(f"  PREDICTION ACCURACY — {period}")
     print("=" * 60)
 
     print(f"\n  Races tracked:       {summary['total_races']}")
