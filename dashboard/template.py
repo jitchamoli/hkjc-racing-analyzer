@@ -257,7 +257,7 @@ function renderDashboard() {{
     '<div class="stat"><div class="v" style="color:var(--pink)">' + counts.TRIO + '</div><div class="l">TRIO</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--dim)">' + counts.SKIP + '</div><div class="l">SKIP</div></div>' +
     '<div class="stat"><div class="v">' + RACES.length + '</div><div class="l">Races</div></div>' +
-    '<div class="stat"><div class="v">26</div><div class="l">Factors</div></div>' +
+    '<div class="stat"><div class="v">24</div><div class="l">Factors</div></div>' +
   '</div>' +
   '<div class="legend">' +
     '<div class="item"><div class="dot" style="background:var(--green)"></div>WIN</div>' +
