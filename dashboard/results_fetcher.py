@@ -356,7 +356,7 @@ class ResultsFetcher:
 
                 results_obj['races'][r['race_number']] = race_results
 
-        results_json = json.dumps(results_obj)
+        results_json = json.dumps(results_obj).replace('</script>', '<\\/script>')
 
         # Inject as a simple data constant + DOM manipulation code
         # Using string concatenation to avoid template literal issues

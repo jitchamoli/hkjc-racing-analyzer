@@ -931,7 +931,7 @@ class HKJCParser:
     @staticmethod
     def _safe_float(text: str) -> float:
         try:
-            m = re.search(r"[\d]+\.?\d*", str(text))
+            m = re.search(r"-?[\d]+\.?\d*", str(text))
             return float(m.group()) if m else 0.0
         except (ValueError, TypeError):
             return 0.0
@@ -1310,8 +1310,11 @@ class HKJCDataFetcher:
         """Fetch all races for a given meeting date."""
         day = RaceDay(date=race_date)
 
+        # Detect venue before fetching to avoid wrong-venue empty HTML
+        venue = self.api.detect_venue(race_date)
+
         # First, figure out how many races there are
-        html = self.api.fetch_race_card_html(race_date, 1)
+        html = self.api.fetch_race_card_html(race_date, 1, venue=venue)
         if not html:
             return day
 
@@ -1329,7 +1332,7 @@ class HKJCDataFetcher:
 
         # Fetch each race
         for rno in sorted(race_nums):
-            race = await self.get_race_card(race_date, rno)
+            race = await self.get_race_card(race_date, rno, venue=venue)
             if race:
                 day.races.append(race)
                 if not day.venue and race.venue:
@@ -1349,8 +1352,7 @@ class HKJCDataFetcher:
         if cache_key in self._horse_history_cache:
             return self._horse_history_cache[cache_key][:num_races]
 
-        import time
-        time.sleep(1.5)  # Rate limit
+        await asyncio.sleep(1.5)  # Rate limit (non-blocking)
 
         html = self.api.fetch_horse_profile_html(horse_name)
         history = HKJCParser.parse_horse_history(html) if html else []

@@ -235,14 +235,18 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 if valid_ht:
                     horse_pb_t = min(valid_ht)
                     try:
-                        tr_row = conn.execute(
-                            "SELECT MIN(finish_time) FROM race_results WHERE distance = ? AND finish_time != '' AND finish_time IS NOT NULL AND race_date < ?",
+                        tr_rows = conn.execute(
+                            "SELECT finish_time FROM race_results WHERE distance = ? AND finish_time != '' AND finish_time IS NOT NULL AND finish_time LIKE '%:%' AND race_date < ?",
                             (distance, race_date)
-                        ).fetchone()
-                        if tr_row and tr_row[0]:
-                            tr_secs = _pt(tr_row[0])
-                            if tr_secs < 999 and horse_pb_t < 999:
-                                feat_dist_pb = min(1.0, tr_secs / horse_pb_t)
+                        ).fetchall()
+                        # Parse times numerically to find true minimum (TEXT MIN fails across minute boundaries)
+                        best_tr = None
+                        for tr_r in tr_rows:
+                            t = _pt(tr_r[0])
+                            if t < 999 and (best_tr is None or t < best_tr):
+                                best_tr = t
+                        if best_tr is not None and best_tr < 999 and horse_pb_t < 999:
+                            feat_dist_pb = min(1.0, best_tr / horse_pb_t)
                     except Exception:
                         pass
 
@@ -323,8 +327,10 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
                                       p=[0.05, 0.08, 0.12, 0.15, 0.15, 0.15, 0.12, 0.10, 0.08])
         weight_carried_norm = (weight_lbs - 108) / 27.0
 
+        # Feature 1 must be prior_win_rate (not rating/100) to match DB training
+        prior_win_rate = np.random.beta(2, 8)  # right-skewed, most values 0.05-0.30
         features = [
-            rating / 100, form_score / 100, draw_adv,
+            prior_win_rate, form_score / 100, draw_adv,
             jockey_rate, trainer_rate, feat_field_size,
             feat_field_draw, prior_pace, prior_speed, cd_form, odds_implied,
             class_level, freshness, going_pref,
@@ -334,7 +340,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         X.append(features)
 
         win_logit = (
-            1.8 * (rating / 100 - 0.6)
+            2.5 * (prior_win_rate - 0.15)
             + 1.2 * (form_score / 100 - 0.4)
             + 0.5 * (draw_adv - 0.6)
             + 3.0 * (jockey_rate - 0.10)
@@ -352,7 +358,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 0.3 * (jockey_horse_coop - 0.25)
             + 0.2 * (distance_pb_ratio - 0.85)
             - 0.4 * (weight_carried_norm - 0.65)
-            - 2.3
+            - 2.8
         )
         win_prob = 1.0 / (1.0 + np.exp(-win_logit))
         is_win = np.random.random() < win_prob

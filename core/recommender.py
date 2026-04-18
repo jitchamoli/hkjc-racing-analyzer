@@ -35,13 +35,13 @@ def assign_bet_recommendations(analyses) -> None:
     gap_2_3 = second_prob - third_prob
     top_3_share = top_prob + second_prob + third_prob
 
-    market_prob_top = (1 / top.horse.win_odds) if top and top.horse.win_odds > 0 else 0
+    market_prob_top = (1 / top.horse.win_odds) if top and top.horse.win_odds and top.horse.win_odds > 0 else 0
 
     top_is_banker = any("BANKER" in r for r in analyses[0].reasoning) if analyses else False
 
     # Market favourite promotion (skip if BANKER)
-    market_fav = min(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds > 0 else 999)
-    market_fav_prob = (1 / market_fav.horse.win_odds) if market_fav.horse.win_odds > 0 else 0
+    market_fav = min(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds and a.horse.win_odds > 0 else 999)
+    market_fav_prob = (1 / market_fav.horse.win_odds) if market_fav.horse.win_odds and market_fav.horse.win_odds > 0 else 0
     if (market_fav_prob >= 0.30 and market_fav.rank > 1
             and market_fav.horse.win_odds > 0
             and not top_is_banker):
@@ -97,7 +97,7 @@ def assign_bet_recommendations(analyses) -> None:
     MIN_EV = config.MIN_EXPECTED_RETURN
     top_ev = analyses[0].expected_return if analyses else -1
     top_cal_prob = calibrated_probs[0] if calibrated_probs else 0
-    top_market_prob = (1 / analyses[0].horse.win_odds) if analyses and analyses[0].horse.win_odds > 0 else 1
+    top_market_prob = (1 / analyses[0].horse.win_odds) if analyses and analyses[0].horse.win_odds and analyses[0].horse.win_odds > 0 else 1
     has_edge = top_cal_prob > top_market_prob
     skip_race = top_ev < MIN_EV and not has_edge and not (banker_horse and banker_horse.rank == 1)
 
@@ -154,5 +154,5 @@ def _resync_ranks_and_probs(analyses, calibrated_probs: List[float]) -> None:
     for i, a in enumerate(analyses):
         a.rank = i + 1
         a.combined_probability = calibrated_probs[i]
-        if a.horse.win_odds > 0:
+        if a.horse.win_odds and a.horse.win_odds > 0:
             a.expected_return = (a.horse.win_odds * calibrated_probs[i]) - 1

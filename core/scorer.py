@@ -98,7 +98,7 @@ def calibrate_probabilities(analyses) -> List[float]:
     # Blend with market-implied probabilities
     market_probs = []
     for a in analyses:
-        if a.horse.win_odds > 0:
+        if a.horse.win_odds and a.horse.win_odds > 0:
             market_probs.append(1.0 / a.horse.win_odds)
         else:
             market_probs.append(0.0)
@@ -121,7 +121,7 @@ def apply_calibrated_probs(analyses, calibrated_probs: List[float]) -> None:
     """Write calibrated probabilities and expected returns onto analyses."""
     for i, a in enumerate(analyses):
         a.combined_probability = calibrated_probs[i]
-        if a.horse.win_odds > 0:
+        if a.horse.win_odds and a.horse.win_odds > 0:
             a.expected_return = (a.horse.win_odds * calibrated_probs[i]) - 1
         else:
             a.expected_return = -1.0

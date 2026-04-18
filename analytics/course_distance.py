@@ -26,8 +26,8 @@ class CourseDistanceAnalyzer:
 
         # Normalize venue
         venue_lower = current_venue.lower()
-        is_st = "sha tin" in venue_lower or "st" in venue_lower
-        is_hv = "happy valley" in venue_lower or "hv" in venue_lower
+        is_st = "sha tin" in venue_lower or venue_lower == "st"
+        is_hv = "happy valley" in venue_lower or venue_lower == "hv"
 
         cd_runs = 0
         cd_wins = 0
@@ -38,10 +38,12 @@ class CourseDistanceAnalyzer:
             rd = race.get("distance", 0)
             rp = race.get("position", 99)
 
-            # Match venue
-            if is_st and ("sha tin" not in rv and "st" not in rv):
+            # Match venue (use exact match for abbreviations to avoid false matches)
+            rv_is_st = "sha tin" in rv or rv == "st"
+            rv_is_hv = "happy valley" in rv or rv == "hv"
+            if is_st and not rv_is_st:
                 continue
-            if is_hv and ("happy valley" not in rv and "hv" not in rv):
+            if is_hv and not rv_is_hv:
                 continue
             if not is_st and not is_hv:
                 continue

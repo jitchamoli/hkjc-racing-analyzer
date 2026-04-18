@@ -595,7 +595,7 @@ class CombinedRaceAnalyzer:
                 f"Market: {odds_prob*100:.1f}% implied @ ${horse.win_odds:.1f} (LIVE)"
             )
         else:
-            factors["odds"] = 0
+            factors["odds"] = 50  # neutral when no live odds (avoid dragging score down)
             reasoning.append("No live odds available")
 
         jockey_score, jockey_reason = self.strategy.analyze_jockey(horse.jockey, db=self._horse_db)
@@ -1059,6 +1059,7 @@ class CombinedRaceAnalyzer:
             "field_size": len(all_horses),
             "going": race.going if hasattr(race, 'going') else "",
             "days_since_last_run": horse.days_since_last_run if hasattr(horse, 'days_since_last_run') else 0,
+            "race_date": race.date if hasattr(race, 'date') else "",
         }
 
         ml_prediction = self.ml_analyzer.predict(horse_data, all_results or [], "")

@@ -127,9 +127,11 @@ class HorseDatabase:
 
         # Indexes
         c.execute("CREATE INDEX IF NOT EXISTS idx_results_horse ON race_results(horse_name)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_results_horse_date ON race_results(horse_name, race_date)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_results_date ON race_results(race_date)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_results_venue_dist ON race_results(venue, distance)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_results_jockey ON race_results(jockey)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_results_trainer ON race_results(trainer)")
 
         self.conn.commit()
 
@@ -143,6 +145,14 @@ class HorseDatabase:
         race_data: list of race dicts with 'entries' containing horse results.
         This is the same format as training_data/historical_races.json.
         """
+        try:
+            self._ingest_race_day_inner(race_data)
+        except Exception:
+            self.conn.rollback()
+            logger.error("ingest_race_day failed — rolled back", exc_info=True)
+            raise
+
+    def _ingest_race_day_inner(self, race_data: List[Dict]):
         c = self.conn.cursor()
         now = datetime.now().strftime('%Y-%m-%d %H:%M')
 
@@ -184,9 +194,9 @@ class HorseDatabase:
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(race_date, race_number, horse_name)
                     DO UPDATE SET
-                        finish_position=excluded.finish_position,
-                        is_winner=excluded.is_winner,
-                        is_top3=excluded.is_top3,
+                        finish_position=CASE WHEN excluded.finish_position > 0 THEN excluded.finish_position ELSE race_results.finish_position END,
+                        is_winner=CASE WHEN excluded.finish_position > 0 THEN excluded.is_winner ELSE race_results.is_winner END,
+                        is_top3=CASE WHEN excluded.finish_position > 0 THEN excluded.is_top3 ELSE race_results.is_top3 END,
                         win_odds=CASE WHEN excluded.win_odds > 0 THEN excluded.win_odds ELSE race_results.win_odds END,
                         margin=CASE WHEN excluded.margin > 0 THEN excluded.margin ELSE race_results.margin END,
                         horse_weight=CASE WHEN excluded.horse_weight > 0 THEN excluded.horse_weight ELSE race_results.horse_weight END,
@@ -225,8 +235,6 @@ class HorseDatabase:
                     is_winner, is_top3, race_date,
                 ))
 
-        self.conn.commit()
-
         # Backfill days_since_last_run from race_results where missing
         # REPLACE converts YYYY/MM/DD to YYYY-MM-DD for julianday()
         c.execute("""
@@ -245,6 +253,8 @@ class HorseDatabase:
                   AND prev.race_date < race_results.race_date
               )
         """)
+
+        # Single commit for atomicity — upserts + backfill are all-or-nothing
         self.conn.commit()
 
         logger.info(f"Ingested {len(race_data)} races into horse database")
@@ -458,19 +468,20 @@ class HorseDatabase:
         Returns: {'runs': int, 'wins': int, 'places': int, 'avg_pos': float}
         """
         params = [horse_name, going]
-        date_filter = ''
         if before_date:
-            date_filter = ' AND race_date < ?'
             params.append(before_date)
 
-        row = self.conn.execute(f"""
+        query = """
             SELECT COUNT(*) as runs,
                    COALESCE(SUM(is_winner), 0) as wins,
                    COALESCE(SUM(is_top3), 0) as places,
                    COALESCE(AVG(CASE WHEN finish_position > 0 THEN finish_position END), 0) as avg_pos
             FROM race_results
-            WHERE horse_name = ? AND going = ?{date_filter}
-        """, params).fetchone()
+            WHERE horse_name = ? AND going = ?
+        """
+        if before_date:
+            query += ' AND race_date < ?'
+        row = self.conn.execute(query, params).fetchone()
 
         return {
             'runs': row['runs'] or 0,
@@ -484,19 +495,20 @@ class HorseDatabase:
         Returns: {'rides': int, 'wins': int, 'places': int, 'avg_pos': float}
         """
         params = [jockey, horse_name]
-        date_filter = ''
         if before_date:
-            date_filter = ' AND race_date < ?'
             params.append(before_date)
 
-        row = self.conn.execute(f"""
+        query = """
             SELECT COUNT(*) as rides,
                    COALESCE(SUM(is_winner), 0) as wins,
                    COALESCE(SUM(is_top3), 0) as places,
                    COALESCE(AVG(CASE WHEN finish_position > 0 THEN finish_position END), 0) as avg_pos
             FROM race_results
-            WHERE jockey = ? AND horse_name = ?{date_filter}
-        """, params).fetchone()
+            WHERE jockey = ? AND horse_name = ?
+        """
+        if before_date:
+            query += ' AND race_date < ?'
+        row = self.conn.execute(query, params).fetchone()
 
         return {
             'rides': row['rides'] or 0,
@@ -510,18 +522,24 @@ class HorseDatabase:
         Returns: time string like '1:09.2' or '' if no data.
         """
         params = [horse_name, distance]
-        date_filter = ''
         if before_date:
-            date_filter = ' AND race_date < ?'
             params.append(before_date)
 
-        row = self.conn.execute(f"""
+        query = """
             SELECT finish_time FROM race_results
-            WHERE horse_name = ? AND distance = ?{date_filter}
+            WHERE horse_name = ? AND distance = ?
             AND finish_time IS NOT NULL AND finish_time != ''
-            ORDER BY finish_time ASC
-            LIMIT 1
-        """, params).fetchone()
+            AND finish_time LIKE '%:%'
+        """
+        if before_date:
+            query += ' AND race_date < ?'
+        query += """
+            ORDER BY
+              CAST(SUBSTR(finish_time, 1, INSTR(finish_time,':')-1) AS REAL)*60
+              + CAST(SUBSTR(finish_time, INSTR(finish_time,':')+1) AS REAL)
+            ASC LIMIT 1
+        """
+        row = self.conn.execute(query, params).fetchone()
 
         return row['finish_time'] if row else ''
 
@@ -533,8 +551,11 @@ class HorseDatabase:
             SELECT finish_time FROM race_results
             WHERE venue LIKE ? AND distance = ?
             AND finish_time IS NOT NULL AND finish_time != ''
-            ORDER BY finish_time ASC
-            LIMIT 1
+            AND finish_time LIKE '%:%'
+            ORDER BY
+              CAST(SUBSTR(finish_time, 1, INSTR(finish_time,':')-1) AS REAL)*60
+              + CAST(SUBSTR(finish_time, INSTR(finish_time,':')+1) AS REAL)
+            ASC LIMIT 1
         """, (f'%{venue}%', distance)).fetchone()
 
         return row['finish_time'] if row else ''
@@ -707,6 +728,15 @@ class HorseDatabase:
         """, (min_runners,))
         return [dict(r) for r in c.fetchall()]
 
+    @staticmethod
+    def _current_season() -> str:
+        """Derive HK racing season string (Jul-Jun). E.g. '2025-26' for Jul 2025 - Jun 2026."""
+        now = datetime.now()
+        if now.month >= 7:
+            return f"{now.year}-{str(now.year + 1)[-2:]}"
+        else:
+            return f"{now.year - 1}-{str(now.year)[-2:]}"
+
     def rebuild_stats(self):
         """Rebuild jockey_stats and trainer_stats from race_results.
 
@@ -714,6 +744,7 @@ class HorseDatabase:
         at any time — it replaces the stats tables entirely.
         """
         c = self.conn.cursor()
+        season = self._current_season()
 
         # Rebuild jockey_stats
         c.execute("DELETE FROM jockey_stats")
@@ -721,7 +752,7 @@ class HorseDatabase:
             INSERT INTO jockey_stats (name, season, rides, wins, places, win_rate, place_rate, last_updated)
             SELECT
                 jockey,
-                '2025-26',
+                ?,
                 COUNT(*) as rides,
                 SUM(is_winner) as wins,
                 SUM(is_top3) as places,
@@ -731,7 +762,7 @@ class HorseDatabase:
             FROM race_results
             WHERE jockey != ''
             GROUP BY jockey
-        """)
+        """, (season,))
 
         # Rebuild trainer_stats
         c.execute("DELETE FROM trainer_stats")
@@ -739,7 +770,7 @@ class HorseDatabase:
             INSERT INTO trainer_stats (name, season, runners, wins, places, win_rate, place_rate, last_updated)
             SELECT
                 trainer,
-                '2025-26',
+                ?,
                 COUNT(*) as runners,
                 SUM(is_winner) as wins,
                 SUM(is_top3) as places,
@@ -749,7 +780,7 @@ class HorseDatabase:
             FROM race_results
             WHERE trainer != ''
             GROUP BY trainer
-        """)
+        """, (season,))
 
         self.conn.commit()
         logger.info("Rebuilt jockey_stats and trainer_stats from race_results")

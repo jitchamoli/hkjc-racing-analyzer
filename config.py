@@ -52,7 +52,9 @@ MIN_REAL_SAMPLES = 50
 SYNTHETIC_FALLBACK_SIZE = 2000
 
 # Softmax temperature for probability calibration
-SOFTMAX_TEMPERATURE = 8.0
+# Used as multiplier: exp((s - max) * T). Lower = flatter distribution.
+# 8.0 over-sharpens; 2.5 gives moderate differentiation.
+SOFTMAX_TEMPERATURE = 2.5
 
 # Market blend ratio (model vs market)
 MARKET_BLEND_WEIGHT = 0.30

@@ -66,6 +66,23 @@ class FeatureEngineering:
 
     @staticmethod
     def calculate_jockey_win_rate(jockey: str, all_results) -> float:
+        """Calculate jockey win rate — queries DB stats first, falls back to all_results."""
+        if jockey:
+            try:
+                db_path = config.DB_PATH
+                if db_path.exists():
+                    conn = sqlite3.connect(str(db_path))
+                    conn.row_factory = sqlite3.Row
+                    row = conn.execute(
+                        "SELECT win_rate FROM jockey_stats WHERE name = ?", (jockey,)
+                    ).fetchone()
+                    conn.close()
+                    if row and row['win_rate'] and row['win_rate'] > 0:
+                        return min(0.6, row['win_rate'])
+            except Exception:
+                pass
+        if not jockey:
+            return 0.12
         jockey_rides = [r for r in all_results if jockey.lower() in r.jockey.lower()]
         if not jockey_rides:
             return 0.12
@@ -74,6 +91,23 @@ class FeatureEngineering:
 
     @staticmethod
     def calculate_trainer_win_rate(trainer: str, all_results) -> float:
+        """Calculate trainer win rate — queries DB stats first, falls back to all_results."""
+        if trainer:
+            try:
+                db_path = config.DB_PATH
+                if db_path.exists():
+                    conn = sqlite3.connect(str(db_path))
+                    conn.row_factory = sqlite3.Row
+                    row = conn.execute(
+                        "SELECT win_rate FROM trainer_stats WHERE name = ?", (trainer,)
+                    ).fetchone()
+                    conn.close()
+                    if row and row['win_rate'] and row['win_rate'] > 0:
+                        return min(0.5, row['win_rate'])
+            except Exception:
+                pass
+        if not trainer:
+            return 0.12
         trainer_horses = [r for r in all_results if trainer.lower() in r.trainer.lower()]
         if not trainer_horses:
             return 0.12
@@ -298,13 +332,22 @@ class FeatureEngineering:
                         db_path_pb = config.DB_PATH
                         if db_path_pb.exists():
                             conn_pb = sqlite3.connect(str(db_path_pb))
-                            row_pb = conn_pb.execute(
-                                "SELECT MIN(finish_time) FROM race_results WHERE distance = ? AND finish_time != '' AND finish_time IS NOT NULL",
-                                (distance,)
-                            ).fetchone()
+                            pb_query = "SELECT finish_time FROM race_results WHERE distance = ? AND finish_time != '' AND finish_time IS NOT NULL"
+                            pb_params = [distance]
+                            if race_date:
+                                pb_query += " AND race_date < ?"
+                                pb_params.append(race_date)
+                            row_pb = conn_pb.execute(pb_query, pb_params).fetchall()
+                            # Find true minimum by parsing times numerically (TEXT sort is wrong across minute boundaries)
+                            best_time = None
+                            for rr in row_pb:
+                                t = _parse_time(rr[0])
+                                if t < 999 and (best_time is None or t < best_time):
+                                    best_time = t
+                            row_pb = best_time  # now a float seconds or None
                             conn_pb.close()
-                            if row_pb and row_pb[0]:
-                                track_record = _parse_time(row_pb[0])
+                            if row_pb is not None:
+                                track_record = row_pb
                                 if track_record < 999 and horse_pb < 999:
                                     distance_pb_ratio = min(1.0, track_record / horse_pb)
                     except Exception:

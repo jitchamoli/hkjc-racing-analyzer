@@ -418,8 +418,8 @@ function buildStrategyPanel(race) {{
   }}
 
   if (qnlPicks.length >= 2) {{
-    var nums = qnlPicks.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    var names = qnlPicks.map(function(h) {{ return h.name; }}).join(' & ');
+    var nums = qnlPicks.map(function(h) {{ return '#' + esc(h.number); }}).join(' + ');
+    var names = qnlPicks.map(function(h) {{ return esc(h.name); }}).join(' &amp; ');
     s += '<div style="background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.25);border-radius:10px;padding:12px 16px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--cyan);text-transform:uppercase;margin-bottom:6px">Quinella Place (QNL PL)</div>'
       + '<div style="font-size:1rem;font-weight:800">' + nums + '</div>'
@@ -429,8 +429,8 @@ function buildStrategyPanel(race) {{
   }}
 
   if (trioPicks.length >= 3) {{
-    var nums = trioPicks.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    var names = trioPicks.map(function(h) {{ return h.name; }}).join(', ');
+    var nums = trioPicks.map(function(h) {{ return '#' + esc(h.number); }}).join(' + ');
+    var names = trioPicks.map(function(h) {{ return esc(h.name); }}).join(', ');
     s += '<div style="background:rgba(236,72,153,.06);border:1px solid rgba(236,72,153,.25);border-radius:10px;padding:12px 16px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--pink);text-transform:uppercase;margin-bottom:6px">Trio</div>'
       + '<div style="font-size:1rem;font-weight:800">' + nums + '</div>'
@@ -444,8 +444,8 @@ function buildStrategyPanel(race) {{
       + '<div style="font-size:.72rem;font-weight:700;color:var(--purple);text-transform:uppercase;margin-bottom:6px">Place Bets</div>';
     placePicks.forEach(function(h) {{
       s += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(139,92,246,.1)">'
-        + '<span style="font-weight:700;font-size:.85rem">#' + h.number + ' ' + h.name + '</span>'
-        + '<span style="font-size:.78rem;color:var(--dim)">' + h.jockey + ' | $' + h.win_odds + '</span></div>';
+        + '<span style="font-weight:700;font-size:.85rem">#' + esc(h.number) + ' ' + esc(h.name) + '</span>'
+        + '<span style="font-size:.78rem;color:var(--dim)">' + esc(h.jockey) + ' | $' + esc(h.win_odds) + '</span></div>';
     }});
     s += '<div style="font-size:.72rem;color:var(--dim);margin-top:6px">Each to finish in top 3</div></div>';
   }}
@@ -458,7 +458,7 @@ function buildStrategyPanel(race) {{
       + '<div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:6px">BEST VALUE — Odds are in our favour</div>';
     valueBets.forEach(function(h) {{
       s += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:.8rem">'
-        + '<span><span style="font-weight:700">#' + h.number + '</span> ' + h.name + ' @ $' + h.win_odds + '</span>'
+        + '<span><span style="font-weight:700">#' + esc(h.number) + '</span> ' + esc(h.name) + ' @ $' + esc(h.win_odds) + '</span>'
         + '<span style="color:var(--green);font-weight:700">Paying more than it should</span></div>';
     }});
     s += '</div>';
@@ -470,7 +470,7 @@ function buildStrategyPanel(race) {{
     s += '<div style="background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:8px;padding:10px 14px;margin-bottom:10px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--red);margin-bottom:6px">ONES TO WATCH (could upset)</div>';
     dangers.forEach(function(h) {{
-      s += '<div style="font-size:.8rem;padding:2px 0"><span style="font-weight:700">#' + h.number + '</span> ' + h.name + ' @ $' + h.win_odds + ' <span style="color:var(--dim)">(' + (h.calibrated_prob * 100).toFixed(1) + '%)</span></div>';
+      s += '<div style="font-size:.8rem;padding:2px 0"><span style="font-weight:700">#' + esc(h.number) + '</span> ' + esc(h.name) + ' @ $' + esc(h.win_odds) + ' <span style="color:var(--dim)">(' + (h.calibrated_prob * 100).toFixed(1) + '%)</span></div>';
     }});
     s += '</div>';
   }}
@@ -479,13 +479,13 @@ function buildStrategyPanel(race) {{
   if (dangers.length && horses.length >= 3) {{
     var topDanger = dangers[0];
     var top2 = horses.slice(0, 2);
-    var wcNums = top2.map(function(h) {{ return '#' + h.number; }}).concat(['#' + topDanger.number]);
-    var wcNames = top2.map(function(h) {{ return h.name; }}).concat([topDanger.name]);
+    var wcNums = top2.map(function(h) {{ return '#' + esc(h.number); }}).concat(['#' + esc(topDanger.number)]);
+    var wcNames = top2.map(function(h) {{ return esc(h.name); }}).concat([esc(topDanger.name)]);
     s += '<div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:10px 14px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:6px">WILDCARD BET (includes outsider)</div>'
       + '<div style="font-size:.9rem;font-weight:800">' + wcNums.join(' + ') + '</div>'
       + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + wcNames.join(', ') + '</div>'
-      + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">TRIO or QIN box — covers upset scenario with #' + topDanger.number + ' ' + topDanger.name + ' @ $' + topDanger.win_odds + '</div>'
+      + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">TRIO or QIN box — covers upset scenario with #' + esc(topDanger.number) + ' ' + esc(topDanger.name) + ' @ $' + esc(topDanger.win_odds) + '</div>'
       + '</div>';
   }}
 

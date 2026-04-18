@@ -231,8 +231,8 @@ async def run_monitor(race_date: str):
             sleep_secs = (wake_time - now).total_seconds()
             logger.info(f"Sleeping {sleep_secs:.0f}s until R{race_no} window ({wake_time.strftime('%H:%M')})")
             await asyncio.sleep(sleep_secs)
-        elif now > race_time:
-            logger.info(f"R{race_no} already started, skipping")
+        elif now > race_time + timedelta(minutes=5):
+            logger.info(f"R{race_no} already started 5+ min ago, skipping")
             continue
 
         # Snapshot and regenerate

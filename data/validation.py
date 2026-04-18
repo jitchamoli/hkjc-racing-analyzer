@@ -16,10 +16,10 @@ def validate_horse_entry(entry) -> List[str]:
     warnings = []
     if not entry.name or len(entry.name) < 2:
         warnings.append(f"Horse #{entry.number}: missing or very short name '{entry.name}'")
-    if entry.number < 1 or entry.number > 14:
-        warnings.append(f"Horse #{entry.number}: number out of expected range 1-14")
-    if entry.draw < 0 or entry.draw > 14:
-        warnings.append(f"Horse #{entry.number} {entry.name}: draw {entry.draw} out of range 0-14")
+    if entry.number < 1 or entry.number > 18:
+        warnings.append(f"Horse #{entry.number}: number out of expected range 1-18")
+    if entry.draw < 0 or entry.draw > 18:
+        warnings.append(f"Horse #{entry.number} {entry.name}: draw {entry.draw} out of range 0-18")
     if entry.rating and (entry.rating < 0 or entry.rating > 140):
         warnings.append(f"Horse #{entry.number} {entry.name}: rating {entry.rating} suspicious (expected 0-140)")
     if entry.jockey and len(entry.jockey) < 2:
@@ -34,8 +34,8 @@ def validate_race_card(card) -> List[str]:
     warnings = []
     if len(card.horses) < 2:
         warnings.append(f"Race {card.race_number}: only {len(card.horses)} horses parsed (expected 2+)")
-    if len(card.horses) > 14:
-        warnings.append(f"Race {card.race_number}: {len(card.horses)} horses parsed (expected max 14)")
+    if len(card.horses) > 18:
+        warnings.append(f"Race {card.race_number}: {len(card.horses)} horses parsed (expected max 18)")
 
     distance = 0
     try:

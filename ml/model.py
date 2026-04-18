@@ -125,16 +125,18 @@ class HKJCRacingMLModel:
         logger.info(f"Training with {len(features)} samples "
                     f"({labels.sum():.0f} winners, {labels.mean()*100:.1f}% win rate)")
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            features, labels, test_size=0.2, random_state=42,
-            stratify=labels if labels.sum() >= 10 else None
-        )
+        stratify_arg = labels if labels.sum() >= 10 else None
 
         sw_train = None
         if sample_weight is not None:
-            sw_train, _ = train_test_split(
-                sample_weight, test_size=0.2, random_state=42,
-                stratify=labels if labels.sum() >= 10 else None
+            X_train, X_test, y_train, y_test, sw_train, _ = train_test_split(
+                features, labels, sample_weight,
+                test_size=0.2, random_state=42, stratify=stratify_arg
+            )
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(
+                features, labels, test_size=0.2, random_state=42,
+                stratify=stratify_arg
             )
 
         n_pos = max(1, y_train.sum())
@@ -212,7 +214,11 @@ def create_combined_prediction(
         weights = {'rule': 1.0, 'ml': 0.0}
 
     ml_prob_adjusted = ml_prob * weights['ml']
-    rule_prob = (rule_score / 100) * weights['rule']
+    # Convert rule_score (0-100) to a probability-like value using sigmoid
+    # rule_score=50 → 0.5, rule_score=80 → ~0.73, rule_score=20 → ~0.27
+    import math
+    rule_prob_raw = 1.0 / (1.0 + math.exp(-0.06 * (rule_score - 50)))
+    rule_prob = rule_prob_raw * weights['rule']
 
     combined_prob = rule_prob + ml_prob_adjusted
 
@@ -275,11 +281,11 @@ class CombinedRacingAnalyzer:
             horse_number=horse_data.get('number', 0),
             horse_name=horse_data.get('name', ''),
             win_probability=ml_prob,
-            place_probability=min(1.0, ml_prob * 2.5),
+            place_probability=min(0.85, ml_prob * 1.8),
             ml_confidence=ml_confidence,
-            feature_importance=dict(zip(
-                FEATURE_NAMES,
-                (features * self.ml_model.feature_importance.get(f, 0.1) for f in FEATURE_NAMES)
-            )),
+            feature_importance={
+                name: float(features[i]) * self.ml_model.feature_importance.get(name, 0.0)
+                for i, name in enumerate(FEATURE_NAMES)
+            },
             model_version=self.ml_model.model_version
         )
