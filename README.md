@@ -1,18 +1,24 @@
-# HKJC Horse Racing Analyzer v5.1
+# HKJC Horse Racing Analyzer v5.2
 
-Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Fetches live race data, odds, and expert tips from racing.hkjc.com to generate betting recommendations using a 24-factor rule-based engine + XGBoost ML model (22 features, Platt-calibrated) trained on real historical race data, persistent horse database, and self-improving data pipeline.
+Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Fetches live race data, odds, and expert tips from racing.hkjc.com to generate betting recommendations using a 24-factor rule-based engine + XGBoost ML model (24 features, Platt-calibrated) with exotic bet value calculator, trained on real historical race data, persistent horse database, and self-improving data pipeline.
 
-## What's New in v5.1
+## What's New in v5.2
 
-- **22-feature ML schema** - redesigned from data science audit. Removed redundant features (venue_win_rate r=0.984, draw_field_interact r=0.934, weight_carried_norm r=0.877). Added field-relative speed, class change, jockey-trainer interaction, horse weight change
-- **Platt scaling** - LogisticRegression calibrator eliminates overconfident probabilities (was predicting 44% for top bin, actual 15%)
-- **Dedicated place model** - separate XGBoost trained on is_top3 labels (65.9% accuracy vs 24.3% base rate). Replaces `win_prob * 1.8` hack
-- **60/20/20 temporal split** - early stopping on validation set, final metrics on held-out test set (was using test set for both)
-- **Odds triple-counting fixed** - removed odds + odds_movement from rule engine (market signal enters only via 30% market blend)
-- **Model integrity** - SHA-256 checksum required for loading, feature count assertion, backup-before-train with rollback
-- **Brier score + calibration curve** in accuracy report (`python3 -m scripts.accuracy --all`)
-- **Feature correlation matrix** logged after each training run, flags pairs with |r| > 0.7
-- **Date-aware track records** - training no longer leaks future race times into distance_pb_ratio
+- **Adjusted speed figures** - Beyer/Timeform-style par time normalization. Computes median finish times per (distance, going, class) bucket, adjusts for carried weight (+0.1s per lb above 120). Replaces raw `prior_speed` that conflated sprinters with stayers
+- **Exotic bet calculator** - prices exacta, trifecta, quinella, and first4 combinations using conditional probability elimination. Value detection flags mispriced exotics with 10%+ edge vs market
+- **Enhanced quinella pricing** - place model boost (+15% for consistent placers), pace pairing boost (+10% for leader+closer combos), draw clustering boost (+8% for adjacent good draws)
+- **Dynamic market/model blend** - adjusts by race characteristics: 55% market for large sprint fields (sharp pool), 35% market for small/long fields (thinner pool). Based on Bill Benter research
+- **Speed consistency feature** - std deviation of adjusted speed figures identifies reliable horses (critical for exotic bet ordering)
+- **Late money signal** - opening vs current odds movement as ML feature (steam/drift detection)
+- **24-feature ML schema** - up from 22, with adjusted_speed, speed_consistency, late_money_signal
+
+### Previous Versions
+- **v5.1**: 22-feature ML, Platt scaling, place model, correlation audit, code review fixes
+- **v5.0**: 26-factor engine, real DB stats, 18-feature ML, historical scraper, self-improving pipeline
+- **v4.0**: QIN default strategy, BANKER WIN system, market probability blending, 17 factors
+- **v3.0**: 14-factor analytics, rail bias, pace map, sectionals, C&D form, odds movement
+- **v2.0**: Tips Index integration, ML prediction, advanced analytics
+- **v1.0**: Basic rule-based scoring
 
 ### Previous Versions
 - **v5.0**: 26-factor engine, real DB stats, 18-feature ML, historical scraper, self-improving pipeline
@@ -45,27 +51,34 @@ The analyzer combines two systems (75/25 weighted):
 | **Expert** | Going Preference, Rolling Form, Beaten Margins, Jockey Change, Jockey/Trainer Hot Streaks, Field Size, Career Place Rate, Age vs Field | ~37% |
 | **Technical** | Pace Map, C&D Form, Class Movement, Gear Changes, Weight Analysis, Sectional Speed, Freshness, Rating Trend, Season Stakes | ~11% |
 
-Note: Market odds removed from rule engine — enters only via 30% market blend in calibration (prevents triple-counting). Weights are dynamic — factors with missing data are excluded and remaining weights re-normalize to 1.0.
+Note: Market odds removed from rule engine — enters only via dynamic market blend (35-55% depending on field size/distance). Weights are dynamic — factors with missing data are excluded and remaining weights re-normalize to 1.0.
 
 **ML-Based System (25%)**
-- XGBoost classifier with **22 features** + dedicated **place model** (is_top3), both Platt-calibrated
+- XGBoost classifier with **24 features** + dedicated **place model** (is_top3), both Platt-calibrated
 - 60/20/20 temporal split with early stopping on validation set
 - Trained on **4,155+ real race results** from horse_database with recency weighting (newest races 3.3x)
-- Top features: recent_form (10.4%), jockey_trainer_combo (6.6%), days_since_last_win (6.6%), class_change (6.3%), field_rel_speed (5.3%)
+- **Adjusted speed figures**: Beyer-style par-adjusted, weight-corrected (replaces raw speed)
+- **Dynamic market blend**: 55% market for large sprints, 35% for small/long fields
+- Top features: days_since_last_win (7.7%), recent_form (7.6%), field_rel_speed (6.1%), jockey_trainer_combo (5.6%), class_change (5.6%)
 - Feature correlation matrix logged after training — redundant pairs flagged automatically
-- Model improves automatically as more race days are scraped
 
-### Key Improvements Over Hardcoded Approach
+**Exotic Bet Calculator**
+- Prices exacta, trifecta, quinella, first4 using conditional probability elimination
+- Quinella enhanced with place-model boost, pace pairing, draw clustering
+- Value detection: flags combinations where model probability exceeds market-implied by 10%+
+- Dashboard shows exotic value picks per race with edge percentages
 
-| What | Old (v5.0) | New (v5.1) |
-|------|-----------|-----------|
-| ML features | 18 (with odds, redundant pairs) | 22 (no odds, no redundancy, interaction terms) |
-| Probability calibration | Softmax temp=2.5 (overconfident) | Platt scaling + softmax temp=1.5 |
-| Place prediction | `win_prob * 1.8` hack | Dedicated XGBoost on is_top3 (65.9% accuracy) |
-| Train/test split | 80/20 (test used for early stopping) | 60/20/20 (val for stopping, test for metrics) |
-| Speed feature | Absolute (conflates sprinters/stayers) | Field-relative percentile within prior fields |
-| Weight feature | Absolute 108-135 lbs | Relative to field median (lighter = advantage) |
-| Market signal | Triple-counted (rule+rule+blend) | Single entry via 30% market blend |
+### Key Improvements
+
+| What | v5.0 | v5.2 |
+|------|------|------|
+| ML features | 18 (with odds, redundant pairs) | 24 (par-adjusted speed, interactions, late money) |
+| Speed figures | Absolute m/s (conflates sprinters/stayers) | Beyer-style par-adjusted + weight-corrected |
+| Probability calibration | Softmax temp=2.5 (overconfident) | Platt scaling + dynamic market blend |
+| Place prediction | `win_prob * 1.8` hack | Dedicated XGBoost on is_top3 (67.5% accuracy) |
+| Exotic bets | Not supported | Full calculator: exacta, trifecta, quinella, first4 |
+| Quinella pricing | Simple probability | Place-model boost + pace pairing + draw clustering |
+| Market blend | Static 70/30 | Dynamic 45-65% model / 35-55% market by race type |
 | Model safety | Pickle loaded unsigned | SHA-256 checksum + feature count guard + backup |
 
 ### Bet Type Logic
@@ -103,7 +116,7 @@ hkjc_racing_analyzer/
     recommender.py           #   Bet recommendation engine (BANKER/WIN/QIN/PLACE/SKIP)
     predictor.py             #   ML predictor shim (delegates to ml/)
   ml/                        # ML pipeline
-    feature_schema.py        #   Single source of truth for 22 features
+    feature_schema.py        #   Single source of truth for 24 features
     features.py              #   Feature extraction for prediction
     model.py                 #   XGBoost model — train, predict, save, load
     training.py              #   Training data builders (DB + synthetic)

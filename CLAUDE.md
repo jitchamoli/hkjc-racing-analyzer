@@ -71,9 +71,9 @@ scripts/train.py → models/hkjc_racing_model.pkl
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
 - **Rule engine (75%)**: 24 factors with dynamic weighting — factors with missing data are excluded and remaining weights renormalize to 1.0. Note: `odds` and `odds_movement` were removed from the rule engine to prevent triple-counting market signal (market info enters via the 30% market blend in calibration). Approximate grouping: Core (rating, form, jockey, trainer, draw, tips), Expert (going, rolling form, margins, field size, career stats), Technical (pace, sectionals, C&D, class movement, gear, weight, freshness). Actual percentages vary per race due to renormalization.
-- **ML model (25%)**: XGBoost classifier with 22 features (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a dedicated **place model** (is_top3) for place bet recommendations. Both models use Platt scaling (LogisticRegression) for probability calibration. Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `scripts/train.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
+- **ML model (25%)**: XGBoost classifier with 24 features (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a dedicated **place model** (is_top3) for place bet recommendations and quinella pricing. Both models use Platt scaling (LogisticRegression) for probability calibration. Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `scripts/train.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
 
-The 12 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change).
+The 13 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change, **speed figures**).
 
 ### Supplementary Scripts
 
@@ -143,7 +143,7 @@ Uses Playwright to scrape HKJC results pages (JS-rendered). Extracts from result
 
 1. **No data leakage**: Every feature must use ONLY data available BEFORE the race. Never use finish_position, finish_time, running_position, or margin from the CURRENT race. For horse history features (C&D form, pace, speed), use strictly `prior_date < current_date`. `extract_features()` now accepts `race_date` via `horse_data` and filters DB queries with `AND race_date < ?`. Track records in training are also date-aware (cumulative best-time lookup, not global).
 
-2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. `generate_synthetic_training_data()` must also match the same 22-feature schema. The DB (race_results) has different fields than race cards: rating, last_6, gear are ~97% missing in DB but always present on race cards. Use DB-available proxies (prior finishes, prior win rate) instead.
+2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. `generate_synthetic_training_data()` must also match the same 24-feature schema. The DB (race_results) has different fields than race cards: rating, last_6, gear are ~97% missing in DB but always present on race cards. Use DB-available proxies (prior finishes, prior win rate) instead.
 
 3. **No constant features**: If a feature has std < 0.01 in training data, it's wasted. Common cause: field is mostly null and falls back to 0.5. Check with `np.std()` after building features. Feature correlation matrix is logged after each training run — pairs with |r| > 0.7 are flagged.
 
@@ -151,40 +151,57 @@ Uses Playwright to scrape HKJC results pages (JS-rendered). Extracts from result
 
 5. **Probability sync after rank swaps**: When `_assign_bet_recommendations` swaps horse positions (market-favourite promotion or BANKER override), `combined_probability` and `expected_return` on ALL `HorseAnalysis` objects must be re-written from the swapped `calibrated_probs` list.
 
-6. **ML fallback probability**: `predict()` accepts `field_size` param (default 12). When model is untrained, returns `1/field_size` — not `1/len(features)` which is always 22.
+6. **ML fallback probability**: `predict()` accepts `field_size` param (default 12). When model is untrained, returns `1/field_size` — not `1/len(features)` which is always 24.
 
 7. **Feature count guard**: Model pickle stores `n_features`. On load, it's checked against the current `NUM_FEATURES` — mismatched models refuse to load with a clear error message.
 
 8. **Model integrity**: `.sha256` sidecar is required for loading. Missing checksum = hard refusal. `train_ml_model.py` backs up the old model before training and restores on failure.
 
-### Current 22 ML Features (all prior-race only)
+### Current 24 ML Features (all prior-race only)
 
-Features 1-13: `prior_win_rate, recent_form, draw_advantage, jockey_win_rate, trainer_win_rate, field_size, field_rel_draw, prior_pace, prior_speed, cd_form_prior, class_level, freshness, going_performance` (merged going_pref+going_form_rate)
+Features 1-9: `prior_win_rate, recent_form, draw_advantage, jockey_win_rate, trainer_win_rate, field_size, field_rel_draw, prior_pace, adjusted_speed` (Beyer-style par-adjusted, weight-corrected — replaces raw prior_speed)
 
-Features 14-18:
-- `weight_vs_field`: carried weight relative to field median (lighter = advantage)
-- `jockey_horse_coop`: win% of this jockey on this horse (DB query)
-- `distance_pb_ratio`: horse's PB / track record at distance (date-aware)
-- `field_rel_speed`: avg speed percentile within prior race fields (solves absolute speed conflating sprinters with stayers)
+Features 10-17: `cd_form_prior, class_level, freshness, going_performance` (merged), `weight_vs_field` (relative to field median), `jockey_horse_coop, distance_pb_ratio, field_rel_speed` (percentile within prior fields)
+
+Features 18-24:
 - `last_start_margin`: how far behind winner last race (normalized)
-
-Features 19-22:
 - `class_change`: current class vs last-race class (drop = positive signal)
 - `days_since_last_win`: recency of last win (normalized decay)
 - `jockey_trainer_combo`: geometric mean of jockey × trainer win rates (interaction)
 - `horse_weight_change`: body weight % change from last 3 races (fitness signal)
+- `speed_consistency`: std of adjusted speed figures — low = reliable horse (important for exotic bets)
+- `late_money_signal`: opening vs current odds movement (steam=high, drift=low). Constant in training (DB lacks opening odds), active at prediction time with live data.
 
-Features removed during audit: `odds_implied_prob` (triple-counted via rule engine + market blend), `venue_win_rate` (r=0.984 with prior_win_rate — redundant in HK's 2-venue system), `weight_carried_norm` (r=0.877 with weight_vs_field — subsumed by relative feature), `draw_field_interact` (r=0.934 with draw_advantage), `prior_avg_position` (redundant with recent_form + prior_win_rate).
-
-Top signal: `recent_form` (10.4%), `jockey_trainer_combo` (6.6%), `days_since_last_win` (6.6%), `class_change` (6.3%), `field_rel_speed` (5.3%).
+Features removed during audit: `odds_implied_prob`, `venue_win_rate` (r=0.984), `weight_carried_norm` (r=0.877), `draw_field_interact` (r=0.934), `prior_avg_position`, `prior_speed` (replaced by adjusted_speed).
 
 ### Training Pipeline
 
 - **60/20/20 temporal split**: Train on first 60%, validate (early stopping) on next 20%, evaluate on final 20%. Early stopping uses validation set only — test metrics are unbiased.
 - **Recency weighting**: Sample weights decay from 1.0 (newest) to 0.3 (oldest). Recent races get 3.3x weight.
 - **Platt scaling**: LogisticRegression fitted on validation predictions → actual outcomes. Recalibrates XGBoost's overconfident probabilities.
-- **Place model**: Separate XGBoost trained on `is_top3` labels alongside the win model. Used for place bet probability instead of `win_prob * 1.8`.
-- **Precomputed lookups**: Track records, field sizes, field median weights, and per-race finish times are all precomputed before the training loop.
+- **Place model**: Separate XGBoost trained on `is_top3` labels alongside the win model. Used for place bet probability and quinella placer-boost pricing.
+- **Precomputed lookups**: Par times (per distance/going/class), track records, field sizes, field median weights, and per-race finish times are all precomputed before the training loop.
+
+### Speed Figures (`analytics/speed_figures.py`)
+
+Beyer/Timeform-style adjusted speed figures. Computes par times per (distance, going, class) bucket from DB, then measures each horse's performance relative to par with weight correction (Benter's +0.1s per lb above 120). Replaces raw `prior_speed` which conflated fast sprinters with slow stayers.
+
+### Exotic Bet Calculator (`betting/exotic_calculator.py`)
+
+Prices all exotic bet combinations using conditional probability elimination:
+- **Exacta**: P(A wins) × P(B wins | A removed)
+- **Quinella**: Exacta(A,B) + Exacta(B,A), enhanced with place-model boost (consistent placers +15%), pace pairing boost (leader+closer +10%), draw clustering boost (adjacent good draws +8%)
+- **Trifecta**: extends to 3-horse permutations (top 8 candidates)
+- **First4**: extends to 4-horse permutations (top 6 candidates)
+- **Value detection**: compares model probability vs market-implied, flags combinations with 10%+ edge
+
+### Dynamic Market/Model Blend
+
+Market blend weights adjust by race characteristics (HK bettors are sharp — larger/shorter races have sharper pools):
+- Large fields (10+) + sprints (≤1400m): 55% market / 45% model
+- Small fields (<8) or routes (≥1800m): 35% market / 65% model
+- Default: 40% market / 60% model
+- Quinella pool: lean 55-65% ML (less sharp money, public ignores consistent placers)
 
 ### DB Data Gaps
 
@@ -207,12 +224,14 @@ rule_score (0-100) → sigmoid → ×0.75
 ml_prob (Platt-calibrated) → ×0.25
 combined_prob = rule + ml (uncalibrated)
 → softmax (temp=1.5, mild normalization)
-→ 70% model + 30% market blend
+→ dynamic blend: model × (45-65%) + market × (35-55%)
+  (weights depend on field_size + distance)
 → normalize to sum=1.0
 → expected_return = odds × prob - 1
+→ exotic pricing: conditional elimination for exacta/trifecta/quinella/first4
 ```
 
-Market odds enter ONLY through the 30% market blend — removed from rule engine to prevent triple-counting.
+Market odds enter ONLY through the dynamic market blend — removed from rule engine to prevent triple-counting. Blend weights are heavier on market for large sprint fields (sharp pool), heavier on model for small/long fields and exotics (thinner pool).
 
 ### Accuracy Report
 
