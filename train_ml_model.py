@@ -154,6 +154,7 @@ def build_features_from_record(entry: Dict, race: Dict) -> np.ndarray:
         'trainer': entry['trainer'],
         'last_6': entry['last_6'],
         'distance': race['distance'],
+        'race_date': race.get('date', ''),
         'running_style': '',
         'last_400m_avg': 0.0,
         'cd_wins': 0,
@@ -228,14 +229,16 @@ def main():
         logger.info(f"Saved {len(all_races)} total races to {TRAINING_DATA_FILE}")
 
     # Step 3: Build features — prefer DB data (richer, more complete)
-    X_db, y_db, sw_db = build_training_data_from_db()
+    X_db, y_db, sw_db, y_place_db = build_training_data_from_db()
 
+    place_labels = None
     if X_db is not None and len(X_db) >= 200:
         logger.info(f"Using DB training data: {len(X_db)} samples, "
                     f"{y_db.sum():.0f} winners ({y_db.mean()*100:.1f}%)")
         X_combined = X_db
         y_combined = y_db
         sample_weights = sw_db
+        place_labels = y_place_db
     else:
         # Fallback to scraped training_data
         total_entries = sum(len(r['entries']) for r in all_races)
@@ -266,12 +269,32 @@ def main():
 
     model = HKJCRacingMLModel()
 
-    # Delete old model
+    # Backup old model before training (restore if training fails)
+    backup_path = model.MODEL_FILE.with_suffix('.pkl.bak')
+    sha_backup = model._checksum_path().with_suffix('.sha256.bak')
     if model.MODEL_FILE.exists():
-        os.remove(model.MODEL_FILE)
-        logger.info("Deleted old model")
+        model.MODEL_FILE.rename(backup_path)
+        if model._checksum_path().exists():
+            model._checksum_path().rename(sha_backup)
+        logger.info("Backed up old model")
 
-    result = model.train(X_combined, y_combined, sample_weight=sample_weights)
+    try:
+        result = model.train(X_combined, y_combined, sample_weight=sample_weights,
+                             place_labels=place_labels)
+    except Exception as e:
+        logger.error(f"Training failed: {e}")
+        if backup_path.exists():
+            backup_path.rename(model.MODEL_FILE)
+            if sha_backup.exists():
+                sha_backup.rename(model._checksum_path())
+            logger.info("Restored model from backup")
+        raise
+
+    # Training succeeded — remove backup
+    if backup_path.exists():
+        backup_path.unlink()
+    if sha_backup.exists():
+        sha_backup.unlink()
     logger.info(f"Model trained: accuracy={result['accuracy']:.2%}, "
                 f"precision={result.get('precision', 0):.2%}, "
                 f"recall={result.get('recall', 0):.2%}")

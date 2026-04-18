@@ -43,7 +43,6 @@ from analytics.beaten_margins import BeatenMarginAnalyzer
 from analytics.jockey_change import JockeyChangeAnalyzer
 from data.odds_tracker import OddsMovementAnalyzer
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -276,135 +275,114 @@ class BettingStrategy:
         return avg_score, reason
 
     @staticmethod
-    def analyze_jockey(jockey: str, db=None) -> tuple:
-        """Score jockey using real DB stats when available, else fallback."""
-        if db and jockey:
-            # Try season stats first (most complete)
-            stats = db.get_jockey_stats(jockey)
+    def _score_person_from_db(name: str, role: str, db, stats_getter,
+                              table: str, count_field: str,
+                              tiers: dict, tier_scores: tuple,
+                              thresholds: list, score_cap: tuple,
+                              place_bonuses: list, default_score: float) -> tuple:
+        """Shared scoring logic for jockeys and trainers.
+
+        Args:
+            thresholds: list of (min_wr, base_score, multiplier, label) tuples, highest first.
+            score_cap: (max_score, min_score) for clamping.
+            place_bonuses: list of (min_place_rate, bonus, cap) tuples, highest first.
+        """
+        if db and name:
+            stats = stats_getter(name)
             if not stats:
-                # Try partial name match across DB
                 try:
                     c = db.conn.cursor()
-                    c.execute("SELECT * FROM jockey_stats WHERE name LIKE ?",
-                              (f'%{jockey.split()[-1]}%',))
+                    c.execute(f"SELECT * FROM {table} WHERE name LIKE ?",
+                              (f'%{name.split()[-1]}%',))
                     row = c.fetchone()
                     if row:
                         stats = dict(row)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"DB lookup failed for {role} {name}: {e}")
 
-            if stats and stats.get('rides', 0) >= 5:
+            if stats and stats.get(count_field, 0) >= 5:
                 win_rate = stats.get('win_rate', 0)
                 place_rate = stats.get('place_rate', 0)
-                rides = stats['rides']
+                count = stats[count_field]
                 wins = stats.get('wins', 0)
 
-                # Score based on actual win rate (HK avg ~8-10%)
-                if win_rate >= 0.20:
-                    score = min(95, 80 + win_rate * 75)
-                    label = "Elite"
-                elif win_rate >= 0.14:
-                    score = 78 + win_rate * 50
-                    label = "Top"
-                elif win_rate >= 0.08:
-                    score = 65 + win_rate * 80
-                    label = "Solid"
-                elif win_rate >= 0.04:
-                    score = 55 + win_rate * 100
-                    label = "Average"
-                else:
-                    score = max(35, 40 + win_rate * 200)
-                    label = "Struggling"
+                score, label = thresholds[-1][1], thresholds[-1][3]  # default to lowest
+                for min_wr, base, mult, lbl in thresholds:
+                    if win_rate >= min_wr:
+                        score = min(score_cap[0], base + win_rate * mult)
+                        label = lbl
+                        break
 
-                # Place rate bonus (consistent top-3 finisher)
-                if place_rate >= 0.35:
-                    score = min(97, score + 5)
-                elif place_rate >= 0.25:
-                    score = min(95, score + 3)
+                for min_pr, bonus, cap in place_bonuses:
+                    if place_rate >= min_pr:
+                        score = min(cap, score + bonus)
+                        break
 
-                score = min(97, max(30, score))
-                reason = f"{label} jockey - {jockey} ({wins}W/{rides}R, {win_rate:.0%}W)"
+                score = min(score_cap[0], max(score_cap[1], score))
+                reason = f"{label} {role} - {name} ({wins}W/{count}R, {win_rate:.0%}W)"
                 return score, reason
 
-        # Fallback: tier-based defaults for known jockeys when DB unavailable
-        TIER_1 = {"moreira", "purton", "bowman", "moore", "mcdonald"}
-        TIER_2 = {"teetan", "badel", "hewitson", "shinn", "atzeni", "avdulla", "bentley"}
-        TIER_3 = {"schofield", "chau", "ho", "kingscote", "ferraris", "borges", "leung"}
+        # Fallback: tier-based defaults
+        name_lower = name.lower() if name else ""
+        surname = name_lower.split()[-1] if name_lower.split() else ""
 
-        jockey_lower = jockey.lower() if jockey else ""
-        surname = jockey_lower.split()[-1] if jockey_lower.split() else ""
+        if surname in tiers.get(1, set()):
+            return tier_scores[0], f"Elite {role} - {name}"
+        elif surname in tiers.get(2, set()):
+            return tier_scores[1], f"Top {role} - {name}"
+        elif surname in tiers.get(3, set()):
+            return tier_scores[2], f"Experienced {role} - {name}"
+        return default_score, f"{role.title()}: {name}"
 
-        if surname in TIER_1:
-            return 90.0, f"Elite jockey - {jockey}"
-        elif surname in TIER_2:
-            return 78.0, f"Top jockey - {jockey}"
-        elif surname in TIER_3:
-            return 70.0, f"Experienced jockey - {jockey}"
-        return 60.0, f"Jockey: {jockey}"
+    @staticmethod
+    def analyze_jockey(jockey: str, db=None) -> tuple:
+        """Score jockey using real DB stats when available, else fallback."""
+        return BettingStrategy._score_person_from_db(
+            name=jockey, role="jockey", db=db,
+            stats_getter=db.get_jockey_stats if db else lambda x: None,
+            table="jockey_stats", count_field="rides",
+            tiers={
+                1: {"moreira", "purton", "bowman", "moore", "mcdonald"},
+                2: {"teetan", "badel", "hewitson", "shinn", "atzeni", "avdulla", "bentley"},
+                3: {"schofield", "chau", "ho", "kingscote", "ferraris", "borges", "leung"},
+            },
+            tier_scores=(90.0, 78.0, 70.0),
+            thresholds=[
+                (0.20, 80, 75, "Elite"),
+                (0.14, 78, 50, "Top"),
+                (0.08, 65, 80, "Solid"),
+                (0.04, 55, 100, "Average"),
+                (0.00, 40, 200, "Struggling"),
+            ],
+            score_cap=(97, 30),
+            place_bonuses=[(0.35, 5, 97), (0.25, 3, 95)],
+            default_score=60.0,
+        )
 
     @staticmethod
     def analyze_trainer(trainer: str, db=None) -> tuple:
         """Score trainer using real DB stats when available, else fallback."""
-        if db and trainer:
-            stats = db.get_trainer_stats(trainer)
-            if not stats:
-                try:
-                    c = db.conn.cursor()
-                    c.execute("SELECT * FROM trainer_stats WHERE name LIKE ?",
-                              (f'%{trainer.split()[-1]}%',))
-                    row = c.fetchone()
-                    if row:
-                        stats = dict(row)
-                except Exception:
-                    pass
-
-            if stats and stats.get('runners', 0) >= 5:
-                win_rate = stats.get('win_rate', 0)
-                place_rate = stats.get('place_rate', 0)
-                runners = stats['runners']
-                wins = stats.get('wins', 0)
-
-                # Score based on actual win rate (HK avg ~6-8%)
-                if win_rate >= 0.18:
-                    score = min(93, 78 + win_rate * 80)
-                    label = "Elite"
-                elif win_rate >= 0.12:
-                    score = 72 + win_rate * 60
-                    label = "Top"
-                elif win_rate >= 0.06:
-                    score = 58 + win_rate * 100
-                    label = "Solid"
-                elif win_rate >= 0.02:
-                    score = 45 + win_rate * 200
-                    label = "Average"
-                else:
-                    score = max(30, 35 + win_rate * 300)
-                    label = "Struggling"
-
-                if place_rate >= 0.30:
-                    score = min(95, score + 4)
-                elif place_rate >= 0.20:
-                    score = min(93, score + 2)
-
-                score = min(95, max(25, score))
-                reason = f"{label} trainer - {trainer} ({wins}W/{runners}R, {win_rate:.0%}W)"
-                return score, reason
-
-        # Fallback: tier-based defaults for known trainers
-        TIER_1 = {"size", "cruz", "lor"}
-        TIER_2 = {"hall", "fownes", "lui", "whyte", "hayes", "richards", "newnham", "shum"}
-        TIER_3 = {"ting", "yiu", "eustace", "crawford", "yip", "man", "tsui"}
-
-        trainer_lower = trainer.lower() if trainer else ""
-        surname = trainer_lower.split()[-1] if trainer_lower.split() else ""
-
-        if surname in TIER_1:
-            return 88.0, f"Elite trainer - {trainer}"
-        elif surname in TIER_2:
-            return 75.0, f"Top trainer - {trainer}"
-        elif surname in TIER_3:
-            return 68.0, f"Experienced trainer - {trainer}"
-        return 58.0, f"Trainer: {trainer}"
+        return BettingStrategy._score_person_from_db(
+            name=trainer, role="trainer", db=db,
+            stats_getter=db.get_trainer_stats if db else lambda x: None,
+            table="trainer_stats", count_field="runners",
+            tiers={
+                1: {"size", "cruz", "lor"},
+                2: {"hall", "fownes", "lui", "whyte", "hayes", "richards", "newnham", "shum"},
+                3: {"ting", "yiu", "eustace", "crawford", "yip", "man", "tsui"},
+            },
+            tier_scores=(88.0, 75.0, 68.0),
+            thresholds=[
+                (0.18, 78, 80, "Elite"),
+                (0.12, 72, 60, "Top"),
+                (0.06, 58, 100, "Solid"),
+                (0.02, 45, 200, "Average"),
+                (0.00, 35, 300, "Struggling"),
+            ],
+            score_cap=(95, 25),
+            place_bonuses=[(0.30, 4, 95), (0.20, 2, 93)],
+            default_score=58.0,
+        )
 
     @staticmethod
     def analyze_draw(draw: int, distance: str) -> tuple:
@@ -515,8 +493,16 @@ class CombinedRaceAnalyzer:
         try:
             from data.database import HorseDatabase
             self._horse_db = HorseDatabase()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Could not connect to horse database: {e}")
+
+    def close(self):
+        """Close DB connections held by this analyzer."""
+        if self._horse_db:
+            try:
+                self._horse_db.close()
+            except Exception:
+                pass
 
     def analyze_horse(
         self, horse: Horse, race: Race, all_horses: List[Horse] = None,
@@ -526,6 +512,8 @@ class CombinedRaceAnalyzer:
         reasoning = []
         # Normalize distance to string (some paths pass int, some str)
         distance = str(race.distance) if race.distance else "1200"
+        # Cache horse record once — used by going_pref and career_place sections
+        horse_record = self._horse_db.get_horse_record(horse.name) if self._horse_db else None
 
         # --- Core factors (same as before) ---
 
@@ -588,14 +576,14 @@ class CombinedRaceAnalyzer:
         factors["form"] = form_score
         reasoning.append(form_reason)
 
+        # Market odds: shown in reasoning for context but NOT scored here
+        # (market signal enters via 35-55% dynamic market blend in calibration)
         if horse.win_odds > 0:
             odds_prob = 1 / horse.win_odds
-            factors["odds"] = min(100, odds_prob * 100)
             reasoning.append(
-                f"Market: {odds_prob*100:.1f}% implied @ ${horse.win_odds:.1f} (LIVE)"
+                f"Market: {odds_prob*100:.1f}% implied @ ${horse.win_odds:.1f}"
             )
         else:
-            factors["odds"] = 0
             reasoning.append("No live odds available")
 
         jockey_score, jockey_reason = self.strategy.analyze_jockey(horse.jockey, db=self._horse_db)
@@ -667,32 +655,37 @@ class CombinedRaceAnalyzer:
         if cd_score > 0:
             reasoning.append(f"C&D: {cd_reason}")
 
-        # --- NEW: Odds Movement ---
+        # Odds movement: shown in reasoning for context but NOT scored here
+        # (enters via late_money_signal ML feature + steam/drift dashboard badges)
         if horse.opening_odds > 0 and horse.win_odds > 0:
-            move_score, move_reason = self.odds_movement.analyze_movement(
+            _, move_reason = self.odds_movement.analyze_movement(
                 horse.opening_odds, horse.win_odds
             )
+            if 'steam' in move_reason.lower() or 'drift' in move_reason.lower():
+                reasoning.append(f"Odds: {move_reason}")
         elif horse.tips_odds > 0 and horse.win_odds > 0:
-            move_score, move_reason = self.odds_movement.analyze_from_tips(
+            _, move_reason = self.odds_movement.analyze_from_tips(
                 horse.tips_odds, horse.win_odds
             )
-        else:
-            move_score, move_reason = 0.0, "No odds movement data"
-        factors["odds_movement"] = move_score
-        if move_score > 0:
-            reasoning.append(f"Odds: {move_reason}")
+            if 'steam' in move_reason.lower() or 'drift' in move_reason.lower():
+                reasoning.append(f"Odds: {move_reason}")
 
-        # --- NEW: Class Movement ---
-        # Without actual horse history with class data, we default to neutral
-        # The class_movement factor only activates when horse history includes class info
+        # --- Class Movement (now wired to DB history) ---
         class_score = 50.0
         class_reason = "No previous class data"
+        if self._horse_db and race.class_type:
+            horse_hist = self._horse_db.get_horse_history(horse.name, limit=5)
+            if horse_hist:
+                class_score, class_reason = self.class_analyzer.analyze_class_movement(
+                    horse_hist, race.class_type
+                )
         factors["class_movement"] = class_score
-        # Class movement is always included in weight map (50=neutral is valid data)
+        if class_score != 50.0:
+            reasoning.append(f"Class: {class_reason}")
 
         # --- NEW: Gear Changes ---
         gear_score, gear_reason = self.gear_analyzer.analyze_gear(
-            horse.gear if hasattr(horse, 'gear') else ""
+            horse.gear
         )
         factors["gear"] = gear_score
         if gear_reason != "No gear changes":
@@ -784,7 +777,6 @@ class CombinedRaceAnalyzer:
         going_reason = ""
         if race.going and self._horse_db:
             going_record = self._horse_db.get_horse_going_record(horse.name, race.going)
-            horse_record = self._horse_db.get_horse_record(horse.name)
             total_runs = horse_record.get('total_starts', 0) if horse_record else 0
             going_score, going_reason = self.going_analyzer.analyze_going_preference(
                 going_record, race.going, total_runs
@@ -914,7 +906,7 @@ class CombinedRaceAnalyzer:
         cp_score = 0.0
         cp_reason = ""
         if self._horse_db:
-            hr = self._horse_db.get_horse_record(horse.name)
+            hr = horse_record  # reuse cached result from going_pref section
             if hr and hr.get('total_starts', 0) >= 3:
                 starts = hr['total_starts']
                 places = hr.get('total_places', 0) or 0
@@ -1053,12 +1045,13 @@ class CombinedRaceAnalyzer:
             "tips_odds": horse.tips_odds,
             "course": race.course,
             "venue": race.venue,
-            "gear": horse.gear if hasattr(horse, 'gear') else "",
+            "gear": horse.gear,
             "weight": horse.weight,
             "class_type": race.class_type,
             "field_size": len(all_horses),
-            "going": race.going if hasattr(race, 'going') else "",
-            "days_since_last_run": horse.days_since_last_run if hasattr(horse, 'days_since_last_run') else 0,
+            "going": race.going,
+            "days_since_last_run": horse.days_since_last_run,
+            "race_date": race.date,
         }
 
         ml_prediction = self.ml_analyzer.predict(horse_data, all_results or [], "")
@@ -1114,14 +1107,16 @@ class CombinedRaceAnalyzer:
             analysis.rank = rank
 
         # --- Calibrate probabilities & assign bet types at race level ---
-        self._assign_bet_recommendations(analyses)
+        dist = int(race.distance) if race.distance and str(race.distance).isdigit() else 1200
+        self._assign_bet_recommendations(analyses, field_size=len(race.horses), distance=dist)
 
         return analyses
 
     @staticmethod
-    def _assign_bet_recommendations(analyses: List[HorseAnalysis]):
+    def _assign_bet_recommendations(analyses: List[HorseAnalysis],
+                                    field_size: int = 12, distance: int = 1200):
         """Delegate to core.recommender."""
-        assign_bet_recommendations(analyses)
+        assign_bet_recommendations(analyses, field_size=field_size, distance=distance)
 
 
 # ---------------------------------------------------------------------------
@@ -1147,19 +1142,20 @@ class ReportGenerator:
             pass
 
         print("\n" + "=" * 80)
-        print("  HKJC HORSE RACING ANALYZER v5.0 - REAL DATA EDITION")
+        print("  HKJC HORSE RACING ANALYZER v5.1 - PLATT CALIBRATED ML")
         print("=" * 80)
         print(f"""
-  PREDICTION METHODOLOGY (v5.0 - 26-Factor + Real Data ML)
-  --------------------------------------------------------
-  RULE-BASED (75%):  26 scoring factors with dynamic weighting
-    Core:    Rating | Form | Tips | Odds | Jockey (DB stats) | Trainer (DB stats) | Draw
-    Expert:  Pace Map | C&D Form | Odds Movement | Going Preference | Rolling Form
-             Beaten Margins | Jockey Change | Jockey/Trainer Hot Streaks
-             Field Size | Career Place Rate | Age vs Field | Freshness | Rating Trend
-    Tech:    Class Movement | Gear Changes | Weight | Sectional Speed | Season Stakes
-  ML-BASED  (25%):  XGBoost trained on {n_results} real race results
-  DATA:             Real jockey/trainer stats from DB | Live odds from HKJC
+  PREDICTION METHODOLOGY (v5.1 - 24-Factor + 22-Feature ML)
+  ----------------------------------------------------------
+  RULE-BASED (75%):  24 scoring factors with dynamic weighting
+    Core:    Rating | Form | Tips | Jockey (DB stats) | Trainer (DB stats) | Draw
+    Expert:  Going Preference | Rolling Form | Beaten Margins | Jockey Change
+             Jockey/Trainer Hot Streaks | Field Size | Career Place Rate | Age
+    Tech:    Pace Map | C&D Form | Class Movement | Gear | Weight | Sectionals
+             Freshness | Rating Trend | Season Stakes
+  ML-BASED  (25%):  22-feature XGBoost (win + place) on {n_results} results
+    Calibration:     Platt scaling | Softmax temp 1.5 | 30% market blend
+  DATA:              Real jockey/trainer stats from DB | Live odds from HKJC
         """)
 
     @staticmethod

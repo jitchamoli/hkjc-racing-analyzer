@@ -91,6 +91,25 @@ button{font-family:inherit;cursor:pointer}
 .disclaimer{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:10px 16px;margin-top:16px;font-size:.72rem;color:#fca5a5}
 .footer{text-align:center;padding:20px;font-size:.72rem;color:var(--dim);border-top:1px solid var(--border);margin-top:16px}
 @media(max-width:768px){.race-grid{grid-template-columns:1fr}.content{padding:12px 14px}.race-tabs{padding:10px 14px}.header{padding:12px 14px}.detail-header{flex-direction:column}}
+.market-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:.65rem;font-weight:700}
+.market-badge.steam{background:rgba(16,185,129,.2);color:var(--green)}
+.market-badge.drift{background:rgba(239,68,68,.2);color:var(--red)}
+.market-badge.cold{background:rgba(251,191,36,.2);color:var(--gold)}
+.enhanced-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px;margin-top:8px;padding:8px;background:var(--surface2);border-radius:8px;font-size:.72rem}
+.enhanced-stats .es-item{display:flex;flex-direction:column;gap:2px}
+.enhanced-stats .es-label{color:var(--dim);font-size:.62rem;text-transform:uppercase}
+.enhanced-stats .es-value{font-weight:600}
+.speed-map{background:var(--surface2);border-radius:10px;padding:14px;margin:12px 0}
+.speed-map-title{font-size:.78rem;font-weight:700;margin-bottom:10px;color:var(--accent)}
+.speed-map-track{position:relative;height:180px;background:linear-gradient(180deg,rgba(16,185,129,.05) 0%,rgba(16,185,129,.02) 100%);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.speed-map-zone{position:absolute;left:0;right:0;display:flex;align-items:center;padding:0 10px;font-size:.6rem;color:var(--dim)}
+.speed-map-zone.leaders{top:0;height:25%;border-bottom:1px dashed var(--border)}
+.speed-map-zone.stalkers{top:25%;height:25%;border-bottom:1px dashed var(--border)}
+.speed-map-zone.midfield{top:50%;height:25%;border-bottom:1px dashed var(--border)}
+.speed-map-zone.closers{top:75%;height:25%}
+.speed-map-horse{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#000;font-size:.68rem;font-weight:800;margin:2px}
+.speed-map-horse.inside{border:2px solid var(--green)}
+.speed-map-horse.outside{border:2px solid var(--red)}
 </style>
 </head>
 <body>
@@ -101,7 +120,7 @@ button{font-family:inherit;cursor:pointer}
       <span class="live-dot"></span>
       <span>Sha Tin | 2026/04/15</span>
       <span>|</span>
-      <span id="clock">2026-04-17 08:38:16</span>
+      <span id="clock">2026-04-18 14:17:54</span>
       <span class="version">v5.0 | 26 FACTORS | REAL DATA ML</span>
     </div>
   </div>
@@ -117,7 +136,7 @@ button{font-family:inherit;cursor:pointer}
 function esc(s){var d=document.createElement('div');d.textContent=String(s!=null?s:'');return d.innerHTML;}
 const RACES = [];
 const RACE_DATE = "2026/04/15";
-const GENERATED = "2026-04-17 08:38:16";
+const GENERATED = "2026-04-18 14:17:54";
 
 function getNextRace() {
   var now = new Date();
@@ -393,8 +412,8 @@ function buildStrategyPanel(race) {
   }
 
   if (qnlPicks.length >= 2) {
-    var nums = qnlPicks.map(function(h) { return '#' + h.number; }).join(' + ');
-    var names = qnlPicks.map(function(h) { return h.name; }).join(' & ');
+    var nums = qnlPicks.map(function(h) { return '#' + esc(h.number); }).join(' + ');
+    var names = qnlPicks.map(function(h) { return esc(h.name); }).join(' &amp; ');
     s += '<div style="background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.25);border-radius:10px;padding:12px 16px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--cyan);text-transform:uppercase;margin-bottom:6px">Quinella Place (QNL PL)</div>'
       + '<div style="font-size:1rem;font-weight:800">' + nums + '</div>'
@@ -404,8 +423,8 @@ function buildStrategyPanel(race) {
   }
 
   if (trioPicks.length >= 3) {
-    var nums = trioPicks.map(function(h) { return '#' + h.number; }).join(' + ');
-    var names = trioPicks.map(function(h) { return h.name; }).join(', ');
+    var nums = trioPicks.map(function(h) { return '#' + esc(h.number); }).join(' + ');
+    var names = trioPicks.map(function(h) { return esc(h.name); }).join(', ');
     s += '<div style="background:rgba(236,72,153,.06);border:1px solid rgba(236,72,153,.25);border-radius:10px;padding:12px 16px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--pink);text-transform:uppercase;margin-bottom:6px">Trio</div>'
       + '<div style="font-size:1rem;font-weight:800">' + nums + '</div>'
@@ -419,8 +438,8 @@ function buildStrategyPanel(race) {
       + '<div style="font-size:.72rem;font-weight:700;color:var(--purple);text-transform:uppercase;margin-bottom:6px">Place Bets</div>';
     placePicks.forEach(function(h) {
       s += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(139,92,246,.1)">'
-        + '<span style="font-weight:700;font-size:.85rem">#' + h.number + ' ' + h.name + '</span>'
-        + '<span style="font-size:.78rem;color:var(--dim)">' + h.jockey + ' | $' + h.win_odds + '</span></div>';
+        + '<span style="font-weight:700;font-size:.85rem">#' + esc(h.number) + ' ' + esc(h.name) + '</span>'
+        + '<span style="font-size:.78rem;color:var(--dim)">' + esc(h.jockey) + ' | $' + esc(h.win_odds) + '</span></div>';
     });
     s += '<div style="font-size:.72rem;color:var(--dim);margin-top:6px">Each to finish in top 3</div></div>';
   }
@@ -433,7 +452,7 @@ function buildStrategyPanel(race) {
       + '<div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:6px">BEST VALUE — Odds are in our favour</div>';
     valueBets.forEach(function(h) {
       s += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:.8rem">'
-        + '<span><span style="font-weight:700">#' + h.number + '</span> ' + h.name + ' @ $' + h.win_odds + '</span>'
+        + '<span><span style="font-weight:700">#' + esc(h.number) + '</span> ' + esc(h.name) + ' @ $' + esc(h.win_odds) + '</span>'
         + '<span style="color:var(--green);font-weight:700">Paying more than it should</span></div>';
     });
     s += '</div>';
@@ -445,7 +464,7 @@ function buildStrategyPanel(race) {
     s += '<div style="background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:8px;padding:10px 14px;margin-bottom:10px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--red);margin-bottom:6px">ONES TO WATCH (could upset)</div>';
     dangers.forEach(function(h) {
-      s += '<div style="font-size:.8rem;padding:2px 0"><span style="font-weight:700">#' + h.number + '</span> ' + h.name + ' @ $' + h.win_odds + ' <span style="color:var(--dim)">(' + (h.calibrated_prob * 100).toFixed(1) + '%)</span></div>';
+      s += '<div style="font-size:.8rem;padding:2px 0"><span style="font-weight:700">#' + esc(h.number) + '</span> ' + esc(h.name) + ' @ $' + esc(h.win_odds) + ' <span style="color:var(--dim)">(' + (h.calibrated_prob * 100).toFixed(1) + '%)</span></div>';
     });
     s += '</div>';
   }
@@ -454,13 +473,13 @@ function buildStrategyPanel(race) {
   if (dangers.length && horses.length >= 3) {
     var topDanger = dangers[0];
     var top2 = horses.slice(0, 2);
-    var wcNums = top2.map(function(h) { return '#' + h.number; }).concat(['#' + topDanger.number]);
-    var wcNames = top2.map(function(h) { return h.name; }).concat([topDanger.name]);
+    var wcNums = top2.map(function(h) { return '#' + esc(h.number); }).concat(['#' + esc(topDanger.number)]);
+    var wcNames = top2.map(function(h) { return esc(h.name); }).concat([esc(topDanger.name)]);
     s += '<div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:10px 14px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:6px">WILDCARD BET (includes outsider)</div>'
       + '<div style="font-size:.9rem;font-weight:800">' + wcNums.join(' + ') + '</div>'
       + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + wcNames.join(', ') + '</div>'
-      + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">TRIO or QIN box — covers upset scenario with #' + topDanger.number + ' ' + topDanger.name + ' @ $' + topDanger.win_odds + '</div>'
+      + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">TRIO or QIN box — covers upset scenario with #' + esc(topDanger.number) + ' ' + esc(topDanger.name) + ' @ $' + esc(topDanger.win_odds) + '</div>'
       + '</div>';
   }
 
@@ -616,6 +635,29 @@ function copyAllToWhatsApp() {
   });
 }
 
+function renderSpeedMap(speedMap) {
+  if (!speedMap || speedMap.length === 0) return '';
+  var zones = {leaders: [], stalkers: [], midfield: [], closers: []};
+  speedMap.forEach(function(h) {
+    var pos = h.predicted_pos;
+    var zone = pos <= Math.ceil(speedMap.length * 0.25) ? 'leaders' :
+               pos <= Math.ceil(speedMap.length * 0.5) ? 'stalkers' :
+               pos <= Math.ceil(speedMap.length * 0.75) ? 'midfield' : 'closers';
+    zones[zone].push(h);
+  });
+  var html = '<div class="speed-map"><div class="speed-map-title">Predicted Speed Map</div>';
+  html += '<div class="speed-map-track">';
+  ['leaders', 'stalkers', 'midfield', 'closers'].forEach(function(zone) {
+    html += '<div class="speed-map-zone ' + zone + '"><span>' + zone.charAt(0).toUpperCase() + zone.slice(1) + '</span>';
+    zones[zone].forEach(function(h) {
+      html += '<span class="speed-map-horse ' + esc(h.lane || '') + '" title="' + esc(h.name) + ' (Draw ' + h.draw + ')">' + h.number + '</span>';
+    });
+    html += '</div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+
 function renderRaceDetail(race) {
   const el = document.getElementById('race-detail-view');
   const g = gradeRace(race);
@@ -677,6 +719,9 @@ function renderRaceDetail(race) {
 
   html += buildStrategyPanel(race);
 
+  // Speed map
+  html += renderSpeedMap(race.speed_map);
+
   var hasAnyResults = dHasResults && dWinner;
   html += '<table class="horse-table"><thead><tr><th>#</th><th>Horse</th><th>Jockey</th><th>Draw</th><th>Odds</th>' + (hasAnyResults ? '<th>Fin</th>' : '') + '<th>ML%</th><th>Cal%</th><th>Bet</th><th>Reasoning</th></tr></thead><tbody>';
 
@@ -697,7 +742,38 @@ function renderRaceDetail(race) {
       '<td>' + (h.ml_prob * 100).toFixed(1) + '%</td>' +
       '<td style="color:' + probColor(h.calibrated_prob) + '">' + (h.calibrated_prob * 100).toFixed(1) + '%</td>' +
       '<td><div class="bt" style="background:' + betBg(h.bet_recommendation) + ';color:' + betColor(h.bet_recommendation) + '">' + h.bet_recommendation + '</div></td>' +
-      '<td class="reasoning-cell">' + reasoning + '</td>' +
+      '<td class="reasoning-cell">' + reasoning +
+      (function() {
+        var enh = '';
+        // Market badges
+        if (h.steam_move && h.steam_move.is_steam) {
+          enh += '<span class="market-badge steam">\u25B2 ' + esc(h.steam_move.label) + '</span> ';
+        }
+        if (h.cold_horse && h.cold_horse.is_cold) {
+          enh += '<span class="market-badge cold">\u2605 COLD</span> ';
+        }
+        if (h.odds_movement && h.odds_movement.change_pct && h.odds_movement.change_pct < -15) {
+          enh += '<span class="market-badge drift">\u25BC DRIFT ' + Math.abs(h.odds_movement.change_pct).toFixed(0) + '%</span> ';
+        }
+        // Enhanced stats
+        var stats = '';
+        var gf = h.going_form;
+        if (gf && gf.runs > 0) {
+          stats += '<div class="es-item"><span class="es-label">Going Form</span><span class="es-value">' + gf.wins + 'W/' + gf.places + 'P/' + gf.runs + 'R</span></div>';
+        }
+        var jh = h.jockey_horse_stats;
+        if (jh && jh.rides > 0) {
+          stats += '<div class="es-item"><span class="es-label">Jockey-Horse</span><span class="es-value">' + jh.wins + 'W ' + jh.places + 'P / ' + jh.rides + 'R</span></div>';
+        }
+        if (h.distance_pb) {
+          var pbText = 'PB ' + esc(h.distance_pb);
+          if (h.distance_record) pbText += ' (rec ' + esc(h.distance_record) + ')';
+          stats += '<div class="es-item"><span class="es-label">Distance Best</span><span class="es-value">' + pbText + '</span></div>';
+        }
+        if (stats) enh += '<div class="enhanced-stats">' + stats + '</div>';
+        return enh;
+      })() +
+      '</td>' +
     '</tr>';
   });
   

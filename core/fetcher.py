@@ -583,26 +583,6 @@ class HKJCParser:
         return HKJCParser.parse_odds(html)  # Same structure, different page
 
     @staticmethod
-    def parse_race_info(html: str) -> Dict:
-        """Extract race metadata (venue, distance, class, going, course) from HTML."""
-        if not html:
-            return {}
-        soup = BeautifulSoup(html, "html.parser")
-        page_text = soup.get_text(" ", strip=True)
-        info = {}
-        vm = re.search(r"(Sha Tin|Happy Valley)", page_text)
-        if vm: info['venue'] = vm.group(1)
-        dm = re.search(r"(\d{3,4})\s*M", page_text)
-        if dm: info['distance'] = dm.group(1)
-        cm = re.search(r"(Class\s*\d)", page_text)
-        if cm: info['class_type'] = cm.group(1)
-        gm = re.search(r"(Good to Firm|Good to Yielding|Good|Firm|Yielding|Soft|Heavy)", page_text, re.I)
-        if gm: info['going'] = gm.group(1)
-        tm = re.search(r'(Turf|All Weather Track|AWT)\s*[-\s]*"?([A-C]+)?"?', page_text, re.I)
-        if tm: info['course'] = tm.group(0).strip()
-        return info
-
-    @staticmethod
     def parse_results(html: str) -> List[Dict]:
         """Parse results page → list of finishing positions."""
         if not html:
@@ -931,7 +911,7 @@ class HKJCParser:
     @staticmethod
     def _safe_float(text: str) -> float:
         try:
-            m = re.search(r"[\d]+\.?\d*", str(text))
+            m = re.search(r"-?[\d]+\.?\d*", str(text))
             return float(m.group()) if m else 0.0
         except (ValueError, TypeError):
             return 0.0
@@ -974,7 +954,6 @@ class HKJCPlaywrightFetcher:
             viewport={"width": 1440, "height": 900},
             locale="en-US",
             timezone_id="Asia/Hong_Kong",
-            ignore_https_errors=True,
         )
         # Stealth
         await self.context.add_init_script("""
@@ -1144,8 +1123,10 @@ class HKJCPlaywrightFetcher:
 
         return odds
 
-    def _walk_json_for_odds(self, data, odds: Dict[int, float]):
+    def _walk_json_for_odds(self, data, odds: Dict[int, float], depth: int = 0):
         """Recursively walk JSON to find horse number + odds pairs."""
+        if depth > 30:
+            return
         if isinstance(data, dict):
             # Common HKJC JSON patterns
             no_keys = ["no", "horseNo", "horse_no", "number", "No"]
@@ -1175,12 +1156,12 @@ class HKJCPlaywrightFetcher:
 
             for v in data.values():
                 if isinstance(v, (dict, list)):
-                    self._walk_json_for_odds(v, odds)
+                    self._walk_json_for_odds(v, odds, depth + 1)
 
         elif isinstance(data, list):
             for item in data:
                 if isinstance(item, (dict, list)):
-                    self._walk_json_for_odds(item, odds)
+                    self._walk_json_for_odds(item, odds, depth + 1)
 
 
 # ---------------------------------------------------------------------------
@@ -1310,8 +1291,11 @@ class HKJCDataFetcher:
         """Fetch all races for a given meeting date."""
         day = RaceDay(date=race_date)
 
+        # Detect venue before fetching to avoid wrong-venue empty HTML
+        venue = self.api.detect_venue(race_date)
+
         # First, figure out how many races there are
-        html = self.api.fetch_race_card_html(race_date, 1)
+        html = self.api.fetch_race_card_html(race_date, 1, venue=venue)
         if not html:
             return day
 
@@ -1329,7 +1313,7 @@ class HKJCDataFetcher:
 
         # Fetch each race
         for rno in sorted(race_nums):
-            race = await self.get_race_card(race_date, rno)
+            race = await self.get_race_card(race_date, rno, venue=venue)
             if race:
                 day.races.append(race)
                 if not day.venue and race.venue:
@@ -1349,8 +1333,7 @@ class HKJCDataFetcher:
         if cache_key in self._horse_history_cache:
             return self._horse_history_cache[cache_key][:num_races]
 
-        import time
-        time.sleep(1.5)  # Rate limit
+        await asyncio.sleep(1.5)  # Rate limit (non-blocking)
 
         html = self.api.fetch_horse_profile_html(horse_name)
         history = HKJCParser.parse_horse_history(html) if html else []

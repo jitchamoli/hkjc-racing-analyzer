@@ -110,13 +110,18 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
     course = ""
 
     # --- Parse race header (Table 0) ---
+    header_parsed = False
     for table in table_data:
+        if header_parsed:
+            break
         for row in table[:5]:
             full_text = " ".join(row)
             if "Happy Valley" in full_text:
                 venue = "Happy Valley"
+                header_parsed = True
             if "Sha Tin" in full_text:
                 venue = "Sha Tin"
+                header_parsed = True
             dm = re.search(r"(\d{4})\s*M", full_text)
             if dm:
                 distance = int(dm.group(1))
@@ -131,6 +136,8 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
             cr = re.search(r'"([A-C](?:\+\d)?)"?\s*Course', full_text)
             if cr:
                 course = cr.group(0)
+        if header_parsed:
+            break
 
     # --- Parse results table ---
     entries = []
@@ -326,7 +333,7 @@ async def get_recent_meeting_dates(n_days: int = 60, max_meetings: int = 10) -> 
     for i in range(1, n_days):  # Skip today (i=0), start from yesterday
         d = today - timedelta(days=i)
         # HK races most commonly on Wed(2), Sat(5), Sun(6), occasionally others
-        if d.weekday() in (2, 5, 6, 0):  # Wed, Sat, Sun, Mon (public holiday racing)
+        if d.weekday() in (0, 1, 2, 3, 5, 6):  # Mon-Thu, Sat, Sun (covers public holidays)
             candidates.append(d.strftime('%Y/%m/%d'))
 
     if not candidates:

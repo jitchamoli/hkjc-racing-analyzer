@@ -82,13 +82,15 @@ class SectionalAnalyzer:
         if last_6:
             positions = parse_form_positions(last_6)
             if len(positions) >= 3:
-                # Check if recent positions are better than earlier ones
-                early = sum(positions[:len(positions)//2]) / max(1, len(positions)//2)
-                late = sum(positions[len(positions)//2:]) / max(1, len(positions) - len(positions)//2)
-                if late < early:
+                # positions is most-recent-first (HKJC convention)
+                # recent = first half, older = second half
+                recent = sum(positions[:len(positions)//2]) / max(1, len(positions)//2)
+                older = sum(positions[len(positions)//2:]) / max(1, len(positions) - len(positions)//2)
+                if recent < older:
+                    # Lower position number = better finish; recent better than older = improving
                     score += 15
                     reasons.append("Improving trend")
-                elif late > early + 2:
+                elif recent > older + 2:
                     score -= 10
                     reasons.append("Declining trend")
 

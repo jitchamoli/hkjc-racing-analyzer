@@ -6,6 +6,7 @@ and regenerates the interactive dashboard with results overlaid.
 """
 
 import asyncio
+import re
 import sys
 import os
 import json
@@ -16,6 +17,7 @@ from typing import List, Dict, Optional
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.fetcher import HKJCDataFetcher
+from data.database import HorseDatabase
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -133,10 +135,9 @@ class ResultsFetcher:
         profit = 0.0
         for h in horses:
             if h['number'] == actual_winner:
-                if h['bet_recommendation'] in ('WIN',):
+                if h['bet_recommendation'] in ('WIN', 'BANKER WIN'):
                     bet_hit = True
                     profit = h.get('win_odds', 0) - 1  # net profit per $1
-                break
             elif h.get('actual_position') and h['actual_position'] <= 3:
                 if h['bet_recommendation'] in ('PLACE', 'QIN', 'QNL PL', 'TRIO'):
                     bet_hit = True
@@ -285,6 +286,9 @@ class ResultsFetcher:
         merged = self.merge_results_with_predictions(predictions, actual_results)
         summary = self.compute_day_summary(merged)
 
+        # Fill prediction_log with actual results for longitudinal tracking
+        self._fill_prediction_log(race_date, actual_results)
+
         output_file = self.save_merged_data(merged, race_date, summary)
 
         logger.info("Results fetched successfully!")
@@ -304,6 +308,18 @@ class ResultsFetcher:
         self._regenerate_dashboard(merged, summary, race_date)
 
         return output_file
+
+    @staticmethod
+    def _fill_prediction_log(race_date: str, actual_results: Dict):
+        """Fill prediction_log table with actual results for accuracy tracking."""
+        try:
+            db = HorseDatabase()
+            for race_no, results in actual_results.items():
+                db.fill_prediction_results(race_date, race_no, results)
+            db.close()
+            logger.info(f"Filled prediction_log with results for {len(actual_results)} races")
+        except Exception as e:
+            logger.warning(f"Could not fill prediction_log: {e}")
 
     def _regenerate_dashboard(self, data: List, summary: Dict, race_date: str):
         """Inject results data into the dashboard by adding a RESULTS constant."""
@@ -356,7 +372,7 @@ class ResultsFetcher:
 
                 results_obj['races'][r['race_number']] = race_results
 
-        results_json = json.dumps(results_obj)
+        results_json = re.sub(r'<(/script)', r'<\\/\1', json.dumps(results_obj), flags=re.IGNORECASE)
 
         # Inject as a simple data constant + DOM manipulation code
         # Using string concatenation to avoid template literal issues
@@ -481,11 +497,13 @@ var RESULTS_DATA = ''' + results_json + ''';
     });
   }
 
+  function _esc(s){var d=document.createElement('div');d.textContent=String(s!=null?s:'');return d.innerHTML;}
+
   function overlayDetailResults(race) {
     var el = document.getElementById('race-detail-view');
     if (!el) return;
     var a = race.accuracy || {};
-    var winnerName = race.winner_name || ('#' + race.actual_winner);
+    var winnerName = _esc(race.winner_name || ('#' + race.actual_winner));
 
     // Results banner
     var existing = document.getElementById('detail-results-banner');
@@ -566,7 +584,11 @@ async def main():
                         help='Auto-ingest results into horse DB and retrain ML model')
     args = parser.parse_args()
 
+    import re
     race_date = args.date or datetime.now().strftime('%Y/%m/%d')
+    if not re.fullmatch(r'\d{4}/\d{2}/\d{2}', race_date):
+        print(f"Invalid date format: {race_date}. Expected YYYY/MM/DD")
+        return
 
     fetcher = ResultsFetcher()
     await fetcher.update_dashboard_with_results(race_date)

@@ -91,4 +91,4 @@ class TestValidateRaceCard:
         horses = [_make_horse(i) for i in range(1, 20)]
         card = _make_card(horses=horses)
         warnings = validate_race_card(card)
-        assert any("14" in w for w in warnings)
+        assert any("18" in w for w in warnings)

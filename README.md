@@ -1,18 +1,27 @@
-# HKJC Horse Racing Analyzer v5.0
+# HKJC Horse Racing Analyzer v5.2
 
-Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Fetches live race data, odds, and expert tips from racing.hkjc.com to generate betting recommendations using a 26-factor rule-based engine + XGBoost ML model trained on real historical race data, persistent horse database, and self-improving data pipeline.
+Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Fetches live race data, odds, and expert tips from racing.hkjc.com to generate betting recommendations using a 24-factor rule-based engine + XGBoost ML model (24 features, Platt-calibrated) with exotic bet value calculator, trained on real historical race data, persistent horse database, and self-improving data pipeline.
 
-## What's New in v5.0
+## What's New in v5.2
 
-- **26-factor analysis engine** - expanded from 17 to 26 scoring factors with dynamic weighting
-- **Real jockey/trainer stats from DB** - replaced all hardcoded ratings with actual win/place rates computed from 4,155+ historical race results
-- **ML model trained on real data** - XGBoost now trains on actual race results from horse_database (was 100% synthetic)
-- **Historical data scraper** (`scrape_history.py`) - Playwright-based bulk scraper for past HKJC results, auto-ingests into DB
-- **Self-improving pipeline** - each race day adds ~130 results; jockey/trainer stats, ML model, and going/margin data all improve automatically
-- **9 new expert-driven factors** - Going preference, Rolling form, Beaten margins, Jockey change detection, Jockey/Trainer hot streaks, Field size impact, Career place rate, Age vs field
-- **Research-backed feature design** - informed by Bill Benter methodology, CodeWorks Paris (1,618 features), gmalbert (field_size #1 at 17.41%), pbovard63 (field-relative features), Teddy Koker (value betting layer)
+- **Adjusted speed figures** - Beyer/Timeform-style par time normalization. Computes median finish times per (distance, going, class) bucket, adjusts for carried weight (+0.1s per lb above 120). Replaces raw `prior_speed` that conflated sprinters with stayers
+- **Exotic bet calculator** - prices exacta, trifecta, quinella, and first4 combinations using conditional probability elimination. Value detection flags mispriced exotics with 10%+ edge vs market
+- **Enhanced quinella pricing** - place model boost (+15% for consistent placers), pace pairing boost (+10% for leader+closer combos), draw clustering boost (+8% for adjacent good draws)
+- **Dynamic market/model blend** - adjusts by race characteristics: 55% market for large sprint fields (sharp pool), 35% market for small/long fields (thinner pool). Based on Bill Benter research
+- **Speed consistency feature** - std deviation of adjusted speed figures identifies reliable horses (critical for exotic bet ordering)
+- **Late money signal** - opening vs current odds movement as ML feature (steam/drift detection)
+- **24-feature ML schema** - up from 22, with adjusted_speed, speed_consistency, late_money_signal
 
 ### Previous Versions
+- **v5.1**: 22-feature ML, Platt scaling, place model, correlation audit, code review fixes
+- **v5.0**: 26-factor engine, real DB stats, 18-feature ML, historical scraper, self-improving pipeline
+- **v4.0**: QIN default strategy, BANKER WIN system, market probability blending, 17 factors
+- **v3.0**: 14-factor analytics, rail bias, pace map, sectionals, C&D form, odds movement
+- **v2.0**: Tips Index integration, ML prediction, advanced analytics
+- **v1.0**: Basic rule-based scoring
+
+### Previous Versions
+- **v5.0**: 26-factor engine, real DB stats, 18-feature ML, historical scraper, self-improving pipeline
 - **v4.0**: QIN default strategy, BANKER WIN system, market probability blending, 17 factors
 - **v3.0**: 14-factor analytics, rail bias, pace map, sectionals, C&D form, odds movement
 - **v2.0**: Tips Index integration, ML prediction, advanced analytics
@@ -34,34 +43,43 @@ Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Fetches li
 
 The analyzer combines two systems (75/25 weighted):
 
-**Rule-Based System (75%) - 26 Factors**
+**Rule-Based System (75%) - 24 Factors**
 
 | Category | Factors | Total Weight |
 |----------|---------|--------------|
-| **Core** | Rating (vs field avg), Form, Tips Index, Market Odds, Jockey (DB stats), Trainer (DB stats), Draw + Rail Bias | ~56% |
+| **Core** | Rating (vs field avg), Form, Tips Index, Jockey (DB stats), Trainer (DB stats), Draw + Rail Bias | ~52% |
 | **Expert** | Going Preference, Rolling Form, Beaten Margins, Jockey Change, Jockey/Trainer Hot Streaks, Field Size, Career Place Rate, Age vs Field | ~37% |
-| **Technical** | Pace Map, C&D Form, Odds Movement, Class Movement, Gear Changes, Weight Analysis, Sectional Speed, Freshness, Rating Trend, Season Stakes | ~7% |
+| **Technical** | Pace Map, C&D Form, Class Movement, Gear Changes, Weight Analysis, Sectional Speed, Freshness, Rating Trend, Season Stakes | ~11% |
 
-Weights are dynamic - factors with missing data are excluded and remaining weights are re-normalized to sum to 1.0.
+Note: Market odds removed from rule engine — enters only via dynamic market blend (35-55% depending on field size/distance). Weights are dynamic — factors with missing data are excluded and remaining weights re-normalize to 1.0.
 
 **ML-Based System (25%)**
-- XGBoost classifier with 18 features trained on **4,155+ real race results** from horse_database
-- Auto-retrains on real data when DB has 50+ results; falls back to calibrated synthetic data otherwise
-- Top features: odds_implied_prob (14.0%), recent_form (6.9%), cd_form (6.1%), jockey_win_rate (6.0%), weight_carried (4.9%)
-- Model improves automatically as more race days are scraped
+- XGBoost classifier with **24 features** + dedicated **place model** (is_top3), both Platt-calibrated
+- 60/20/20 temporal split with early stopping on validation set
+- Trained on **4,155+ real race results** from horse_database with recency weighting (newest races 3.3x)
+- **Adjusted speed figures**: Beyer-style par-adjusted, weight-corrected (replaces raw speed)
+- **Dynamic market blend**: 55% market for large sprints, 35% for small/long fields
+- Top features: days_since_last_win (7.7%), recent_form (7.6%), field_rel_speed (6.1%), jockey_trainer_combo (5.6%), class_change (5.6%)
+- Feature correlation matrix logged after training — redundant pairs flagged automatically
 
-### Key Improvements Over Hardcoded Approach
+**Exotic Bet Calculator**
+- Prices exacta, trifecta, quinella, first4 using conditional probability elimination
+- Quinella enhanced with place-model boost, pace pairing, draw clustering
+- Value detection: flags combinations where model probability exceeds market-implied by 10%+
+- Dashboard shows exotic value picks per race with edge percentages
 
-| What | Old (v4.0) | New (v5.0) |
-|------|-----------|-----------|
-| Jockey scores | 26 hardcoded entries (Purton=92) | Real DB stats (Purton=15.6% from 109 rides) |
-| Trainer scores | 23 hardcoded entries (Size=92) | Real DB stats (Size=10.2% from 88 runners) |
-| ML training data | 5,000 synthetic random samples | 4,155+ real race results |
-| Rating scoring | Absolute (rating/100) | Relative to field average (pbovard63) |
-| Jockey form | Static tier | Last 10 rides win/place rate, hot streak detection |
-| Trainer form | Static tier | Last 10 runners win/place rate |
-| Going | Not scored | Horse's record on today's track condition |
-| Margins | Not scored | Last-start margin, close-finish frequency |
+### Key Improvements
+
+| What | v5.0 | v5.2 |
+|------|------|------|
+| ML features | 18 (with odds, redundant pairs) | 24 (par-adjusted speed, interactions, late money) |
+| Speed figures | Absolute m/s (conflates sprinters/stayers) | Beyer-style par-adjusted + weight-corrected |
+| Probability calibration | Softmax temp=2.5 (overconfident) | Platt scaling + dynamic market blend |
+| Place prediction | `win_prob * 1.8` hack | Dedicated XGBoost on is_top3 (67.5% accuracy) |
+| Exotic bets | Not supported | Full calculator: exacta, trifecta, quinella, first4 |
+| Quinella pricing | Simple probability | Place-model boost + pace pairing + draw clustering |
+| Market blend | Static 70/30 | Dynamic 45-65% model / 35-55% market by race type |
+| Model safety | Pickle loaded unsigned | SHA-256 checksum + feature count guard + backup |
 
 ### Bet Type Logic
 
@@ -98,7 +116,7 @@ hkjc_racing_analyzer/
     recommender.py           #   Bet recommendation engine (BANKER/WIN/QIN/PLACE/SKIP)
     predictor.py             #   ML predictor shim (delegates to ml/)
   ml/                        # ML pipeline
-    feature_schema.py        #   Single source of truth for 18 features
+    feature_schema.py        #   Single source of truth for 24 features
     features.py              #   Feature extraction for prediction
     model.py                 #   XGBoost model — train, predict, save, load
     training.py              #   Training data builders (DB + synthetic)

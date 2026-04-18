@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """XGBoost model for HKJC race prediction — train, predict, save, load."""
 
+import hashlib
 import pickle
 import logging
 from datetime import datetime
@@ -17,6 +18,7 @@ try:
     import xgboost as xgb
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, log_loss, precision_score, recall_score
+    from sklearn.linear_model import LogisticRegression
     ML_AVAILABLE = True
 except ImportError:
     ML_AVAILABLE = False
@@ -82,6 +84,8 @@ class HKJCRacingMLModel:
 
     def __init__(self):
         self.model = None
+        self.place_model = None
+        self.calibrator = None  # Platt scaling (LogisticRegression)
         self.is_trained = False
         self.model_version = "1.0"
         self.feature_importance = {}
@@ -89,16 +93,43 @@ class HKJCRacingMLModel:
         if ML_AVAILABLE:
             self._load_model()
 
+    def _checksum_path(self) -> Path:
+        return self.MODEL_FILE.with_suffix('.sha256')
+
     def _load_model(self):
         if self.MODEL_FILE.exists():
             try:
-                with open(self.MODEL_FILE, 'rb') as f:
-                    data = pickle.load(f)
-                    self.model = data.get('model')
-                    self.model_version = data.get('version', '1.0')
-                    self.feature_importance = data.get('feature_importance', {})
-                    self.is_trained = self.model is not None
-                    logger.info(f"Loaded model version {self.model_version}")
+                model_bytes = self.MODEL_FILE.read_bytes()
+
+                # Verify integrity — refuse to load without valid checksum
+                checksum_file = self._checksum_path()
+                if not checksum_file.exists():
+                    logger.error("Model checksum file missing — refusing to load unsigned model. "
+                                 "Retrain with: python3 -m scripts.train")
+                    return
+                expected = checksum_file.read_text().strip()
+                actual = hashlib.sha256(model_bytes).hexdigest()
+                if actual != expected:
+                    logger.error(f"Model checksum mismatch — file may be corrupted or tampered. "
+                                 f"Expected {expected[:16]}..., got {actual[:16]}...")
+                    return
+
+                data = pickle.loads(model_bytes)
+
+                # Verify feature count matches current schema
+                saved_n = data.get('n_features')
+                if saved_n is not None and saved_n != NUM_FEATURES:
+                    logger.error(f"Model was trained on {saved_n} features but schema has {NUM_FEATURES}. "
+                                 f"Retrain with: python3 -m scripts.train")
+                    return
+
+                self.model = data.get('model')
+                self.place_model = data.get('place_model')
+                self.calibrator = data.get('calibrator')
+                self.model_version = data.get('version', '1.0')
+                self.feature_importance = data.get('feature_importance', {})
+                self.is_trained = self.model is not None
+                logger.info(f"Loaded model version {self.model_version}")
             except Exception as e:
                 logger.warning(f"Could not load model: {e}")
 
@@ -107,35 +138,65 @@ class HKJCRacingMLModel:
 
         data = {
             'model': self.model,
+            'place_model': self.place_model,
+            'calibrator': self.calibrator,
             'version': self.model_version,
+            'n_features': NUM_FEATURES,
             'feature_importance': self.feature_importance,
             'trained_date': datetime.now().isoformat()
         }
 
-        with open(self.MODEL_FILE, 'wb') as f:
-            pickle.dump(data, f)
+        model_bytes = pickle.dumps(data)
+        self.MODEL_FILE.write_bytes(model_bytes)
+        self._checksum_path().write_text(hashlib.sha256(model_bytes).hexdigest())
 
         logger.info(f"Saved model version {self.model_version}")
 
     def train(self, features: np.ndarray, labels: np.ndarray,
-              sample_weight: np.ndarray = None) -> Dict:
+              sample_weight: np.ndarray = None,
+              temporal: bool = True,
+              place_labels: np.ndarray = None) -> Dict:
         if not ML_AVAILABLE:
             return {'error': 'ML libraries not available'}
 
         logger.info(f"Training with {len(features)} samples "
                     f"({labels.sum():.0f} winners, {labels.mean()*100:.1f}% win rate)")
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            features, labels, test_size=0.2, random_state=42,
-            stratify=labels if labels.sum() >= 10 else None
-        )
-
-        sw_train = None
-        if sample_weight is not None:
-            sw_train, _ = train_test_split(
-                sample_weight, test_size=0.2, random_state=42,
-                stratify=labels if labels.sum() >= 10 else None
-            )
+        # Temporal split: 60% train, 20% validation (early stopping), 20% test (final metrics)
+        if temporal:
+            cut_train = int(len(features) * 0.6)
+            cut_val = int(len(features) * 0.8)
+            X_train = features[:cut_train]
+            X_val = features[cut_train:cut_val]
+            X_test = features[cut_val:]
+            y_train = labels[:cut_train]
+            y_val = labels[cut_train:cut_val]
+            y_test = labels[cut_val:]
+            sw_train = sample_weight[:cut_train] if sample_weight is not None else None
+            logger.info(f"Temporal split: train={cut_train}, val={cut_val-cut_train}, test={len(features)-cut_val}")
+        else:
+            stratify_arg = labels if labels.sum() >= 10 else None
+            sw_train = None
+            if sample_weight is not None:
+                X_trainval, X_test, y_trainval, y_test, sw_trainval, _ = train_test_split(
+                    features, labels, sample_weight,
+                    test_size=0.2, random_state=42, stratify=stratify_arg
+                )
+                stratify_tv = y_trainval if y_trainval.sum() >= 10 else None
+                X_train, X_val, y_train, y_val, sw_train, _ = train_test_split(
+                    X_trainval, y_trainval, sw_trainval,
+                    test_size=0.25, random_state=42, stratify=stratify_tv
+                )
+            else:
+                X_trainval, X_test, y_trainval, y_test = train_test_split(
+                    features, labels, test_size=0.2, random_state=42,
+                    stratify=stratify_arg
+                )
+                stratify_tv = y_trainval if y_trainval.sum() >= 10 else None
+                X_train, X_val, y_train, y_val = train_test_split(
+                    X_trainval, y_trainval,
+                    test_size=0.25, random_state=42, stratify=stratify_tv
+                )
 
         n_pos = max(1, y_train.sum())
         n_neg = max(1, len(y_train) - n_pos)
@@ -144,9 +205,13 @@ class HKJCRacingMLModel:
         params = dict(config.XGBOOST_PARAMS)
         params['scale_pos_weight'] = scale
 
+        # Early stopping on VALIDATION set (not test set)
+        params['early_stopping_rounds'] = 20
         self.model = xgb.XGBClassifier(**params)
-        self.model.fit(X_train, y_train, sample_weight=sw_train)
+        self.model.fit(X_train, y_train, sample_weight=sw_train,
+                       eval_set=[(X_val, y_val)], verbose=False)
 
+        # Final metrics on held-out TEST set (never seen during training or stopping)
         y_pred = self.model.predict(X_test)
         y_pred_proba = self.model.predict_proba(X_test)[:, 1]
 
@@ -154,11 +219,39 @@ class HKJCRacingMLModel:
         logloss = log_loss(y_test, y_pred_proba)
         precision = precision_score(y_test, y_pred, zero_division=0)
         recall = recall_score(y_test, y_pred, zero_division=0)
+        brier = float(np.mean((y_pred_proba - y_test) ** 2))
 
         self.feature_importance = dict(zip(
             FEATURE_NAMES,
             self.model.feature_importances_.tolist()
         ))
+
+        # Platt scaling: fit logistic regression on validation predictions → actual outcomes
+        # This recalibrates raw XGBoost probabilities to be well-calibrated
+        val_proba = self.model.predict_proba(X_val)[:, 1]
+        self.calibrator = LogisticRegression(C=1.0, solver='lbfgs', max_iter=1000)
+        self.calibrator.fit(val_proba.reshape(-1, 1), y_val)
+        logger.info(f"Platt calibrator fitted on {len(y_val)} validation samples")
+
+        # Train place model (is_top3) if labels provided
+        place_accuracy = None
+        if place_labels is not None:
+            pl_train = place_labels[:cut_train] if temporal else place_labels[:len(y_train)]
+            pl_val = place_labels[cut_train:cut_val] if temporal else place_labels[len(y_train):len(y_train)+len(y_val)]
+            pl_test = place_labels[cut_val:] if temporal else place_labels[-len(y_test):]
+
+            pl_pos = max(1, pl_train.sum())
+            pl_neg = max(1, len(pl_train) - pl_pos)
+            pl_params = dict(config.XGBOOST_PARAMS)
+            pl_params['scale_pos_weight'] = pl_neg / pl_pos
+            pl_params['early_stopping_rounds'] = 20
+            self.place_model = xgb.XGBClassifier(**pl_params)
+            self.place_model.fit(X_train, pl_train, sample_weight=sw_train,
+                                eval_set=[(X_val, pl_val)], verbose=False)
+            pl_pred = self.place_model.predict(X_test)
+            place_accuracy = accuracy_score(pl_test, pl_pred)
+            logger.info(f"Place model: accuracy={place_accuracy:.2%} "
+                        f"({pl_train.sum():.0f} top3 in train, {pl_test.sum():.0f} in test)")
 
         self.is_trained = True
         self.model_version = datetime.now().strftime('%Y%m%d-%H%M%S')
@@ -171,10 +264,26 @@ class HKJCRacingMLModel:
             'logloss': logloss,
             'precision': precision,
             'recall': recall,
+            'brier_score': brier,
             'feature_importance': self.feature_importance,
             'model_version': self.model_version
         }
-        log_experiment(result, FEATURE_NAMES, n_samples=len(features))
+        if place_accuracy is not None:
+            result['place_accuracy'] = place_accuracy
+
+        # Compute feature correlation matrix and flag high correlations
+        high_corrs = {}
+        corr_matrix = np.corrcoef(features, rowvar=False)
+        for i in range(len(FEATURE_NAMES)):
+            for j in range(i + 1, len(FEATURE_NAMES)):
+                r = abs(corr_matrix[i, j])
+                if r > 0.7:
+                    pair = f"{FEATURE_NAMES[i]} × {FEATURE_NAMES[j]}"
+                    high_corrs[pair] = round(float(r), 3)
+                    logger.warning(f"High correlation: {pair} = {r:.3f}")
+
+        log_experiment(result, FEATURE_NAMES, n_samples=len(features),
+                       feature_correlations=high_corrs if high_corrs else None)
 
         return result
 
@@ -184,8 +293,12 @@ class HKJCRacingMLModel:
             return base_prob, "MODEL_NOT_TRAINED"
 
         proba = self.model.predict_proba(features.reshape(1, -1))[0]
-
         win_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])
+
+        # Apply Platt scaling if calibrator is available
+        if self.calibrator is not None:
+            win_prob = float(self.calibrator.predict_proba(
+                np.array([[win_prob]]))[0, 1])
 
         if win_prob > 0.30:
             confidence = "HIGH"
@@ -197,6 +310,15 @@ class HKJCRacingMLModel:
             confidence = "VERY_LOW"
 
         return win_prob, confidence
+
+    def predict_place(self, features: np.ndarray, field_size: int = 12) -> float:
+        """Predict place (top-3) probability using dedicated place model."""
+        if self.place_model is not None:
+            proba = self.place_model.predict_proba(features.reshape(1, -1))[0]
+            return float(proba[1]) if len(proba) > 1 else float(proba[0])
+        # Fallback: estimate from win probability
+        win_prob, _ = self.predict(features, field_size)
+        return min(0.85, win_prob * 2.5)
 
 
 def create_combined_prediction(
@@ -212,7 +334,11 @@ def create_combined_prediction(
         weights = {'rule': 1.0, 'ml': 0.0}
 
     ml_prob_adjusted = ml_prob * weights['ml']
-    rule_prob = (rule_score / 100) * weights['rule']
+    # Convert rule_score (0-100) to a probability-like value using sigmoid
+    # rule_score=50 → 0.5, rule_score=80 → ~0.73, rule_score=20 → ~0.27
+    import math
+    rule_prob_raw = 1.0 / (1.0 + math.exp(-0.06 * (rule_score - 50)))
+    rule_prob = rule_prob_raw * weights['rule']
 
     combined_prob = rule_prob + ml_prob_adjusted
 
@@ -247,17 +373,25 @@ class CombinedRacingAnalyzer:
     """Thin wrapper that combines ML model with feature engineering."""
 
     def __init__(self):
+        import sqlite3
         from ml.features import FeatureEngineering
         from ml.training import build_training_data_from_db, generate_synthetic_training_data
 
         self.ml_model = HKJCRacingMLModel()
         self.feature_eng = FeatureEngineering()
 
+        # Shared DB connection for feature extraction (avoids per-horse connection churn)
+        self._conn = None
+        if config.DB_PATH.exists():
+            self._conn = sqlite3.connect(str(config.DB_PATH))
+            self._conn.row_factory = sqlite3.Row
+
         if ML_AVAILABLE and not self.ml_model.is_trained:
-            X_real, y_real, sw_real = build_training_data_from_db()
+            X_real, y_real, sw_real, y_place = build_training_data_from_db()
             if X_real is not None and len(X_real) >= config.MIN_REAL_SAMPLES:
                 logger.info(f"Training ML model with {len(X_real)} REAL race results...")
-                result = self.ml_model.train(X_real, y_real, sample_weight=sw_real)
+                result = self.ml_model.train(X_real, y_real, sample_weight=sw_real,
+                                            place_labels=y_place)
                 logger.info(f"Model trained on REAL data: accuracy={result['accuracy']:.2%}")
             else:
                 logger.info("Insufficient real data — training ML model with synthetic data...")
@@ -266,7 +400,8 @@ class CombinedRacingAnalyzer:
                 logger.info(f"Model trained on synthetic data: accuracy={result['accuracy']:.2%}")
 
     def predict(self, horse_data: dict, all_results, venue: str) -> MLPrediction:
-        features = self.feature_eng.extract_features(horse_data, all_results, venue)
+        features = self.feature_eng.extract_features(horse_data, all_results, venue,
+                                                     conn=self._conn)
 
         field_size = horse_data.get('field_size', 12)
         ml_prob, ml_confidence = self.ml_model.predict(features, field_size=field_size)
@@ -275,11 +410,11 @@ class CombinedRacingAnalyzer:
             horse_number=horse_data.get('number', 0),
             horse_name=horse_data.get('name', ''),
             win_probability=ml_prob,
-            place_probability=min(1.0, ml_prob * 2.5),
+            place_probability=self.ml_model.predict_place(features, field_size=field_size),
             ml_confidence=ml_confidence,
-            feature_importance=dict(zip(
-                FEATURE_NAMES,
-                (features * self.ml_model.feature_importance.get(f, 0.1) for f in FEATURE_NAMES)
-            )),
+            feature_importance={
+                name: float(features[i]) * self.ml_model.feature_importance.get(name, 0.0)
+                for i, name in enumerate(FEATURE_NAMES)
+            },
             model_version=self.ml_model.model_version
         )

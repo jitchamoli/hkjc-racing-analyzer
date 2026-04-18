@@ -127,7 +127,7 @@ button{{font-family:inherit;cursor:pointer}}
       <span>{venue} | {race_date}</span>
       <span>|</span>
       <span id="clock">{now}</span>
-      <span class="version">v5.0 | 26 FACTORS | REAL DATA ML</span>
+      <span class="version">v5.2</span>
     </div>
   </div>
 </div>
@@ -257,7 +257,7 @@ function renderDashboard() {{
     '<div class="stat"><div class="v" style="color:var(--pink)">' + counts.TRIO + '</div><div class="l">TRIO</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--dim)">' + counts.SKIP + '</div><div class="l">SKIP</div></div>' +
     '<div class="stat"><div class="v">' + RACES.length + '</div><div class="l">Races</div></div>' +
-    '<div class="stat"><div class="v">26</div><div class="l">Factors</div></div>' +
+    '<div class="stat"><div class="v">24</div><div class="l">Factors</div></div>' +
   '</div>' +
   '<div class="legend">' +
     '<div class="item"><div class="dot" style="background:var(--green)"></div>WIN</div>' +
@@ -323,14 +323,25 @@ function renderDashboard() {{
         '<div class="bt" style="background:' + betBg(h.bet_recommendation) + ';color:' + betColor(h.bet_recommendation) + '">' + h.bet_recommendation + '</div>' +
       '</div>';
     }});
+    // Bet badge + exotic count
+    var topBet = r.horses[0].bet_recommendation || 'SKIP';
+    var betBadge = '<span class="bt" style="background:' + betBg(topBet) + ';color:' + betColor(topBet) + ';margin-right:6px">' + topBet + '</span>';
+    var exoticCount = 0;
+    if (r.exotic_value) {{
+      ['exacta','quinella','trifecta','first4'].forEach(function(t) {{
+        exoticCount += (r.exotic_value[t] || []).length;
+      }});
+    }}
+    var exoticBadge = exoticCount > 0 ? '<span style="background:rgba(251,191,36,.2);color:var(--gold);font-size:.62rem;font-weight:700;padding:2px 6px;border-radius:4px;margin-right:6px">' + exoticCount + ' exotics</span>' : '';
+
     html += '</div>' +
-      '<div class="rc-footer"><span>' + r.horses.length + ' runners | Top: #' + esc(r.horses[0].number) + ' ' + esc(r.horses[0].name) + '</span><span class="click-hint">Click to expand</span></div>' +
+      '<div class="rc-footer"><span>' + betBadge + exoticBadge + r.horses.length + ' runners</span><span class="click-hint">Click to expand</span></div>' +
     '</div>';
   }});
   
   html += '</div>' +
     '<div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>' +
-    '<div class="footer">HKJC Racing Analyzer v5.0 | 26-Factor + Real Data ML | Generated: ' + GENERATED + '</div>';
+    '<div class="footer">HKJC Racing Analyzer v5.2 | Generated: ' + GENERATED + '</div>';
   el.innerHTML = html;
 }}
 
@@ -418,8 +429,8 @@ function buildStrategyPanel(race) {{
   }}
 
   if (qnlPicks.length >= 2) {{
-    var nums = qnlPicks.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    var names = qnlPicks.map(function(h) {{ return h.name; }}).join(' & ');
+    var nums = qnlPicks.map(function(h) {{ return '#' + esc(h.number); }}).join(' + ');
+    var names = qnlPicks.map(function(h) {{ return esc(h.name); }}).join(' &amp; ');
     s += '<div style="background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.25);border-radius:10px;padding:12px 16px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--cyan);text-transform:uppercase;margin-bottom:6px">Quinella Place (QNL PL)</div>'
       + '<div style="font-size:1rem;font-weight:800">' + nums + '</div>'
@@ -429,8 +440,8 @@ function buildStrategyPanel(race) {{
   }}
 
   if (trioPicks.length >= 3) {{
-    var nums = trioPicks.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    var names = trioPicks.map(function(h) {{ return h.name; }}).join(', ');
+    var nums = trioPicks.map(function(h) {{ return '#' + esc(h.number); }}).join(' + ');
+    var names = trioPicks.map(function(h) {{ return esc(h.name); }}).join(', ');
     s += '<div style="background:rgba(236,72,153,.06);border:1px solid rgba(236,72,153,.25);border-radius:10px;padding:12px 16px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--pink);text-transform:uppercase;margin-bottom:6px">Trio</div>'
       + '<div style="font-size:1rem;font-weight:800">' + nums + '</div>'
@@ -444,8 +455,8 @@ function buildStrategyPanel(race) {{
       + '<div style="font-size:.72rem;font-weight:700;color:var(--purple);text-transform:uppercase;margin-bottom:6px">Place Bets</div>';
     placePicks.forEach(function(h) {{
       s += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(139,92,246,.1)">'
-        + '<span style="font-weight:700;font-size:.85rem">#' + h.number + ' ' + h.name + '</span>'
-        + '<span style="font-size:.78rem;color:var(--dim)">' + h.jockey + ' | $' + h.win_odds + '</span></div>';
+        + '<span style="font-weight:700;font-size:.85rem">#' + esc(h.number) + ' ' + esc(h.name) + '</span>'
+        + '<span style="font-size:.78rem;color:var(--dim)">' + esc(h.jockey) + ' | $' + esc(h.win_odds) + '</span></div>';
     }});
     s += '<div style="font-size:.72rem;color:var(--dim);margin-top:6px">Each to finish in top 3</div></div>';
   }}
@@ -458,7 +469,7 @@ function buildStrategyPanel(race) {{
       + '<div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:6px">BEST VALUE — Odds are in our favour</div>';
     valueBets.forEach(function(h) {{
       s += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:.8rem">'
-        + '<span><span style="font-weight:700">#' + h.number + '</span> ' + h.name + ' @ $' + h.win_odds + '</span>'
+        + '<span><span style="font-weight:700">#' + esc(h.number) + '</span> ' + esc(h.name) + ' @ $' + esc(h.win_odds) + '</span>'
         + '<span style="color:var(--green);font-weight:700">Paying more than it should</span></div>';
     }});
     s += '</div>';
@@ -470,7 +481,7 @@ function buildStrategyPanel(race) {{
     s += '<div style="background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:8px;padding:10px 14px;margin-bottom:10px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--red);margin-bottom:6px">ONES TO WATCH (could upset)</div>';
     dangers.forEach(function(h) {{
-      s += '<div style="font-size:.8rem;padding:2px 0"><span style="font-weight:700">#' + h.number + '</span> ' + h.name + ' @ $' + h.win_odds + ' <span style="color:var(--dim)">(' + (h.calibrated_prob * 100).toFixed(1) + '%)</span></div>';
+      s += '<div style="font-size:.8rem;padding:2px 0"><span style="font-weight:700">#' + esc(h.number) + '</span> ' + esc(h.name) + ' @ $' + esc(h.win_odds) + ' <span style="color:var(--dim)">(' + (h.calibrated_prob * 100).toFixed(1) + '%)</span></div>';
     }});
     s += '</div>';
   }}
@@ -479,13 +490,13 @@ function buildStrategyPanel(race) {{
   if (dangers.length && horses.length >= 3) {{
     var topDanger = dangers[0];
     var top2 = horses.slice(0, 2);
-    var wcNums = top2.map(function(h) {{ return '#' + h.number; }}).concat(['#' + topDanger.number]);
-    var wcNames = top2.map(function(h) {{ return h.name; }}).concat([topDanger.name]);
+    var wcNums = top2.map(function(h) {{ return '#' + esc(h.number); }}).concat(['#' + esc(topDanger.number)]);
+    var wcNames = top2.map(function(h) {{ return esc(h.name); }}).concat([esc(topDanger.name)]);
     s += '<div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:10px 14px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:6px">WILDCARD BET (includes outsider)</div>'
       + '<div style="font-size:.9rem;font-weight:800">' + wcNums.join(' + ') + '</div>'
       + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + wcNames.join(', ') + '</div>'
-      + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">TRIO or QIN box — covers upset scenario with #' + topDanger.number + ' ' + topDanger.name + ' @ $' + topDanger.win_odds + '</div>'
+      + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">TRIO or QIN box — covers upset scenario with #' + esc(topDanger.number) + ' ' + esc(topDanger.name) + ' @ $' + esc(topDanger.win_odds) + '</div>'
       + '</div>';
   }}
 
@@ -624,7 +635,7 @@ function copyAllToWhatsApp() {{
     text += buildWhatsAppText(race) + '\\n\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n\\n';
   }});
   text += '_\\u26a0\\ufe0f For entertainment only. Gamble responsibly._\\n';
-  text += '_HKJC Analyzer | 26 Factors + ML_';
+  text += '_HKJC Analyzer v5.1 | 24 Factors + 22-Feature ML_';
   text = text.replace(/\\n{{3,}}/g, '\\n\\n').trim();
   navigator.clipboard.writeText(text).then(function() {{
     var btn = document.getElementById('wa-btn-all');
@@ -664,6 +675,40 @@ function renderSpeedMap(speedMap) {{
   return html;
 }}
 
+function renderExoticPanel(race) {{
+  var ex = race.exotic_value;
+  if (!ex) return '';
+  var hasAny = (ex.exacta && ex.exacta.length) || (ex.trifecta && ex.trifecta.length) || (ex.quinella && ex.quinella.length) || (ex.first4 && ex.first4.length);
+  if (!hasAny) return '';
+  var nameMap = {{}};
+  race.horses.forEach(function(h) {{ nameMap[h.number] = h.name; }});
+  var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">';
+  html += '<div style="font-size:1rem;font-weight:800;margin-bottom:12px;color:var(--gold)">EXOTIC VALUE PICKS</div>';
+  html += '<div style="font-size:.7rem;color:var(--dim);margin-bottom:10px">Combinations where our model finds 10%+ edge vs market pricing</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">';
+  ['exacta', 'quinella', 'trifecta', 'first4'].forEach(function(type) {{
+    var bets = ex[type];
+    if (!bets || !bets.length) return;
+    var label = type.toUpperCase();
+    html += '<div style="background:var(--surface2);border-radius:8px;padding:12px">';
+    html += '<div style="font-size:.82rem;font-weight:700;color:var(--accent);margin-bottom:8px">' + label + '</div>';
+    bets.forEach(function(b) {{
+      var horses = b.horses.map(function(n) {{ return '#' + n + ' ' + esc(nameMap[n] || ''); }}).join(' \\u2192 ');
+      var edgeColor = b.edge >= 0.25 ? 'var(--green)' : 'var(--accent)';
+      html += '<div style="padding:4px 0;border-bottom:1px solid rgba(45,55,72,.3);font-size:.75rem">';
+      html += '<div style="font-weight:600">' + horses + '</div>';
+      html += '<div style="display:flex;gap:12px;color:var(--dim);margin-top:2px">';
+      html += '<span>Prob: ' + (b.probability * 100).toFixed(2) + '%</span>';
+      html += '<span>Min odds: $' + b.min_odds.toFixed(0) + '</span>';
+      html += '<span style="color:' + edgeColor + ';font-weight:700">+' + (b.edge * 100).toFixed(0) + '% edge</span>';
+      html += '</div></div>';
+    }});
+    html += '</div>';
+  }});
+  html += '</div></div>';
+  return html;
+}}
+
 function renderRaceDetail(race) {{
   const el = document.getElementById('race-detail-view');
   const g = gradeRace(race);
@@ -671,8 +716,8 @@ function renderRaceDetail(race) {{
   const top = race.horses[0];
 
   const topBet = top ? top.bet_recommendation : 'N/A';
-  const topML = top ? (top.ml_prob * 100).toFixed(1) : '0';
   const topCal = top ? (top.calibrated_prob * 100).toFixed(1) : '0';
+  const topPlace = top && top.place_prob ? (top.place_prob * 100).toFixed(1) : '';
 
   let html = '<div class="detail-header">' +
     '<div><div class="detail-title">Race ' + race.race_number + '</div><div class="detail-meta">' + esc(race.time) + ' | ' + esc(race.distance) + 'm | ' + esc(race.class_type) + ' | ' + esc(race.going) + '</div></div>' +
@@ -685,8 +730,8 @@ function renderRaceDetail(race) {{
   html += '<div class="detail-stats">' +
     '<div class="stat"><div class="v">' + race.horses.length + '</div><div class="l">Runners</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--gold)">' + topBet + '</div><div class="l">Top Pick</div></div>' +
-    '<div class="stat"><div class="v" style="color:var(--green)">' + topML + '%</div><div class="l">ML Prob</div></div>' +
-    '<div class="stat"><div class="v" style="color:var(--accent)">' + topCal + '%</div><div class="l">Calibrated</div></div>' +
+    '<div class="stat"><div class="v" style="color:var(--accent)">' + topCal + '%</div><div class="l">Win Prob</div></div>' +
+    (topPlace ? '<div class="stat"><div class="v" style="color:var(--cyan)">' + topPlace + '%</div><div class="l">Place Prob</div></div>' : '') +
   '</div>';
 
   // Result banner in detail view
@@ -725,11 +770,14 @@ function renderRaceDetail(race) {{
 
   html += buildStrategyPanel(race);
 
+  // Exotic value panel
+  html += renderExoticPanel(race);
+
   // Speed map
   html += renderSpeedMap(race.speed_map);
 
   var hasAnyResults = dHasResults && dWinner;
-  html += '<table class="horse-table"><thead><tr><th>#</th><th>Horse</th><th>Jockey</th><th>Draw</th><th>Odds</th>' + (hasAnyResults ? '<th>Fin</th>' : '') + '<th>ML%</th><th>Cal%</th><th>Bet</th><th>Reasoning</th></tr></thead><tbody>';
+  html += '<table class="horse-table"><thead><tr><th>#</th><th>Horse</th><th>Jockey</th><th>Draw</th><th>Odds</th>' + (hasAnyResults ? '<th>Fin</th>' : '') + '<th>Win%</th><th>Place%</th><th>Bet</th><th>Reasoning</th></tr></thead><tbody>';
 
   race.horses.forEach((h, i) => {{
     const isTop = i === 0;
@@ -745,8 +793,8 @@ function renderRaceDetail(race) {{
       '<td>' + h.draw + '</td>' +
       '<td style="color:var(--cyan)">$' + h.win_odds + '</td>' +
       finCell +
-      '<td>' + (h.ml_prob * 100).toFixed(1) + '%</td>' +
       '<td style="color:' + probColor(h.calibrated_prob) + '">' + (h.calibrated_prob * 100).toFixed(1) + '%</td>' +
+      '<td style="color:var(--cyan)">' + (h.place_prob ? (h.place_prob * 100).toFixed(1) + '%' : '-') + '</td>' +
       '<td><div class="bt" style="background:' + betBg(h.bet_recommendation) + ';color:' + betColor(h.bet_recommendation) + '">' + h.bet_recommendation + '</div></td>' +
       '<td class="reasoning-cell">' + reasoning +
       (function() {{
