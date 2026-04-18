@@ -41,13 +41,15 @@ python3 -m scripts.fetch_results '2026/04/16'
 ### Package Structure
 
 ```
-core/       — fetcher, analyzer, ML predictor
+core/       — fetcher, analyzer, scorer, recommender, ML predictor
+ml/         — feature schema, feature extraction, model, training, experiments
 analytics/  — 12 specialized analyzers (draw bias, pace, sectionals, etc.)
-data/       — database, odds tracker, scraper
+data/       — database, odds tracker, scraper, validation
 monitor/    — race day monitor
 dashboard/  — prediction generator, HTML template
 betting/    — Kelly Criterion optimizer
 scripts/    — CLI entry points
+tests/      — pytest suite (77 tests)
 ```
 
 Root-level shims exist for backwards compatibility (e.g., `hkjc_data_fetcher.py` re-exports from `core/fetcher.py`).
@@ -69,7 +71,7 @@ scripts/train.py → models/hkjc_racing_model.pkl
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
 - **Rule engine (75%)**: 26 factors with dynamic weighting — factors with missing data are excluded and remaining weights renormalize to 1.0. Approximate grouping: Core (rating, form, odds, jockey, trainer, draw, tips), Expert (going, rolling form, margins, field size, career stats), Technical (pace, sectionals, C&D, class movement, gear, weight, freshness). Actual percentages vary per race due to renormalization.
-- **ML model (25%)**: XGBoost classifier with 18 features (`core/predictor.py`). Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `scripts/train.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
+- **ML model (25%)**: XGBoost classifier with 18 features (`ml/model.py`, schema in `ml/feature_schema.py`). Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `scripts/train.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
 
 The 12 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change).
 
