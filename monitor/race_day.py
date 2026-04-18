@@ -17,9 +17,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.fetcher import HKJCDataFetcher
 from core.analyzer import CombinedRaceAnalyzer
 from data.database import HorseDatabase
-from data.odds_tracker import OddsDatabase, OddsMovementAnalyzer
-from analytics.pace import PaceAnalyzer
+from data.odds_tracker import OddsDatabase
 from dashboard.template import generate_html
+from dashboard.generator import build_race_data
 
 logging.basicConfig(
     level=logging.INFO,
@@ -109,85 +109,7 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
             if not race or not race.horses:
                 break
             analyses = analyzer.analyze_race(race)
-
-            race_data = {
-                "race_number": race.race_number,
-                "venue": race.venue,
-                "time": race.time,
-                "distance": race.distance,
-                "class_type": race.class_type,
-                "going": race.going,
-                "course": race.course,
-                "horses": [],
-            }
-
-            race_going = race.going or ''
-            race_distance = int(race.distance) if race.distance and str(race.distance).isdigit() else 1200
-            odds_summary = odds_db.get_movement_summary(race_date, race.race_number)
-
-            speed_map_input = [
-                {'number': h.number, 'name': h.name, 'draw': h.draw,
-                 'running_style': getattr(h, 'running_style', ''),
-                 'last_6': h.last_6}
-                for h in race.horses
-            ]
-            speed_map = PaceAnalyzer.generate_speed_map(speed_map_input, race_distance)
-            race_data["speed_map"] = speed_map
-
-            for i, a in enumerate(analyses):
-                h = a.horse
-                ml_prob = a.ml_prediction.win_probability if a.ml_prediction else 0
-                place_prob = a.ml_prediction.place_probability if a.ml_prediction else 0
-                calibrated_prob = a.combined_probability if a.combined_probability else 0
-
-                going_form = db.get_horse_going_form(h.name, race_going, race_date)
-                jh_stats = db.get_jockey_horse_stats(h.jockey, h.name, race_date)
-                dist_pb = db.get_distance_best_time(h.name, race_distance, race_date)
-                dist_record = db.get_distance_record(race.venue or '', race_distance)
-
-                horse_odds_move = odds_summary.get(h.number, {})
-                is_steam, steam_severity, steam_label = OddsMovementAnalyzer.detect_steam_move(
-                    horse_odds_move.get('opening', 0), h.win_odds or 0
-                )
-                is_cold, cold_label = OddsMovementAnalyzer.detect_cold_horse(
-                    horse_odds_move.get('opening', 0), h.win_odds or 0, a.rule_score
-                )
-
-                race_data["horses"].append({
-                    "rank": i + 1,
-                    "number": h.number,
-                    "name": h.name,
-                    "jockey": h.jockey,
-                    "trainer": h.trainer,
-                    "draw": h.draw,
-                    "weight": h.weight,
-                    "gear": h.gear,
-                    "rating": h.rating,
-                    "win_odds": h.win_odds,
-                    "place_odds": h.place_odds,
-                    "last_6": h.last_6,
-                    "age": h.age,
-                    "horse_weight": h.horse_weight,
-                    "days_since_last_run": h.days_since_last_run,
-                    "rating_change": h.rating_change,
-                    "rule_score": a.rule_score,
-                    "ml_prob": ml_prob,
-                    "place_prob": place_prob,
-                    "combined_score": a.value_score,
-                    "calibrated_prob": calibrated_prob,
-                    "expected_return": a.expected_return,
-                    "bet_recommendation": a.bet_recommendation,
-                    "confidence": a.combined_confidence,
-                    "reasoning": a.reasoning,
-                    "going_form": going_form,
-                    "jockey_horse_stats": jh_stats,
-                    "distance_pb": dist_pb,
-                    "distance_record": dist_record,
-                    "odds_movement": horse_odds_move,
-                    "steam_move": {"is_steam": is_steam, "severity": steam_severity, "label": steam_label},
-                    "cold_horse": {"is_cold": is_cold, "label": cold_label},
-                })
-
+            race_data = build_race_data(race, analyses, race_date, db, odds_db)
             all_races.append(race_data)
 
         if owns_db:
