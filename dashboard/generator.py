@@ -11,8 +11,8 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from hkjc_data_fetcher import HKJCDataFetcher
-from hkjc_racing_analyzer import CombinedRaceAnalyzer
+from core.fetcher import HKJCDataFetcher
+from core.analyzer import CombinedRaceAnalyzer
 from dashboard.template import generate_html
 from data.database import HorseDatabase
 from data.odds_tracker import OddsDatabase, OddsMovementAnalyzer

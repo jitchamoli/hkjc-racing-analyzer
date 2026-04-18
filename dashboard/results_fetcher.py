@@ -15,7 +15,7 @@ from typing import List, Dict, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from hkjc_data_fetcher import HKJCDataFetcher
+from core.fetcher import HKJCDataFetcher
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -579,7 +579,7 @@ async def main():
 
 def auto_learn(race_date: str = None):
     """Automatically ingest results into horse DB and retrain ML model."""
-    from horse_database import HorseDatabase
+    from data.database import HorseDatabase
     from scrape_history import scrape_meeting_results
     from pathlib import Path
     import subprocess

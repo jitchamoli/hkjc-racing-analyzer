@@ -19,11 +19,10 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from hkjc_data_fetcher import HKJCApiClient, HKJCParser, HKJCDataFetcher
-from ml_predictor import (
-    FeatureEngineering, HKJCRacingMLModel, RaceResult,
-    generate_synthetic_training_data, build_training_data_from_db, ML_AVAILABLE
-)
+from core.fetcher import HKJCApiClient, HKJCParser, HKJCDataFetcher
+from ml.model import HKJCRacingMLModel, RaceResult, ML_AVAILABLE
+from ml.features import FeatureEngineering
+from ml.training import build_training_data_from_db, generate_synthetic_training_data
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)

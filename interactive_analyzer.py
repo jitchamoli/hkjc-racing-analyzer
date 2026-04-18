@@ -11,14 +11,14 @@ import logging
 
 sys.path.insert(0, sys.path[0])
 
-from hkjc_data_fetcher import HKJCDataFetcher
-from hkjc_racing_analyzer import (
+from core.fetcher import HKJCDataFetcher
+from core.analyzer import (
     CombinedRaceAnalyzer,
     ReportGenerator,
     Race,
     Horse
 )
-from betting_optimizer import BettingOptimizer, BettingReportGenerator
+from betting.optimizer import BettingOptimizer, BettingReportGenerator
 from results_tracker import ResultsTracker
 
 logging.basicConfig(level=logging.INFO)
