@@ -17,14 +17,18 @@ FEATURE_SCHEMA = [
     {"name": "prior_pace", "default": 0.5, "range": (0.0, 1.0)},
     {"name": "prior_speed", "default": 0.5, "range": (0.0, 1.0)},
     {"name": "cd_form_prior", "default": 0.5, "range": (0.0, 1.0)},
-    {"name": "odds_implied_prob", "default": 0.5, "range": (0.0, 1.0)},
-    {"name": "class_level", "default": 0.6, "range": (0.0, 1.0)},
+    # odds_implied_prob REMOVED — was triple-counted with rule engine + calibration blend
+    {"name": "class_level", "default": 0.4, "range": (0.0, 1.0)},  # inverted: Class 1=0.8, Class 5=0.0
     {"name": "freshness", "default": 0.5, "range": (0.0, 1.0)},
     {"name": "going_pref", "default": 0.5, "range": (0.0, 1.0)},
     {"name": "going_form_rate", "default": 0.5, "range": (0.0, 1.0)},
     {"name": "jockey_horse_coop", "default": 0.5, "range": (0.0, 1.0)},
     {"name": "distance_pb_ratio", "default": 0.5, "range": (0.0, 1.0)},
     {"name": "weight_carried_norm", "default": 0.65, "range": (0.0, 1.0)},
+    # New features — Phase 1
+    {"name": "last_start_margin", "default": 0.5, "range": (0.0, 1.0)},
+    {"name": "odds_rank", "default": 0.5, "range": (0.0, 1.0)},
+    {"name": "weight_change", "default": 0.5, "range": (0.0, 1.0)},
 ]
 
 FEATURE_NAMES = [f["name"] for f in FEATURE_SCHEMA]

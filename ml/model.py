@@ -118,26 +118,35 @@ class HKJCRacingMLModel:
         logger.info(f"Saved model version {self.model_version}")
 
     def train(self, features: np.ndarray, labels: np.ndarray,
-              sample_weight: np.ndarray = None) -> Dict:
+              sample_weight: np.ndarray = None,
+              temporal: bool = True) -> Dict:
         if not ML_AVAILABLE:
             return {'error': 'ML libraries not available'}
 
         logger.info(f"Training with {len(features)} samples "
                     f"({labels.sum():.0f} winners, {labels.mean()*100:.1f}% win rate)")
 
-        stratify_arg = labels if labels.sum() >= 10 else None
-
-        sw_train = None
-        if sample_weight is not None:
-            X_train, X_test, y_train, y_test, sw_train, _ = train_test_split(
-                features, labels, sample_weight,
-                test_size=0.2, random_state=42, stratify=stratify_arg
-            )
+        # Temporal split: train on first 80%, test on last 20% (chronological)
+        # This prevents future data from inflating test metrics
+        if temporal:
+            cutoff = int(len(features) * 0.8)
+            X_train, X_test = features[:cutoff], features[cutoff:]
+            y_train, y_test = labels[:cutoff], labels[cutoff:]
+            sw_train = sample_weight[:cutoff] if sample_weight is not None else None
+            logger.info(f"Temporal split: train={cutoff}, test={len(features)-cutoff}")
         else:
-            X_train, X_test, y_train, y_test = train_test_split(
-                features, labels, test_size=0.2, random_state=42,
-                stratify=stratify_arg
-            )
+            stratify_arg = labels if labels.sum() >= 10 else None
+            sw_train = None
+            if sample_weight is not None:
+                X_train, X_test, y_train, y_test, sw_train, _ = train_test_split(
+                    features, labels, sample_weight,
+                    test_size=0.2, random_state=42, stratify=stratify_arg
+                )
+            else:
+                X_train, X_test, y_train, y_test = train_test_split(
+                    features, labels, test_size=0.2, random_state=42,
+                    stratify=stratify_arg
+                )
 
         n_pos = max(1, y_train.sum())
         n_neg = max(1, len(y_train) - n_pos)

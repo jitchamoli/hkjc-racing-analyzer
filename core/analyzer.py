@@ -682,13 +682,18 @@ class CombinedRaceAnalyzer:
         if move_score > 0:
             reasoning.append(f"Odds: {move_reason}")
 
-        # --- NEW: Class Movement ---
-        # Without actual horse history with class data, we default to neutral
-        # The class_movement factor only activates when horse history includes class info
+        # --- Class Movement (now wired to DB history) ---
         class_score = 50.0
         class_reason = "No previous class data"
+        if self._horse_db and race.class_type:
+            horse_hist = self._horse_db.get_horse_history(horse.name, limit=5)
+            if horse_hist:
+                class_score, class_reason = self.class_analyzer.analyze_class_movement(
+                    horse_hist, race.class_type
+                )
         factors["class_movement"] = class_score
-        # Class movement is always included in weight map (50=neutral is valid data)
+        if class_score != 50.0:
+            reasoning.append(f"Class: {class_reason}")
 
         # --- NEW: Gear Changes ---
         gear_score, gear_reason = self.gear_analyzer.analyze_gear(

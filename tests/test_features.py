@@ -8,8 +8,8 @@ from ml.features import FeatureEngineering
 
 
 class TestFeatureSchema:
-    def test_schema_has_18_features(self):
-        assert NUM_FEATURES == 18
+    def test_schema_has_correct_feature_count(self):
+        assert NUM_FEATURES == 20
 
     def test_feature_names_match_schema(self):
         assert len(FEATURE_NAMES) == NUM_FEATURES
@@ -29,7 +29,7 @@ class TestFeatureSchema:
 
     def test_validate_features_wrong_length(self):
         features = np.full(10, 0.5, dtype=np.float32)
-        with pytest.raises(AssertionError, match="Expected 18"):
+        with pytest.raises(AssertionError, match="Expected 20"):
             validate_features(features)
 
     def test_validate_features_rejects_nan(self):
@@ -75,7 +75,7 @@ class TestFeatureEngineering:
         score = FeatureEngineering.calculate_draw_advantage(14, 1200)
         assert score < 0.5
 
-    def test_extract_features_returns_18(self, sample_horse_data):
+    def test_extract_features_returns_correct_count(self, sample_horse_data):
         features = FeatureEngineering.extract_features(
             sample_horse_data, [], "Sha Tin"
         )
@@ -104,7 +104,7 @@ class TestFeatureEngineering:
             )
 
     def test_extract_features_minimal_data(self):
-        """Minimal horse data should still produce 18 features with defaults."""
+        """Minimal horse data should still produce correct number of features with defaults."""
         minimal = {"name": "Unknown", "distance": 1200, "field_size": 10}
         features = FeatureEngineering.extract_features(minimal, [], "")
         assert len(features) == NUM_FEATURES

@@ -165,14 +165,13 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             else:
                 feat_cd = 0.5
 
-            # Feature 11: odds-implied probability
-            feat_odds = min(1.0, 1.0 / win_odds) if win_odds > 0 else 0.5
+            # Feature 11 (odds_implied_prob REMOVED — triple-counted with rule engine + calibration)
 
-            # Feature 12: class level
+            # Feature 11: class level (INVERTED: Class 1=0.8, Class 5=0.0)
             class_type = r.get('class_type', '') or ''
             cm = re.search(r'(\d)', class_type)
             class_rank = int(cm.group(1)) if cm else 3
-            feat_class = max(0.0, min(1.0, class_rank / 5.0))
+            feat_class = max(0.0, min(1.0, 1.0 - class_rank / 5.0))
 
             # Feature 13: freshness
             dslr = r.get('days_since_last_run', 0) or 0
@@ -250,7 +249,7 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                     except Exception:
                         pass
 
-            # Feature 18: weight carried (normalized)
+            # Feature 17: weight carried (normalized)
             weight_str = r.get('weight', '') or ''
             try:
                 weight_lbs = int(weight_str)
@@ -258,12 +257,40 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             except (ValueError, TypeError):
                 feat_weight_norm = 0.65
 
+            # Feature 18: last start margin (NEW)
+            feat_last_margin = 0.5
+            if prior:
+                last_race = prior[-1]
+                m = last_race.get('margin', 0) or 0
+                if last_race.get('is_winner', 0):
+                    feat_last_margin = 1.0
+                elif m > 0:
+                    feat_last_margin = max(0.1, min(0.9, 1.0 - m / 12.0))
+
+            # Feature 19: odds rank (NEW — normalized market position)
+            feat_odds_rank = 0.5
+            if win_odds > 0:
+                odds_prob = 1.0 / win_odds
+                feat_odds_rank = max(0.0, min(1.0, odds_prob * 3.0))
+
+            # Feature 20: body weight change (NEW — fitness signal)
+            feat_weight_change = 0.5
+            hw_current = r.get('horse_weight', 0) or 0
+            if prior and hw_current > 0:
+                prior_weights = [p.get('horse_weight', 0) or 0 for p in prior[-3:] if p.get('horse_weight', 0)]
+                if prior_weights:
+                    avg_prior = sum(prior_weights) / len(prior_weights)
+                    if avg_prior > 0:
+                        change = (hw_current - avg_prior) / avg_prior
+                        feat_weight_change = max(0.0, min(1.0, 0.5 - change * 10))
+
             features = [
                 feat_form_proxy, feat_form, feat_draw,
                 feat_jockey, feat_trainer, feat_field_size,
-                feat_field_draw, feat_pace, feat_finish, feat_cd, feat_odds,
+                feat_field_draw, feat_pace, feat_finish, feat_cd,
                 feat_class, feat_freshness, feat_going,
                 feat_going_form, feat_jh_coop, feat_dist_pb, feat_weight_norm,
+                feat_last_margin, feat_odds_rank, feat_weight_change,
             ]
             assert len(features) == NUM_FEATURES, f"Expected {NUM_FEATURES} features, got {len(features)}"
             X.append(features)
@@ -329,12 +356,20 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
 
         # Feature 1 must be prior_win_rate (not rating/100) to match DB training
         prior_win_rate = np.random.beta(2, 8)  # right-skewed, most values 0.05-0.30
+        # New features
+        last_margin = np.random.beta(3, 3)  # 0-1, centered around 0.5
+        odds_rank = np.random.beta(2, 5)  # right-skewed, most horses are outsiders
+        weight_change_feat = np.random.normal(0.5, 0.1)  # centered at neutral
+        weight_change_feat = np.clip(weight_change_feat, 0.0, 1.0)
+
         features = [
             prior_win_rate, form_score / 100, draw_adv,
             jockey_rate, trainer_rate, feat_field_size,
-            feat_field_draw, prior_pace, prior_speed, cd_form, odds_implied,
-            class_level, freshness, going_pref,
+            feat_field_draw, prior_pace, prior_speed, cd_form,
+            1.0 - class_level,  # inverted: Class 1=high, Class 5=low
+            freshness, going_pref,
             going_form_rate, jockey_horse_coop, distance_pb_ratio, weight_carried_norm,
+            last_margin, odds_rank, weight_change_feat,
         ]
         assert len(features) == NUM_FEATURES
         X.append(features)
@@ -350,14 +385,17 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 0.5 * (prior_pace - 0.5)
             + 0.3 * (prior_speed - 0.5)
             + 0.5 * (cd_form - 0.5)
-            + 1.5 * (odds_implied - 0.1)
-            + 0.3 * (class_level - 0.5)
+            # odds_implied removed — no longer a feature
+            + 0.3 * ((1.0 - class_level) - 0.5)
             + 0.2 * (freshness - 0.5)
             + 0.3 * (going_pref - 0.5)
             + 0.4 * (going_form_rate - 0.25)
             + 0.3 * (jockey_horse_coop - 0.25)
             + 0.2 * (distance_pb_ratio - 0.85)
             - 0.4 * (weight_carried_norm - 0.65)
+            + 1.5 * (last_margin - 0.5)  # strong signal
+            + 1.0 * (odds_rank - 0.25)   # market position
+            + 0.3 * (weight_change_feat - 0.5)
             - 2.8
         )
         win_prob = 1.0 / (1.0 + np.exp(-win_logit))
