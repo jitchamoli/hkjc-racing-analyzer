@@ -43,7 +43,6 @@ from analytics.beaten_margins import BeatenMarginAnalyzer
 from analytics.jockey_change import JockeyChangeAnalyzer
 from data.odds_tracker import OddsMovementAnalyzer
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

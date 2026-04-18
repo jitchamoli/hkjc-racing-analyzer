@@ -344,7 +344,8 @@ class BettingReportGenerator:
         print("="*80)
         print(f"\nTotal Investment: ${ticket['total_investment']:.0f}")
         print(f"Maximum Return: ${ticket['max_return']:.0f}")
-        print(f"Expected ROI: {ticket['roi_percent']:.0f}%")
+        print(f"Best Single Bet ROI: {ticket['best_single_roi']:.0f}%")
+        print(f"Max ROI (all win): {ticket['max_roi_percent']:.0f}%")
         
         if ticket['tickets']:
             print("\nBets:")

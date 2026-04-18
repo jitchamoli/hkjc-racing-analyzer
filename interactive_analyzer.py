@@ -188,7 +188,7 @@ class InteractiveRacingAnalyzer:
     
     def _get_rank(self, analysis):
         for i, a in enumerate(self.current_analyses, 1):
-            if a['horse_data']['number'] == analysis['horse_data']['number']:
+            if a.horse.number == analysis.horse.number:
                 return i
         return 99
 

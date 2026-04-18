@@ -57,8 +57,10 @@ SYNTHETIC_FALLBACK_SIZE = 2000
 SOFTMAX_TEMPERATURE = 1.5
 
 # Market blend ratio (model vs market)
-MARKET_BLEND_WEIGHT = 0.30
-MODEL_BLEND_WEIGHT = 0.70
+# 40% market anchors probabilities to realistic levels (bookmakers are well-calibrated)
+# 60% model preserves our ranking edge from rule engine + ML
+MARKET_BLEND_WEIGHT = 0.40
+MODEL_BLEND_WEIGHT = 0.60
 
 # HKJC URLs
 HKJC_BASE_URL = "https://racing.hkjc.com/racing/information/English"

@@ -371,7 +371,7 @@ class ResultsFetcher:
 
                 results_obj['races'][r['race_number']] = race_results
 
-        results_json = json.dumps(results_obj).replace('</script>', '<\\/script>')
+        results_json = json.dumps(results_obj).replace('</script>', '<\\/script>').replace('</Script>', '<\\/Script>')
 
         # Inject as a simple data constant + DOM manipulation code
         # Using string concatenation to avoid template literal issues
@@ -581,7 +581,11 @@ async def main():
                         help='Auto-ingest results into horse DB and retrain ML model')
     args = parser.parse_args()
 
+    import re
     race_date = args.date or datetime.now().strftime('%Y/%m/%d')
+    if not re.fullmatch(r'\d{4}/\d{2}/\d{2}', race_date):
+        print(f"Invalid date format: {race_date}. Expected YYYY/MM/DD")
+        return
 
     fetcher = ResultsFetcher()
     await fetcher.update_dashboard_with_results(race_date)
