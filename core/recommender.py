@@ -73,7 +73,10 @@ def assign_bet_recommendations(analyses) -> None:
         top = analyses[0]
         top_prob = calibrated_probs[0]
         second_prob = calibrated_probs[1] if n >= 2 else 0
+        third_prob = calibrated_probs[2] if n >= 3 else 0
         gap_1_2 = top_prob - second_prob
+        gap_2_3 = second_prob - third_prob
+        top_3_share = top_prob + second_prob + third_prob
 
     # Determine race-level bet type
     race_bet_type = "QIN"  # default
