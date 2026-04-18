@@ -11,22 +11,25 @@ logger = logging.getLogger(__name__)
 
 
 class BettingWeights:
-    """Factor weight constants for the 26-factor rule engine."""
-    RATING = 0.07
-    FORM = 0.09
-    ODDS = 0.08
-    JOCKEY = 0.04
-    TRAINER = 0.02
-    DRAW = 0.04
-    TIPS = 0.10
-    PACE = 0.03
+    """Factor weight constants for the 24-factor rule engine.
+
+    Note: odds and odds_movement REMOVED — market signal enters via the 30%
+    market blend in calibrate_probabilities(). Keeping them here would
+    triple-count market information (rule odds + rule odds_move + blend).
+    """
+    RATING = 0.08
+    FORM = 0.10
+    JOCKEY = 0.05
+    TRAINER = 0.03
+    DRAW = 0.05
+    TIPS = 0.11
+    PACE = 0.04
     SECTIONAL = 0.03
-    CD_FORM = 0.04
-    ODDS_MOVE = 0.04
+    CD_FORM = 0.05
     CLASS_MOVE = 0.03
     GEAR = 0.02
     WEIGHT = 0.04
-    FRESHNESS = 0.04
+    FRESHNESS = 0.05
     RATING_TREND = 0.03
     STAKES = 0.02
     GOING = 0.05
@@ -41,10 +44,10 @@ class BettingWeights:
 
     # Mapping factor keys to weights
     WEIGHT_MAP = {
-        "rating": RATING, "form": FORM, "odds": ODDS,
+        "rating": RATING, "form": FORM,
         "jockey": JOCKEY, "trainer": TRAINER, "draw": DRAW,
         "tips": TIPS, "pace": PACE, "sectional": SECTIONAL,
-        "cd_form": CD_FORM, "odds_movement": ODDS_MOVE,
+        "cd_form": CD_FORM,
         "class_movement": CLASS_MOVE, "gear": GEAR,
         "weight_carried": WEIGHT, "freshness": FRESHNESS,
         "rating_trend": RATING_TREND, "season_stakes": STAKES,
@@ -57,7 +60,7 @@ class BettingWeights:
 
 
 # Factors always included (score of 0 means no data; these use 50 as neutral)
-ALWAYS_INCLUDED = {"rating", "form", "odds", "jockey", "trainer", "draw",
+ALWAYS_INCLUDED = {"rating", "form", "jockey", "trainer", "draw",
                    "class_movement", "gear", "weight_carried"}
 
 
@@ -80,14 +83,19 @@ def compute_weighted_score(factors: Dict[str, float]) -> float:
 
 
 def calibrate_probabilities(analyses) -> List[float]:
-    """Convert raw combined_probability scores into calibrated probabilities.
+    """Convert combined_probability scores into calibrated race-level probabilities.
 
-    Uses softmax with temperature scaling, then blends with market-implied
-    probabilities (30% market, 70% model).
+    Uses mild softmax normalization (to ensure probabilities sum to 1),
+    then blends with market-implied probabilities.
+
+    Note: Individual ML probabilities are already Platt-calibrated at the model
+    level, so softmax here is purely for normalization, not recalibration.
     """
     if not analyses:
         return []
 
+    # Mild softmax — just enough to normalize, not distort
+    # Temperature 1.0 = standard softmax (preserves relative scale)
     temp = config.SOFTMAX_TEMPERATURE
     raw_scores = [a.combined_probability for a in analyses]
     max_score = max(raw_scores) if raw_scores else 0.5

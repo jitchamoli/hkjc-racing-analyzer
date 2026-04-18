@@ -28,8 +28,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-POLL_INTERVAL = 300  # 5 minutes
-PRE_RACE_WINDOW = 360  # 6 minutes before race
+import config
+POLL_INTERVAL = config.POLL_INTERVAL
+PRE_RACE_WINDOW = config.PRE_RACE_WINDOW
 
 
 def parse_race_time(time_str: str, race_date: str) -> datetime:
@@ -60,9 +61,11 @@ async def fetch_race_times(fetcher: HKJCDataFetcher, race_date: str) -> list:
     return race_times
 
 
-async def snapshot_odds(fetcher: HKJCDataFetcher, race_date: str, race_no: int):
+async def snapshot_odds(fetcher: HKJCDataFetcher, race_date: str, race_no: int,
+                        odds_db: OddsDatabase = None):
     """Fetch and store current odds for a race."""
-    odds_db = OddsDatabase()
+    owns_db = odds_db is None
+    odds_db = odds_db or OddsDatabase()
     try:
         race = await fetcher.get_race_card(race_date, race_no)
         if race and race.horses:
@@ -85,18 +88,21 @@ async def snapshot_odds(fetcher: HKJCDataFetcher, race_date: str, race_no: int):
     return 0
 
 
-async def regenerate_dashboard(race_date: str):
+async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
+                               analyzer: CombinedRaceAnalyzer = None,
+                               db: HorseDatabase = None, odds_db: OddsDatabase = None):
     """Regenerate dashboard with auto-refresh enabled."""
+    owns_resources = fetcher is None
     try:
-        fetcher = HKJCDataFetcher()
-        analyzer = CombinedRaceAnalyzer()
+        fetcher = fetcher or HKJCDataFetcher()
+        analyzer = analyzer or CombinedRaceAnalyzer()
+        db = db or HorseDatabase()
+        odds_db = odds_db or OddsDatabase()
 
         results_dir = Path(__file__).parent.parent / 'results'
         results_dir.mkdir(exist_ok=True)
 
         all_races = []
-        db = HorseDatabase()
-        odds_db = OddsDatabase()
 
         for race_no in range(1, 12):
             race = await fetcher.get_race_card(race_date, race_no)
@@ -182,7 +188,8 @@ async def regenerate_dashboard(race_date: str):
 
             all_races.append(race_data)
 
-        db.conn.close()
+        if owns_resources:
+            db.conn.close()
 
         date_str = race_date.replace('/', '')
         json_data = json.dumps(all_races)
@@ -209,38 +216,45 @@ async def run_monitor(race_date: str):
     logger.info(f"Pre-race window: {PRE_RACE_WINDOW}s, Poll interval: {POLL_INTERVAL}s")
 
     fetcher = HKJCDataFetcher()
+    analyzer = CombinedRaceAnalyzer()
+    db = HorseDatabase()
+    odds_db = OddsDatabase()
 
-    # Step 1: Get race times
-    race_times = await fetch_race_times(fetcher, race_date)
-    if not race_times:
-        logger.error("No race times found. Waiting 30 minutes then retrying...")
-        await asyncio.sleep(1800)
+    try:
+        # Step 1: Get race times
         race_times = await fetch_race_times(fetcher, race_date)
         if not race_times:
-            logger.error("Still no race times. Exiting.")
-            return
+            logger.error("No race times found. Waiting 30 minutes then retrying...")
+            await asyncio.sleep(1800)
+            race_times = await fetch_race_times(fetcher, race_date)
+            if not race_times:
+                logger.error("Still no race times. Exiting.")
+                return
 
-    logger.info(f"Found {len(race_times)} races")
+        logger.info(f"Found {len(race_times)} races")
 
-    # Step 2: Process each race
-    for race_no, race_time in race_times:
-        wake_time = race_time - timedelta(seconds=PRE_RACE_WINDOW)
-        now = datetime.now()
+        # Step 2: Process each race
+        for race_no, race_time in race_times:
+            wake_time = race_time - timedelta(seconds=PRE_RACE_WINDOW)
+            now = datetime.now()
 
-        if now < wake_time:
-            sleep_secs = (wake_time - now).total_seconds()
-            logger.info(f"Sleeping {sleep_secs:.0f}s until R{race_no} window ({wake_time.strftime('%H:%M')})")
-            await asyncio.sleep(sleep_secs)
-        elif now > race_time + timedelta(minutes=5):
-            logger.info(f"R{race_no} already started 5+ min ago, skipping")
-            continue
+            if now < wake_time:
+                sleep_secs = (wake_time - now).total_seconds()
+                logger.info(f"Sleeping {sleep_secs:.0f}s until R{race_no} window ({wake_time.strftime('%H:%M')})")
+                await asyncio.sleep(sleep_secs)
+            elif now > race_time + timedelta(minutes=5):
+                logger.info(f"R{race_no} already started 5+ min ago, skipping")
+                continue
 
-        # Snapshot and regenerate
-        logger.info(f"R{race_no}: Pre-race window active")
-        await snapshot_odds(fetcher, race_date, race_no)
-        await regenerate_dashboard(race_date)
+            # Snapshot and regenerate
+            logger.info(f"R{race_no}: Pre-race window active")
+            await snapshot_odds(fetcher, race_date, race_no, odds_db=odds_db)
+            await regenerate_dashboard(race_date, fetcher=fetcher, analyzer=analyzer,
+                                       db=db, odds_db=odds_db)
 
-    logger.info("All races processed. Monitor complete.")
+        logger.info("All races processed. Monitor complete.")
+    finally:
+        db.conn.close()
 
 
 def main():

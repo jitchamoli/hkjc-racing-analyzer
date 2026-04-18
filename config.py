@@ -42,7 +42,6 @@ XGBOOST_PARAMS = {
     "min_child_weight": 3,
     "gamma": 0.1,
     "random_state": 42,
-    "use_label_encoder": False,
     "eval_metric": "logloss",
 }
 
@@ -51,10 +50,11 @@ MIN_DB_SAMPLES = 200
 MIN_REAL_SAMPLES = 50
 SYNTHETIC_FALLBACK_SIZE = 2000
 
-# Softmax temperature for probability calibration
+# Softmax temperature for probability normalization
 # Used as multiplier: exp((s - max) * T). Lower = flatter distribution.
-# 8.0 over-sharpens; 2.5 gives moderate differentiation.
-SOFTMAX_TEMPERATURE = 2.5
+# With Platt scaling handling calibration, temperature is for normalization only.
+# 1.5 = mild differentiation without overconfidence.
+SOFTMAX_TEMPERATURE = 1.5
 
 # Market blend ratio (model vs market)
 MARKET_BLEND_WEIGHT = 0.30

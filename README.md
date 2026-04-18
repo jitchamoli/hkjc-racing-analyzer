@@ -1,18 +1,21 @@
-# HKJC Horse Racing Analyzer v5.0
+# HKJC Horse Racing Analyzer v5.1
 
-Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Fetches live race data, odds, and expert tips from racing.hkjc.com to generate betting recommendations using a 26-factor rule-based engine + XGBoost ML model trained on real historical race data, persistent horse database, and self-improving data pipeline.
+Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Fetches live race data, odds, and expert tips from racing.hkjc.com to generate betting recommendations using a 24-factor rule-based engine + XGBoost ML model (22 features, Platt-calibrated) trained on real historical race data, persistent horse database, and self-improving data pipeline.
 
-## What's New in v5.0
+## What's New in v5.1
 
-- **26-factor analysis engine** - expanded from 17 to 26 scoring factors with dynamic weighting
-- **Real jockey/trainer stats from DB** - replaced all hardcoded ratings with actual win/place rates computed from 4,155+ historical race results
-- **ML model trained on real data** - XGBoost now trains on actual race results from horse_database (was 100% synthetic)
-- **Historical data scraper** (`scrape_history.py`) - Playwright-based bulk scraper for past HKJC results, auto-ingests into DB
-- **Self-improving pipeline** - each race day adds ~130 results; jockey/trainer stats, ML model, and going/margin data all improve automatically
-- **9 new expert-driven factors** - Going preference, Rolling form, Beaten margins, Jockey change detection, Jockey/Trainer hot streaks, Field size impact, Career place rate, Age vs field
-- **Research-backed feature design** - informed by Bill Benter methodology, CodeWorks Paris (1,618 features), gmalbert (field_size #1 at 17.41%), pbovard63 (field-relative features), Teddy Koker (value betting layer)
+- **22-feature ML schema** - redesigned from data science audit. Removed redundant features (venue_win_rate r=0.984, draw_field_interact r=0.934, weight_carried_norm r=0.877). Added field-relative speed, class change, jockey-trainer interaction, horse weight change
+- **Platt scaling** - LogisticRegression calibrator eliminates overconfident probabilities (was predicting 44% for top bin, actual 15%)
+- **Dedicated place model** - separate XGBoost trained on is_top3 labels (65.9% accuracy vs 24.3% base rate). Replaces `win_prob * 1.8` hack
+- **60/20/20 temporal split** - early stopping on validation set, final metrics on held-out test set (was using test set for both)
+- **Odds triple-counting fixed** - removed odds + odds_movement from rule engine (market signal enters only via 30% market blend)
+- **Model integrity** - SHA-256 checksum required for loading, feature count assertion, backup-before-train with rollback
+- **Brier score + calibration curve** in accuracy report (`python3 -m scripts.accuracy --all`)
+- **Feature correlation matrix** logged after each training run, flags pairs with |r| > 0.7
+- **Date-aware track records** - training no longer leaks future race times into distance_pb_ratio
 
 ### Previous Versions
+- **v5.0**: 26-factor engine, real DB stats, 18-feature ML, historical scraper, self-improving pipeline
 - **v4.0**: QIN default strategy, BANKER WIN system, market probability blending, 17 factors
 - **v3.0**: 14-factor analytics, rail bias, pace map, sectionals, C&D form, odds movement
 - **v2.0**: Tips Index integration, ML prediction, advanced analytics
@@ -34,34 +37,36 @@ Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Fetches li
 
 The analyzer combines two systems (75/25 weighted):
 
-**Rule-Based System (75%) - 26 Factors**
+**Rule-Based System (75%) - 24 Factors**
 
 | Category | Factors | Total Weight |
 |----------|---------|--------------|
-| **Core** | Rating (vs field avg), Form, Tips Index, Market Odds, Jockey (DB stats), Trainer (DB stats), Draw + Rail Bias | ~56% |
+| **Core** | Rating (vs field avg), Form, Tips Index, Jockey (DB stats), Trainer (DB stats), Draw + Rail Bias | ~52% |
 | **Expert** | Going Preference, Rolling Form, Beaten Margins, Jockey Change, Jockey/Trainer Hot Streaks, Field Size, Career Place Rate, Age vs Field | ~37% |
-| **Technical** | Pace Map, C&D Form, Odds Movement, Class Movement, Gear Changes, Weight Analysis, Sectional Speed, Freshness, Rating Trend, Season Stakes | ~7% |
+| **Technical** | Pace Map, C&D Form, Class Movement, Gear Changes, Weight Analysis, Sectional Speed, Freshness, Rating Trend, Season Stakes | ~11% |
 
-Weights are dynamic - factors with missing data are excluded and remaining weights are re-normalized to sum to 1.0.
+Note: Market odds removed from rule engine — enters only via 30% market blend in calibration (prevents triple-counting). Weights are dynamic — factors with missing data are excluded and remaining weights re-normalize to 1.0.
 
 **ML-Based System (25%)**
-- XGBoost classifier with 18 features trained on **4,155+ real race results** from horse_database
-- Auto-retrains on real data when DB has 50+ results; falls back to calibrated synthetic data otherwise
-- Top features: odds_implied_prob (14.0%), recent_form (6.9%), cd_form (6.1%), jockey_win_rate (6.0%), weight_carried (4.9%)
+- XGBoost classifier with **22 features** + dedicated **place model** (is_top3), both Platt-calibrated
+- 60/20/20 temporal split with early stopping on validation set
+- Trained on **4,155+ real race results** from horse_database with recency weighting (newest races 3.3x)
+- Top features: recent_form (10.4%), jockey_trainer_combo (6.6%), days_since_last_win (6.6%), class_change (6.3%), field_rel_speed (5.3%)
+- Feature correlation matrix logged after training — redundant pairs flagged automatically
 - Model improves automatically as more race days are scraped
 
 ### Key Improvements Over Hardcoded Approach
 
-| What | Old (v4.0) | New (v5.0) |
+| What | Old (v5.0) | New (v5.1) |
 |------|-----------|-----------|
-| Jockey scores | 26 hardcoded entries (Purton=92) | Real DB stats (Purton=15.6% from 109 rides) |
-| Trainer scores | 23 hardcoded entries (Size=92) | Real DB stats (Size=10.2% from 88 runners) |
-| ML training data | 5,000 synthetic random samples | 4,155+ real race results |
-| Rating scoring | Absolute (rating/100) | Relative to field average (pbovard63) |
-| Jockey form | Static tier | Last 10 rides win/place rate, hot streak detection |
-| Trainer form | Static tier | Last 10 runners win/place rate |
-| Going | Not scored | Horse's record on today's track condition |
-| Margins | Not scored | Last-start margin, close-finish frequency |
+| ML features | 18 (with odds, redundant pairs) | 22 (no odds, no redundancy, interaction terms) |
+| Probability calibration | Softmax temp=2.5 (overconfident) | Platt scaling + softmax temp=1.5 |
+| Place prediction | `win_prob * 1.8` hack | Dedicated XGBoost on is_top3 (65.9% accuracy) |
+| Train/test split | 80/20 (test used for early stopping) | 60/20/20 (val for stopping, test for metrics) |
+| Speed feature | Absolute (conflates sprinters/stayers) | Field-relative percentile within prior fields |
+| Weight feature | Absolute 108-135 lbs | Relative to field median (lighter = advantage) |
+| Market signal | Triple-counted (rule+rule+blend) | Single entry via 30% market blend |
+| Model safety | Pickle loaded unsigned | SHA-256 checksum + feature count guard + backup |
 
 ### Bet Type Logic
 
@@ -98,7 +103,7 @@ hkjc_racing_analyzer/
     recommender.py           #   Bet recommendation engine (BANKER/WIN/QIN/PLACE/SKIP)
     predictor.py             #   ML predictor shim (delegates to ml/)
   ml/                        # ML pipeline
-    feature_schema.py        #   Single source of truth for 18 features
+    feature_schema.py        #   Single source of truth for 22 features
     features.py              #   Feature extraction for prediction
     model.py                 #   XGBoost model — train, predict, save, load
     training.py              #   Training data builders (DB + synthetic)

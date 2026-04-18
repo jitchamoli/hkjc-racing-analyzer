@@ -10,9 +10,11 @@ Usage:
 import sys
 import os
 import argparse
+import sqlite3
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import config
 from data.database import HorseDatabase
 
 
@@ -68,6 +70,58 @@ def print_bet_type_roi(bets: list):
         print(f"  {b['bet_type']:<15} {b['count']:>6} {b['hits']:>5} {b['hit_rate']:>5.1f}% ${b['profit']:>+7.0f} {b['roi']:>+6.1f}%")
 
 
+def print_brier_and_calibration(days: int):
+    """Compute Brier score and calibration curve from prediction_log."""
+    try:
+        conn = sqlite3.connect(str(config.DB_PATH))
+        if days >= 9999:
+            rows = conn.execute(
+                "SELECT calibrated_prob, actual_won FROM prediction_log "
+                "WHERE results_filled = 1 AND calibrated_prob > 0"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT calibrated_prob, actual_won FROM prediction_log "
+                "WHERE results_filled = 1 AND calibrated_prob > 0 "
+                "AND race_date >= date('now', ?)",
+                (f'-{days} days',)
+            ).fetchall()
+        conn.close()
+    except Exception:
+        return
+
+    if len(rows) < 10:
+        return
+
+    probs = [r[0] for r in rows]
+    actuals = [r[1] for r in rows]
+
+    # Brier score
+    brier = sum((p - a) ** 2 for p, a in zip(probs, actuals)) / len(rows)
+    # Baseline Brier (always predict mean win rate)
+    base_rate = sum(actuals) / len(actuals)
+    brier_baseline = base_rate * (1 - base_rate)
+
+    print(f"\n  --- Probability Calibration ---")
+    print(f"  Brier Score:         {brier:.4f}  (lower = better)")
+    print(f"  Baseline (naive):    {brier_baseline:.4f}  (always predict {base_rate:.1%})")
+    skill = 1 - brier / brier_baseline if brier_baseline > 0 else 0
+    print(f"  Brier Skill Score:   {skill:+.4f}  (>0 = better than naive)")
+
+    # Calibration curve: bin predictions, compare predicted vs actual
+    bins = [(0, 0.05), (0.05, 0.10), (0.10, 0.15), (0.15, 0.25), (0.25, 1.0)]
+    print(f"\n  {'Pred Range':<14} {'Count':>6} {'Pred%':>7} {'Actual%':>9} {'Gap':>7}")
+    print(f"  {'-'*14} {'-'*6} {'-'*7} {'-'*9} {'-'*7}")
+    for lo, hi in bins:
+        in_bin = [(p, a) for p, a in zip(probs, actuals) if lo <= p < hi]
+        if not in_bin:
+            continue
+        avg_pred = sum(p for p, _ in in_bin) / len(in_bin)
+        avg_actual = sum(a for _, a in in_bin) / len(in_bin)
+        gap = avg_actual - avg_pred
+        print(f"  {lo:.0%}-{hi:.0%}{'':>{10-len(f'{lo:.0%}-{hi:.0%}')}} {len(in_bin):>6} {avg_pred:>6.1%} {avg_actual:>8.1%} {gap:>+6.1%}")
+
+
 def main():
     parser = argparse.ArgumentParser(description='Prediction accuracy report')
     parser.add_argument('--days', type=int, default=30, help='Lookback period in days (default: 30)')
@@ -88,6 +142,7 @@ def main():
     print_summary(summary)
     print_class_breakdown(db.get_accuracy_by_class(days))
     print_bet_type_roi(db.get_bet_type_roi(days))
+    print_brier_and_calibration(days)
 
     print("\n" + "=" * 60)
     db.close()

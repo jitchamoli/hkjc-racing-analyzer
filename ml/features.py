@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Feature engineering for ML predictions.
 
-Extracts 20 features per horse using FEATURE_SCHEMA order.
+Extracts 22 features per horse using FEATURE_SCHEMA order.
 All features use only data available BEFORE the race (no leakage).
 """
 
@@ -65,22 +65,27 @@ class FeatureEngineering:
         return sum(r.position for r in history) / len(history)
 
     @staticmethod
-    def calculate_jockey_win_rate(jockey: str, all_results) -> float:
+    def calculate_jockey_win_rate(jockey: str, all_results, conn=None) -> float:
         """Calculate jockey win rate — queries DB stats first, falls back to all_results."""
         if jockey:
             try:
-                db_path = config.DB_PATH
-                if db_path.exists():
-                    conn = sqlite3.connect(str(db_path))
-                    conn.row_factory = sqlite3.Row
+                if conn is not None:
                     row = conn.execute(
                         "SELECT win_rate FROM jockey_stats WHERE name = ?", (jockey,)
                     ).fetchone()
-                    conn.close()
                     if row and row['win_rate'] and row['win_rate'] > 0:
                         return min(0.6, row['win_rate'])
-            except Exception:
-                pass
+                elif config.DB_PATH.exists():
+                    _conn = sqlite3.connect(str(config.DB_PATH))
+                    _conn.row_factory = sqlite3.Row
+                    row = _conn.execute(
+                        "SELECT win_rate FROM jockey_stats WHERE name = ?", (jockey,)
+                    ).fetchone()
+                    _conn.close()
+                    if row and row['win_rate'] and row['win_rate'] > 0:
+                        return min(0.6, row['win_rate'])
+            except Exception as e:
+                logger.warning(f"DB lookup failed for jockey {jockey}: {e}")
         if not jockey:
             return 0.12
         jockey_rides = [r for r in all_results if jockey.lower() in r.jockey.lower()]
@@ -90,22 +95,27 @@ class FeatureEngineering:
         return min(0.6, wins / len(jockey_rides))
 
     @staticmethod
-    def calculate_trainer_win_rate(trainer: str, all_results) -> float:
+    def calculate_trainer_win_rate(trainer: str, all_results, conn=None) -> float:
         """Calculate trainer win rate — queries DB stats first, falls back to all_results."""
         if trainer:
             try:
-                db_path = config.DB_PATH
-                if db_path.exists():
-                    conn = sqlite3.connect(str(db_path))
-                    conn.row_factory = sqlite3.Row
+                if conn is not None:
                     row = conn.execute(
                         "SELECT win_rate FROM trainer_stats WHERE name = ?", (trainer,)
                     ).fetchone()
-                    conn.close()
                     if row and row['win_rate'] and row['win_rate'] > 0:
                         return min(0.5, row['win_rate'])
-            except Exception:
-                pass
+                elif config.DB_PATH.exists():
+                    _conn = sqlite3.connect(str(config.DB_PATH))
+                    _conn.row_factory = sqlite3.Row
+                    row = _conn.execute(
+                        "SELECT win_rate FROM trainer_stats WHERE name = ?", (trainer,)
+                    ).fetchone()
+                    _conn.close()
+                    if row and row['win_rate'] and row['win_rate'] > 0:
+                        return min(0.5, row['win_rate'])
+            except Exception as e:
+                logger.warning(f"DB lookup failed for trainer {trainer}: {e}")
         if not trainer:
             return 0.12
         trainer_horses = [r for r in all_results if trainer.lower() in r.trainer.lower()]
@@ -137,8 +147,13 @@ class FeatureEngineering:
         return {"Leader": 0.9, "Stalker": 0.7, "Midfield": 0.5, "Closer": 0.3}.get(style, 0.5)
 
     @staticmethod
-    def extract_features(horse_data: dict, all_results, venue: str) -> np.ndarray:
-        """Extract 20 features matching FEATURE_SCHEMA order exactly."""
+    def extract_features(horse_data: dict, all_results, venue: str,
+                         conn: sqlite3.Connection = None) -> np.ndarray:
+        """Extract 22 features matching FEATURE_SCHEMA order exactly.
+
+        Args:
+            conn: Optional shared SQLite connection. If None, opens/closes its own.
+        """
         features = []
         horse_name = horse_data.get('name', '')
         distance = horse_data.get('distance', 1200)
@@ -148,11 +163,14 @@ class FeatureEngineering:
         # Load prior race history from DB
         prior = []
         race_date = horse_data.get('race_date', '')
+        owns_conn = conn is None
         try:
-            db_path = config.DB_PATH
-            if db_path.exists():
-                conn = sqlite3.connect(str(db_path))
-                conn.row_factory = sqlite3.Row
+            if conn is None:
+                db_path = config.DB_PATH
+                if db_path.exists():
+                    conn = sqlite3.connect(str(db_path))
+                    conn.row_factory = sqlite3.Row
+            if conn is not None:
                 if race_date:
                     rows = conn.execute(
                         "SELECT * FROM race_results WHERE horse_name = ? AND race_date < ? ORDER BY race_date",
@@ -164,9 +182,8 @@ class FeatureEngineering:
                         (horse_name,)
                     ).fetchall()
                 prior = [dict(r) for r in rows]
-                conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to load prior history for {horse_name}: {e}")
 
         # Feature 1: prior win rate
         if prior:
@@ -201,12 +218,12 @@ class FeatureEngineering:
 
         # Feature 4: jockey win rate
         jockey = horse_data.get('jockey', '')
-        jockey_rate = FeatureEngineering.calculate_jockey_win_rate(jockey, all_results)
+        jockey_rate = FeatureEngineering.calculate_jockey_win_rate(jockey, all_results, conn=conn)
         features.append(min(0.5, jockey_rate) if jockey_rate > 0 else 0.08)
 
         # Feature 5: trainer win rate
         trainer = horse_data.get('trainer', '')
-        trainer_rate = FeatureEngineering.calculate_trainer_win_rate(trainer, all_results)
+        trainer_rate = FeatureEngineering.calculate_trainer_win_rate(trainer, all_results, conn=conn)
         features.append(min(0.4, trainer_rate) if trainer_rate > 0 else 0.06)
 
         # Feature 6: field size
@@ -253,7 +270,6 @@ class FeatureEngineering:
         else:
             features.append(0.5)
 
-        # Feature 11 (was odds_implied_prob — REMOVED to eliminate market triple-counting)
         # Feature 11: class level (INVERTED: Class 1=0.8, Class 5=0.0)
         class_type = horse_data.get('class_type', '')
         cm = re.search(r'(\d)', class_type)
@@ -275,26 +291,36 @@ class FeatureEngineering:
         else:
             features.append(0.5)
 
-        # Feature 13: going preference
+        # Feature 13: going performance (merged — combines win rate + place rate on this going)
+        going_perf = 0.5
         if prior and going:
             prior_same_going = [p for p in prior if p.get('going', '') == going]
             if prior_same_going:
-                going_wins = sum(1 for p in prior_same_going if p.get('is_winner', 0))
-                going_top3 = sum(1 for p in prior_same_going if p.get('is_top3', 0))
-                features.append(min(1.0, (going_wins * 2 + going_top3) / (len(prior_same_going) * 3) + 0.2))
-            else:
-                features.append(0.5)
-        else:
-            features.append(0.5)
+                g_wins = sum(1 for p in prior_same_going if p.get('is_winner', 0))
+                g_top3 = sum(1 for p in prior_same_going if p.get('is_top3', 0))
+                n = len(prior_same_going)
+                # Weighted blend: 60% win-rate signal, 40% place-rate signal
+                going_perf = min(1.0, (g_wins / n) * 0.6 * 5 + (g_top3 / n) * 0.4 * 2)
+        features.append(going_perf)
 
-        # Feature 14: going form rate
-        going_form_rate = 0.5
-        if prior and going:
-            prior_same_going = [p for p in prior if p.get('going', '') == going]
-            if len(prior_same_going) >= 2:
-                going_wins = sum(1 for p in prior_same_going if p.get('is_winner', 0))
-                going_form_rate = going_wins / len(prior_same_going)
-        features.append(going_form_rate)
+        # Feature 14: weight vs field (carried weight relative to field median)
+        # Lighter weight = advantage. Normalized so below-median → >0.5, above → <0.5
+        weight_vs_field = 0.5
+        field_weights = horse_data.get('field_weights', [])
+        weight_str = horse_data.get('weight', '') or ''
+        try:
+            horse_wt = int(weight_str)
+            if field_weights:
+                median_wt = sorted(field_weights)[len(field_weights) // 2]
+                # Diff: negative = lighter than median = advantage
+                diff = horse_wt - median_wt
+                weight_vs_field = max(0.0, min(1.0, 0.5 - diff / 20.0))
+            else:
+                # No field data — use absolute position in 108-135 range
+                weight_vs_field = max(0.0, min(1.0, 1.0 - (horse_wt - 108) / 27.0))
+        except (ValueError, TypeError):
+            pass
+        features.append(weight_vs_field)
 
         # Feature 15: jockey-horse cooperation rate
         jockey_horse_coop = 0.5
@@ -310,51 +336,84 @@ class FeatureEngineering:
         # Feature 16: distance personal best ratio
         distance_pb_ratio = 0.5
         if prior:
-            prior_at_dist = [p for p in prior
-                             if p.get('distance') == distance
-                             and p.get('finish_time', '')
-                             and ':' in str(p.get('finish_time', ''))]
-            if prior_at_dist:
+            prior_dist_with_time = [p for p in prior
+                                    if p.get('distance') == distance
+                                    and p.get('finish_time', '')
+                                    and ':' in str(p.get('finish_time', ''))]
+            if prior_dist_with_time:
                 def _parse_time(t):
                     try:
                         parts = str(t).split(':')
                         return float(parts[0]) * 60 + float(parts[1])
                     except (ValueError, IndexError):
                         return 999.0
-                times = [_parse_time(p['finish_time']) for p in prior_at_dist]
+                times = [_parse_time(p['finish_time']) for p in prior_dist_with_time]
                 valid_times = [t for t in times if t < 999]
                 if valid_times:
                     horse_pb = min(valid_times)
                     try:
-                        db_path_pb = config.DB_PATH
-                        if db_path_pb.exists():
-                            conn_pb = sqlite3.connect(str(db_path_pb))
-                            pb_query = "SELECT finish_time FROM race_results WHERE distance = ? AND finish_time != '' AND finish_time IS NOT NULL AND finish_time LIKE '%:%'"
-                            pb_params = [distance]
-                            if race_date:
-                                pb_query += " AND race_date < ?"
-                                pb_params.append(race_date)
-                            row_pb = conn_pb.execute(pb_query, pb_params).fetchall()
+                        if conn is not None:
+                            # Always filter by date to prevent future leakage
+                            cutoff = race_date or datetime.now().strftime('%Y/%m/%d')
+                            pb_query = ("SELECT finish_time FROM race_results "
+                                        "WHERE distance = ? AND finish_time != '' "
+                                        "AND finish_time IS NOT NULL AND finish_time LIKE '%:%' "
+                                        "AND race_date < ?")
+                            pb_params = [distance, cutoff]
+                            row_pb = conn.execute(pb_query, pb_params).fetchall()
                             best_time = None
                             for rr in row_pb:
                                 t = _parse_time(rr[0])
                                 if t < 999 and (best_time is None or t < best_time):
                                     best_time = t
-                            conn_pb.close()
                             if best_time is not None and best_time < 999 and horse_pb < 999:
                                 distance_pb_ratio = min(1.0, best_time / horse_pb)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Failed to compute distance PB for {horse_name}: {e}")
         features.append(distance_pb_ratio)
 
-        # Feature 17: weight carried (normalized)
-        weight_str = horse_data.get('weight', '') or ''
-        try:
-            weight_lbs = int(weight_str)
-            weight_carried_norm = max(0.0, min(1.0, (weight_lbs - 108) / 27.0))
-        except (ValueError, TypeError):
-            weight_carried_norm = 0.65  # ~126 lbs default
-        features.append(weight_carried_norm)
+        # Feature 17: field-relative speed (avg percentile within prior race fields)
+        # Solves the problem of absolute speed conflating sprinters with stayers
+        field_rel_speed = 0.5
+        if prior and conn is not None:
+            percentiles = []
+            for p in prior[-5:]:
+                p_date = p.get('race_date', '')
+                p_rn = p.get('race_number', 0)
+                p_ft = p.get('finish_time', '') or ''
+                p_dist = p.get('distance', 0) or 0
+                if not (p_ft and ':' in p_ft and p_dist > 0):
+                    continue
+                try:
+                    parts = p_ft.split(':')
+                    horse_secs = float(parts[0]) * 60 + float(parts[1])
+                    if horse_secs <= 0 or horse_secs >= 999:
+                        continue
+                    # Get all finish times from the same race
+                    race_times = conn.execute(
+                        "SELECT finish_time FROM race_results "
+                        "WHERE race_date = ? AND race_number = ? "
+                        "AND finish_time LIKE '%:%'",
+                        (p_date, p_rn)
+                    ).fetchall()
+                    all_secs = []
+                    for rt in race_times:
+                        try:
+                            rp = str(rt[0]).split(':')
+                            s = float(rp[0]) * 60 + float(rp[1])
+                            if 0 < s < 999:
+                                all_secs.append(s)
+                        except (ValueError, IndexError):
+                            pass
+                    if len(all_secs) >= 3:
+                        # Percentile: 0% = slowest, 100% = fastest
+                        rank = sum(1 for s in all_secs if s > horse_secs)
+                        percentiles.append(rank / (len(all_secs) - 1) if len(all_secs) > 1 else 0.5)
+                except (ValueError, IndexError):
+                    pass
+            if percentiles:
+                field_rel_speed = sum(percentiles) / len(percentiles)
+        features.append(field_rel_speed)
 
         # Feature 18: last start margin (NEW — how far behind winner last race)
         last_margin = 0.5
@@ -368,34 +427,68 @@ class FeatureEngineering:
                 last_margin = max(0.1, min(0.9, 1.0 - m / 12.0))
         features.append(last_margin)
 
-        # Feature 19: odds rank in field (NEW — relative market position)
-        odds_rank_norm = 0.5
-        win_odds = horse_data.get('win_odds', 0) or 0
-        if win_odds > 0 and field_size > 1:
-            # Approximate: shorter odds = lower rank number = higher value
-            # Normalize so favourite ≈ 1.0, longest ≈ 0.0
-            # Use 1/odds as proxy; at prediction time we don't have full field odds
-            odds_prob = 1.0 / win_odds
-            # Typical range: favourite ~0.3-0.5, outsider ~0.02-0.05
-            odds_rank_norm = max(0.0, min(1.0, odds_prob * 3.0))
-        features.append(odds_rank_norm)
-
-        # Feature 20: body weight change (NEW — fitness signal)
-        weight_change = 0.5
+        # Feature 19: class change (drop = positive signal, rise = negative)
+        class_change_feat = 0.5
         if prior:
-            hw_current = horse_data.get('horse_weight', 0) or 0
-            if not hw_current:
-                # Try to use last known weight
-                hw_current = prior[-1].get('horse_weight', 0) or 0
-            prior_weights = [p.get('horse_weight', 0) or 0 for p in prior[-3:] if p.get('horse_weight', 0)]
-            if hw_current > 0 and prior_weights:
-                avg_prior = sum(prior_weights) / len(prior_weights)
-                if avg_prior > 0:
-                    # Change as fraction: +20 lbs = +0.02 (slight gain), -20 lbs = -0.02
-                    change = (hw_current - avg_prior) / avg_prior
-                    # Normalize: -3% → 0.7, 0% → 0.5, +3% → 0.3 (weight loss = fitter = higher)
-                    weight_change = max(0.0, min(1.0, 0.5 - change * 10))
-        features.append(weight_change)
+            last_class_str = prior[-1].get('class_type', '') or ''
+            last_cm = re.search(r'(\d)', last_class_str)
+            last_class = int(last_cm.group(1)) if last_cm else 3
+            curr_cm = re.search(r'(\d)', class_type)
+            curr_class = int(curr_cm.group(1)) if curr_cm else 3
+            # Drop (e.g. Class 2→Class 3) = higher number = positive signal
+            # Normalize: -4 (big rise) → 0.0, 0 (same) → 0.5, +4 (big drop) → 1.0
+            diff = curr_class - last_class  # positive = dropped in class
+            class_change_feat = max(0.0, min(1.0, 0.5 + diff * 0.125))
+        features.append(class_change_feat)
+
+        # Feature 20: days since last win (recency of winning)
+        days_last_win = 0.5
+        if prior:
+            for p in reversed(prior):
+                if p.get('is_winner', 0):
+                    win_date = p.get('race_date', '')
+                    if win_date and race_date:
+                        try:
+                            w_dt = datetime.strptime(win_date.replace('/', '-'), '%Y-%m-%d')
+                            r_dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
+                            days = (r_dt - w_dt).days
+                            days_last_win = max(0.1, min(0.95, 1.0 - days / 350.0))
+                        except Exception:
+                            pass
+                    break
+            else:
+                days_last_win = 0.15
+        features.append(days_last_win)
+
+        # Feature 21: jockey × trainer combo win rate (interaction)
+        jt_combo = 0.5
+        jockey_rate_val = features[3]   # jockey_win_rate (feature 4, index 3)
+        trainer_rate_val = features[4]  # trainer_win_rate (feature 5, index 4)
+        if jockey_rate_val > 0 and trainer_rate_val > 0:
+            # Geometric mean normalized — strong pairs score high
+            jt_combo = min(1.0, (jockey_rate_val * trainer_rate_val) ** 0.5 * 5.0)
+        features.append(jt_combo)
+
+        # Feature 22: horse body weight change from prior race (fitness signal)
+        hw_change = 0.5
+        horse_weight_val = horse_data.get('horse_weight', 0) or 0
+        try:
+            horse_weight_val = int(horse_weight_val)
+        except (ValueError, TypeError):
+            horse_weight_val = 0
+        if prior and horse_weight_val > 0:
+            prior_hws = [p.get('horse_weight', 0) or 0 for p in prior[-3:] if (p.get('horse_weight', 0) or 0) > 0]
+            if prior_hws:
+                avg_prior_hw = sum(prior_hws) / len(prior_hws)
+                if avg_prior_hw > 0:
+                    # % change: positive = gained weight, negative = lost weight
+                    pct_change = (horse_weight_val - avg_prior_hw) / avg_prior_hw
+                    # Normalize: -3% → 0.8 (slimmed down = fit), +3% → 0.2 (gained = concern)
+                    hw_change = max(0.0, min(1.0, 0.5 - pct_change * 10))
+        features.append(hw_change)
+
+        if owns_conn and conn is not None:
+            conn.close()
 
         result = np.array(features, dtype=np.float32)
         validate_features(result)

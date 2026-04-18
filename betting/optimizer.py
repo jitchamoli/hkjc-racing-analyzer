@@ -257,12 +257,12 @@ class BettingOptimizer:
         if bet.odds <= 1.0:
             return self.min_investment
         b = bet.odds - 1
-        Kelly_fraction = (b * bet.probability - (1 - bet.probability)) / b
-        Kelly_fraction = max(0.0, min(0.25, Kelly_fraction))
-        if Kelly_fraction == 0:
+        kelly_fraction = (b * bet.probability - (1 - bet.probability)) / b
+        kelly_fraction = max(0.0, min(0.25, kelly_fraction))
+        if kelly_fraction == 0:
             return self.min_investment
-        
-        optimal = self.min_investment + (self.max_investment - self.min_investment) * Kelly_fraction
+
+        optimal = self.min_investment + (self.max_investment - self.min_investment) * kelly_fraction
         
         return round(optimal / 10) * 10
 
