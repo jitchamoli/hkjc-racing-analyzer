@@ -140,7 +140,7 @@ async def main():
 
         race_data["speed_map"] = speed_map
 
-        # Exotic bet value detection
+        # Exotic bet value detection (with quinella-specific enhancements)
         if len(analyses) >= 4:
             model_probs = [h['calibrated_prob'] for h in race_data['horses']]
             market_probs = []
@@ -150,8 +150,18 @@ async def main():
             mp_total = sum(market_probs) or 1.0
             market_probs = [p / mp_total for p in market_probs]
             horse_nums = [h['number'] for h in race_data['horses']]
+            place_probs = [h.get('place_prob', 0) for h in race_data['horses']]
+            horse_draws = [h.get('draw', 0) for h in race_data['horses']]
+            horse_styles = [
+                next((r.split(':')[0] for r in (h.get('reasoning') or [])
+                      if 'Leader' in r or 'Stalker' in r or 'Midfield' in r or 'Closer' in r), '')
+                for h in race_data['horses']
+            ]
 
-            exotics = find_value_exotics(model_probs, market_probs, horse_nums, min_edge=0.10)
+            exotics = find_value_exotics(
+                model_probs, market_probs, horse_nums, min_edge=0.10,
+                place_probs=place_probs, draws=horse_draws, styles=horse_styles,
+            )
             race_data["exotic_value"] = exotics
 
         all_races.append(race_data)

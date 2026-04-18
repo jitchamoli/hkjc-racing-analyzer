@@ -55,21 +55,69 @@ def price_exactas(probs: List[float], numbers: List[int],
 
 
 def price_quinellas(probs: List[float], numbers: List[int],
-                    top_n: int = 5) -> List[Dict]:
-    """Price quinella combinations (1st and 2nd in any order)."""
+                    top_n: int = 5,
+                    place_probs: List[float] = None,
+                    draws: List[int] = None,
+                    styles: List[str] = None) -> List[Dict]:
+    """Price quinella combinations with place-model boost and pace pairing.
+
+    Enhanced quinella pricing that:
+    1. Uses win probabilities for base pricing (conditional elimination)
+    2. Boosts consistent placers using dedicated place model probabilities
+    3. Boosts leader+closer pace combos (classic quinella pairing)
+    4. Boosts adjacent good-draw pairs (draw clustering in tight HK tracks)
+    """
     n = len(probs)
     combos = []
     for i in range(n):
         for j in range(i + 1, n):
-            prob = (_conditional_prob(probs, [i, j]) +
-                    _conditional_prob(probs, [j, i]))
-            if prob > 0:
-                combos.append({
-                    'type': 'QUINELLA',
-                    'horses': sorted([numbers[i], numbers[j]]),
-                    'probability': prob,
-                    'min_odds': 1.0 / prob if prob > 0 else 999,
-                })
+            # Base quinella probability from win model
+            base_prob = (_conditional_prob(probs, [i, j]) +
+                         _conditional_prob(probs, [j, i]))
+            if base_prob <= 0:
+                continue
+
+            boost = 1.0
+
+            # Place model boost: consistent placers the win model underweights
+            # A horse with high place_prob but low win_prob is quinella gold
+            if place_probs:
+                for idx in (i, j):
+                    if probs[idx] > 0:
+                        place_win_ratio = place_probs[idx] / probs[idx]
+                        # Ratio > 3.5 means horse places way more than it wins
+                        if place_win_ratio > 3.5:
+                            boost *= 1.15  # 15% boost per consistent placer
+
+            # Pace pairing boost: leader + closer = classic quinella
+            if styles and len(styles) > max(i, j):
+                s_i = (styles[i] or '').lower()
+                s_j = (styles[j] or '').lower()
+                is_pace_pair = (
+                    ('leader' in s_i and 'closer' in s_j) or
+                    ('closer' in s_i and 'leader' in s_j) or
+                    ('leader' in s_i and 'midfield' in s_j) or
+                    ('midfield' in s_i and 'leader' in s_j)
+                )
+                if is_pace_pair:
+                    boost *= 1.10  # 10% boost for pace diversity
+
+            # Draw clustering boost: adjacent draws in good positions
+            if draws and len(draws) > max(i, j):
+                d_i, d_j = draws[i], draws[j]
+                if d_i > 0 and d_j > 0:
+                    draw_gap = abs(d_i - d_j)
+                    if draw_gap <= 2 and min(d_i, d_j) <= 6:
+                        boost *= 1.08  # 8% boost for adjacent good draws
+
+            prob = base_prob * boost
+            combos.append({
+                'type': 'QUINELLA',
+                'horses': sorted([numbers[i], numbers[j]]),
+                'probability': prob,
+                'min_odds': 1.0 / prob if prob > 0 else 999,
+                'boost': boost,
+            })
     combos.sort(key=lambda x: x['probability'], reverse=True)
     return combos[:top_n]
 
@@ -115,7 +163,10 @@ def price_first4s(probs: List[float], numbers: List[int],
 
 
 def find_value_exotics(model_probs: List[float], market_probs: List[float],
-                       numbers: List[int], min_edge: float = 0.10) -> Dict[str, List[Dict]]:
+                       numbers: List[int], min_edge: float = 0.10,
+                       place_probs: List[float] = None,
+                       draws: List[int] = None,
+                       styles: List[str] = None) -> Dict[str, List[Dict]]:
     """Find exotic bets where model probability exceeds market-implied.
 
     Args:
@@ -123,6 +174,9 @@ def find_value_exotics(model_probs: List[float], market_probs: List[float],
         market_probs: probabilities implied by win odds (sum to ~1)
         numbers: horse numbers
         min_edge: minimum edge required (0.10 = 10%)
+        place_probs: place model probabilities (for quinella placer boost)
+        draws: draw positions (for quinella draw clustering)
+        styles: running styles (for quinella pace pairing)
 
     Returns:
         Dict with keys 'exacta', 'trifecta', 'quinella', 'first4',
@@ -131,14 +185,28 @@ def find_value_exotics(model_probs: List[float], market_probs: List[float],
     result = {}
 
     # Price with both model and market
-    for bet_type, pricer, top_n in [
-        ('exacta', price_exactas, 20),
-        ('quinella', price_quinellas, 10),
-        ('trifecta', price_trifectas, 20),
-        ('first4', price_first4s, 10),
+    # Quinella uses enhanced pricing with place model + pace + draws
+    for bet_type, top_n in [
+        ('exacta', 20),
+        ('quinella', 10),
+        ('trifecta', 20),
+        ('first4', 10),
     ]:
-        model_combos = pricer(model_probs, numbers, top_n=top_n)
-        market_combos = pricer(market_probs, numbers, top_n=top_n * 2)
+        if bet_type == 'quinella':
+            model_combos = price_quinellas(model_probs, numbers, top_n=top_n,
+                                           place_probs=place_probs,
+                                           draws=draws, styles=styles)
+            # Market quinellas use base pricing (no boost) for fair comparison
+            market_combos = price_quinellas(market_probs, numbers, top_n=top_n * 2)
+        elif bet_type == 'exacta':
+            model_combos = price_exactas(model_probs, numbers, top_n=top_n)
+            market_combos = price_exactas(market_probs, numbers, top_n=top_n * 2)
+        elif bet_type == 'trifecta':
+            model_combos = price_trifectas(model_probs, numbers, top_n=top_n)
+            market_combos = price_trifectas(market_probs, numbers, top_n=top_n * 2)
+        else:
+            model_combos = price_first4s(model_probs, numbers, top_n=top_n)
+            market_combos = price_first4s(market_probs, numbers, top_n=top_n * 2)
 
         # Build market lookup
         market_lookup = {}
