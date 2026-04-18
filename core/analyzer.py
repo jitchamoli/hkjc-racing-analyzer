@@ -19,11 +19,13 @@ from core.fetcher import HKJCDataFetcher, HorseEntry, RaceCard
 from core.predictor import (
     HKJCRacingMLModel,
     FeatureEngineering,
-    CombinedRacingAnalyzer,
+    CombinedRacingAnalyzer as _MLAnalyzer,
     MLPrediction,
     create_combined_prediction,
     ML_AVAILABLE,
 )
+from core.scorer import compute_weighted_score, BettingWeights
+from core.recommender import assign_bet_recommendations
 
 from betting.optimizer import BettingOptimizer, BettingReportGenerator
 
@@ -194,35 +196,7 @@ def convert_race(rc: RaceCard) -> Race:
 # ---------------------------------------------------------------------------
 
 class BettingStrategy:
-    # Full 17-factor weights (when all data available)
-    # Tips Index is the strongest signal — aggregates expert tipster consensus
-    RATING_WEIGHT = 0.07
-    FORM_WEIGHT = 0.09       # Recency-weighted form (recent wins boosted)
-    ODDS_WEIGHT = 0.08       # Market implied probability
-    JOCKEY_WEIGHT = 0.04
-    TRAINER_WEIGHT = 0.02
-    DRAW_WEIGHT = 0.04       # Enhanced with rail bias
-    TIPS_WEIGHT = 0.10       # HKJC expert tips index (strongest signal)
-    PACE_WEIGHT = 0.03       # Running style + pace scenario
-    SECTIONAL_WEIGHT = 0.03  # Finishing speed
-    CD_FORM_WEIGHT = 0.04    # Course & Distance record
-    ODDS_MOVE_WEIGHT = 0.04  # Odds movement / steam detection
-    CLASS_MOVE_WEIGHT = 0.03 # Class drop/rise advantage
-    GEAR_WEIGHT = 0.02       # Equipment changes
-    WEIGHT_WEIGHT = 0.04     # Weight carried vs rating
-    FRESHNESS_WEIGHT = 0.04  # Days since last run
-    RATING_TREND_WEIGHT = 0.03  # Rating going up or down
-    STAKES_WEIGHT = 0.02     # Season prize money earned
-    GOING_WEIGHT = 0.05      # Going (track condition) preference — high impact
-    # New high-impact features (from CodeWorks Paris research)
-    ROLLING_FORM_WEIGHT = 0.06  # Rolling avg position, win rate, trend
-    MARGIN_WEIGHT = 0.05     # Beaten margins — <2.75L = strong next-out signal
-    JOCKEY_CHANGE_WEIGHT = 0.04  # Jockey upgrade/downgrade detection
-    JOCKEY_FORM_WEIGHT = 0.04   # Jockey recent win% (hot streak)
-    TRAINER_FORM_WEIGHT = 0.03  # Trainer recent win% (hot streak)
-    FIELD_SIZE_WEIGHT = 0.05    # Field size — #1 feature in gmalbert research (17.41%)
-    CAREER_PLACE_WEIGHT = 0.03  # Career top-3 rate from horse DB
-    AGE_WEIGHT = 0.02           # Age relative to field (pbovard63 approach)
+    # Weight constants now live in core/scorer.py:BettingWeights
 
     @staticmethod
     def analyze_form(last_6: str) -> tuple:
@@ -522,7 +496,7 @@ class BettingStrategy:
 class CombinedRaceAnalyzer:
     def __init__(self):
         self.strategy = BettingStrategy()
-        self.ml_analyzer = CombinedRacingAnalyzer()
+        self.ml_analyzer = _MLAnalyzer()
         self.draw_analyzer = DrawBiasAnalyzer()
         self.pace_analyzer = PaceAnalyzer()
         self.sectional_analyzer = SectionalAnalyzer()
@@ -539,7 +513,7 @@ class CombinedRaceAnalyzer:
         # Try to connect to horse database for historical lookups
         self._horse_db = None
         try:
-            from horse_database import HorseDatabase
+            from data.database import HorseDatabase
             self._horse_db = HorseDatabase()
         except Exception:
             pass
@@ -1001,66 +975,7 @@ class CombinedRaceAnalyzer:
             reasoning.append(age_reason)
 
         # --- Weighted score calculation (dynamic) ---
-        # Build weight map only for available factors (score > 0)
-        weight_map = {
-            "rating": BettingStrategy.RATING_WEIGHT,
-            "form": BettingStrategy.FORM_WEIGHT,
-            "odds": BettingStrategy.ODDS_WEIGHT,
-            "jockey": BettingStrategy.JOCKEY_WEIGHT,
-            "trainer": BettingStrategy.TRAINER_WEIGHT,
-            "draw": BettingStrategy.DRAW_WEIGHT,
-        }
-
-        # Conditionally add new factors
-        if tips_score > 0:
-            weight_map["tips"] = BettingStrategy.TIPS_WEIGHT
-        if pace_score > 0:
-            weight_map["pace"] = BettingStrategy.PACE_WEIGHT
-        if sect_score > 0:
-            weight_map["sectional"] = BettingStrategy.SECTIONAL_WEIGHT
-        if cd_score > 0:
-            weight_map["cd_form"] = BettingStrategy.CD_FORM_WEIGHT
-        if move_score > 0:
-            weight_map["odds_movement"] = BettingStrategy.ODDS_MOVE_WEIGHT
-        # Class, gear, weight always included (50.0 = neutral, not missing)
-        weight_map["class_movement"] = BettingStrategy.CLASS_MOVE_WEIGHT
-        weight_map["gear"] = BettingStrategy.GEAR_WEIGHT
-        weight_map["weight_carried"] = BettingStrategy.WEIGHT_WEIGHT
-        # New high-impact factors
-        if fresh_score > 0:
-            weight_map["freshness"] = BettingStrategy.FRESHNESS_WEIGHT
-        if trend_score > 0:
-            weight_map["rating_trend"] = BettingStrategy.RATING_TREND_WEIGHT
-        if stakes_score > 0:
-            weight_map["season_stakes"] = BettingStrategy.STAKES_WEIGHT
-        if going_score > 0:
-            weight_map["going_pref"] = BettingStrategy.GOING_WEIGHT
-        if rolling_score > 0:
-            weight_map["rolling_form"] = BettingStrategy.ROLLING_FORM_WEIGHT
-        if margin_score > 0:
-            weight_map["margin"] = BettingStrategy.MARGIN_WEIGHT
-        if jc_score > 0:
-            weight_map["jockey_change"] = BettingStrategy.JOCKEY_CHANGE_WEIGHT
-        if jf_score > 0:
-            weight_map["jockey_form"] = BettingStrategy.JOCKEY_FORM_WEIGHT
-        if tf_score > 0:
-            weight_map["trainer_form"] = BettingStrategy.TRAINER_FORM_WEIGHT
-        if fs_score > 0:
-            weight_map["field_size"] = BettingStrategy.FIELD_SIZE_WEIGHT
-        if cp_score > 0:
-            weight_map["career_place"] = BettingStrategy.CAREER_PLACE_WEIGHT
-        if age_score > 0:
-            weight_map["age"] = BettingStrategy.AGE_WEIGHT
-
-        # Normalize weights to sum to 1.0
-        total_weight = sum(weight_map.values())
-        if total_weight > 0:
-            rule_score = sum(
-                factors[k] * (w / total_weight)
-                for k, w in weight_map.items()
-            )
-        else:
-            rule_score = 50.0
+        rule_score = compute_weighted_score(factors)
 
         rule_confidence = self.strategy.get_rule_confidence(rule_score)
 
@@ -1205,217 +1120,8 @@ class CombinedRaceAnalyzer:
 
     @staticmethod
     def _assign_bet_recommendations(analyses: List[HorseAnalysis]):
-        """Assign realistic bet recommendations based on field shape.
-
-        The combined_probability is a relative score (0-1), NOT a calibrated
-        win probability. We convert to realistic probabilities using softmax
-        with temperature scaling to preserve score separation.
-        """
-        if not analyses:
-            return
-
-        n = len(analyses)
-
-        # Softmax normalization: exp(score * temp) / sum(exp(score * temp))
-        # Temperature controls separation: higher = more spread
-        import math
-        temp = 8.0  # amplifies score differences
-        raw_scores = [a.combined_probability for a in analyses]
-        max_score = max(raw_scores) if raw_scores else 0.5
-        exp_scores = [math.exp((s - max_score) * temp) for s in raw_scores]
-        exp_total = sum(exp_scores) or 1.0
-        calibrated_probs = [e / exp_total for e in exp_scores]
-
-        # Blend with market-implied probabilities (30% market, 70% model)
-        # This prevents our model from severely underrating strong favourites
-        market_probs = []
-        for a in analyses:
-            if a.horse.win_odds > 0:
-                market_probs.append(1.0 / a.horse.win_odds)
-            else:
-                market_probs.append(0.0)
-        market_total = sum(market_probs) or 1.0
-        market_probs = [p / market_total for p in market_probs]  # normalize to fair probs
-
-        blended_probs = []
-        for i in range(len(calibrated_probs)):
-            if market_probs[i] > 0:
-                blended = 0.70 * calibrated_probs[i] + 0.30 * market_probs[i]
-            else:
-                blended = calibrated_probs[i]
-            blended_probs.append(blended)
-        # Re-normalize
-        blend_total = sum(blended_probs) or 1.0
-        calibrated_probs = [p / blend_total for p in blended_probs]
-
-        # Store calibrated probabilities and calculate EV
-        for i, a in enumerate(analyses):
-            cal_prob = calibrated_probs[i]
-            a.combined_probability = cal_prob  # overwrite raw score with calibrated prob
-            if a.horse.win_odds > 0:
-                a.expected_return = (a.horse.win_odds * cal_prob) - 1
-            else:
-                a.expected_return = -1.0
-
-        # Field shape analysis for bet type assignment
-        top = analyses[0] if n >= 1 else None
-        second = analyses[1] if n >= 2 else None
-        third = analyses[2] if n >= 3 else None
-
-        top_prob = calibrated_probs[0] if n >= 1 else 0
-        second_prob = calibrated_probs[1] if n >= 2 else 0
-        third_prob = calibrated_probs[2] if n >= 3 else 0
-
-        gap_1_2 = top_prob - second_prob  # gap between 1st and 2nd
-        gap_2_3 = second_prob - third_prob  # gap between 2nd and 3rd
-        top_3_share = top_prob + second_prob + third_prob  # top 3 share of total
-
-        # Market-implied probability for comparison
-        market_prob_top = (1 / top.horse.win_odds) if top and top.horse.win_odds > 0 else 0
-
-        # Check if our #1 is a BANKER — if so, don't let market override it
-        top_is_banker = any("BANKER" in r for r in analyses[0].reasoning) if analyses else False
-
-        # Check if market favourite differs from our top pick — if so, re-sort
-        # to respect the market when it strongly backs a different horse
-        # BUT: never override a BANKER pick — our model has high conviction
-        market_fav = min(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds > 0 else 999)
-        market_fav_prob = (1 / market_fav.horse.win_odds) if market_fav.horse.win_odds > 0 else 0
-        if (market_fav_prob >= 0.30 and market_fav.rank > 1
-                and market_fav.horse.win_odds > 0
-                and not top_is_banker):
-            # Market strongly backs a horse we don't rank #1 — promote it
-            # Re-sort: swap market fav to position 0
-            old_idx = next(i for i, a in enumerate(analyses) if a is market_fav)
-            analyses[0], analyses[old_idx] = analyses[old_idx], analyses[0]
-            calibrated_probs[0], calibrated_probs[old_idx] = calibrated_probs[old_idx], calibrated_probs[0]
-            for i, a in enumerate(analyses):
-                a.rank = i + 1
-                a.combined_probability = calibrated_probs[i]
-                if a.horse.win_odds > 0:
-                    a.expected_return = (a.horse.win_odds * calibrated_probs[i]) - 1
-            # Recalculate field shape
-            top = analyses[0]
-            second = analyses[1] if n >= 2 else None
-            top_prob = calibrated_probs[0]
-            second_prob = calibrated_probs[1] if n >= 2 else 0
-            third_prob = calibrated_probs[2] if n >= 3 else 0
-            gap_1_2 = top_prob - second_prob
-            gap_2_3 = second_prob - third_prob
-            top_3_share = top_prob + second_prob + third_prob
-            market_prob_top = market_fav_prob
-
-        # Check if any horse is a BANKER — if so, promote it to #1 and force WIN
-        banker_horse = None
-        for a in analyses:
-            if any("BANKER" in r for r in a.reasoning):
-                if banker_horse is None or a.rule_score > banker_horse.rule_score:
-                    banker_horse = a
-
-        if banker_horse and banker_horse.rank > 1:
-            # Promote BANKER to rank 1
-            old_idx = next(i for i, a in enumerate(analyses) if a is banker_horse)
-            analyses[0], analyses[old_idx] = analyses[old_idx], analyses[0]
-            calibrated_probs[0], calibrated_probs[old_idx] = calibrated_probs[old_idx], calibrated_probs[0]
-            for i, a in enumerate(analyses):
-                a.rank = i + 1
-                a.combined_probability = calibrated_probs[i]
-                if a.horse.win_odds > 0:
-                    a.expected_return = (a.horse.win_odds * calibrated_probs[i]) - 1
-            top = analyses[0]
-            top_prob = calibrated_probs[0]
-            second_prob = calibrated_probs[1] if n >= 2 else 0
-            gap_1_2 = top_prob - second_prob
-
-        # Determine race-level bet type first, then assign to horses
-        # QIN #1+#2 is the DEFAULT — our rank 2 wins often enough that
-        # QIN on ranks 1+2 hits far more often than WIN on rank 1 alone.
-        # WIN only for BANKER (7+ signals) or extreme market standouts.
-        race_bet_type = "QIN"  # default: QIN on rank 1 + rank 2
-
-        # BANKER overrides everything — always WIN
-        if banker_horse and banker_horse.rank == 1:
-            race_bet_type = "WIN"
-        elif market_prob_top >= 0.35 and gap_1_2 > 0.08:
-            race_bet_type = "WIN"  # very clear market standout (tighter threshold)
-        elif gap_1_2 > 0.06 and top and top.expected_return > 0.15:
-            race_bet_type = "WIN"  # very clear model standout (tighter threshold)
-        elif gap_1_2 < 0.02 and top_3_share > 0.35:
-            # Top 3 extremely bunched — wider exotic
-            if gap_2_3 < 0.02 and n >= 3:
-                race_bet_type = "TRIO"  # top 3 all bunched
-            else:
-                race_bet_type = "QNL PL"  # very tight top 2
-        # else: stays QIN (default)
-
-        # --- Race-level skip: if our top pick has no edge, skip entire race ---
-        # Minimum EV threshold: only bet if expected return > 5%
-        MIN_EV = 0.05
-        # Minimum probability edge over market: our prob must exceed implied prob
-        top_ev = analyses[0].expected_return if analyses else -1
-        top_cal_prob = calibrated_probs[0] if calibrated_probs else 0
-        top_market_prob = (1 / analyses[0].horse.win_odds) if analyses and analyses[0].horse.win_odds > 0 else 1
-        has_edge = top_cal_prob > top_market_prob  # we rate horse higher than market does
-
-        skip_race = top_ev < MIN_EV and not has_edge and not (banker_horse and banker_horse.rank == 1)
-
-        for i, a in enumerate(analyses):
-            rank = a.rank
-
-            # Skip entire race if no edge found
-            if skip_race:
-                a.bet_recommendation = "SKIP"
-                continue
-
-            # Per-bet EV filter: each individual bet must have positive EV
-            # (relaxed for rank 1-2 in QIN since they work as a pair)
-            bet_has_ev = a.expected_return >= MIN_EV
-            # Use place odds if available, otherwise estimate from win odds
-            has_place_value = (a.horse.place_odds > 1.2) if a.horse.place_odds > 0 else (a.horse.win_odds >= 3.0)
-
-            if race_bet_type == "WIN":
-                if rank == 1:
-                    is_banker = any("BANKER" in r for r in a.reasoning)
-                    a.bet_recommendation = "BANKER WIN" if is_banker else "WIN"
-                elif rank == 2 and bet_has_ev and has_place_value:
-                    a.bet_recommendation = "PLACE"
-                else:
-                    a.bet_recommendation = "SKIP"
-
-            elif race_bet_type == "QIN":
-                if rank <= 2:
-                    a.bet_recommendation = "QIN"
-                elif rank == 3 and bet_has_ev and has_place_value:
-                    a.bet_recommendation = "PLACE"
-                else:
-                    a.bet_recommendation = "SKIP"
-
-            elif race_bet_type == "QNL PL":
-                if rank <= 2:
-                    a.bet_recommendation = "QNL PL"
-                elif rank == 3 and bet_has_ev and has_place_value:
-                    a.bet_recommendation = "PLACE"
-                else:
-                    a.bet_recommendation = "SKIP"
-
-            elif race_bet_type == "TRIO":
-                if rank <= 3:
-                    a.bet_recommendation = "TRIO"
-                elif rank == 4 and bet_has_ev and has_place_value:
-                    a.bet_recommendation = "PLACE"
-                else:
-                    a.bet_recommendation = "SKIP"
-
-            elif race_bet_type == "PLACE":
-                if rank <= 2 and bet_has_ev:
-                    a.bet_recommendation = "PLACE"
-                elif rank == 3 and bet_has_ev and has_place_value:
-                    a.bet_recommendation = "PLACE"
-                else:
-                    a.bet_recommendation = "SKIP"
-
-            else:
-                a.bet_recommendation = "SKIP"
+        """Delegate to core.recommender."""
+        assign_bet_recommendations(analyses)
 
 
 # ---------------------------------------------------------------------------
