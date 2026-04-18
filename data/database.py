@@ -125,7 +125,44 @@ class HorseDatabase:
             )
         """)
 
+        # Prediction tracking — one row per horse per race, filled with results later
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS prediction_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                race_date TEXT NOT NULL,
+                race_number INTEGER NOT NULL,
+                venue TEXT,
+                distance INTEGER,
+                class_type TEXT,
+                going TEXT,
+                field_size INTEGER,
+                horse_name TEXT NOT NULL,
+                horse_number INTEGER,
+                predicted_rank INTEGER,
+                rule_score REAL,
+                ml_prob REAL,
+                calibrated_prob REAL,
+                expected_return REAL,
+                bet_recommendation TEXT,
+                confidence TEXT,
+                win_odds REAL,
+                model_version TEXT,
+                actual_position INTEGER DEFAULT 0,
+                actual_won INTEGER DEFAULT 0,
+                actual_top3 INTEGER DEFAULT 0,
+                actual_odds REAL DEFAULT 0,
+                profit_loss REAL DEFAULT 0,
+                results_filled INTEGER DEFAULT 0,
+                predicted_at TEXT,
+                results_filled_at TEXT,
+                UNIQUE(race_date, race_number, horse_name)
+            )
+        """)
+
         # Indexes
+        c.execute("CREATE INDEX IF NOT EXISTS idx_plog_date_filled ON prediction_log(race_date, results_filled)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_plog_date ON prediction_log(race_date)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_plog_bet ON prediction_log(bet_recommendation)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_results_horse ON race_results(horse_name)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_results_horse_date ON race_results(horse_name, race_date)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_results_date ON race_results(race_date)")
@@ -784,6 +821,270 @@ class HorseDatabase:
 
         self.conn.commit()
         logger.info("Rebuilt jockey_stats and trainer_stats from race_results")
+
+    # ------------------------------------------------------------------
+    # Prediction tracking
+    # ------------------------------------------------------------------
+
+    def log_predictions(self, race_date: str, races: list, model_version: str = ''):
+        """Store predictions for all horses in all races for a given date.
+
+        races: list of race dicts from generate_predictions.py JSON output.
+        Upserts — safe to call multiple times for the same date.
+        """
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        c = self.conn.cursor()
+
+        for race in races:
+            race_no = race.get('race_number', 0)
+            venue = race.get('venue', '')
+            distance = race.get('distance', 0)
+            class_type = race.get('class_type', '')
+            going = race.get('going', '')
+            horses = race.get('horses', [])
+            field_size = len(horses)
+
+            for h in horses:
+                c.execute("""
+                    INSERT INTO prediction_log (
+                        race_date, race_number, venue, distance, class_type, going,
+                        field_size, horse_name, horse_number, predicted_rank,
+                        rule_score, ml_prob, calibrated_prob, expected_return,
+                        bet_recommendation, confidence, win_odds, model_version,
+                        predicted_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(race_date, race_number, horse_name)
+                    DO UPDATE SET
+                        predicted_rank=excluded.predicted_rank,
+                        rule_score=excluded.rule_score,
+                        ml_prob=excluded.ml_prob,
+                        calibrated_prob=excluded.calibrated_prob,
+                        expected_return=excluded.expected_return,
+                        bet_recommendation=excluded.bet_recommendation,
+                        confidence=excluded.confidence,
+                        win_odds=excluded.win_odds,
+                        model_version=excluded.model_version,
+                        predicted_at=excluded.predicted_at
+                """, (
+                    race_date, race_no, venue, distance, class_type, going,
+                    field_size, h.get('name', ''), h.get('number', 0),
+                    h.get('rank', 0), h.get('rule_score', 0),
+                    h.get('ml_prob', 0), h.get('calibrated_prob', 0),
+                    h.get('expected_return', 0), h.get('bet_recommendation', 'SKIP'),
+                    h.get('confidence', ''), h.get('win_odds', 0),
+                    model_version, now,
+                ))
+
+        self.conn.commit()
+        logger.info(f"Logged predictions for {len(races)} races on {race_date}")
+
+    def fill_prediction_results(self, race_date: str, race_number: int,
+                                results: list):
+        """Fill actual results into prediction_log for a single race.
+
+        results: list of dicts with 'number', 'position', 'name'.
+        """
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        c = self.conn.cursor()
+
+        for r in results:
+            pos = r.get('position', 0) or 0
+            name = r.get('name', '')
+            if not name or not pos:
+                continue
+
+            won = 1 if pos == 1 else 0
+            top3 = 1 if 1 <= pos <= 3 else 0
+
+            # Compute profit/loss per $10 unit
+            row = c.execute("""
+                SELECT bet_recommendation, win_odds FROM prediction_log
+                WHERE race_date = ? AND race_number = ? AND horse_name = ?
+            """, (race_date, race_number, name)).fetchone()
+
+            profit = 0.0
+            if row:
+                bet = row[0] or 'SKIP'
+                odds = row[1] or 0
+                if bet in ('WIN', 'BANKER WIN'):
+                    profit = (odds * 10 - 10) if won else -10.0
+                elif bet == 'PLACE':
+                    profit = (max(odds / 3, 1.2) * 10 - 10) if top3 else -10.0
+                elif bet in ('QIN', 'QNL PL', 'TRIO'):
+                    # Exotic bets: mark as -10 loss per horse; race-level query handles wins
+                    profit = -10.0 if not top3 else 0.0
+                # SKIP = no bet = no profit/loss
+
+            c.execute("""
+                UPDATE prediction_log SET
+                    actual_position = ?,
+                    actual_won = ?,
+                    actual_top3 = ?,
+                    profit_loss = ?,
+                    results_filled = 1,
+                    results_filled_at = ?
+                WHERE race_date = ? AND race_number = ? AND horse_name = ?
+            """, (pos, won, top3, round(profit, 1), now,
+                  race_date, race_number, name))
+
+        self.conn.commit()
+
+    def get_accuracy_summary(self, days: int = 30) -> Dict:
+        """Get prediction accuracy summary over the last N days."""
+        c = self.conn.cursor()
+        cutoff = (datetime.now() - __import__('datetime').timedelta(days=days)).strftime('%Y/%m/%d')
+
+        # Only races where results have been filled
+        rows = c.execute("""
+            SELECT race_date, race_number, horse_name, predicted_rank,
+                   bet_recommendation, calibrated_prob, win_odds,
+                   actual_position, actual_won, actual_top3, profit_loss, confidence
+            FROM prediction_log
+            WHERE results_filled = 1 AND race_date >= ?
+            ORDER BY race_date, race_number, predicted_rank
+        """, (cutoff,)).fetchall()
+
+        if not rows:
+            return {'message': 'No results data available'}
+
+        # Group by race
+        races = {}
+        for r in rows:
+            key = f"{r[0]}-{r[1]}"
+            if key not in races:
+                races[key] = []
+            races[key].append(r)
+
+        total_races = len(races)
+        rank1_wins = 0
+        top3_overlaps = 0
+        winner_ranks = []
+        bets_placed = 0
+        bets_won = 0
+        total_profit = 0.0
+        banker_count = 0
+        banker_wins = 0
+        by_confidence = {}
+
+        for race_key, horses in races.items():
+            horses.sort(key=lambda x: x[3])  # sort by predicted_rank
+
+            # Rank 1 win check
+            if horses and horses[0][8]:  # actual_won
+                rank1_wins += 1
+
+            # Top-3 overlap
+            our_top3 = {h[2] for h in horses[:3]}  # horse_name
+            actual_top3_set = {h[2] for h in horses if h[9]}  # actual_top3
+            top3_overlaps += len(our_top3 & actual_top3_set)
+
+            # Where did winner rank?
+            for h in horses:
+                if h[8]:  # actual_won
+                    winner_ranks.append(h[3])  # predicted_rank
+                    break
+
+            # Bet P&L
+            for h in horses:
+                bet = h[4]
+                if bet and bet != 'SKIP':
+                    bets_placed += 1
+                    total_profit += h[10]  # profit_loss
+                    if h[8] and bet in ('WIN', 'BANKER WIN'):
+                        bets_won += 1
+                    elif h[9] and bet == 'PLACE':
+                        bets_won += 1
+
+                    if 'BANKER' in bet:
+                        banker_count += 1
+                        if h[8]:
+                            banker_wins += 1
+
+                # By confidence
+                conf = h[11] or 'UNKNOWN'
+                if conf not in by_confidence:
+                    by_confidence[conf] = {'total': 0, 'wins': 0}
+                if h[3] == 1:  # rank 1 only
+                    by_confidence[conf]['total'] += 1
+                    if h[8]:
+                        by_confidence[conf]['wins'] += 1
+
+        return {
+            'period_days': days,
+            'total_races': total_races,
+            'rank1_win_rate': round(rank1_wins / total_races * 100, 1) if total_races else 0,
+            'rank1_wins': rank1_wins,
+            'top3_overlap_rate': round(top3_overlaps / (total_races * 3) * 100, 1) if total_races else 0,
+            'avg_winner_rank': round(sum(winner_ranks) / len(winner_ranks), 1) if winner_ranks else 0,
+            'bets_placed': bets_placed,
+            'bets_won': bets_won,
+            'bet_hit_rate': round(bets_won / bets_placed * 100, 1) if bets_placed else 0,
+            'total_profit': round(total_profit, 1),
+            'roi_percent': round(total_profit / (bets_placed * 10) * 100, 1) if bets_placed else 0,
+            'banker_count': banker_count,
+            'banker_wins': banker_wins,
+            'banker_hit_rate': round(banker_wins / banker_count * 100, 1) if banker_count else 0,
+            'by_confidence': by_confidence,
+        }
+
+    def get_accuracy_by_class(self, days: int = 30) -> list:
+        """Get accuracy breakdown by class type."""
+        c = self.conn.cursor()
+        cutoff = (datetime.now() - __import__('datetime').timedelta(days=days)).strftime('%Y/%m/%d')
+
+        rows = c.execute("""
+            SELECT class_type,
+                   COUNT(DISTINCT race_date || '-' || race_number) as races,
+                   SUM(CASE WHEN predicted_rank = 1 AND actual_won = 1 THEN 1 ELSE 0 END) as rank1_wins,
+                   SUM(CASE WHEN predicted_rank <= 3 AND actual_top3 = 1 THEN 1 ELSE 0 END) as top3_hits,
+                   SUM(CASE WHEN bet_recommendation != 'SKIP' THEN profit_loss ELSE 0 END) as profit
+            FROM prediction_log
+            WHERE results_filled = 1 AND race_date >= ?
+            GROUP BY class_type
+            ORDER BY races DESC
+        """, (cutoff,)).fetchall()
+
+        result = []
+        for r in rows:
+            races = r[1] or 1
+            result.append({
+                'class': r[0] or 'Unknown',
+                'races': races,
+                'rank1_win_rate': round(r[2] / races * 100, 1),
+                'top3_hit_rate': round(r[3] / (races * 3) * 100, 1),
+                'profit': round(r[4] or 0, 1),
+            })
+        return result
+
+    def get_bet_type_roi(self, days: int = 30) -> list:
+        """Get ROI breakdown by bet recommendation type."""
+        c = self.conn.cursor()
+        cutoff = (datetime.now() - __import__('datetime').timedelta(days=days)).strftime('%Y/%m/%d')
+
+        rows = c.execute("""
+            SELECT bet_recommendation,
+                   COUNT(*) as bets,
+                   SUM(CASE WHEN actual_won = 1 OR actual_top3 = 1 THEN 1 ELSE 0 END) as hits,
+                   SUM(profit_loss) as profit
+            FROM prediction_log
+            WHERE results_filled = 1 AND bet_recommendation != 'SKIP'
+                  AND race_date >= ?
+            GROUP BY bet_recommendation
+            ORDER BY profit DESC
+        """, (cutoff,)).fetchall()
+
+        result = []
+        for r in rows:
+            bets = r[1] or 1
+            result.append({
+                'bet_type': r[0],
+                'count': bets,
+                'hits': r[2],
+                'hit_rate': round(r[2] / bets * 100, 1),
+                'profit': round(r[3] or 0, 1),
+                'roi': round((r[3] or 0) / (bets * 10) * 100, 1),
+            })
+        return result
 
     def close(self):
         self.conn.close()

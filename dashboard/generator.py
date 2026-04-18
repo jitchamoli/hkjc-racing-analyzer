@@ -143,6 +143,10 @@ async def main():
     with open(json_file, 'w') as f:
         json.dump(all_races, f, indent=2)
 
+    # Log predictions to DB for longitudinal accuracy tracking
+    model_ver = analyzer.ml_analyzer.ml_model.model_version if hasattr(analyzer, 'ml_analyzer') else ''
+    db.log_predictions(race_date, all_races, model_version=model_ver)
+
     logger.info(f"Saved predictions to {json_file}")
     logger.info(f"Total races: {len(all_races)}")
 
