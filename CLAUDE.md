@@ -159,9 +159,9 @@ Features 15-18 (new):
 - `going_form_rate`: win% on current going condition (DB query)
 - `jockey_horse_coop`: win% of this jockey on this horse (DB query)
 - `distance_pb_ratio`: horse's PB / track record at distance (DB query)
-- `odds_movement`: opening→current odds change (odds_history.db, builds up over time via race day monitor)
+- `weight_carried_norm`: carried weight normalized to 0-1 (108-135 lbs range). Replaced `odds_movement` which was constant in training data.
 
-Top signal: `odds_implied_prob` (17.9%) — market odds are the single best predictor.
+Top signal: `odds_implied_prob` (14.0%) — market odds are the single best predictor.
 
 ### DB Data Gaps
 
