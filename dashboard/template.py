@@ -127,7 +127,7 @@ button{{font-family:inherit;cursor:pointer}}
       <span>{venue} | {race_date}</span>
       <span>|</span>
       <span id="clock">{now}</span>
-      <span class="version">v5.1 | 24 FACTORS + 22-FEATURE ML | PLATT CALIBRATED</span>
+      <span class="version">v5.2</span>
     </div>
   </div>
 </div>
@@ -323,14 +323,25 @@ function renderDashboard() {{
         '<div class="bt" style="background:' + betBg(h.bet_recommendation) + ';color:' + betColor(h.bet_recommendation) + '">' + h.bet_recommendation + '</div>' +
       '</div>';
     }});
+    // Bet badge + exotic count
+    var topBet = r.horses[0].bet_recommendation || 'SKIP';
+    var betBadge = '<span class="bt" style="background:' + betBg(topBet) + ';color:' + betColor(topBet) + ';margin-right:6px">' + topBet + '</span>';
+    var exoticCount = 0;
+    if (r.exotic_value) {{
+      ['exacta','quinella','trifecta','first4'].forEach(function(t) {{
+        exoticCount += (r.exotic_value[t] || []).length;
+      }});
+    }}
+    var exoticBadge = exoticCount > 0 ? '<span style="background:rgba(251,191,36,.2);color:var(--gold);font-size:.62rem;font-weight:700;padding:2px 6px;border-radius:4px;margin-right:6px">' + exoticCount + ' exotics</span>' : '';
+
     html += '</div>' +
-      '<div class="rc-footer"><span>' + r.horses.length + ' runners | Top: #' + esc(r.horses[0].number) + ' ' + esc(r.horses[0].name) + '</span><span class="click-hint">Click to expand</span></div>' +
+      '<div class="rc-footer"><span>' + betBadge + exoticBadge + r.horses.length + ' runners</span><span class="click-hint">Click to expand</span></div>' +
     '</div>';
   }});
   
   html += '</div>' +
     '<div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>' +
-    '<div class="footer">HKJC Racing Analyzer v5.1 | 24-Factor + 22-Feature ML (Platt Calibrated) | Generated: ' + GENERATED + '</div>';
+    '<div class="footer">HKJC Racing Analyzer v5.2 | Generated: ' + GENERATED + '</div>';
   el.innerHTML = html;
 }}
 
@@ -705,7 +716,6 @@ function renderRaceDetail(race) {{
   const top = race.horses[0];
 
   const topBet = top ? top.bet_recommendation : 'N/A';
-  const topML = top ? (top.ml_prob * 100).toFixed(1) : '0';
   const topCal = top ? (top.calibrated_prob * 100).toFixed(1) : '0';
   const topPlace = top && top.place_prob ? (top.place_prob * 100).toFixed(1) : '';
 
@@ -720,9 +730,8 @@ function renderRaceDetail(race) {{
   html += '<div class="detail-stats">' +
     '<div class="stat"><div class="v">' + race.horses.length + '</div><div class="l">Runners</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--gold)">' + topBet + '</div><div class="l">Top Pick</div></div>' +
-    '<div class="stat"><div class="v" style="color:var(--green)">' + topML + '%</div><div class="l">ML Win</div></div>' +
-    '<div class="stat"><div class="v" style="color:var(--accent)">' + topCal + '%</div><div class="l">Calibrated</div></div>' +
-    (topPlace ? '<div class="stat"><div class="v" style="color:var(--cyan)">' + topPlace + '%</div><div class="l">Place (ML)</div></div>' : '') +
+    '<div class="stat"><div class="v" style="color:var(--accent)">' + topCal + '%</div><div class="l">Win Prob</div></div>' +
+    (topPlace ? '<div class="stat"><div class="v" style="color:var(--cyan)">' + topPlace + '%</div><div class="l">Place Prob</div></div>' : '') +
   '</div>';
 
   // Result banner in detail view
@@ -768,7 +777,7 @@ function renderRaceDetail(race) {{
   html += renderSpeedMap(race.speed_map);
 
   var hasAnyResults = dHasResults && dWinner;
-  html += '<table class="horse-table"><thead><tr><th>#</th><th>Horse</th><th>Jockey</th><th>Draw</th><th>Odds</th>' + (hasAnyResults ? '<th>Fin</th>' : '') + '<th>ML%</th><th>Cal%</th><th>Bet</th><th>Reasoning</th></tr></thead><tbody>';
+  html += '<table class="horse-table"><thead><tr><th>#</th><th>Horse</th><th>Jockey</th><th>Draw</th><th>Odds</th>' + (hasAnyResults ? '<th>Fin</th>' : '') + '<th>Win%</th><th>Place%</th><th>Bet</th><th>Reasoning</th></tr></thead><tbody>';
 
   race.horses.forEach((h, i) => {{
     const isTop = i === 0;
@@ -784,8 +793,8 @@ function renderRaceDetail(race) {{
       '<td>' + h.draw + '</td>' +
       '<td style="color:var(--cyan)">$' + h.win_odds + '</td>' +
       finCell +
-      '<td>' + (h.ml_prob * 100).toFixed(1) + '%</td>' +
       '<td style="color:' + probColor(h.calibrated_prob) + '">' + (h.calibrated_prob * 100).toFixed(1) + '%</td>' +
+      '<td style="color:var(--cyan)">' + (h.place_prob ? (h.place_prob * 100).toFixed(1) + '%' : '-') + '</td>' +
       '<td><div class="bt" style="background:' + betBg(h.bet_recommendation) + ';color:' + betColor(h.bet_recommendation) + '">' + h.bet_recommendation + '</div></td>' +
       '<td class="reasoning-cell">' + reasoning +
       (function() {{
