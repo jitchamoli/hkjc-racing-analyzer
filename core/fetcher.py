@@ -359,6 +359,12 @@ class HKJCParser:
         # -- Extract horses from the race card table --
         race.horses = HKJCParser._parse_horse_table(soup)
 
+        if race.horses:
+            from data.validation import validate_race_card
+            warnings = validate_race_card(race)
+            if warnings:
+                logger.warning(f"Race {race_no}: {len(warnings)} validation warnings")
+
         return race if race.horses else None
 
     @staticmethod
