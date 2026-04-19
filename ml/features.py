@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Feature engineering for ML predictions.
 
-Extracts 22 features per horse using FEATURE_SCHEMA order.
+Extracts 23 features per horse using FEATURE_SCHEMA order.
 All features use only data available BEFORE the race (no leakage).
 """
 
@@ -519,23 +519,10 @@ class FeatureEngineering:
             speed_con = normalize_consistency(float(_np.std(adj_speed_vals)))
         features.append(speed_con)
 
-        # Feature 24: late money signal (opening vs current odds)
-        late_money = 0.5
-        opening = horse_data.get('opening_odds', 0) or 0
-        current = horse_data.get('win_odds', 0) or 0
-        if opening > 0 and current > 0:
-            change_pct = (current - opening) / opening
-            if change_pct < -0.20:
-                late_money = max(0.8, min(1.0, 0.8 + abs(change_pct) * 0.5))
-            elif change_pct < -0.10:
-                late_money = 0.6 + abs(change_pct) * 2
-            elif change_pct < 0.10:
-                late_money = 0.5
-            elif change_pct < 0.30:
-                late_money = 0.4 - change_pct * 0.5
-            else:
-                late_money = max(0.0, min(0.2, 0.3 - change_pct * 0.3))
-        features.append(late_money)
+        # Feature 24 (late_money_signal) REMOVED — constant 0.5 in training (DB lacks
+        # opening odds), variable at prediction time. The model never learned from it,
+        # so non-default values at inference were out-of-distribution noise.
+        # Odds signal enters via the market blend in calibrate_probabilities() instead.
 
         if owns_conn and conn is not None:
             conn.close()

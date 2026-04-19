@@ -42,11 +42,8 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
         conn.row_factory = sqlite3.Row
 
         rows = conn.execute("""
-            SELECT r.*, j.win_rate as jockey_wr, j.place_rate as jockey_pr,
-                   t.win_rate as trainer_wr, t.place_rate as trainer_pr
+            SELECT r.*
             FROM race_results r
-            LEFT JOIN jockey_stats j ON r.jockey = j.name
-            LEFT JOIN trainer_stats t ON r.trainer = t.name
             WHERE r.finish_position > 0
             ORDER BY r.race_date, r.race_number
         """).fetchall()
@@ -146,8 +143,13 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             date_rank = {all_dates[0]: 0} if all_dates else {}
             max_rank = 1
 
-        # Precompute par times for adjusted speed figures (uses all data — date-aware per row)
-        all_par_times = compute_par_times(conn)
+        # Precompute par times per date bucket to prevent leakage.
+        # Group training dates into monthly buckets — each bucket uses only data before that month.
+        par_times_by_month = {}
+        for d in all_dates:
+            month_key = d[:7]  # 'YYYY/MM'
+            if month_key not in par_times_by_month:
+                par_times_by_month[month_key] = compute_par_times(conn, before_date=d)
 
         # Build per-horse chronological race history for PRIOR-only lookups
         horse_history = {}
@@ -160,6 +162,20 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 horse_history[name].append(r)
         for name in horse_history:
             horse_history[name].sort(key=lambda x: x.get('race_date', ''))
+
+        # Build per-jockey/trainer chronological history for PRIOR-only win rate calc
+        jockey_history = {}
+        trainer_history = {}
+        for row in rows:
+            r = dict(row)
+            j = r.get('jockey', '') or ''
+            t = r.get('trainer', '') or ''
+            rd = r.get('race_date', '')
+            is_win = 1 if r.get('is_winner', 0) else 0
+            if j:
+                jockey_history.setdefault(j, []).append((rd, is_win))
+            if t:
+                trainer_history.setdefault(t, []).append((rd, is_win))
 
         X, y, y_place, weights = [], [], [], []
         for row in rows:
@@ -203,11 +219,23 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             # Feature 3: draw advantage
             feat_draw = FeatureEngineering.calculate_draw_advantage(draw, distance)
 
-            # Feature 4: jockey win rate
-            feat_jockey = min(0.5, jockey_wr) if jockey_wr > 0 else 0.08
+            # Feature 4: jockey win rate (prior-only — no future leakage)
+            jockey_name = r.get('jockey', '') or ''
+            jockey_prior = [(d, w) for d, w in jockey_history.get(jockey_name, []) if d < race_date]
+            if jockey_prior:
+                jockey_wr = sum(w for _, w in jockey_prior) / len(jockey_prior)
+                feat_jockey = min(0.5, jockey_wr)
+            else:
+                feat_jockey = 0.08
 
-            # Feature 5: trainer win rate
-            feat_trainer = min(0.4, trainer_wr) if trainer_wr > 0 else 0.06
+            # Feature 5: trainer win rate (prior-only — no future leakage)
+            trainer_name = r.get('trainer', '') or ''
+            trainer_prior = [(d, w) for d, w in trainer_history.get(trainer_name, []) if d < race_date]
+            if trainer_prior:
+                trainer_wr = sum(w for _, w in trainer_prior) / len(trainer_prior)
+                feat_trainer = min(0.4, trainer_wr)
+            else:
+                feat_trainer = 0.06
 
             # Feature 6: field size
             feat_field_size = field_size / 14.0
@@ -232,13 +260,15 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
 
             # Feature 9: adjusted speed (Beyer-style par-adjusted, weight-corrected)
             adj_speed_vals = []
+            race_month = race_date[:7]  # 'YYYY/MM'
+            row_par_times = par_times_by_month.get(race_month, {})
             for p in prior[-5:]:
                 ft = p.get('finish_time', '') or ''
                 d = p.get('distance', 0) or 0
                 g = p.get('going', '') or ''
                 ct = p.get('class_type', '') or ''
                 w = p.get('weight', 0) or 0
-                fig = adjusted_speed_figure(ft, d, g, ct, w, all_par_times)
+                fig = adjusted_speed_figure(ft, d, g, ct, w, row_par_times)
                 if fig is not None:
                     adj_speed_vals.append(fig)
             feat_adj_speed = normalize_speed_figure(
@@ -402,11 +432,6 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             if len(adj_speed_vals) >= 3:
                 feat_speed_con = normalize_consistency(float(np.std(adj_speed_vals)))
 
-            # Feature 24: late money signal (opening vs current odds)
-            # DB doesn't have opening odds — default to 0.5 (neutral)
-            # Real signal comes at prediction time from live race card data
-            feat_late_money = 0.5
-
             features = [
                 feat_form_proxy, feat_form, feat_draw,
                 feat_jockey, feat_trainer, feat_field_size,
@@ -415,7 +440,7 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 weight_vs_field, feat_jh_coop, feat_dist_pb, feat_frs,
                 feat_last_margin, feat_class_change, feat_days_last_win,
                 feat_jt_combo, feat_hw_change,
-                feat_speed_con, feat_late_money,
+                feat_speed_con,
             ]
             assert len(features) == NUM_FEATURES, f"Expected {NUM_FEATURES} features, got {len(features)}"
             X.append(features)
@@ -492,8 +517,6 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         hw_change = np.clip(hw_change, 0.0, 1.0)
         adjusted_speed = np.random.beta(3, 3)  # par-adjusted speed figure
         speed_con = np.random.beta(4, 2)  # most horses somewhat consistent
-        late_money = np.random.normal(0.5, 0.1)  # mostly neutral in training
-        late_money = np.clip(late_money, 0.0, 1.0)
 
         features = [
             prior_win_rate, form_score / 100, draw_adv,
@@ -504,7 +527,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             weight_vs_field, jockey_horse_coop, distance_pb_ratio, field_rel_speed,
             last_margin, class_change_feat, days_last_win,
             jt_combo, hw_change,
-            speed_con, late_money,
+            speed_con,
         ]
         assert len(features) == NUM_FEATURES
         X.append(features)
@@ -534,7 +557,6 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 1.0 * (jt_combo - 0.3)  # strong jockey+trainer combos
             + 0.3 * (hw_change - 0.5)  # body weight fitness
             + 0.4 * (speed_con - 0.6)  # consistent runners
-            + 0.5 * (late_money - 0.5)  # smart money signal
             - 2.8
         )
         win_prob = 1.0 / (1.0 + np.exp(-win_logit))

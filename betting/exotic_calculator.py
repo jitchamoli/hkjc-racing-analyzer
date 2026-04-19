@@ -197,8 +197,10 @@ def find_value_exotics(model_probs: List[float], market_probs: List[float],
             model_combos = price_quinellas(model_probs, numbers, top_n=top_n,
                                            place_probs=place_probs,
                                            draws=draws, styles=styles)
-            # Market quinellas use base pricing (no boost) for fair comparison
-            market_combos = price_quinellas(market_probs, numbers, top_n=top_n * 2)
+            # Apply same boosts to market for fair edge comparison
+            market_combos = price_quinellas(market_probs, numbers, top_n=top_n * 2,
+                                            place_probs=place_probs,
+                                            draws=draws, styles=styles)
         elif bet_type == 'exacta':
             model_combos = price_exactas(model_probs, numbers, top_n=top_n)
             market_combos = price_exactas(market_probs, numbers, top_n=top_n * 2)

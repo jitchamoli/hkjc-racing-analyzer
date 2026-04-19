@@ -677,12 +677,15 @@ class HorseDatabase:
         # Close finishes: within 2.75 lengths of winner (non-winners)
         close = [m for m in margins if m <= 2.75]
         last_margin = margins[0] if margins else 0
+        # Distinguish winner (margin=0, position=1) from missing margin data
+        last_winner = rows[0]['finish_position'] == 1 if rows else False
 
         return {
             'runs': len(rows),
             'close_finishes': len(close),
             'avg_margin': round(sum(margins) / len(margins), 2) if margins else 0,
             'last_margin': round(last_margin, 2),
+            'last_winner': last_winner,
         }
 
     def get_horse_days_since_last(self, horse_name: str,

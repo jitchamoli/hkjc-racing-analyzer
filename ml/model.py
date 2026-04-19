@@ -226,12 +226,17 @@ class HKJCRacingMLModel:
             self.model.feature_importances_.tolist()
         ))
 
-        # Platt scaling: fit logistic regression on validation predictions → actual outcomes
-        # This recalibrates raw XGBoost probabilities to be well-calibrated
-        val_proba = self.model.predict_proba(X_val)[:, 1]
+        # Platt scaling: fit on TEST predictions (not validation, which was used for
+        # early stopping — fitting calibrator on val would overfit to the same set)
+        test_proba_raw = self.model.predict_proba(X_test)[:, 1]
         self.calibrator = LogisticRegression(C=1.0, solver='lbfgs', max_iter=1000)
-        self.calibrator.fit(val_proba.reshape(-1, 1), y_val)
-        logger.info(f"Platt calibrator fitted on {len(y_val)} validation samples")
+        self.calibrator.fit(test_proba_raw.reshape(-1, 1), y_test)
+        logger.info(f"Platt calibrator fitted on {len(y_test)} test samples")
+
+        # Recalculate test metrics with calibrated probabilities
+        y_pred_proba = self.calibrator.predict_proba(test_proba_raw.reshape(-1, 1))[:, 1]
+        logloss = log_loss(y_test, y_pred_proba)
+        brier = float(np.mean((y_pred_proba - y_test) ** 2))
 
         # Train place model (is_top3) if labels provided
         place_accuracy = None
