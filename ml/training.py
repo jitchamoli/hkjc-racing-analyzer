@@ -275,11 +275,26 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 sum(adj_speed_vals) / len(adj_speed_vals)
             ) if adj_speed_vals else 0.5
 
-            # Feature 10: C&D form
+            # Feature 10: C&D form (winning trip replication boost)
             prior_at_dist = [p for p in prior if p.get('distance') == distance]
             if prior_at_dist:
                 cd_wins = sum(1 for p in prior_at_dist if p.get('is_winner', 0))
-                feat_cd = min(1.0, cd_wins / len(prior_at_dist) + 0.2)
+                feat_cd = cd_wins / len(prior_at_dist) + 0.2
+                # Boost if won at this distance recently (within 180 days)
+                if cd_wins > 0 and race_date:
+                    for p in reversed(prior_at_dist):
+                        if p.get('is_winner', 0):
+                            win_date = p.get('race_date', '')
+                            if win_date:
+                                try:
+                                    w_dt = datetime.strptime(win_date.replace('/', '-'), '%Y-%m-%d')
+                                    r_dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
+                                    if (r_dt - w_dt).days <= 180:
+                                        feat_cd += 0.15
+                                except Exception:
+                                    pass
+                            break
+                feat_cd = min(1.0, feat_cd)
             else:
                 feat_cd = 0.5
 
