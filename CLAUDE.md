@@ -71,7 +71,7 @@ scripts/train.py → models/hkjc_racing_model.pkl
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
 - **Rule engine (75%)**: 24 factors with dynamic weighting — factors with missing data are excluded and remaining weights renormalize to 1.0. Note: `odds` and `odds_movement` were removed from the rule engine to prevent triple-counting market signal (market info enters via the 30% market blend in calibration). Approximate grouping: Core (rating, form, jockey, trainer, draw, tips), Expert (going, rolling form, margins, field size, career stats), Technical (pace, sectionals, C&D, class movement, gear, weight, freshness). Actual percentages vary per race due to renormalization.
-- **ML model (25%)**: XGBoost classifier with 24 features (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a dedicated **place model** (is_top3) for place bet recommendations and quinella pricing. Both models use Platt scaling (LogisticRegression) for probability calibration. Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `scripts/train.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
+- **ML model (25%)**: XGBoost classifier with 23 features (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a dedicated **place model** (is_top3) for place bet recommendations and quinella pricing. Both models use Platt scaling (LogisticRegression) for probability calibration. Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `scripts/train.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
 
 The 13 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change, **speed figures**).
 
@@ -151,7 +151,7 @@ Uses Playwright to scrape HKJC results pages (JS-rendered). Extracts from result
 
 5. **Probability sync after rank swaps**: When `_assign_bet_recommendations` swaps horse positions (market-favourite promotion or BANKER override), `combined_probability` and `expected_return` on ALL `HorseAnalysis` objects must be re-written from the swapped `calibrated_probs` list.
 
-6. **ML fallback probability**: `predict()` accepts `field_size` param (default 12). When model is untrained, returns `1/field_size` — not `1/len(features)` which is always 24.
+6. **ML fallback probability**: `predict()` accepts `field_size` param (default 12). When model is untrained, returns `1/field_size` — not `1/len(features)` which is always 23.
 
 7. **Feature count guard**: Model pickle stores `n_features`. On load, it's checked against the current `NUM_FEATURES` — mismatched models refuse to load with a clear error message.
 
@@ -175,9 +175,9 @@ Features removed during audit: `odds_implied_prob`, `venue_win_rate` (r=0.984), 
 
 ### Training Pipeline
 
-- **60/20/20 temporal split**: Train on first 60%, validate (early stopping) on next 20%, evaluate on final 20%. Platt calibrator is now fitted on test set predictions (not validation, which is used for early stopping) to avoid overfitting the calibrator to the same data the model was optimized for.
+- **60/20/20 temporal split**: Train on first 60%, validate (early stopping + Platt calibration) on next 20%, evaluate on final 20%. Test metrics are computed through the calibrator but the calibrator was never fitted on test data — metrics are unbiased.
 - **Recency weighting**: Sample weights decay from 1.0 (newest) to 0.3 (oldest). Recent races get 3.3x weight.
-- **Platt scaling**: LogisticRegression fitted on validation predictions → actual outcomes. Recalibrates XGBoost's overconfident probabilities.
+- **Platt scaling**: LogisticRegression fitted on validation set predictions → actual outcomes. Recalibrates XGBoost's overconfident probabilities. Fitted on validation (not test) so test metrics remain unbiased.
 - **Place model**: Separate XGBoost trained on `is_top3` labels alongside the win model. Used for place bet probability and quinella placer-boost pricing.
 - **Precomputed lookups**: Par times (per distance/going/class), track records, field sizes, field median weights, and per-race finish times are all precomputed before the training loop.
 

@@ -656,7 +656,7 @@ class CombinedRaceAnalyzer:
             reasoning.append(f"C&D: {cd_reason}")
 
         # Odds movement: shown in reasoning for context but NOT scored here
-        # (enters via late_money_signal ML feature + steam/drift dashboard badges)
+        # (enters via market blend in calibrate_probabilities + steam/drift dashboard badges)
         if horse.opening_odds > 0 and horse.win_odds > 0:
             _, move_reason = self.odds_movement.analyze_movement(
                 horse.opening_odds, horse.win_odds

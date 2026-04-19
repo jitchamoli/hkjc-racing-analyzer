@@ -65,29 +65,48 @@ class FeatureEngineering:
         return sum(r.position for r in history) / len(history)
 
     @staticmethod
-    def calculate_jockey_win_rate(jockey: str, all_results, conn=None) -> float:
-        """Calculate jockey win rate — queries DB stats first, falls back to all_results."""
-        if jockey:
-            try:
-                if conn is not None:
-                    row = conn.execute(
-                        "SELECT win_rate FROM jockey_stats WHERE name = ?", (jockey,)
-                    ).fetchone()
-                    if row and row['win_rate'] and row['win_rate'] > 0:
-                        return min(0.6, row['win_rate'])
-                elif config.DB_PATH.exists():
-                    _conn = sqlite3.connect(str(config.DB_PATH))
-                    _conn.row_factory = sqlite3.Row
-                    row = _conn.execute(
-                        "SELECT win_rate FROM jockey_stats WHERE name = ?", (jockey,)
-                    ).fetchone()
-                    _conn.close()
-                    if row and row['win_rate'] and row['win_rate'] > 0:
-                        return min(0.6, row['win_rate'])
-            except Exception as e:
-                logger.warning(f"DB lookup failed for jockey {jockey}: {e}")
+    def calculate_jockey_win_rate(jockey: str, all_results, conn=None,
+                                  before_date: str = None) -> float:
+        """Calculate jockey win rate from prior race_results (matches training).
+
+        Uses race_results with date filter to avoid leaking future data.
+        Falls back to jockey_stats table, then all_results.
+        """
         if not jockey:
             return 0.12
+        try:
+            c = conn
+            owns = c is None
+            if owns and config.DB_PATH.exists():
+                c = sqlite3.connect(str(config.DB_PATH))
+                c.row_factory = sqlite3.Row
+            if c is not None:
+                # Prior-only from race_results (matches training pipeline)
+                if before_date:
+                    row = c.execute(
+                        "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
+                        "FROM race_results WHERE jockey = ? AND race_date < ?",
+                        (jockey, before_date)
+                    ).fetchone()
+                else:
+                    row = c.execute(
+                        "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
+                        "FROM race_results WHERE jockey = ?",
+                        (jockey,)
+                    ).fetchone()
+                if owns:
+                    c.close()
+                if row and row['rides'] and row['rides'] > 0:
+                    return min(0.6, row['wins'] / row['rides'])
+                # Fallback to stats table if no race_results
+                if not owns:
+                    stat = conn.execute(
+                        "SELECT win_rate FROM jockey_stats WHERE name = ?", (jockey,)
+                    ).fetchone()
+                    if stat and stat['win_rate'] and stat['win_rate'] > 0:
+                        return min(0.6, stat['win_rate'])
+        except Exception as e:
+            logger.warning(f"DB lookup failed for jockey {jockey}: {e}")
         jockey_rides = [r for r in all_results if jockey.lower() in r.jockey.lower()]
         if not jockey_rides:
             return 0.12
@@ -95,29 +114,46 @@ class FeatureEngineering:
         return min(0.6, wins / len(jockey_rides))
 
     @staticmethod
-    def calculate_trainer_win_rate(trainer: str, all_results, conn=None) -> float:
-        """Calculate trainer win rate — queries DB stats first, falls back to all_results."""
-        if trainer:
-            try:
-                if conn is not None:
-                    row = conn.execute(
-                        "SELECT win_rate FROM trainer_stats WHERE name = ?", (trainer,)
-                    ).fetchone()
-                    if row and row['win_rate'] and row['win_rate'] > 0:
-                        return min(0.5, row['win_rate'])
-                elif config.DB_PATH.exists():
-                    _conn = sqlite3.connect(str(config.DB_PATH))
-                    _conn.row_factory = sqlite3.Row
-                    row = _conn.execute(
-                        "SELECT win_rate FROM trainer_stats WHERE name = ?", (trainer,)
-                    ).fetchone()
-                    _conn.close()
-                    if row and row['win_rate'] and row['win_rate'] > 0:
-                        return min(0.5, row['win_rate'])
-            except Exception as e:
-                logger.warning(f"DB lookup failed for trainer {trainer}: {e}")
+    def calculate_trainer_win_rate(trainer: str, all_results, conn=None,
+                                   before_date: str = None) -> float:
+        """Calculate trainer win rate from prior race_results (matches training).
+
+        Uses race_results with date filter to avoid leaking future data.
+        Falls back to trainer_stats table, then all_results.
+        """
         if not trainer:
             return 0.12
+        try:
+            c = conn
+            owns = c is None
+            if owns and config.DB_PATH.exists():
+                c = sqlite3.connect(str(config.DB_PATH))
+                c.row_factory = sqlite3.Row
+            if c is not None:
+                if before_date:
+                    row = c.execute(
+                        "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
+                        "FROM race_results WHERE trainer = ? AND race_date < ?",
+                        (trainer, before_date)
+                    ).fetchone()
+                else:
+                    row = c.execute(
+                        "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
+                        "FROM race_results WHERE trainer = ?",
+                        (trainer,)
+                    ).fetchone()
+                if owns:
+                    c.close()
+                if row and row['rides'] and row['rides'] > 0:
+                    return min(0.5, row['wins'] / row['rides'])
+                if not owns:
+                    stat = conn.execute(
+                        "SELECT win_rate FROM trainer_stats WHERE name = ?", (trainer,)
+                    ).fetchone()
+                    if stat and stat['win_rate'] and stat['win_rate'] > 0:
+                        return min(0.5, stat['win_rate'])
+        except Exception as e:
+            logger.warning(f"DB lookup failed for trainer {trainer}: {e}")
         trainer_horses = [r for r in all_results if trainer.lower() in r.trainer.lower()]
         if not trainer_horses:
             return 0.12
@@ -149,7 +185,7 @@ class FeatureEngineering:
     @staticmethod
     def extract_features(horse_data: dict, all_results, venue: str,
                          conn: sqlite3.Connection = None) -> np.ndarray:
-        """Extract 22 features matching FEATURE_SCHEMA order exactly.
+        """Extract 23 features matching FEATURE_SCHEMA order exactly.
 
         Args:
             conn: Optional shared SQLite connection. If None, opens/closes its own.
@@ -216,14 +252,16 @@ class FeatureEngineering:
         draw = horse_data.get('draw', 8)
         features.append(FeatureEngineering.calculate_draw_advantage(draw, distance))
 
-        # Feature 4: jockey win rate
+        # Feature 4: jockey win rate (prior-only to match training)
         jockey = horse_data.get('jockey', '')
-        jockey_rate = FeatureEngineering.calculate_jockey_win_rate(jockey, all_results, conn=conn)
+        jockey_rate = FeatureEngineering.calculate_jockey_win_rate(
+            jockey, all_results, conn=conn, before_date=race_date or None)
         features.append(min(0.5, jockey_rate) if jockey_rate > 0 else 0.08)
 
-        # Feature 5: trainer win rate
+        # Feature 5: trainer win rate (prior-only to match training)
         trainer = horse_data.get('trainer', '')
-        trainer_rate = FeatureEngineering.calculate_trainer_win_rate(trainer, all_results, conn=conn)
+        trainer_rate = FeatureEngineering.calculate_trainer_win_rate(
+            trainer, all_results, conn=conn, before_date=race_date or None)
         features.append(min(0.4, trainer_rate) if trainer_rate > 0 else 0.06)
 
         # Feature 6: field size
