@@ -25,7 +25,7 @@ class BettingWeights:
     TIPS = 0.11
     PACE = 0.04
     SECTIONAL = 0.03
-    CD_FORM = 0.05
+    CD_FORM = 0.08
     CLASS_MOVE = 0.03
     GEAR = 0.02
     WEIGHT = 0.04

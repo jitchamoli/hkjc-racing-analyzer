@@ -310,11 +310,24 @@ class FeatureEngineering:
         else:
             features.append(0.5)
 
-        # Feature 10: C&D form from prior races
+        # Feature 10: C&D form from prior races (winning trip = strong signal)
         prior_at_dist = [p for p in prior if p.get('distance') == distance]
         if prior_at_dist:
             cd_wins = sum(1 for p in prior_at_dist if p.get('is_winner', 0))
-            features.append(min(1.0, cd_wins / len(prior_at_dist) + 0.2))
+            cd_score = cd_wins / len(prior_at_dist) + 0.2
+            # Boost if won at this distance recently (within 180 days)
+            if cd_wins > 0 and race_date:
+                for p in reversed(prior_at_dist):
+                    if p.get('is_winner', 0):
+                        try:
+                            w_dt = datetime.strptime(p['race_date'].replace('/', '-'), '%Y-%m-%d')
+                            r_dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
+                            if (r_dt - w_dt).days <= 180:
+                                cd_score += 0.15  # winning trip replication boost
+                        except Exception:
+                            pass
+                        break
+            features.append(min(1.0, cd_score))
         else:
             features.append(0.5)
 

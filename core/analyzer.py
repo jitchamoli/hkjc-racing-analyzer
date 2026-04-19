@@ -634,23 +634,25 @@ class CombinedRaceAnalyzer:
         if sect_score > 0:
             reasoning.append(f"Finish: {sect_reason}")
 
-        # --- NEW: Course & Distance Form ---
-        if horse.cd_runs > 0:
-            # Score directly from wins/runs to avoid reconstructing inaccurate history
-            cd_wins = horse.cd_wins
-            cd_runs = horse.cd_runs
-            if cd_wins >= 3:
-                cd_score, cd_reason = 95.0, f"Proven C&D star ({cd_wins}W from {cd_runs})"
-            elif cd_wins == 2:
-                cd_score, cd_reason = 85.0, f"Strong C&D form ({cd_wins}W from {cd_runs})"
-            elif cd_wins == 1:
-                cd_score, cd_reason = 70.0, f"C&D winner ({cd_wins}W from {cd_runs})"
-            elif cd_runs >= 3:
-                cd_score, cd_reason = 48.0, f"C&D: 0W from {cd_runs} runs"
-            else:
-                cd_score, cd_reason = 55.0, f"C&D: {cd_runs} runs, no wins"
-        else:
-            cd_score, cd_reason = 0.0, "No C&D data"
+        # --- Course & Distance Form (with winning trip replication) ---
+        cd_score, cd_reason = 0.0, ""
+        if self._horse_db:
+            cd_history = self._horse_db.get_horse_cd_history(
+                horse.name, race.venue or '', int(race.distance or 1200))
+            if cd_history:
+                cd_score, cd_reason = self.cd_analyzer.analyze_cd_form(
+                    cd_history, race.venue or '', int(race.distance or 1200),
+                    current_date=race.date if hasattr(race, 'date') else None)
+            elif horse.cd_runs > 0:
+                # Fallback to race card data if no DB history
+                cd_wins = horse.cd_wins
+                cd_runs = horse.cd_runs
+                if cd_wins >= 1:
+                    cd_score = 78.0
+                    cd_reason = f"C&D winner ({cd_wins}W from {cd_runs})"
+                else:
+                    cd_score = 50.0
+                    cd_reason = f"C&D: {cd_runs} runs, no wins"
         factors["cd_form"] = cd_score
         if cd_score > 0:
             reasoning.append(f"C&D: {cd_reason}")
