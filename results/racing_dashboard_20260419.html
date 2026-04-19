@@ -839,6 +839,194 @@ function renderRaceDetail(race) {
 
 initTabs();
 renderDashboard();
+
+// ===== RESULTS DATA (auto-injected by results_fetcher) =====
+var RESULTS_DATA = {"summary": {"total_races": 2, "wins_correct": 0, "win_accuracy": 0.0, "top3_overlap_total": 4, "top3_accuracy": 66.7, "bets_hit": 2, "bet_hit_rate": 100.0, "avg_winner_rank": 2.5, "fav_wins": 0, "fav_win_rate": 0.0, "best_bet_hits": 1, "best_bet_hit_rate": 50.0, "best_bet_roi": 2.0, "random_win_rate": 7.7}, "races": {"1": {"actual_winner": 1, "actual_top3": [1, 11, 4], "actual_win_odds": 5.2, "accuracy": {"win_correct": false, "top3_overlap": 2, "winner_our_rank": 3, "bet_hit": true, "profit": 0.0}, "positions": {"11": 3, "10": 5, "1": 1, "2": 4, "4": 2, "8": 10, "3": 12, "5": 6, "6": 8, "7": 9, "13": 7, "9": 13, "12": 14, "14": 11}, "winner_name": "FOREMOST TEDDY(J058)"}, "2": {"actual_winner": 7, "actual_top3": [8, 9, 7], "actual_win_odds": 0.0, "accuracy": {"win_correct": false, "top3_overlap": 2, "winner_our_rank": 2, "bet_hit": true, "profit": 0.0}, "positions": {"9": 2, "7": 1, "11": 4, "8": 3}, "winner_name": "NOBLE DELUXE(K052)"}}};
+
+(function() {
+  if (!RESULTS_DATA || !RESULTS_DATA.races) return;
+
+  // Merge results into RACES
+  Object.keys(RESULTS_DATA.races).forEach(function(rn) {
+    var rr = RESULTS_DATA.races[rn];
+    var race = RACES.find(function(r) { return r.race_number === parseInt(rn); });
+    if (!race) return;
+    race.results_available = true;
+    race.actual_winner = rr.actual_winner;
+    race.actual_top3 = rr.actual_top3 || [];
+    race.actual_win_odds = rr.actual_win_odds;
+    race.accuracy = rr.accuracy || {};
+    race.winner_name = rr.winner_name || '';
+
+    Object.keys(rr.positions || {}).forEach(function(hnum) {
+      var h = race.horses.find(function(hh) { return hh.number === parseInt(hnum); });
+      if (h) h.actual_position = rr.positions[hnum];
+    });
+  });
+
+  // Patch dashboard renderer
+  var origDash = renderDashboard;
+  renderDashboard = function() {
+    origDash();
+    overlayDashboardResults();
+  };
+
+  // Patch detail renderer
+  var origDetail = renderRaceDetail;
+  renderRaceDetail = function(race) {
+    origDetail(race);
+    if (race.results_available) overlayDetailResults(race);
+  };
+
+  function overlayDashboardResults() {
+    var s = RESULTS_DATA.summary;
+    if (!s || !s.total_races) return;
+
+    var dashboard = document.getElementById('dashboard-view');
+    var statsDiv = dashboard.querySelector('.stats');
+    if (!statsDiv) return;
+
+    // Results summary banner
+    var existing = document.getElementById('results-banner');
+    if (existing) existing.remove();
+
+    var banner = document.createElement('div');
+    banner.id = 'results-banner';
+    banner.style.cssText = 'background:linear-gradient(90deg,rgba(16,185,129,.1),rgba(59,130,246,.1));border:1px solid var(--green);border-radius:12px;padding:14px 20px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;text-align:center';
+
+    var items = [
+      {v: 'SCORECARD', c: 'var(--green)', l: '', isLabel: true},
+      {v: (s.best_bet_hit_rate || 0) + '%', c: 'var(--green)', l: 'Our BEST Bet'},
+      {v: (s.fav_win_rate || 0) + '%', c: 'var(--accent)', l: 'Public Favourite'},
+      {v: (s.random_win_rate || 8) + '%', c: 'var(--dim)', l: 'Random Pick'},
+      {v: s.wins_correct + '/' + s.total_races, c: 'var(--cyan)', l: '#1 Pick Won'},
+      {v: s.avg_winner_rank.toString(), c: 'var(--purple)', l: 'Avg Winner Rank'},
+    ];
+    items.forEach(function(item) {
+      var div = document.createElement('div');
+      if (item.isLabel) {
+        div.innerHTML = '<div style="font-size:.68rem;color:' + item.c + ';font-weight:700;text-transform:uppercase">' + item.v + '</div>';
+      } else {
+        div.innerHTML = '<div style="font-size:1.3rem;font-weight:800;color:' + item.c + '">' + item.v + '</div><div style="font-size:.65rem;color:var(--dim)">' + item.l + '</div>';
+      }
+      banner.appendChild(div);
+    });
+    statsDiv.parentNode.insertBefore(banner, statsDiv);
+
+    // Add result badges to race cards
+    RACES.forEach(function(race) {
+      if (!race.results_available) return;
+      var cards = document.querySelectorAll('.race-card');
+      cards.forEach(function(card) {
+        var onclick = card.getAttribute('onclick');
+        if (onclick && onclick.indexOf('showRace(' + race.race_number + ')') >= 0) {
+          // Mark winners in preview
+          var rows = card.querySelectorAll('.rc-horse');
+          rows.forEach(function(row) {
+            var nameEl = row.querySelector('.rc-name');
+            if (!nameEl) return;
+            var m = nameEl.textContent.match(/#(\d+)/);
+            if (!m) return;
+            var num = parseInt(m[1]);
+            var h = race.horses.find(function(hh) { return hh.number === num; });
+            if (!h || !h.actual_position) return;
+            var colors = {1: 'var(--gold)', 2: '#94a3b8', 3: 'var(--orange)'};
+            var suffixes = {1: 'st', 2: 'nd', 3: 'rd'};
+            if (h.actual_position <= 3) {
+              nameEl.innerHTML += ' <span style="background:' + colors[h.actual_position] + ';color:#000;font-size:.58rem;font-weight:800;padding:1px 5px;border-radius:8px">' + h.actual_position + (suffixes[h.actual_position] || 'th') + '</span>';
+            }
+          });
+
+          // Add accuracy badge
+          var header = card.querySelector('.rc-header');
+          var a = race.accuracy;
+          if (header && a) {
+            var badge = document.createElement('span');
+            badge.style.cssText = 'font-size:.62rem;font-weight:700;padding:2px 8px;border-radius:10px;margin-right:6px';
+            if (a.win_correct) {
+              badge.style.background = 'rgba(16,185,129,.2)'; badge.style.color = 'var(--green)'; badge.textContent = 'WIN HIT';
+            } else if (a.top3_overlap >= 2) {
+              badge.style.background = 'rgba(59,130,246,.2)'; badge.style.color = 'var(--blue)'; badge.textContent = a.top3_overlap + '/3 TOP3';
+            } else if (a.winner_our_rank && a.winner_our_rank <= 5) {
+              badge.style.background = 'rgba(245,158,11,.2)'; badge.style.color = 'var(--accent)'; badge.textContent = 'Winner R' + a.winner_our_rank;
+            } else {
+              badge.style.background = 'rgba(239,68,68,.2)'; badge.style.color = 'var(--red)'; badge.textContent = 'MISS';
+            }
+            var gradeEl = header.querySelector('.grade');
+            if (gradeEl) header.insertBefore(badge, gradeEl);
+          }
+        }
+      });
+    });
+  }
+
+  function _esc(s){var d=document.createElement('div');d.textContent=String(s!=null?s:'');return d.innerHTML;}
+
+  function overlayDetailResults(race) {
+    var el = document.getElementById('race-detail-view');
+    if (!el) return;
+    var a = race.accuracy || {};
+    var winnerName = _esc(race.winner_name || ('#' + race.actual_winner));
+
+    // Results banner
+    var existing = document.getElementById('detail-results-banner');
+    if (existing) existing.remove();
+
+    var banner = document.createElement('div');
+    banner.id = 'detail-results-banner';
+    banner.style.cssText = 'background:linear-gradient(90deg,rgba(16,185,129,.08),rgba(59,130,246,.08));border:1px solid var(--green);border-radius:10px;padding:14px 18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px';
+
+    var leftHTML = '<div><div style="font-size:.7rem;color:var(--green);font-weight:700;text-transform:uppercase">Official Result</div>'
+      + '<div style="font-size:1.1rem;font-weight:800;margin-top:4px">Winner: ' + winnerName + ' @ $' + (race.actual_win_odds || '?') + '</div></div>';
+
+    var rightHTML = '<div style="display:flex;gap:16px;text-align:center">'
+      + '<div><div style="font-size:1.1rem;font-weight:800;color:' + (a.win_correct ? 'var(--green)' : 'var(--red)') + '">' + (a.win_correct ? 'YES' : 'NO') + '</div><div style="font-size:.65rem;color:var(--dim)">Win Pick</div></div>'
+      + '<div><div style="font-size:1.1rem;font-weight:800;color:var(--cyan)">' + (a.top3_overlap || 0) + '/3</div><div style="font-size:.65rem;color:var(--dim)">Top 3</div></div>'
+      + '<div><div style="font-size:1.1rem;font-weight:800;color:var(--accent)">' + (a.winner_our_rank ? 'Rank ' + a.winner_our_rank : '?') + '</div><div style="font-size:.65rem;color:var(--dim)">Our Rank</div></div>'
+      + '</div>';
+
+    banner.innerHTML = leftHTML + rightHTML;
+
+    var detailHeader = el.querySelector('.detail-header');
+    if (detailHeader) detailHeader.after(banner);
+
+    // Add finish position column to table
+    var table = el.querySelector('.horse-table');
+    if (table) {
+      var headerRow = table.querySelector('tr');
+      if (headerRow && !headerRow.querySelector('.finish-col')) {
+        var th = document.createElement('th');
+        th.className = 'finish-col';
+        th.textContent = 'Finish';
+        th.style.cssText = 'text-align:center;width:50px;background:rgba(16,185,129,.1);color:var(--green)';
+        headerRow.insertBefore(th, headerRow.children[1]);
+      }
+
+      var rows = table.querySelectorAll('tr');
+      for (var i = 1; i < rows.length; i++) {
+        var cells = rows[i].querySelectorAll('td');
+        if (!cells.length) continue;
+        var rank = parseInt(cells[0].textContent);
+        var horse = race.horses.find(function(h) { return h.rank === rank; });
+        var pos = horse ? horse.actual_position : null;
+
+        var td = document.createElement('td');
+        td.style.cssText = 'text-align:center;font-weight:800';
+        if (pos === 1) { td.innerHTML = '<span style="color:var(--gold)">1st</span>'; rows[i].style.background = 'rgba(251,191,36,.08)'; }
+        else if (pos === 2) { td.innerHTML = '<span style="color:#94a3b8">2nd</span>'; rows[i].style.background = 'rgba(148,163,184,.05)'; }
+        else if (pos === 3) { td.innerHTML = '<span style="color:var(--orange)">3rd</span>'; rows[i].style.background = 'rgba(249,115,22,.05)'; }
+        else if (pos) { td.innerHTML = '<span style="color:var(--dim)">' + pos + 'th</span>'; }
+        else { td.textContent = '-'; td.style.color = 'var(--dim)'; }
+        rows[i].insertBefore(td, rows[i].children[1]);
+      }
+    }
+  }
+
+  // Re-render with results
+  showDashboard();
+})();
+// ===== END RESULTS =====
+
 </script>
 </body>
 </html>

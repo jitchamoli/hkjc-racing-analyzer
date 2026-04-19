@@ -211,8 +211,8 @@ class ResultsFetcher:
                     # Check if both rank 1 and rank 2 are in top 2
                     actual_top2 = set(
                         h['number'] for h in
-                        sorted([hh for hh in horses if hh.get('actual_position', 99) <= 2],
-                               key=lambda x: x.get('actual_position', 99))
+                        sorted([hh for hh in horses if (hh.get('actual_position') or 99) <= 2],
+                               key=lambda x: x.get('actual_position') or 99)
                     )
                     if rank1_num in actual_top2 and rank2_num in actual_top2:
                         best_bet_hits += 1
