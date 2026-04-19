@@ -118,7 +118,13 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
     top_4_market = {a.horse.number for a in market_sorted[:4]}
     model_adds_info = not top_2_model.issubset(top_4_market)
 
-    has_edge = has_ranking_edge or has_ev_edge or model_adds_info
+    # Check for strong model conviction (e.g. winning trip replication)
+    has_strong_conviction = any(
+        "WINNING TRIP" in r or "BANKER" in r
+        for a in analyses[:2] for r in a.reasoning
+    )
+
+    has_edge = has_ranking_edge or has_ev_edge or model_adds_info or has_strong_conviction
     skip_race = not has_edge and not (banker_horse and banker_horse.rank == 1)
 
     # Assign per-horse recommendations
@@ -129,39 +135,44 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
 
         rank = a.rank
         bet_has_ev = a.expected_return >= MIN_EV
+        # Strong conviction (winning trip, banker) overrides EV filter for top picks
+        has_conviction = any("WINNING TRIP" in r or "BANKER" in r for r in a.reasoning)
+        bet_qualifies = bet_has_ev or (has_conviction and rank <= 3)
         has_place_value = (a.horse.place_odds > 1.2) if a.horse.place_odds > 0 else (a.horse.win_odds >= 3.0)
 
         if race_bet_type == "WIN":
             if rank == 1:
                 is_banker = any("BANKER" in r for r in a.reasoning)
                 a.bet_recommendation = "BANKER WIN" if is_banker else "WIN"
-            elif rank == 2 and bet_has_ev and has_place_value:
+            elif rank == 2 and bet_qualifies and has_place_value:
                 a.bet_recommendation = "PLACE"
             else:
                 a.bet_recommendation = "SKIP"
         elif race_bet_type == "QIN":
-            if rank <= 2:
+            if rank <= 2 and bet_qualifies:
                 a.bet_recommendation = "QIN"
-            elif rank == 3 and bet_has_ev and has_place_value:
+            elif rank <= 2 and has_conviction:
+                a.bet_recommendation = "QIN"
+            elif rank == 3 and bet_qualifies and has_place_value:
                 a.bet_recommendation = "PLACE"
             else:
                 a.bet_recommendation = "SKIP"
         elif race_bet_type == "QNL PL":
             if rank <= 2:
                 a.bet_recommendation = "QNL PL"
-            elif rank == 3 and bet_has_ev and has_place_value:
+            elif rank == 3 and bet_qualifies and has_place_value:
                 a.bet_recommendation = "PLACE"
             else:
                 a.bet_recommendation = "SKIP"
         elif race_bet_type == "TRIO":
             if rank <= 3:
                 a.bet_recommendation = "TRIO"
-            elif rank == 4 and bet_has_ev and has_place_value:
+            elif rank == 4 and bet_qualifies and has_place_value:
                 a.bet_recommendation = "PLACE"
             else:
                 a.bet_recommendation = "SKIP"
         elif race_bet_type == "PLACE":
-            if rank <= 3 and bet_has_ev:
+            if rank <= 3 and bet_qualifies:
                 a.bet_recommendation = "PLACE"
             else:
                 a.bet_recommendation = "SKIP"
