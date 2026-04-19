@@ -25,10 +25,15 @@ class BeatenMarginAnalyzer:
         last_margin = margin_stats.get('last_margin', 0)
 
         # Last-start margin is the strongest signal
-        if last_margin == 0:
-            # Winner last start
+        # Use last_winner flag to distinguish winner (margin=0) from missing data
+        last_winner = margin_stats.get('last_winner', False)
+        if last_margin == 0 and last_winner:
             score = 88.0
             reason = "Won last start"
+        elif last_margin == 0 and not last_winner:
+            # Margin=0 but not flagged as winner — data may be missing
+            score = 50.0
+            reason = ""
         elif last_margin <= 1.0:
             score = 82.0
             reason = f"Narrowly beaten last ({last_margin}L)"

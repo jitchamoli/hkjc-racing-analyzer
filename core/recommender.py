@@ -170,9 +170,10 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
 
 
 def _resync_ranks_and_probs(analyses, calibrated_probs: List[float]) -> None:
-    """After a rank swap, update all ranks, probabilities, and expected returns."""
+    """After a rank swap, update all ranks, probabilities, expected returns, and value_score."""
     for i, a in enumerate(analyses):
         a.rank = i + 1
         a.combined_probability = calibrated_probs[i]
+        a.value_score = calibrated_probs[i] * 100
         if a.horse.win_odds and a.horse.win_odds > 0:
             a.expected_return = (a.horse.win_odds * calibrated_probs[i]) - 1

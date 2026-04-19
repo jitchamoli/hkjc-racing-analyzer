@@ -33,7 +33,6 @@ FEATURE_SCHEMA = [
     {"name": "jockey_trainer_combo", "default": 0.5, "range": (0.0, 1.0)}, # 21 (interaction: jockey×trainer)
     {"name": "horse_weight_change", "default": 0.5, "range": (0.0, 1.0)},  # 22 (body weight change from prior race)
     {"name": "speed_consistency", "default": 0.5, "range": (0.0, 1.0)},    # 23 (low std of adj speed = reliable)
-    {"name": "late_money_signal", "default": 0.5, "range": (0.0, 1.0)},    # 24 (steam=high, drift=low)
 ]
 
 FEATURE_NAMES = [f["name"] for f in FEATURE_SCHEMA]
