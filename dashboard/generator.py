@@ -70,7 +70,7 @@ def _merge_with_existing(json_file: str, new_races: list) -> list:
                 race[key] = old_race[key]
 
         # Copy horse-level result fields (match by horse number)
-        old_horses = {h['number']: h for h in old_race.get('horses', [])}
+        old_horses = {h['number']: h for h in old_race.get('horses', []) if 'number' in h}
         for horse in race.get('horses', []):
             old_h = old_horses.get(horse['number'])
             if old_h:
