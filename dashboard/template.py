@@ -257,7 +257,6 @@ function renderDashboard() {{
     '<div class="stat"><div class="v" style="color:var(--pink)">' + counts.TRIO + '</div><div class="l">TRIO</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--dim)">' + counts.SKIP + '</div><div class="l">SKIP</div></div>' +
     '<div class="stat"><div class="v">' + RACES.length + '</div><div class="l">Races</div></div>' +
-    '<div class="stat"><div class="v">24</div><div class="l">Factors</div></div>' +
   '</div>' +
   '<div class="legend">' +
     '<div class="item"><div class="dot" style="background:var(--green)"></div>WIN</div>' +
@@ -635,7 +634,7 @@ function copyAllToWhatsApp() {{
     text += buildWhatsAppText(race) + '\\n\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n\\n';
   }});
   text += '_\\u26a0\\ufe0f For entertainment only. Gamble responsibly._\\n';
-  text += '_HKJC Analyzer v5.3 | 24 Factors + 23-Feature ML_';
+  text += '_HKJC Analyzer v5.3_';
   text = text.replace(/\\n{{3,}}/g, '\\n\\n').trim();
   navigator.clipboard.writeText(text).then(function() {{
     var btn = document.getElementById('wa-btn-all');
