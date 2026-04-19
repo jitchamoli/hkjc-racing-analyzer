@@ -67,14 +67,15 @@ Note: Market odds removed from rule engine — enters only via dynamic market bl
 
 ### Key Improvements
 
-| What | v5.0 | v5.2 |
+| What | v5.0 | v5.3 |
 |------|------|------|
-| ML features | 18 (with odds, redundant pairs) | 24 (par-adjusted speed, interactions, late money) |
-| Speed figures | Absolute m/s (conflates sprinters/stayers) | Beyer-style par-adjusted + weight-corrected |
-| Probability calibration | Softmax temp=2.5 (overconfident) | Platt scaling + dynamic market blend |
-| Place prediction | `win_prob * 1.8` hack | Dedicated XGBoost on is_top3 (67.5% accuracy) |
+| ML features | 18 (with odds, redundant pairs) | 23 (leakage-free, par-adjusted speed, interactions) |
+| Speed figures | Absolute m/s (conflates sprinters/stayers) | Beyer-style par-adjusted + symmetric weight correction |
+| Training pipeline | Season-aggregate stats (leaks future) | Prior-only date-filtered jockey/trainer/par times |
+| Probability calibration | Softmax temp=2.5 (overconfident) | Platt scaling (on validation) + dynamic market blend |
+| Place prediction | `win_prob * 1.8` hack | Dedicated XGBoost place model wired into optimizer |
 | Exotic bets | Not supported | Full calculator: exacta, trifecta, quinella, first4 |
-| Quinella pricing | Simple probability | Place-model boost + pace pairing + draw clustering |
+| Quinella pricing | Simple probability | Place-model + pace + draw boosts (applied to both sides) |
 | Market blend | Static 70/30 | Dynamic 45-65% model / 35-55% market by race type |
 | Model safety | Pickle loaded unsigned | SHA-256 checksum + feature count guard + backup |
 
