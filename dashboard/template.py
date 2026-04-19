@@ -611,7 +611,9 @@ function buildWhatsAppText(race) {{
 function copyToWhatsApp(raceNum) {{
   var race = RACES.find(function(r) {{ return r.race_number === raceNum; }});
   if (!race) return;
-  var text = buildWhatsAppText(race).replace(/\\n{{3,}}/g, '\\n\\n').trim();
+  var text = buildWhatsAppText(race);
+  text += '\\n_\\u26a0\\ufe0f For entertainment only. Gamble responsibly._';
+  text = text.replace(/\\n{{3,}}/g, '\\n\\n').trim();
   navigator.clipboard.writeText(text).then(function() {{
     var btn = document.getElementById('wa-btn-' + raceNum);
     if (btn) {{
