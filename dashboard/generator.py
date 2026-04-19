@@ -59,6 +59,16 @@ def _merge_with_existing(json_file: str, new_races: list) -> list:
     # Build lookup: race_number -> old race data
     old_by_num = {r['race_number']: r for r in old_races if isinstance(r, dict)}
 
+    # Sanity check: if all races with results share the same winner, data is likely bogus
+    winners_with_results = [
+        r.get('actual_winner') for r in old_by_num.values()
+        if r.get('results_available') and r.get('actual_winner')
+    ]
+    if len(winners_with_results) >= 3 and len(set(winners_with_results)) == 1:
+        logger.warning(f"  Skipping result merge — all {len(winners_with_results)} races "
+                       f"have same winner #{winners_with_results[0]} (likely bogus data)")
+        return new_races
+
     for race in new_races:
         old_race = old_by_num.get(race['race_number'])
         if not old_race or not old_race.get('results_available'):
