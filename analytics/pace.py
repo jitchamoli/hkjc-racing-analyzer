@@ -44,8 +44,10 @@ class PaceAnalyzer:
     ) -> str:
         """Heuristic fallback when no running-position history.
 
-        Frequent 1st finishes + low draw + short race → likely Leader.
-        Frequent high finishes + long race → likely Closer.
+        NOTE: last_6 contains FINISH positions, not early running positions.
+        We use avg finish position + draw + distance as weak proxies.
+        Low draw + short distance → likely Leader.
+        Consistently back in the field + long distance → likely Closer.
         """
         if not last_6:
             return "Midfield"
@@ -55,21 +57,20 @@ class PaceAnalyzer:
         if not positions:
             return "Midfield"
 
-        ones = positions.count(1)
         avg = sum(positions) / len(positions)
 
-        # Frontrunner signals
-        if ones >= 2 and draw <= 4 and distance <= 1200:
+        # Draw + distance heuristics (finish positions are weak style signals)
+        if draw > 0 and draw <= 3 and distance <= 1200:
             return "Leader"
-        if ones >= 3:
-            return "Leader"
-        if avg <= 2.5:
+        if draw > 0 and draw <= 4 and avg <= 3.0 and distance <= 1400:
             return "Stalker"
-        if avg >= 6 and distance >= 1600:
+        if avg >= 8 and distance >= 1600:
             return "Closer"
-        if avg >= 5:
+        if avg >= 6:
             return "Midfield"
-        return "Stalker"
+        if avg <= 3.0:
+            return "Stalker"
+        return "Midfield"
 
     @staticmethod
     def build_pace_scenario(

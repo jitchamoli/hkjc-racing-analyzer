@@ -116,12 +116,16 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
             break
         for row in table[:5]:
             full_text = " ".join(row)
+            # Check Happy Valley FIRST — "Sha Tin" can appear in other contexts
+            # (e.g. horse names) but "Happy Valley" is unambiguous
             if "Happy Valley" in full_text:
                 venue = "Happy Valley"
                 header_parsed = True
-            if "Sha Tin" in full_text:
+                break
+            elif "Sha Tin" in full_text:
                 venue = "Sha Tin"
                 header_parsed = True
+                break
             dm = re.search(r"(\d{4})\s*M", full_text)
             if dm:
                 distance = int(dm.group(1))

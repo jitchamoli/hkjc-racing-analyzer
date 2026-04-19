@@ -88,10 +88,15 @@ class BettingOptimizer:
             value_label=value_label
         )
     
-    def calculate_place_bet(self, horse_data: dict, probability: float) -> BetOption:
+    def calculate_place_bet(self, horse_data: dict, probability: float,
+                           place_probability: float = None) -> BetOption:
         place_odds = horse_data.get('place_odds', 1.3)
-        
-        place_prob = min(0.85, probability * 1.8)  # empirical HK top-3 ratio
+
+        # Use ML place model probability when available, else crude heuristic
+        if place_probability is not None and place_probability > 0:
+            place_prob = min(0.85, place_probability)
+        else:
+            place_prob = min(0.85, probability * 1.8)
         expected_return = (place_odds * place_prob) - 1
         roi_percent = expected_return * 100
         
@@ -113,12 +118,14 @@ class BettingOptimizer:
         )
     
     def optimize_single_bet(
-        self, 
-        horse_data: dict, 
-        combined_probability: float
+        self,
+        horse_data: dict,
+        combined_probability: float,
+        place_probability: float = None
     ) -> BettingRecommendation:
         win_bet = self.calculate_win_bet(horse_data, combined_probability)
-        place_bet = self.calculate_place_bet(horse_data, combined_probability)
+        place_bet = self.calculate_place_bet(horse_data, combined_probability,
+                                             place_probability=place_probability)
         
         # Normalize both to similar scale: value_ratio is ~0-3, roi as fraction ~0-2
         value_score = win_bet.value_ratio * 0.6 + (win_bet.roi_percent / 100) * 0.4

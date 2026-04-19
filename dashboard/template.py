@@ -127,7 +127,7 @@ button{{font-family:inherit;cursor:pointer}}
       <span>{venue} | {race_date}</span>
       <span>|</span>
       <span id="clock">{now}</span>
-      <span class="version">v5.2</span>
+      <span class="version">v5.3</span>
     </div>
   </div>
 </div>
@@ -341,7 +341,7 @@ function renderDashboard() {{
   
   html += '</div>' +
     '<div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>' +
-    '<div class="footer">HKJC Racing Analyzer v5.2 | Generated: ' + GENERATED + '</div>';
+    '<div class="footer">HKJC Racing Analyzer v5.3 | Generated: ' + GENERATED + '</div>';
   el.innerHTML = html;
 }}
 
@@ -635,7 +635,7 @@ function copyAllToWhatsApp() {{
     text += buildWhatsAppText(race) + '\\n\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n\\n';
   }});
   text += '_\\u26a0\\ufe0f For entertainment only. Gamble responsibly._\\n';
-  text += '_HKJC Analyzer v5.1 | 24 Factors + 22-Feature ML_';
+  text += '_HKJC Analyzer v5.3 | 24 Factors + 23-Feature ML_';
   text = text.replace(/\\n{{3,}}/g, '\\n\\n').trim();
   navigator.clipboard.writeText(text).then(function() {{
     var btn = document.getElementById('wa-btn-all');

@@ -155,9 +155,10 @@ def calibrate_probabilities(analyses, field_size: int = 12,
 
 
 def apply_calibrated_probs(analyses, calibrated_probs: List[float]) -> None:
-    """Write calibrated probabilities and expected returns onto analyses."""
+    """Write calibrated probabilities, value_score, and expected returns onto analyses."""
     for i, a in enumerate(analyses):
         a.combined_probability = calibrated_probs[i]
+        a.value_score = calibrated_probs[i] * 100
         if a.horse.win_odds and a.horse.win_odds > 0:
             a.expected_return = (a.horse.win_odds * calibrated_probs[i]) - 1
         else:

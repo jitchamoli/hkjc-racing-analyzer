@@ -142,13 +142,14 @@ def adjusted_speed_figure(finish_time_str: str, distance: int, going: str,
     if par is None:
         return None
 
-    # Weight adjustment: heavier = slower expected
+    # Weight adjustment: credit heavier horses (they ran that time with more weight)
+    # Symmetric around baseline — lighter horses are debited, heavier credited
     try:
         weight_lbs = int(weight) if weight else 120
     except (ValueError, TypeError):
         weight_lbs = 120
-    weight_adj = WEIGHT_ADJUSTMENT_PER_LB * max(0, weight_lbs - WEIGHT_BASELINE)
-    weight_adjusted_time = actual_secs + weight_adj
+    weight_adj = WEIGHT_ADJUSTMENT_PER_LB * (weight_lbs - WEIGHT_BASELINE)
+    weight_adjusted_time = actual_secs - weight_adj
 
     # Speed figure: % faster/slower than par
     figure = (par - weight_adjusted_time) / par * 100
