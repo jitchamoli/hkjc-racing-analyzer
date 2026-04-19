@@ -25,6 +25,64 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Result fields set by results_fetcher that should survive prediction re-runs
+_RESULT_KEYS_RACE = {'results_available', 'actual_results', 'actual_winner', 'actual_top3', 'actual_win_odds', 'accuracy'}
+_RESULT_KEYS_HORSE = {'actual_position'}
+
+
+def _merge_with_existing(json_file: str, new_races: list) -> list:
+    """Preserve result data from a prior prediction file when re-generating.
+
+    If the existing file has actual_position / accuracy fields (set by
+    results_fetcher), carry them forward into the new predictions so a
+    re-run for fresher odds doesn't wipe scored results.
+    """
+    # Prefer _with_results variant (has scored results), fall back to base file
+    results_file = json_file.replace('.json', '_with_results.json')
+    source = None
+    for candidate in [results_file, json_file]:
+        if os.path.exists(candidate):
+            source = candidate
+            break
+
+    if not source:
+        return new_races
+
+    try:
+        with open(source) as f:
+            old_data = json.load(f)
+        # _with_results wraps races in {"races": [...]}
+        old_races = old_data.get('races', old_data) if isinstance(old_data, dict) else old_data
+    except (json.JSONDecodeError, OSError):
+        return new_races
+
+    # Build lookup: race_number -> old race data
+    old_by_num = {r['race_number']: r for r in old_races if isinstance(r, dict)}
+
+    for race in new_races:
+        old_race = old_by_num.get(race['race_number'])
+        if not old_race or not old_race.get('results_available'):
+            continue
+
+        # Copy race-level result fields
+        for key in _RESULT_KEYS_RACE:
+            if key in old_race:
+                race[key] = old_race[key]
+
+        # Copy horse-level result fields (match by horse number)
+        old_horses = {h['number']: h for h in old_race.get('horses', [])}
+        for horse in race.get('horses', []):
+            old_h = old_horses.get(horse['number'])
+            if old_h:
+                for key in _RESULT_KEYS_HORSE:
+                    if key in old_h:
+                        horse[key] = old_h[key]
+
+        logger.info(f"  Race {race['race_number']}: preserved results from prior run")
+
+    return new_races
+
+
 def build_race_data(race, analyses, race_date, db, odds_db):
     """Build the JSON-serializable race data dict from analyses.
 
@@ -176,6 +234,9 @@ async def main():
 
     date_str = race_date.replace('/', '')
     json_file = os.path.join(results_dir, f"race_data_{date_str}.json")
+
+    # Merge: preserve result fields from prior run (e.g. actual_position, accuracy)
+    all_races = _merge_with_existing(json_file, all_races)
 
     with open(json_file, 'w') as f:
         json.dump(all_races, f, indent=2)
