@@ -362,6 +362,22 @@ class HorseDatabase:
         row = c.fetchone()
         return dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
 
+    def get_horse_cd_history(self, horse_name: str, venue: str,
+                              distance: int, tolerance: int = 100) -> list:
+        """Get horse's race-by-race C&D history with dates for winning trip detection."""
+        c = self.conn.cursor()
+        venue_norm = self._normalize_venue(venue)
+        c.execute("""
+            SELECT race_date, venue, distance, finish_position
+            FROM race_results
+            WHERE horse_name = ?
+              AND venue = ?
+              AND ABS(distance - ?) <= ?
+            ORDER BY race_date
+        """, (horse_name, venue_norm, distance, tolerance))
+        return [{'date': r[0], 'venue': r[1], 'distance': r[2], 'position': r[3]}
+                for r in c.fetchall()]
+
     def get_jockey_stats(self, jockey_name: str) -> Optional[Dict]:
         """Get jockey's season statistics."""
         c = self.conn.cursor()

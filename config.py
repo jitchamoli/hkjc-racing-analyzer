@@ -20,8 +20,8 @@ TRAINING_DATA_DIR = PROJECT_ROOT / "training_data"
 TRAINING_DATA_PATH = TRAINING_DATA_DIR / "historical_races.json"
 
 # Scoring weights
-RULE_WEIGHT = 0.75
-ML_WEIGHT = 0.25
+RULE_WEIGHT = 0.60
+ML_WEIGHT = 0.40
 
 # Betting thresholds
 MIN_EXPECTED_RETURN = 0.05
