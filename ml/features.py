@@ -222,10 +222,14 @@ class FeatureEngineering:
             logger.warning(f"Failed to load prior history for {horse_name}: {e}")
 
         # Feature 1: prior win rate
+        # Lightly-raced horses (≤3 starts) get a floor of 0.35 — penalizing maidens
+        # too heavily misses the ~73% of HK winners that had 0 prior wins in their class
         if prior:
             prior_wins = sum(1 for p in prior if p.get('is_winner', 0))
             prior_top3 = sum(1 for p in prior if p.get('is_top3', 0))
             feat_form_proxy = min(1.0, (prior_wins * 2 + prior_top3) / (len(prior) * 3))
+            if len(prior) <= 3 and feat_form_proxy < 0.35:
+                feat_form_proxy = 0.35
         else:
             feat_form_proxy = 0.5
         features.append(feat_form_proxy)
