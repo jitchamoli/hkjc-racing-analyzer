@@ -195,10 +195,14 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                      if h.get('race_date', '') < race_date]
 
             # Feature 1: prior win rate
+            # Lightly-raced horses (≤3 starts) get floor of 0.35 — most HK winners
+            # have 0 prior wins in their current class
             if prior:
                 prior_wins = sum(1 for p in prior if p.get('is_winner', 0))
                 prior_top3 = sum(1 for p in prior if p.get('is_top3', 0))
                 feat_form_proxy = min(1.0, (prior_wins * 2 + prior_top3) / (len(prior) * 3))
+                if len(prior) <= 3 and feat_form_proxy < 0.35:
+                    feat_form_proxy = 0.35
             else:
                 feat_form_proxy = 0.5
 

@@ -38,21 +38,21 @@ class JockeyChangeAnalyzer:
         curr_tier = JockeyChangeAnalyzer._jockey_tier(current_jockey)
         last_tier = JockeyChangeAnalyzer._jockey_tier(last_jockey)
 
+        # Any jockey change = trainer making a deliberate move (positive signal).
+        # Direction (upgrade/downgrade) is unreliable — "downgrades" win too.
+        # Elite booking is still the strongest signal.
         if curr_tier < last_tier:
-            # Upgrade — positive signal
             if curr_tier == 1:
                 score = 82.0
                 reason = f"Jockey UPGRADE: {last_jockey} → {current_jockey} (elite booking)"
             else:
-                score = 70.0
+                score = 68.0
                 reason = f"Jockey upgrade: {last_jockey} → {current_jockey}"
         elif curr_tier > last_tier:
-            # Downgrade — mild negative
-            score = 35.0
-            reason = f"Jockey downgrade: {last_jockey} → {current_jockey}"
+            score = 55.0
+            reason = f"Jockey change: {last_jockey} → {current_jockey}"
         else:
-            # Lateral move — neutral positive (trainer making a move)
-            score = 58.0
+            score = 60.0
             reason = f"Jockey change: {last_jockey} → {current_jockey}"
 
         return score, reason
