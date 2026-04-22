@@ -70,8 +70,8 @@ scripts/train.py → models/hkjc_racing_model.pkl
 ### Scoring System
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
-- **Rule engine (75%)**: 24 factors with dynamic weighting — factors with missing data are excluded and remaining weights renormalize to 1.0. Note: `odds` and `odds_movement` were removed from the rule engine to prevent triple-counting market signal (market info enters via the 30% market blend in calibration). Approximate grouping: Core (rating, form, jockey, trainer, draw, tips), Expert (going, rolling form, margins, field size, career stats), Technical (pace, sectionals, C&D, class movement, gear, weight, freshness). Actual percentages vary per race due to renormalization.
-- **ML model (25%)**: XGBoost classifier with 23 features (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a dedicated **place model** (is_top3) for place bet recommendations and quinella pricing. Both models use Platt scaling (LogisticRegression) for probability calibration. Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `scripts/train.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
+- **Rule engine (60%)**: 24 factors with dynamic weighting — factors with missing data are excluded and remaining weights renormalize to 1.0. The rule_score (0-100) is converted to a probability via a **base-rate-anchored sigmoid**: `sigmoid(0.06 × (score - 50) + logit(1/field_size))`, so an "average" horse (score=50) outputs ~1/field_size instead of 50%. Note: `odds` and `odds_movement` were removed from the rule engine to prevent triple-counting market signal (market info enters via the dynamic market blend in calibration). Approximate grouping: Core (rating, form, jockey, trainer, draw, tips), Expert (going, rolling form, margins, field size, career stats), Technical (pace, sectionals, C&D, class movement, gear, weight, freshness). Actual percentages vary per race due to renormalization.
+- **ML model (40%)**: XGBoost classifier with 23 features (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a dedicated **place model** (is_top3) for place bet recommendations and quinella pricing. Both models use Platt scaling (LogisticRegression) for probability calibration, **weighted by the same recency weights used for XGBoost training** so the calibrator sees the same prior as the model. Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `scripts/train.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
 
 The 13 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change, **speed figures**).
 
@@ -147,7 +147,7 @@ Uses Playwright to scrape HKJC results pages (JS-rendered). Extracts from result
 
 3. **No constant features**: If a feature has std < 0.01 in training data, it's wasted. Common cause: field is mostly null and falls back to 0.5. Check with `np.std()` after building features. Feature correlation matrix is logged after each training run — pairs with |r| > 0.7 are flagged.
 
-4. **value_score must use ML blend**: `value_score` in HorseAnalysis feeds `combined_score` in the JSON. It must be `combined_prob * 100` (the 75/25 rule+ML blend), NOT raw `rule_score`.
+4. **value_score must use ML blend**: `value_score` in HorseAnalysis feeds `combined_score` in the JSON. It must be `combined_prob * 100` (the 60/40 rule+ML blend), NOT raw `rule_score`.
 
 5. **Probability sync after rank swaps**: When `_assign_bet_recommendations` swaps horse positions (market-favourite promotion or BANKER override), `combined_probability` and `expected_return` on ALL `HorseAnalysis` objects must be re-written from the swapped `calibrated_probs` list.
 
@@ -209,10 +209,25 @@ Market blend weights adjust by race characteristics (HK bettors are sharp — la
 - `horse_weight` is in lbs (900-1350 range), `weight` is carried weight assignment (113-133 lbs).
 - `class_type` has 96% coverage in DB. Missing rows default to class 3 for class_change calculation.
 
-### Betting Strategy
+### Betting Strategy — Quinella-First (pivoted Apr 22 2026)
 
-- Race-skip logic: if top pick has no edge over market odds AND expected return < 5%, skip entire race.
-- Per-bet EV filter: each bet must have expected return ≥ 5% (except rank 1-2 in QIN which work as a pair).
+**Validated by out-of-sample backtest** (`scripts/backtest.py`, 71 held-out races):
+- WIN pool has NO edge: model top-pick = market favourite 98.6% of time → -37% ROI (identical to betting market fav every race — both lose to takeout)
+- Box-3 quinella: **33.8% hit** (3.7× random) — the real edge
+- Rank-1 finishes top-2: **45.1%** (banker-leg strength)
+
+**Recommendation logic** (`core/recommender.py`):
+- Default: `BOX Q` — all top-3 model picks flagged `QIN`, user boxes them (3 combinations)
+- `TRIO` when top 3 are tightly bunched (gap_1_2 < 0.02 AND gap_2_3 < 0.02)
+- `WIN` rare, only when rank-1 has BANKER signal AND market consensus (≥35% implied) AND clear top-2 gap (>0.08)
+- `SKIP` if no live odds, field < 3, OR top_3_share < 0.30 (conviction gate; uniform 12-horse = 0.25)
+
+**Backtest reproduction**:
+```
+python3 -m scripts.backtest              # Default
+python3 -m scripts.backtest --sweep      # Grid over temperature × model_w
+```
+
 - Races without live odds (pre-race or post-race) will show all SKIP — this is correct behaviour.
 - `results_fetcher.py --auto-learn` scrapes live results from HKJC via `scrape_meeting_results()` and ingests into DB (no longer reads from `training_data/historical_races.json`). Retraining timeout is caught gracefully; run `python3 train_ml_model.py` separately if it times out.
 

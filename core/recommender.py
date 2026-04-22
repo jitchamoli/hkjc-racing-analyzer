@@ -80,104 +80,114 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
         gap_2_3 = second_prob - third_prob
         top_3_share = top_prob + second_prob + third_prob
 
-    # Determine race-level bet type
-    race_bet_type = "QIN"  # default
+    # === QUINELLA-FIRST STRATEGY (revised Apr 22) ===
+    # Backtest findings (71 held-out races, Harville-model simulated P&L):
+    #   - WIN pool: NO edge (agrees with market 98.6%, -37% ROI)
+    #   - Straight QIN (top-2, 1 combo): +11-16% ROI, 16.9% hit — the validated edge
+    #   - Box-3 QIN (3 combos): +0.4% / -5% ROI on most races
+    # Default is straight QIN on top-2. Rank-3 is added as a 3rd leg (effectively
+    # box-3) ONLY when it has strong historical credentials — this concentrates
+    # the box-3 stake on races where rank-3 is genuinely live, not just because
+    # the model ranks it.
+    # Caveat: 71-race sample has wide CIs — weakly positive evidence, not conclusive.
 
-    if banker_horse and banker_horse.rank == 1:
+    top_is_banker_now = any("BANKER" in r for r in analyses[0].reasoning)
+
+    # Require live odds — without them EV and market comparisons are meaningless
+    has_live_odds = any(a.horse.win_odds and a.horse.win_odds > 0 for a in analyses)
+
+    # Conviction gates
+    top_2_share = top_prob + second_prob
+    MIN_TOP2_CONVICTION = 0.25  # 1.5× uniform 12-horse
+    MIN_TOP3_CONVICTION = 0.30  # for box-3 upgrade
+
+    # Rank-3 inclusion gate: only if horse has genuinely strong history
+    rank3_strong = n >= 3 and _rank3_has_strong_history(analyses[2])
+
+    if not has_live_odds or n < 2:
+        race_bet_type = "SKIP"
+    elif top_is_banker_now and market_prob_top >= 0.35 and gap_1_2 > 0.08:
         race_bet_type = "WIN"
-    elif market_prob_top >= 0.35 and gap_1_2 > 0.08:
-        race_bet_type = "WIN"
-    elif gap_1_2 > 0.06 and top and top.expected_return > 0.15:
-        race_bet_type = "WIN"
-    elif gap_1_2 < 0.02 and top_3_share > 0.35:
-        if gap_2_3 < 0.02 and n >= 3:
-            race_bet_type = "TRIO"
-        else:
-            race_bet_type = "QNL PL"
-
-    # Race-level skip check
-    # Edge detection uses model-only ranking probability (before market blend)
-    # to avoid circular comparison (blended prob will always trail pure market)
-    MIN_EV = config.MIN_EXPECTED_RETURN
-    top_ev = analyses[0].expected_return if analyses else -1
-    top_cal_prob = calibrated_probs[0] if calibrated_probs else 0
-    top_market_prob = (1 / analyses[0].horse.win_odds) if analyses and analyses[0].horse.win_odds and analyses[0].horse.win_odds > 0 else 1
-
-    # Check edge: does the model rank this horse higher than the market does?
-    # Use rank-based edge: if our #1 pick differs from market favourite, we have informational edge
-    market_fav_num = min(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds and a.horse.win_odds > 0 else 999).horse.number
-    model_top_num = analyses[0].horse.number if analyses else 0
-    has_ranking_edge = model_top_num != market_fav_num  # model disagrees with market → edge
-
-    # Also check probability edge: blended prob exceeds EV threshold
-    has_ev_edge = top_ev >= MIN_EV
-
-    # Also check: top 2 model picks in top 4 market → model adds real signal
-    top_2_model = {a.horse.number for a in analyses[:2]} if len(analyses) >= 2 else set()
-    market_sorted = sorted(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds and a.horse.win_odds > 0 else 999)
-    top_4_market = {a.horse.number for a in market_sorted[:4]}
-    model_adds_info = not top_2_model.issubset(top_4_market)
-
-    # Check for strong model conviction (e.g. winning trip replication)
-    has_strong_conviction = any(
-        "WINNING TRIP" in r or "BANKER" in r
-        for a in analyses[:2] for r in a.reasoning
-    )
-
-    has_edge = has_ranking_edge or has_ev_edge or model_adds_info or has_strong_conviction
-    skip_race = not has_edge and not (banker_horse and banker_horse.rank == 1)
+    elif gap_1_2 < 0.02 and gap_2_3 < 0.02 and top_3_share > 0.35 and n >= 3:
+        race_bet_type = "TRIO"
+    elif rank3_strong and top_3_share >= MIN_TOP3_CONVICTION:
+        # Box-3 justified — rank-3 has strong history AND model has top-3 edge
+        race_bet_type = "BOX Q"
+    elif top_2_share >= MIN_TOP2_CONVICTION:
+        # DEFAULT: straight quinella (validated +11-16% ROI)
+        race_bet_type = "QIN"
+    else:
+        race_bet_type = "SKIP"
 
     # Assign per-horse recommendations
-    for i, a in enumerate(analyses):
-        if skip_race:
-            a.bet_recommendation = "SKIP"
-            continue
-
+    MIN_EV = config.MIN_EXPECTED_RETURN
+    for a in analyses:
         rank = a.rank
-        bet_has_ev = a.expected_return >= MIN_EV
-        # Strong conviction (winning trip, banker) overrides EV filter for top picks
         has_conviction = any("WINNING TRIP" in r or "BANKER" in r for r in a.reasoning)
-        bet_qualifies = bet_has_ev or (has_conviction and rank <= 3)
         has_place_value = (a.horse.place_odds > 1.2) if a.horse.place_odds > 0 else (a.horse.win_odds >= 3.0)
 
-        if race_bet_type == "WIN":
+        if race_bet_type == "SKIP":
+            a.bet_recommendation = "SKIP"
+        elif race_bet_type == "WIN":
             if rank == 1:
                 is_banker = any("BANKER" in r for r in a.reasoning)
                 a.bet_recommendation = "BANKER WIN" if is_banker else "WIN"
-            elif rank == 2 and bet_qualifies and has_place_value:
-                a.bet_recommendation = "PLACE"
-            else:
-                a.bet_recommendation = "SKIP"
-        elif race_bet_type == "QIN":
-            if rank <= 2 and bet_qualifies:
-                a.bet_recommendation = "QIN"
-            elif rank <= 2 and has_conviction:
-                a.bet_recommendation = "QIN"
-            elif rank == 3 and bet_qualifies and has_place_value:
-                a.bet_recommendation = "PLACE"
-            else:
-                a.bet_recommendation = "SKIP"
-        elif race_bet_type == "QNL PL":
-            if rank <= 2:
-                a.bet_recommendation = "QNL PL"
-            elif rank == 3 and bet_qualifies and has_place_value:
+            elif rank == 2 and has_place_value and a.expected_return >= MIN_EV:
                 a.bet_recommendation = "PLACE"
             else:
                 a.bet_recommendation = "SKIP"
         elif race_bet_type == "TRIO":
             if rank <= 3:
                 a.bet_recommendation = "TRIO"
-            elif rank == 4 and bet_qualifies and has_place_value:
-                a.bet_recommendation = "PLACE"
             else:
                 a.bet_recommendation = "SKIP"
-        elif race_bet_type == "PLACE":
-            if rank <= 3 and bet_qualifies:
+        elif race_bet_type == "BOX Q":
+            # Box-3 quinella — rank-3 has strong history, all top-3 as QIN legs
+            if rank <= 3:
+                a.bet_recommendation = "QIN"
+            else:
+                a.bet_recommendation = "SKIP"
+        elif race_bet_type == "QIN":
+            # Straight quinella — top 2 only
+            if rank <= 2:
+                a.bet_recommendation = "QIN"
+            elif rank == 3 and has_place_value and has_conviction:
                 a.bet_recommendation = "PLACE"
             else:
                 a.bet_recommendation = "SKIP"
         else:
             a.bet_recommendation = "SKIP"
+
+
+def _rank3_has_strong_history(analysis) -> bool:
+    """Check if rank-3 horse has genuinely strong historical credentials.
+
+    Used to gate inclusion as a 3rd QIN leg (box-3 upgrade). We require
+    specific evidence of past performance, not just the model ranking — the
+    backtest showed box-3 ONLY becomes profitable when rank-3 is a real
+    contender, not a speculative pick.
+
+    Returns True if any of:
+      - BANKER or WINNING TRIP flagged in reasoning
+      - Recent winner (form analyzer)
+      - Career win rate ≥ 25% OR career top-3 rate ≥ 40%
+      - Rule score ≥ 70 (composite historical signal)
+    """
+    import re
+    for r in analysis.reasoning:
+        ru = r.upper()
+        if "BANKER" in ru or "WINNING TRIP" in ru:
+            return True
+        if ru.startswith("RECENT WINNER") or ru.startswith("STRONG FORM"):
+            return True
+        if r.startswith("Career:"):
+            m = re.search(r"(\d+)%W", r)
+            if m and int(m.group(1)) >= 25:
+                return True
+            m = re.search(r"(\d+)% top3", r)
+            if m and int(m.group(1)) >= 40:
+                return True
+    return analysis.rule_score >= 70.0
 
 
 def _resync_ranks_and_probs(analyses, calibrated_probs: List[float]) -> None:
