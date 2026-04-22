@@ -123,6 +123,25 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 
 JSON output now includes per-horse: `going_form`, `jockey_horse_stats`, `distance_pb`, `distance_record`, `odds_movement`, `steam_move`, `cold_horse`. Per-race: `speed_map`. Dashboard renders these as enhanced stats grid, market move badges (steam/drift/cold), and a visual speed map.
 
+### Quinella Dividend & EV Fields (Apr 22 addition)
+
+Per-race JSON additions from `betting/dividends.py` (Harville independence model, HK 17.5% takeout):
+
+- `strategy_confidence`: HIGH / MEDIUM / LOW / NONE based on top_2_share and top_3_share (model's conviction on pair identification)
+- `top_2_share`, `top_3_share`: sum of calibrated_prob across top model picks
+- `qin_top_pair_dividend`: estimated quinella dividend for rank-1 + rank-2 pair (per $1 stake)
+- `qin_bet_ev`: dict with `ev_pct`, `avg_dividend`, `hit_prob`, `total_stake`, `expected_profit` for the actual bet configuration (straight QIN or box-3). Uses model probs for P(hit), market probs for dividend.
+- `is_best_ev` / `is_worst_ev`: per-race flag for the highest/lowest EV among active QIN races (only set when ≥2 races have QIN bets with EV spread ≥5pp)
+
+**Interpretation of EV%**: Usually negative (typically -30% to -60%) because our model closely tracks market, so Harville dividend ≈ (1-takeout)/model_prob → EV ≈ -takeout × n_combos. The RELATIVE ranking across races (BEST EV vs LOW EV) is what identifies allocation priority. Absolute positive EV would indicate strong model-market divergence — rare in current setup.
+
+Dashboard renders:
+- Strategy caveat banner at top ("validated on 71 held-out races, 95% CI 9-25%")
+- Confidence badge per race card next to race number
+- EV% + dividend estimate in race card footer
+- BEST EV / LOW EV highlight ring + badge
+- Detailed EV breakdown (hit prob, avg dividend, EV%) in race-detail "What To Bet" panel
+
 ### Historical Scraping (scrape_history.py)
 
 Uses Playwright to scrape HKJC results pages (JS-rendered). Extracts from results table columns: position(0), horse_no(1), name(2), jockey(3), trainer(4), weight(5), horse_weight(6), draw(7), LBW/margin(8), running_position(9), finish_time(10), win_odds(11). The `--rankings` flag scrapes the HKJC Jockey/Trainer Ranking pages for full-season stats.

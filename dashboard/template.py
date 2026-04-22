@@ -249,7 +249,14 @@ function renderDashboard() {{
   RACES.forEach(r => r.horses.forEach(h => {{if(counts[h.bet_recommendation]!==undefined)counts[h.bet_recommendation]++}}));
   const active = counts.WIN + counts.PLACE + counts.QIN + counts['QNL PL'] + counts.TRIO;
   
-  let html = '<div class="stats">' +
+  // Strategy caveat banner — backtest context for new QIN-first strategy
+  let html = '<div style="background:linear-gradient(90deg,rgba(245,158,11,.08),rgba(245,158,11,.03));border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:.75rem">' +
+    '<div style="font-size:1rem">\\u26a0\\ufe0f</div>' +
+    '<div><strong style="color:var(--accent)">Quinella-first strategy</strong> \\u2014 validated on 71 held-out races: straight QIN +11-16% ROI, box-3 +0.4% (breakeven). ' +
+    '<span style="color:var(--dim)">Treat as directional (95% CI: 9-25% hit rate). Per-race EV% uses Harville dividend from market odds \\u2014 mostly negative because our model tracks market closely; the ranking (BEST EV vs LOW EV badge) is what identifies relative value.</span></div>' +
+    '</div>';
+
+  html += '<div class="stats">' +
     '<div class="stat"><div class="v" style="color:var(--gold)">' + counts.WIN + '</div><div class="l">WIN</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--purple)">' + counts.PLACE + '</div><div class="l">PLACE</div></div>' +
     '<div class="stat"><div class="v" style="color:var(--accent)">' + counts.QIN + '</div><div class="l">QIN</div></div>' +
@@ -290,9 +297,26 @@ function renderDashboard() {{
     const top3Overlap = accuracy.top3_overlap || 0;
     const winnerOurRank = accuracy.winner_our_rank || '?';
 
-    html += '<div class="race-card g-' + gc + '" onclick="showRace(' + r.race_number + ')">' +
+    // Best/Worst EV styling — extra visual pop on the highest-EV race of the day
+    var cardExtra = '';
+    var cardBadges = '';
+    if (r.is_best_ev) {{
+      cardExtra = ';border:2px solid var(--green);box-shadow:0 0 14px rgba(16,185,129,.25)';
+      cardBadges += '<span style="background:var(--green);color:#000;font-size:.6rem;font-weight:800;padding:2px 6px;border-radius:4px;margin-left:6px">BEST EV</span>';
+    }} else if (r.is_worst_ev) {{
+      cardExtra = ';opacity:.85';
+      cardBadges += '<span style="background:rgba(239,68,68,.15);color:#ef4444;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px">LOW EV</span>';
+    }}
+    // Confidence badge based on top-2/top-3 share
+    var conf = r.strategy_confidence || 'NONE';
+    var confColor = conf === 'HIGH' ? 'var(--green)' : conf === 'MEDIUM' ? 'var(--accent)' : conf === 'LOW' ? 'var(--dim)' : 'var(--dim)';
+    var confBadge = conf !== 'NONE'
+      ? '<span title="Model conviction on top-2/top-3 ranking" style="font-size:.58rem;padding:1px 5px;border-radius:3px;background:rgba(100,116,139,.15);color:' + confColor + ';margin-left:6px;font-weight:700">' + conf + '</span>'
+      : '';
+
+    html += '<div class="race-card g-' + gc + '" onclick="showRace(' + r.race_number + ')" style="position:relative' + cardExtra + '">' +
       '<div class="rc-header">' +
-        '<div><div class="rc-num">Race ' + r.race_number + '</div><div class="rc-meta">' + r.time + ' | ' + r.distance + 'm | ' + r.class_type + ' | ' + r.going + '</div></div>' +
+        '<div><div class="rc-num">Race ' + r.race_number + cardBadges + confBadge + '</div><div class="rc-meta">' + r.time + ' | ' + r.distance + 'm | ' + r.class_type + ' | ' + r.going + '</div></div>' +
         '<span class="grade ' + gc + '">' + g + '</span>' +
       '</div>';
 
@@ -333,8 +357,21 @@ function renderDashboard() {{
     }}
     var exoticBadge = exoticCount > 0 ? '<span style="background:rgba(251,191,36,.2);color:var(--gold);font-size:.62rem;font-weight:700;padding:2px 6px;border-radius:4px;margin-right:6px">' + exoticCount + ' exotics</span>' : '';
 
+    // EV + dividend info (only when QIN active). Most races show negative EV
+    // because model ≈ market (takeout drag); the RELATIVE ranking across races
+    // is what identifies value. Best-EV badge marks the smallest drag of the day.
+    var evInfo = '';
+    if (r.qin_bet_ev) {{
+      var ev = r.qin_bet_ev.ev_pct;
+      var evColor = ev > 50 ? 'var(--green)' : ev > 0 ? 'var(--accent)' : ev > -25 ? 'var(--text)' : 'var(--dim)';
+      evInfo = '<span title="Harville-model EV per race; ranking is relative, absolute ~-17% when model=market" style="font-size:.65rem;color:' + evColor + ';font-weight:700;margin-left:6px">EV ' + (ev > 0 ? '+' : '') + ev.toFixed(0) + '%</span>';
+      if (r.qin_top_pair_dividend) {{
+        evInfo += '<span style="font-size:.62rem;color:var(--dim);margin-left:4px">Q~$' + r.qin_top_pair_dividend.toFixed(1) + '</span>';
+      }}
+    }}
+
     html += '</div>' +
-      '<div class="rc-footer"><span>' + betBadge + exoticBadge + r.horses.length + ' runners</span><span class="click-hint">Click to expand</span></div>' +
+      '<div class="rc-footer"><span>' + betBadge + exoticBadge + r.horses.length + ' runners' + evInfo + '</span><span class="click-hint">Click to expand</span></div>' +
     '</div>';
   }});
   
@@ -434,11 +471,24 @@ function buildStrategyPanel(race) {{
       qDesc = 'Box all ' + qinPicks.length + ' — any 2 finishing 1st &amp; 2nd wins. ' + combos + ' combinations';
       qBadge = '<span style="font-size:.6rem;background:rgba(245,158,11,.25);color:var(--accent);padding:1px 6px;border-radius:6px;margin-left:6px;font-weight:700">BOX-' + qinPicks.length + '</span>';
     }}
+    // Harville dividend + EV estimate (if available)
+    var evBlock = '';
+    if (race.qin_bet_ev) {{
+      var bev = race.qin_bet_ev;
+      var evColor = bev.ev_pct > 50 ? 'var(--green)' : bev.ev_pct > 0 ? 'var(--accent)' : '#ef4444';
+      evBlock = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px dashed rgba(245,158,11,.15);font-size:.7rem">'
+        + '<span><span style="color:var(--dim)">Est. dividend:</span> <strong>$' + bev.avg_dividend.toFixed(2) + '</strong> (avg)</span>'
+        + '<span><span style="color:var(--dim)">Hit prob:</span> <strong>' + (bev.hit_prob * 100).toFixed(1) + '%</strong></span>'
+        + '<span><span style="color:var(--dim)">EV per race:</span> <strong style="color:' + evColor + '">' + (bev.ev_pct > 0 ? '+' : '') + bev.ev_pct.toFixed(1) + '%</strong></span>'
+        + '<span style="color:var(--dim);font-size:.62rem">(Harville model from market odds)</span>'
+        + '</div>';
+    }}
     s += '<div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:12px 16px">'
       + '<div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:6px">' + qLabel + qBadge + '</div>'
       + '<div style="font-size:1rem;font-weight:800">' + nums + '</div>'
       + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + names + '</div>'
       + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">' + qDesc + '</div>'
+      + evBlock
       + '</div>';
   }}
 
