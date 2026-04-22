@@ -1064,6 +1064,7 @@ class CombinedRaceAnalyzer:
             ml_prob=ml_prediction.win_probability,
             ml_confidence=ml_prediction.ml_confidence,
             ml_available=ML_AVAILABLE,
+            field_size=len(all_horses) if all_horses else 12,
         )
 
         # value_score blends rule + ML (on 0-100 scale) for ranking
@@ -1147,16 +1148,17 @@ class ReportGenerator:
         print("  HKJC HORSE RACING ANALYZER v5.1 - PLATT CALIBRATED ML")
         print("=" * 80)
         print(f"""
-  PREDICTION METHODOLOGY (v5.1 - 24-Factor + 22-Feature ML)
+  PREDICTION METHODOLOGY (v5.2 - 24-Factor + 23-Feature ML)
   ----------------------------------------------------------
-  RULE-BASED (75%):  24 scoring factors with dynamic weighting
-    Core:    Rating | Form | Tips | Jockey (DB stats) | Trainer (DB stats) | Draw
+  RULE-BASED (60%):  24 scoring factors with dynamic weighting
+    Core:    Rating | Form | Tips | Jockey (Bayesian-smoothed) | Trainer | Draw
     Expert:  Going Preference | Rolling Form | Beaten Margins | Jockey Change
              Jockey/Trainer Hot Streaks | Field Size | Career Place Rate | Age
     Tech:    Pace Map | C&D Form | Class Movement | Gear | Weight | Sectionals
              Freshness | Rating Trend | Season Stakes
-  ML-BASED  (25%):  22-feature XGBoost (win + place) on {n_results} results
-    Calibration:     Platt scaling | Softmax temp 1.5 | 30% market blend
+    Scoring: base-rate-anchored sigmoid (avg horse → 1/field_size, not 50%)
+  ML-BASED  (40%):  23-feature XGBoost (win + place) on {n_results} results
+    Calibration:     Platt scaling (recency-weighted) | Softmax temp 1.5 | dynamic market blend
   DATA:              Real jockey/trainer stats from DB | Live odds from HKJC
         """)
 
