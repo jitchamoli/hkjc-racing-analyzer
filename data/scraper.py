@@ -274,6 +274,8 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
     if not entries:
         return None
 
+    dividends = _parse_dividends(table_data)
+
     return {
         "date": race_date,
         "race_no": race_no,
@@ -283,7 +285,58 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
         "class_type": class_type,
         "course": course,
         "entries": entries,
+        "dividends": dividends,
     }
+
+
+_KNOWN_POOLS = {
+    "WIN", "PLACE", "QUINELLA", "QUINELLA PLACE", "FORECAST",
+    "TIERCE", "TRIO", "FIRST 4", "QUARTET", "SIX UP", "DOUBLE TRIO",
+    "TREBLE", "DOUBLE"
+}
+
+
+def _parse_dividends(table_data):
+    """Extract HKJC dividend pool payouts from results tables.
+
+    HKJC renders dividends in a 3-column table: Pool | Combination | Dividend.
+    Some pools (PLACE, QUINELLA PLACE) have multiple rows with the pool name
+    appearing once, then subsequent combination rows with empty pool cell.
+    Returns list of {'pool', 'combination', 'dividend'} dicts.
+    """
+    dividends = []
+    for table in table_data:
+        # Find dividend table by looking for header containing 'Pool' and 'Dividend'
+        if not table:
+            continue
+        header_text = " ".join(table[0]) if table[0] else ""
+        if "Pool" not in header_text and "Dividend" not in header_text:
+            continue
+        # Skip header rows, start parsing from row 1
+        current_pool = None
+        for row in table[1:]:
+            if len(row) < 3:
+                continue
+            pool_raw, combo_raw, div_raw = row[0].strip(), row[1].strip(), row[2].strip()
+            # Strip " 1st" / " 2nd" / " 3rd" suffix from old pool labels
+            pool_upper = re.sub(r"\s+(1ST|2ND|3RD)$", "", pool_raw.upper()).strip()
+            if pool_upper and pool_upper in _KNOWN_POOLS:
+                current_pool = pool_upper
+            elif pool_upper:
+                # Unknown pool label — still track to avoid misattribution
+                current_pool = pool_upper if pool_upper else current_pool
+            if not current_pool or not combo_raw:
+                continue
+            try:
+                dividend = float(div_raw.replace(",", ""))
+            except ValueError:
+                continue
+            dividends.append({
+                "pool": current_pool,
+                "combination": combo_raw,
+                "dividend": dividend,
+            })
+    return dividends
 
 
 def _parse_lbw(lbw: str) -> float:
