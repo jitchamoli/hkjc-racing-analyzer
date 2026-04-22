@@ -223,23 +223,20 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             # Feature 3: draw advantage
             feat_draw = FeatureEngineering.calculate_draw_advantage(draw, distance)
 
-            # Feature 4: jockey win rate (prior-only — no future leakage)
+            # Feature 4: jockey win rate (prior-only, Bayesian-smoothed)
             jockey_name = r.get('jockey', '') or ''
             jockey_prior = [(d, w) for d, w in jockey_history.get(jockey_name, []) if d < race_date]
-            if jockey_prior:
-                jockey_wr = sum(w for _, w in jockey_prior) / len(jockey_prior)
-                feat_jockey = min(0.5, jockey_wr)
-            else:
-                feat_jockey = 0.08
+            j_rides = len(jockey_prior)
+            j_wins = sum(w for _, w in jockey_prior)
+            # Beta prior at HK league avg (0.08) with strength 15 — matches features.py
+            feat_jockey = min(0.5, (j_wins + 0.08 * 15) / (j_rides + 15))
 
-            # Feature 5: trainer win rate (prior-only — no future leakage)
+            # Feature 5: trainer win rate (prior-only, Bayesian-smoothed)
             trainer_name = r.get('trainer', '') or ''
             trainer_prior = [(d, w) for d, w in trainer_history.get(trainer_name, []) if d < race_date]
-            if trainer_prior:
-                trainer_wr = sum(w for _, w in trainer_prior) / len(trainer_prior)
-                feat_trainer = min(0.4, trainer_wr)
-            else:
-                feat_trainer = 0.06
+            t_rides = len(trainer_prior)
+            t_wins = sum(w for _, w in trainer_prior)
+            feat_trainer = min(0.4, (t_wins + 0.08 * 15) / (t_rides + 15))
 
             # Feature 6: field size
             feat_field_size = field_size / 14.0
@@ -430,10 +427,10 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 else:
                     feat_days_last_win = 0.15
 
-            # Feature 21: jockey × trainer combo (interaction)
+            # Feature 21: jockey × trainer combo (interaction, ×2.5 avoids saturation)
             feat_jt_combo = 0.5
             if feat_jockey > 0 and feat_trainer > 0:
-                feat_jt_combo = min(1.0, (feat_jockey * feat_trainer) ** 0.5 * 5.0)
+                feat_jt_combo = min(1.0, (feat_jockey * feat_trainer) ** 0.5 * 2.5)
 
             # Feature 22: horse body weight change (fitness signal)
             feat_hw_change = 0.5
@@ -531,7 +528,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         class_change_feat = max(0.0, min(1.0, 0.5 + class_change * 0.125))
         days_last_win = np.random.beta(2, 4)  # right-skewed, most haven't won recently
         days_last_win = np.clip(days_last_win * 0.85 + 0.1, 0.1, 0.95)
-        jt_combo = min(1.0, (jockey_rate * trainer_rate) ** 0.5 * 5.0)
+        jt_combo = min(1.0, (jockey_rate * trainer_rate) ** 0.5 * 2.5)
         hw_change = np.random.normal(0.5, 0.1)  # body weight change
         hw_change = np.clip(hw_change, 0.0, 1.0)
         adjusted_speed = np.random.beta(3, 3)  # par-adjusted speed figure

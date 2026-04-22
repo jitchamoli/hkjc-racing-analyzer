@@ -418,12 +418,27 @@ function buildStrategyPanel(race) {{
 
   if (qinPicks.length >= 2) {{
     var nums = qinPicks.map(function(h) {{ return '#' + esc(h.number); }}).join(' + ');
-    var names = qinPicks.map(function(h) {{ return esc(h.name); }}).join(' &amp; ');
+    var names = qinPicks.map(function(h) {{ return esc(h.name); }}).join(', ');
+    var qLabel, qDesc, qBadge;
+    if (qinPicks.length === 2) {{
+      qLabel = 'Quinella (QIN)';
+      qDesc = 'These two to finish 1st &amp; 2nd in any order — 1 combination';
+      qBadge = '';
+    }} else if (qinPicks.length === 3) {{
+      qLabel = 'Box-3 Quinella (QIN)';
+      qDesc = 'Box all 3 — any 2 finishing 1st &amp; 2nd wins. 3 combinations (rank-3 added: strong history)';
+      qBadge = '<span style="font-size:.6rem;background:rgba(245,158,11,.25);color:var(--accent);padding:1px 6px;border-radius:6px;margin-left:6px;font-weight:700">BOX-3</span>';
+    }} else {{
+      qLabel = 'Box-' + qinPicks.length + ' Quinella (QIN)';
+      var combos = qinPicks.length * (qinPicks.length - 1) / 2;
+      qDesc = 'Box all ' + qinPicks.length + ' — any 2 finishing 1st &amp; 2nd wins. ' + combos + ' combinations';
+      qBadge = '<span style="font-size:.6rem;background:rgba(245,158,11,.25);color:var(--accent);padding:1px 6px;border-radius:6px;margin-left:6px;font-weight:700">BOX-' + qinPicks.length + '</span>';
+    }}
     s += '<div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:12px 16px">'
-      + '<div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:6px">Quinella (QIN)</div>'
+      + '<div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:6px">' + qLabel + qBadge + '</div>'
       + '<div style="font-size:1rem;font-weight:800">' + nums + '</div>'
       + '<div style="font-size:.78rem;color:var(--dim);margin-top:2px">' + names + '</div>'
-      + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">These two to finish 1st &amp; 2nd in any order</div>'
+      + '<div style="font-size:.72rem;color:var(--dim);margin-top:4px">' + qDesc + '</div>'
       + '</div>';
   }}
 
@@ -550,10 +565,18 @@ function buildWhatsAppText(race) {{
     }}
 
     if (qinPicks.length >= 2) {{
-      t += '\\ud83d\\udd04 *QUINELLA* \\u2192 ';
-      t += qinPicks.map(function(x) {{ return '#' + x.number; }}).join(' \\u00d7 ') + '\\n';
-      t += '     ' + qinPicks.map(function(x) {{ return x.name; }}).join(' & ') + '\\n';
-      t += '     (1st & 2nd in any order)\\n';
+      if (qinPicks.length === 2) {{
+        t += '\\ud83d\\udd04 *QUINELLA* \\u2192 ';
+        t += qinPicks.map(function(x) {{ return '#' + x.number; }}).join(' \\u00d7 ') + '\\n';
+        t += '     ' + qinPicks.map(function(x) {{ return x.name; }}).join(' & ') + '\\n';
+        t += '     (1st & 2nd in any order, 1 combo)\\n';
+      }} else {{
+        var combos = qinPicks.length * (qinPicks.length - 1) / 2;
+        t += '\\ud83d\\udd04 *BOX-' + qinPicks.length + ' QUINELLA* \\u2192 ';
+        t += qinPicks.map(function(x) {{ return '#' + x.number; }}).join(' + ') + '\\n';
+        t += '     ' + qinPicks.map(function(x) {{ return x.name; }}).join(', ') + '\\n';
+        t += '     (any 2 of these in 1st & 2nd, ' + combos + ' combos)\\n';
+      }}
     }}
 
     if (qnlPicks.length >= 2) {{
