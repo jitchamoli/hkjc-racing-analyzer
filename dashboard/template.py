@@ -24,7 +24,16 @@ button{{font-family:inherit;cursor:pointer}}
 .live-dot{{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;display:inline-block}}
 @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.4}}}}
 @keyframes spin{{from{{transform:rotate(0deg)}}to{{transform:rotate(360deg)}}}}
+@keyframes shimmer{{0%{{background-position:-200% 0}}100%{{background-position:200% 0}}}}
 #refresh-icon{{display:inline-block;font-size:1rem;line-height:1}}
+#refresh-banner{{position:fixed;top:0;left:0;right:0;background:linear-gradient(90deg,#1e40af,#3b82f6,#1e40af);background-size:200% 100%;animation:shimmer 3s linear infinite;color:#fff;padding:10px 20px;z-index:1000;display:none;box-shadow:0 2px 12px rgba(0,0,0,.4)}}
+#refresh-banner .rb-row{{display:flex;align-items:center;gap:12px;max-width:1200px;margin:0 auto;flex-wrap:wrap}}
+#refresh-banner .rb-icon{{font-size:1.2rem;animation:spin 1.5s linear infinite}}
+#refresh-banner .rb-title{{font-weight:700;font-size:.9rem}}
+#refresh-banner .rb-sub{{opacity:.85;font-weight:400;font-size:.78rem;flex:1}}
+#refresh-banner .rb-elapsed{{opacity:.7;font-weight:400;font-size:.72rem;font-variant-numeric:tabular-nums}}
+#refresh-banner .rb-bar{{height:3px;background:rgba(255,255,255,.2);border-radius:2px;width:100%;margin-top:6px;overflow:hidden}}
+#refresh-banner .rb-bar-fill{{height:100%;background:rgba(255,255,255,.85);border-radius:2px;transition:width .5s ease}}
 .race-tabs{{display:flex;gap:6px;padding:12px 24px;overflow-x:auto;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:62px;z-index:99}}
 .race-tab{{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--dim);font-size:.78rem;font-weight:600;transition:all .2s;white-space:nowrap;display:flex;align-items:center;gap:6px}}
 .race-tab:hover{{background:var(--surface2);color:var(--text);border-color:var(--accent)}}
@@ -121,6 +130,17 @@ button{{font-family:inherit;cursor:pointer}}
 </style>
 </head>
 <body>
+<div id="refresh-banner">
+  <div class="rb-row">
+    <span class="rb-icon">↻</span>
+    <div style="flex:1;min-width:200px">
+      <div class="rb-title">Refreshing race data</div>
+      <div class="rb-sub" id="rb-sub">Starting…</div>
+    </div>
+    <span class="rb-elapsed" id="rb-elapsed">0s</span>
+  </div>
+  <div class="rb-bar"><div class="rb-bar-fill" id="rb-bar-fill" style="width:0%"></div></div>
+</div>
 <div class="header">
   <div class="header-row">
     <h1>HKJC Racing Dashboard</h1>
@@ -710,6 +730,81 @@ function copyToWhatsApp(raceNum) {{
 // ======================================================================
 // Dashboard refresh (only works when served via `python3 -m scripts.serve`)
 // ======================================================================
+const EXPECTED_REFRESH_SECONDS = 60;  // rough estimate for progress bar
+
+function showBanner() {{
+  const b = document.getElementById('refresh-banner');
+  if (b) b.style.display = 'block';
+}}
+function hideBanner() {{
+  const b = document.getElementById('refresh-banner');
+  if (b) b.style.display = 'none';
+}}
+function updateBanner(elapsed, subText) {{
+  const sub = document.getElementById('rb-sub');
+  const el = document.getElementById('rb-elapsed');
+  const bar = document.getElementById('rb-bar-fill');
+  if (sub) sub.textContent = subText;
+  if (el) el.textContent = elapsed + 's';
+  if (bar) {{
+    const pct = Math.min(95, (elapsed / EXPECTED_REFRESH_SECONDS) * 100);
+    bar.style.width = pct + '%';
+  }}
+}}
+
+function parseProgress(logText) {{
+  if (!logText) return 'Starting…';
+  const lines = logText.split('\\n');
+  let lastRace = 0, phase = 'starting';
+  for (const line of lines) {{
+    const done = line.match(/Race (\\d+): \\d+ horses, bet: (\\S+)/);
+    if (done) {{
+      const n = parseInt(done[1]);
+      if (n >= lastRace) {{ lastRace = n; phase = 'done:' + done[2]; }}
+      continue;
+    }}
+    const fetching = line.match(/Fetching Race (\\d+)/);
+    if (fetching) {{
+      const n = parseInt(fetching[1]);
+      if (n >= lastRace) {{ lastRace = n; phase = 'fetching'; }}
+      continue;
+    }}
+    if (line.includes('Tips data applied')) phase = 'applying tips';
+    if (line.includes('Saved dashboard')) return 'Finalizing…';
+    if (line.includes('Logged predictions')) return 'Saving predictions…';
+  }}
+  if (lastRace === 0) return 'Starting…';
+  if (phase.startsWith('fetching')) return 'Fetching Race ' + lastRace + '…';
+  if (phase === 'applying tips') return 'Applying tips for Race ' + lastRace + '…';
+  if (phase.startsWith('done:')) return 'Race ' + lastRace + ' complete (' + phase.slice(5) + ')';
+  return 'Race ' + lastRace;
+}}
+
+async function pollUntilDone() {{
+  let elapsed = 0;
+  while (elapsed < 600) {{
+    await new Promise(r => setTimeout(r, 2000));
+    elapsed += 2;
+    try {{
+      const [sResp, lResp] = await Promise.all([
+        fetch('/api/status', {{cache: 'no-store'}}),
+        fetch('/api/refresh/log', {{cache: 'no-store'}}),
+      ]);
+      const status = await sResp.json();
+      const logData = await lResp.json().catch(() => ({{log: ''}}));
+      const progress = parseProgress(logData.log || '');
+      updateBanner(elapsed, progress);
+      if (!status.refreshing) {{
+        if (status.error) return {{ok: false, error: status.error}};
+        return {{ok: true}};
+      }}
+    }} catch (e) {{
+      updateBanner(elapsed, 'Connection lost — retrying…');
+    }}
+  }}
+  return {{ok: false, error: 'timed out after 10 min'}};
+}}
+
 async function initRefreshButton() {{
   try {{
     const resp = await fetch('/api/status', {{cache: 'no-store'}});
@@ -721,41 +816,44 @@ async function initRefreshButton() {{
       const label = document.getElementById('refresh-label');
       if (label) label.textContent = 'Refresh (updated ' + data.last_refresh.slice(11, 19) + ')';
     }}
+    // If refresh is already in progress (user opened dashboard during one)
+    if (data.refreshing) {{
+      showBanner();
+      const result = await pollUntilDone();
+      if (result.ok) {{
+        updateBanner(0, 'Done — reloading…');
+        setTimeout(() => location.reload(), 500);
+      }} else {{
+        hideBanner();
+        alert('Refresh failed: ' + result.error);
+      }}
+    }}
   }} catch (e) {{ /* static-file mode — button stays hidden */ }}
 }}
 
 async function refreshDashboard() {{
   const btn = document.getElementById('refresh-btn');
-  const icon = document.getElementById('refresh-icon');
-  const label = document.getElementById('refresh-label');
   if (btn) {{ btn.disabled = true; btn.style.opacity = '0.6'; }}
-  if (icon) icon.style.animation = 'spin 1s linear infinite';
-  if (label) label.textContent = 'Refreshing...';
+  showBanner();
+  updateBanner(0, 'Sending request…');
   try {{
     const resp = await fetch('/api/refresh', {{
       method: 'POST',
       headers: {{'X-Race-Date': RACE_DATE}},
     }});
-    if (!resp.ok && resp.status !== 409) throw new Error('refresh failed: HTTP ' + resp.status);
-    let elapsed = 0;
-    while (elapsed < 600) {{
-      await new Promise(r => setTimeout(r, 2000));
-      elapsed += 2;
-      const sResp = await fetch('/api/status', {{cache: 'no-store'}});
-      const status = await sResp.json();
-      if (label) label.textContent = 'Fetching... (' + elapsed + 's)';
-      if (!status.refreshing) {{
-        if (status.error) throw new Error('refresh error: ' + status.error);
-        location.reload();
-        return;
-      }}
+    if (!resp.ok && resp.status !== 409) throw new Error('HTTP ' + resp.status);
+    const result = await pollUntilDone();
+    if (result.ok) {{
+      updateBanner(0, 'Done — reloading…');
+      document.getElementById('rb-bar-fill').style.width = '100%';
+      setTimeout(() => location.reload(), 400);
+    }} else {{
+      throw new Error(result.error);
     }}
-    throw new Error('timed out after 10 min');
   }} catch (e) {{
-    alert('Refresh failed: ' + e.message + '\\n\\nFallback: run manually from CLI:\\n  python3 generate_predictions.py ' + RACE_DATE);
+    hideBanner();
     if (btn) {{ btn.disabled = false; btn.style.opacity = '1'; }}
-    if (icon) icon.style.animation = '';
-    if (label) label.textContent = 'Refresh Odds';
+    alert('Refresh failed: ' + e.message + '\\n\\nFallback: python3 generate_predictions.py ' + RACE_DATE);
   }}
 }}
 
