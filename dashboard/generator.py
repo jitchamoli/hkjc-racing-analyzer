@@ -4,6 +4,7 @@ Generate race predictions and dashboard - non-interactive
 """
 
 import asyncio
+import itertools
 import re
 import sys
 import os
@@ -183,6 +184,49 @@ def build_race_data(race, analyses, race_date, db, odds_db):
 
     race_data["speed_map"] = speed_map
 
+    # === Post-bet analytics: Harville dividend + strategy confidence + EV ===
+    from betting.dividends import (
+        estimate_quinella_dividend, quinella_bet_ev, normalize_market_probs
+    )
+    horses_json = race_data['horses']
+    qin_indices = [i for i, h in enumerate(horses_json) if h['bet_recommendation'] == 'QIN']
+    win_odds_list = [h.get('win_odds') or 0 for h in horses_json]
+    model_probs = [h.get('calibrated_prob') or 0 for h in horses_json]
+    market_probs = normalize_market_probs(win_odds_list)
+
+    # Confidence tier from model conviction on top-2/top-3
+    sorted_probs = sorted(model_probs, reverse=True)
+    top_2_share = sum(sorted_probs[:2]) if len(sorted_probs) >= 2 else 0
+    top_3_share = sum(sorted_probs[:3]) if len(sorted_probs) >= 3 else 0
+    if top_2_share >= 0.33 or top_3_share >= 0.42:
+        confidence = 'HIGH'
+    elif top_2_share >= 0.27 or top_3_share >= 0.35:
+        confidence = 'MEDIUM'
+    elif top_2_share >= 0.22:
+        confidence = 'LOW'
+    else:
+        confidence = 'NONE'
+    race_data['strategy_confidence'] = confidence
+    race_data['top_2_share'] = round(top_2_share, 4)
+    race_data['top_3_share'] = round(top_3_share, 4)
+
+    # Quinella dividend estimate + EV (only when QIN bet is active)
+    if len(qin_indices) >= 2:
+        pair_combos = list(itertools.combinations(qin_indices, 2))
+        ev_result = quinella_bet_ev(model_probs, market_probs, pair_combos)
+        race_data['qin_bet_ev'] = {
+            'n_combos': len(pair_combos),
+            'total_stake': ev_result['total_stake'],
+            'expected_profit': round(ev_result['expected_profit'], 2),
+            'ev_pct': round(ev_result['ev_pct'], 1),
+            'hit_prob': round(ev_result['hit_prob'], 4),
+            'avg_dividend': round(ev_result['avg_dividend'], 2),
+        }
+        # Top pair dividend (rank 1+2) for at-a-glance display
+        if len(qin_indices) >= 2:
+            top_div = estimate_quinella_dividend(market_probs, qin_indices[0], qin_indices[1])
+            race_data['qin_top_pair_dividend'] = round(top_div, 2) if top_div else None
+
     # Exotic bet value detection
     if len(analyses) >= 4:
         model_probs = [h['calibrated_prob'] for h in race_data['horses']]
@@ -247,6 +291,21 @@ async def main():
 
     # Merge: preserve result fields from prior run (e.g. actual_position, accuracy)
     all_races = _merge_with_existing(json_file, all_races)
+
+    # Cross-race EV ranking — flag relative best/worst among active bets.
+    # Most races show negative EV because model ≈ market for QIN pairs (takeout
+    # drag). The ranking is still informative: highest EV = smallest drag =
+    # best value of the day, even when absolute EV is negative.
+    races_with_ev = [r for r in all_races if r.get('qin_bet_ev')]
+    if len(races_with_ev) >= 2:
+        best = max(races_with_ev, key=lambda r: r['qin_bet_ev']['ev_pct'])
+        worst = min(races_with_ev, key=lambda r: r['qin_bet_ev']['ev_pct'])
+        # Only flag if there's a meaningful spread between best and worst
+        ev_spread = best['qin_bet_ev']['ev_pct'] - worst['qin_bet_ev']['ev_pct']
+        if ev_spread >= 5.0:  # at least 5 percentage points apart
+            for r in all_races:
+                r['is_best_ev'] = (r['race_number'] == best['race_number'])
+                r['is_worst_ev'] = (r['race_number'] == worst['race_number'])
 
     with open(json_file, 'w') as f:
         json.dump(all_races, f, indent=2)
