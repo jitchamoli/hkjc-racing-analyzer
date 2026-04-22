@@ -75,12 +75,19 @@ button{{font-family:inherit;cursor:pointer}}
 .grade.c{{background:rgba(100,116,139,.2);color:var(--dim)}}
 .rc-preview{{padding:10px 16px}}
 .rc-horse{{display:grid;grid-template-columns:24px 1fr 54px 48px 52px;align-items:center;gap:6px;padding:5px 0;font-size:.78rem;border-bottom:1px solid rgba(45,55,72,.3)}}
+.rc-preview.has-results .rc-horse{{grid-template-columns:24px 36px 1fr 54px 48px 52px}}
 .rc-horse:last-child{{border:none}}
 .rc-rank{{font-size:.68rem;font-weight:800;color:var(--dim);width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.05)}}
 .rc-horse.top .rc-rank{{background:var(--accent);color:#000}}
 .rc-name{{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 .rc-odds{{text-align:right;color:var(--cyan);font-weight:600;font-size:.8rem}}
 .rc-prob{{text-align:right;font-weight:700;font-size:.8rem}}
+.rc-fin{{font-size:.72rem;font-weight:800;text-align:center;padding:2px 0;border-radius:4px;line-height:1.2;min-height:18px}}
+.rc-fin.pos-1{{background:#10b981;color:#000}}
+.rc-fin.pos-2{{background:#f59e0b;color:#000}}
+.rc-fin.pos-3{{background:#cd7f32;color:#fff}}
+.rc-fin.pos-other{{background:rgba(100,116,139,.25);color:var(--dim);font-weight:600}}
+.rc-fin.pos-dnf{{background:rgba(239,68,68,.2);color:#ef4444}}
 .bt{{display:inline-block;font-size:.62rem;font-weight:700;padding:2px 6px;border-radius:4px;text-align:center}}
 .rc-footer{{padding:8px 16px;background:var(--surface2);font-size:.7rem;color:var(--dim);display:flex;justify-content:space-between;align-items:center}}
 .rc-footer .click-hint{{color:var(--blue);font-weight:600}}
@@ -357,20 +364,45 @@ function renderDashboard() {{
       '</div>';
     }}
 
-    html += '<div class="rc-preview">';
+    html += '<div class="rc-preview' + (hasResults ? ' has-results' : '') + '">';
     r.horses.slice(0, 4).forEach((h, i) => {{
       const tc = i === 0 ? ' top' : '';
       const isActualWinner = hasResults && h.number === winner;
-      const actualPos = h.actual_position || '';
-      const posLabel = hasResults && actualPos ? '<span style="font-size:.6rem;padding:1px 4px;border-radius:3px;margin-left:4px;' + (actualPos === 1 ? 'background:var(--green);color:#000' : actualPos <= 3 ? 'background:var(--accent);color:#000' : 'background:var(--surface);color:var(--dim)') + '">Fin:' + actualPos + '</span>' : '';
+      const actualPos = h.actual_position || 0;
+      // Dedicated "Fin" column (only rendered when race has results)
+      let finCell = '';
+      if (hasResults) {{
+        let cls = 'pos-dnf', label = 'DNF';
+        if (actualPos === 1) {{ cls = 'pos-1'; label = '1st'; }}
+        else if (actualPos === 2) {{ cls = 'pos-2'; label = '2nd'; }}
+        else if (actualPos === 3) {{ cls = 'pos-3'; label = '3rd'; }}
+        else if (actualPos >= 4) {{ cls = 'pos-other'; label = actualPos + 'th'; }}
+        finCell = '<div class="rc-fin ' + cls + '">' + label + '</div>';
+      }}
       html += '<div class="rc-horse' + tc + '"' + (isActualWinner ? ' style="background:rgba(16,185,129,.12);border-radius:6px"' : '') + '>' +
         '<div class="rc-rank">' + h.rank + '</div>' +
-        '<div class="rc-name">#' + esc(h.number) + ' ' + esc(h.name) + posLabel + '<div style="font-size:.65rem;color:var(--dim);font-weight:400;margin-top:1px">' + esc(h.jockey) + ' | ' + esc(h.trainer) + '</div></div>' +
+        finCell +
+        '<div class="rc-name">#' + esc(h.number) + ' ' + esc(h.name) + '<div style="font-size:.65rem;color:var(--dim);font-weight:400;margin-top:1px">' + esc(h.jockey) + ' | ' + esc(h.trainer) + '</div></div>' +
         '<div class="rc-odds">$' + h.win_odds + '</div>' +
         '<div class="rc-prob" style="color:' + probColor(h.calibrated_prob) + '">' + (h.calibrated_prob * 100).toFixed(1) + '%</div>' +
         '<div class="bt" style="background:' + betBg(h.bet_recommendation) + ';color:' + betColor(h.bet_recommendation) + '">' + h.bet_recommendation + '</div>' +
       '</div>';
     }});
+
+    // If the actual winner wasn't in our top-4 preview, surface them at the bottom
+    if (hasResults && winner && !r.horses.slice(0, 4).some(h => h.number === winner)) {{
+      const winnerH = r.horses.find(h => h.number === winner);
+      if (winnerH) {{
+        html += '<div class="rc-horse" style="border-top:1px dashed rgba(239,68,68,.3);background:rgba(16,185,129,.08);border-radius:6px;margin-top:2px">' +
+          '<div class="rc-rank" style="background:rgba(239,68,68,.2);color:#ef4444">' + winnerH.rank + '</div>' +
+          '<div class="rc-fin pos-1">1st</div>' +
+          '<div class="rc-name">#' + esc(winnerH.number) + ' ' + esc(winnerH.name) + '<div style="font-size:.62rem;color:var(--dim);font-weight:400;margin-top:1px">Actual winner — we had at rank ' + winnerH.rank + '</div></div>' +
+          '<div class="rc-odds">$' + winnerH.win_odds + '</div>' +
+          '<div class="rc-prob" style="color:var(--dim)">' + (winnerH.calibrated_prob * 100).toFixed(1) + '%</div>' +
+          '<div class="bt" style="background:rgba(100,116,139,.15);color:var(--dim)">' + winnerH.bet_recommendation + '</div>' +
+        '</div>';
+      }}
+    }}
     // Bet badge + exotic count
     var topBet = r.horses[0].bet_recommendation || 'SKIP';
     var betBadge = '<span class="bt" style="background:' + betBg(topBet) + ';color:' + betColor(topBet) + ';margin-right:6px">' + topBet + '</span>';
