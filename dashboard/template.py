@@ -23,6 +23,8 @@ button{{font-family:inherit;cursor:pointer}}
 .version{{background:linear-gradient(90deg,var(--accent),#d97706);color:#000;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:800}}
 .live-dot{{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;display:inline-block}}
 @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.4}}}}
+@keyframes spin{{from{{transform:rotate(0deg)}}to{{transform:rotate(360deg)}}}}
+#refresh-icon{{display:inline-block;font-size:1rem;line-height:1}}
 .race-tabs{{display:flex;gap:6px;padding:12px 24px;overflow-x:auto;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:62px;z-index:99}}
 .race-tab{{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--dim);font-size:.78rem;font-weight:600;transition:all .2s;white-space:nowrap;display:flex;align-items:center;gap:6px}}
 .race-tab:hover{{background:var(--surface2);color:var(--text);border-color:var(--accent)}}
@@ -281,7 +283,10 @@ function renderDashboard() {{
     '<span><span class="grade b" style="font-size:.62rem;padding:2px 6px">B</span> Open race \\u2014 exotic bets (trio)</span>' +
     '<span><span class="grade c" style="font-size:.62rem;padding:2px 6px">B-</span> Wide open \\u2014 small bets or skip</span>' +
   '</div>' +
-  '<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button id="wa-btn-all" onclick="copyAllToWhatsApp()" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s"><svg width=\\"16\\" height=\\"16\\" viewBox=\\"0 0 24 24\\" fill=\\"white\\"><path d=\\"M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z\\"/><path d=\\"M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.608-1.467A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.188 0-4.214-.696-5.869-1.879l-.421-.314-2.732.87.907-2.677-.346-.449A9.95 9.95 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z\\"/></svg>Copy All Races</button></div>' +
+  '<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px">' +
+    '<button id="refresh-btn" onclick="refreshDashboard()" style="display:none;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;align-items:center;gap:6px;transition:all .2s"><span id="refresh-icon">\\u21bb</span><span id="refresh-label">Refresh Odds</span></button>' +
+    '<button id="wa-btn-all" onclick="copyAllToWhatsApp()" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s"><svg width=\\"16\\" height=\\"16\\" viewBox=\\"0 0 24 24\\" fill=\\"white\\"><path d=\\"M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z\\"/><path d=\\"M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.608-1.467A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.188 0-4.214-.696-5.869-1.879l-.421-.314-2.732.87.907-2.677-.346-.449A9.95 9.95 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z\\"/></svg>Copy All Races</button>' +
+  '</div>' +
   '<div class="race-grid">';
   
   RACES.forEach(r => {{
@@ -701,6 +706,60 @@ function copyToWhatsApp(raceNum) {{
     }}
   }});
 }}
+
+// ======================================================================
+// Dashboard refresh (only works when served via `python3 -m scripts.serve`)
+// ======================================================================
+async function initRefreshButton() {{
+  try {{
+    const resp = await fetch('/api/status', {{cache: 'no-store'}});
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const btn = document.getElementById('refresh-btn');
+    if (btn) btn.style.display = 'flex';
+    if (data.last_refresh) {{
+      const label = document.getElementById('refresh-label');
+      if (label) label.textContent = 'Refresh (updated ' + data.last_refresh.slice(11, 19) + ')';
+    }}
+  }} catch (e) {{ /* static-file mode — button stays hidden */ }}
+}}
+
+async function refreshDashboard() {{
+  const btn = document.getElementById('refresh-btn');
+  const icon = document.getElementById('refresh-icon');
+  const label = document.getElementById('refresh-label');
+  if (btn) {{ btn.disabled = true; btn.style.opacity = '0.6'; }}
+  if (icon) icon.style.animation = 'spin 1s linear infinite';
+  if (label) label.textContent = 'Refreshing...';
+  try {{
+    const resp = await fetch('/api/refresh', {{
+      method: 'POST',
+      headers: {{'X-Race-Date': RACE_DATE}},
+    }});
+    if (!resp.ok && resp.status !== 409) throw new Error('refresh failed: HTTP ' + resp.status);
+    let elapsed = 0;
+    while (elapsed < 600) {{
+      await new Promise(r => setTimeout(r, 2000));
+      elapsed += 2;
+      const sResp = await fetch('/api/status', {{cache: 'no-store'}});
+      const status = await sResp.json();
+      if (label) label.textContent = 'Fetching... (' + elapsed + 's)';
+      if (!status.refreshing) {{
+        if (status.error) throw new Error('refresh error: ' + status.error);
+        location.reload();
+        return;
+      }}
+    }}
+    throw new Error('timed out after 10 min');
+  }} catch (e) {{
+    alert('Refresh failed: ' + e.message + '\\n\\nFallback: run manually from CLI:\\n  python3 generate_predictions.py ' + RACE_DATE);
+    if (btn) {{ btn.disabled = false; btn.style.opacity = '1'; }}
+    if (icon) icon.style.animation = '';
+    if (label) label.textContent = 'Refresh Odds';
+  }}
+}}
+
+window.addEventListener('DOMContentLoaded', initRefreshButton);
 
 function copyAllToWhatsApp() {{
   var text = '\\ud83c\\udfc7 *HKJC RACE DAY — ' + RACE_DATE + '*\\n';

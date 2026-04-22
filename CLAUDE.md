@@ -44,6 +44,16 @@ python3 -m scripts.backtest --exclude-date 2026/04/19  # Skip a specific date
 python3 -m scripts.backfill_dividends              # All missing dates
 python3 -m scripts.backfill_dividends --last 20    # Last 20 meetings only
 python3 -m scripts.backfill_dividends --force      # Re-scrape even if present
+
+# Local dashboard server with in-browser refresh button
+python3 -m scripts.serve                  # Port 8080
+python3 -m scripts.serve --open           # Also open browser
+python3 -m scripts.serve --port 9000      # Custom port
+# Refresh button appears only when served this way; static-file mode hides it.
+# POST /api/refresh triggers generate_predictions.py in background; GET /api/status polls.
+
+# Rank-2 calibration audit (why the model misses 2nd-place finishers)
+python3 -m scripts.analyze_rank2
 ```
 
 ## Architecture
@@ -246,11 +256,15 @@ Market blend weights adjust by race characteristics (HK bettors are sharp — la
 - Box-3 quinella: **33.8% hit** (3.7× random) — the real edge
 - Rank-1 finishes top-2: **45.1%** (banker-leg strength)
 
-**Recommendation logic** (`core/recommender.py`):
-- Default: `BOX Q` — all top-3 model picks flagged `QIN`, user boxes them (3 combinations)
+**Recommendation logic** (`core/recommender.py`) — revised Apr 23 to default to box-4:
+- Default: `BOX Q4` — all top-4 model picks flagged `QIN` (6 combinations). Requires rank-3 AND rank-4 each have strong-history signals + top_4_share ≥ 0.38.
+- Fallback: `BOX Q` (box-3, 3 combos) when rank-3 has strong history + top_3_share ≥ 0.30
+- Fallback: `QIN` (straight, 1 combo) when top_2_share ≥ 0.25
 - `TRIO` when top 3 are tightly bunched (gap_1_2 < 0.02 AND gap_2_3 < 0.02)
 - `WIN` rare, only when rank-1 has BANKER signal AND market consensus (≥35% implied) AND clear top-2 gap (>0.08)
-- `SKIP` if no live odds, field < 3, OR top_3_share < 0.30 (conviction gate; uniform 12-horse = 0.25)
+- `SKIP` if no live odds, field < 2, or no conviction gate met
+
+Rationale for box-4 default: backtest measured +1141% ROI (box-4) vs +910% (box-3) vs +999% (straight). Rank-2 calibration audit (`scripts/analyze_rank2.py`) showed 33% of actual 2nd-placers rank 4+ in our model — box-4 captures the longshot-2nd cases that box-3 misses.
 
 **Backtest reproduction**:
 ```
