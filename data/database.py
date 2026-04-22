@@ -159,6 +159,20 @@ class HorseDatabase:
             )
         """)
 
+        # Race-level dividends (scraped from HKJC results pages)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS race_dividends (
+                race_date TEXT NOT NULL,
+                race_number INTEGER NOT NULL,
+                pool TEXT NOT NULL,
+                combination TEXT NOT NULL,
+                dividend REAL NOT NULL,
+                PRIMARY KEY (race_date, race_number, pool, combination)
+            )
+        """)
+        c.execute("CREATE INDEX IF NOT EXISTS idx_dividends_date ON race_dividends(race_date, race_number)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_dividends_pool ON race_dividends(pool)")
+
         # Indexes
         c.execute("CREATE INDEX IF NOT EXISTS idx_plog_date_filled ON prediction_log(race_date, results_filled)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_plog_date ON prediction_log(race_date)")
@@ -271,6 +285,23 @@ class HorseDatabase:
                     is_winner, is_top3, race_date,
                 ))
 
+        # Ingest dividends if present on the race dict
+        for race in race_data:
+            race_date = race.get('date', '')
+            race_no = race.get('race_no', 0)
+            for d in race.get('dividends', []) or []:
+                pool = d.get('pool', '').strip()
+                combo = d.get('combination', '').strip()
+                div = d.get('dividend', 0)
+                if not pool or not combo or div <= 0:
+                    continue
+                c.execute("""
+                    INSERT INTO race_dividends (race_date, race_number, pool, combination, dividend)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(race_date, race_number, pool, combination)
+                    DO UPDATE SET dividend = excluded.dividend
+                """, (race_date, race_no, pool, combo, float(div)))
+
         # Backfill days_since_last_run from race_results where missing
         # REPLACE converts YYYY/MM/DD to YYYY-MM-DD for julianday()
         c.execute("""
@@ -301,6 +332,32 @@ class HorseDatabase:
     # ------------------------------------------------------------------
     # Query methods — used by analyzer at prediction time
     # ------------------------------------------------------------------
+
+    def get_quinella_dividend(self, race_date: str, race_number: int,
+                              horse_a: int, horse_b: int) -> Optional[float]:
+        """Look up actual HKJC quinella dividend for an unordered pair.
+
+        Returns dividend per $1 stake, or None if not in DB (date not backfilled
+        or pair didn't win). Caller can fall back to Harville estimate.
+        """
+        lo, hi = sorted([int(horse_a), int(horse_b)])
+        combo = f"{lo},{hi}"
+        row = self.conn.execute(
+            "SELECT dividend FROM race_dividends "
+            "WHERE race_date = ? AND race_number = ? AND pool = 'QUINELLA' AND combination = ?",
+            (race_date, race_number, combo)
+        ).fetchone()
+        return float(row['dividend']) if row else None
+
+    def get_race_dividends(self, race_date: str, race_number: int) -> List[Dict]:
+        """All dividend pools for a race (WIN, PLACE, QIN, QPL, TRIO, etc.)."""
+        c = self.conn.cursor()
+        c.execute(
+            "SELECT pool, combination, dividend FROM race_dividends "
+            "WHERE race_date = ? AND race_number = ? ORDER BY pool, combination",
+            (race_date, race_number)
+        )
+        return [dict(r) for r in c.fetchall()]
 
     def get_horse_record(self, horse_name: str) -> Optional[Dict]:
         """Get horse's complete racing record (computed from race_results)."""

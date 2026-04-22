@@ -222,10 +222,29 @@ def build_race_data(race, analyses, race_date, db, odds_db):
             'hit_prob': round(ev_result['hit_prob'], 4),
             'avg_dividend': round(ev_result['avg_dividend'], 2),
         }
-        # Top pair dividend (rank 1+2) for at-a-glance display
-        if len(qin_indices) >= 2:
+        # Top pair dividend — prefer real HKJC payout if race has results
+        top_div = None
+        top_div_source = 'harville'
+        if db and race.date and race.race_number:
+            # If results already in, actual_winner + 2nd give us the real pair
+            try:
+                finishers = db.conn.execute(
+                    "SELECT horse_number, finish_position FROM race_results "
+                    "WHERE race_date = ? AND race_number = ? AND finish_position IN (1, 2)",
+                    (race.date, race.race_number)
+                ).fetchall()
+                if len(finishers) == 2:
+                    h1, h2 = finishers[0][0], finishers[1][0]
+                    real_div = db.get_quinella_dividend(race.date, race.race_number, h1, h2)
+                    if real_div:
+                        top_div = real_div
+                        top_div_source = 'real'
+            except Exception:
+                pass
+        if top_div is None:
             top_div = estimate_quinella_dividend(market_probs, qin_indices[0], qin_indices[1])
-            race_data['qin_top_pair_dividend'] = round(top_div, 2) if top_div else None
+        race_data['qin_top_pair_dividend'] = round(top_div, 2) if top_div else None
+        race_data['qin_dividend_source'] = top_div_source
 
     # Exotic bet value detection
     if len(analyses) >= 4:

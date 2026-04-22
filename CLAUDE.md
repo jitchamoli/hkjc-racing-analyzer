@@ -34,6 +34,16 @@ python3 -m scripts.generate '2026/04/16'
 python3 -m scripts.scrape --date 2026/04/09
 python3 -m scripts.train
 python3 -m scripts.fetch_results '2026/04/16'
+
+# Out-of-sample backtest (ROI / CLV / calibration / quinella EV)
+python3 -m scripts.backtest              # Held-out last 20% of DB (default)
+python3 -m scripts.backtest --sweep      # Grid over softmax temp × model weight
+python3 -m scripts.backtest --exclude-date 2026/04/19  # Skip a specific date
+
+# Backfill real HKJC quinella/trio/first4 dividends into race_dividends table
+python3 -m scripts.backfill_dividends              # All missing dates
+python3 -m scripts.backfill_dividends --last 20    # Last 20 meetings only
+python3 -m scripts.backfill_dividends --force      # Re-scrape even if present
 ```
 
 ## Architecture
@@ -91,8 +101,9 @@ The 13 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, 
 
 ### Database
 
-SQLite at `tracking_data/horse_history.db`. Four tables:
+SQLite at `tracking_data/horse_history.db`. Five tables:
 - **race_results** (primary data source): one row per horse per race, keyed by (race_date, race_number, horse_name). Contains finish_position, is_winner, is_top3, margin, odds, horse_weight, running_position, finish_time, days_since_last_run.
+- **race_dividends** (pool payouts, Apr 22 addition): one row per (race_date, race_number, pool, combination). Pools: WIN, PLACE, QUINELLA, QUINELLA PLACE, FORECAST, TIERCE, TRIO, FIRST 4, QUARTET. Backfilled via `python3 -m scripts.backfill_dividends` from HKJC results pages. Used by `scripts/backtest.py` for real-dividend ROI measurement (replaces Harville estimate when data is available).
 - **horses**: master record per horse. Note: `get_horse_record()` computes aggregates from race_results directly (not from this table's stale counters).
 - **jockey_stats** / **trainer_stats**: season-level win/place rates. Populated two ways: `rebuild_stats()` computes from local race_results; `scrape_history.py --rankings` fetches full-season stats from HKJC (more accurate, ~80 meets vs our ~10).
 

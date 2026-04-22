@@ -85,16 +85,9 @@ def build_horse_data(h, field_size):
 def estimate_quinella_dividend(horses, horse_a, horse_b, takeout=0.175):
     """Estimate HK quinella dividend for an unordered pair using Harville's model.
 
-    P(quinella{A,B}) ≈ P(A)*P(B)/(1-P(A)) + P(B)*P(A)/(1-P(B))
-
-    where P(X) is market-implied win probability (odds-based, normalized).
-    Dividend per $1 = (1 - takeout) / P(quinella).
-
-    Harville assumes independence — real pace-correlated pairs diverge, but
-    this is the standard approximation used in industry.
+    Used as a fallback when real dividend data is unavailable.
     """
     odds = {h['horse_name']: (h.get('win_odds') or 0) for h in horses}
-    # Normalize market probs (remove overround)
     imp = {n: (1.0 / o) for n, o in odds.items() if o > 0}
     s = sum(imp.values())
     if s <= 0:
@@ -110,6 +103,22 @@ def estimate_quinella_dividend(horses, horse_a, horse_b, takeout=0.175):
     if p_quinella <= 0:
         return None
     return (1.0 - takeout) / p_quinella
+
+
+def get_real_quinella_dividend(conn, race_date, race_no, horse_num_a, horse_num_b):
+    """Look up actual HKJC quinella dividend from race_dividends table.
+
+    HKJC stores quinella combo as sorted comma-separated horse numbers, e.g. "1,4".
+    Returns dividend in dollars, or None if not found.
+    """
+    lo, hi = sorted([int(horse_num_a), int(horse_num_b)])
+    combo = f"{lo},{hi}"
+    row = conn.execute(
+        "SELECT dividend FROM race_dividends "
+        "WHERE race_date = ? AND race_number = ? AND pool = 'QUINELLA' AND combination = ?",
+        (race_date, race_no, combo)
+    ).fetchone()
+    return float(row[0]) if row else None
 
 
 def predict_race(horses, model, fe, conn, temperature=None,
@@ -219,13 +228,22 @@ def simulate_bets(races, model, fe, conn, temperature=None,
         # Top-pick in top-3
         rank1_in_top3 = top_h['horse_name'] in actual_top3
 
-        # Simulated quinella dividend (Harville model from market odds)
-        # Only valid if both winning horses have live odds
+        # Quinella dividend: prefer REAL HKJC payout; fall back to Harville estimate
         actual_winners = [h for h in horses if h.get('finish_position') in (1, 2)]
         q_dividend = None
+        q_dividend_source = None
         if len(actual_winners) == 2:
-            q_dividend = estimate_quinella_dividend(
-                horses, actual_winners[0], actual_winners[1])
+            # Try real dividend from race_dividends table
+            real_div = get_real_quinella_dividend(
+                conn, date, race_no,
+                actual_winners[0]['horse_number'], actual_winners[1]['horse_number'])
+            if real_div is not None:
+                q_dividend = real_div
+                q_dividend_source = 'real'
+            else:
+                q_dividend = estimate_quinella_dividend(
+                    horses, actual_winners[0], actual_winners[1])
+                q_dividend_source = 'harville' if q_dividend else None
 
         # Simulated P&L for different strategies ($1 per combo)
         # Straight quinella: 1 combo (our top-2). Pays if our top-2 = actual top-2.
@@ -275,6 +293,7 @@ def simulate_bets(races, model, fe, conn, temperature=None,
             'top2_names': our_top2_names,
             'top3_names': our_top3_names,
             'q_dividend': q_dividend,
+            'q_dividend_source': q_dividend_source,
             'pnl_q_straight': pnl_q_straight,
             'pnl_box3': pnl_box3,
             'pnl_box4': pnl_box4,
@@ -353,10 +372,14 @@ def print_exotic_hits(records):
     print(f"  {'Rank-1 pick finishes top-3':<44}"
           f"{r1_top3:<10}{r1_top3/n*100:5.1f}%{'':<5}~25.0% ({r1_top3/n/0.25:.1f}× random)")
 
-    # SIMULATED P&L using Harville-model quinella dividends (from market odds)
+    # QUINELLA P&L — uses REAL HKJC dividends when available, Harville fallback
     print("\n" + "-" * 70)
-    print("  SIMULATED QUINELLA P&L (Harville dividend estimate from market odds)")
-    print("  Note: assumes independence (no pace correlation) + HK 17.5% takeout")
+    n_real = sum(1 for r in records if r.get('q_dividend_source') == 'real')
+    n_harv = sum(1 for r in records if r.get('q_dividend_source') == 'harville')
+    if n_real > 0:
+        print(f"  QUINELLA P&L ({n_real}/{n_real+n_harv} races use REAL HKJC dividends)")
+    else:
+        print("  QUINELLA P&L (Harville estimate from market odds, HK 17.5% takeout)")
     print("-" * 70)
 
     with_div = [r for r in records if r.get('q_dividend') is not None]
