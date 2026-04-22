@@ -1009,13 +1009,6 @@
       "trifecta": [],
       "first4": []
     },
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 4,
-      "bet_hit": false,
-      "profit": 0.0
-    },
     "actual_winner": 4,
     "actual_results": [
       {
@@ -1187,12 +1180,19 @@
         "win_odds": 0.0
       }
     ],
-    "results_available": true,
     "actual_top3": [
       8,
       4,
       7
     ],
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 4,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "results_available": true,
     "actual_win_odds": 4.7,
     "is_best_ev": false,
     "is_worst_ev": false
@@ -2227,13 +2227,6 @@
       "trifecta": [],
       "first4": []
     },
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 3,
-      "bet_hit": false,
-      "profit": 0.0
-    },
     "actual_winner": 7,
     "actual_results": [
       {
@@ -2391,12 +2384,19 @@
         "win_odds": 1500.0
       }
     ],
-    "results_available": true,
     "actual_top3": [
       2,
       11,
       7
     ],
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 3,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "results_available": true,
     "actual_win_odds": 5.0,
     "is_best_ev": false,
     "is_worst_ev": true
@@ -3437,13 +3437,6 @@
       "trifecta": [],
       "first4": []
     },
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 7,
-      "bet_hit": false,
-      "profit": 0.0
-    },
     "actual_winner": 5,
     "actual_results": [
       {
@@ -3615,12 +3608,19 @@
         "win_odds": 0.0
       }
     ],
-    "results_available": true,
     "actual_top3": [
       1,
       5,
       7
     ],
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 7,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "results_available": true,
     "actual_win_odds": 6.2,
     "is_best_ev": false,
     "is_worst_ev": false
@@ -4708,13 +4708,6 @@
       "trifecta": [],
       "first4": []
     },
-    "accuracy": {
-      "win_correct": true,
-      "top3_overlap": 1,
-      "winner_our_rank": 1,
-      "bet_hit": false,
-      "profit": 0.0
-    },
     "actual_winner": 6,
     "actual_results": [
       {
@@ -4886,12 +4879,19 @@
         "win_odds": 0.0
       }
     ],
-    "results_available": true,
     "actual_top3": [
       1,
       2,
       6
     ],
+    "accuracy": {
+      "win_correct": true,
+      "top3_overlap": 1,
+      "winner_our_rank": 1,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "results_available": true,
     "actual_win_odds": 2.3,
     "is_best_ev": false,
     "is_worst_ev": false
@@ -5981,13 +5981,6 @@
       "trifecta": [],
       "first4": []
     },
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 5,
-      "bet_hit": false,
-      "profit": 0.0
-    },
     "actual_winner": 11,
     "actual_results": [
       {
@@ -6159,12 +6152,19 @@
         "win_odds": 0.0
       }
     ],
-    "results_available": true,
     "actual_top3": [
       1,
       11,
       12
     ],
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 5,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "results_available": true,
     "actual_win_odds": 2.2,
     "is_best_ev": false,
     "is_worst_ev": false
@@ -7260,13 +7260,6 @@
       "trifecta": [],
       "first4": []
     },
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 2,
-      "bet_hit": false,
-      "profit": 0.0
-    },
     "actual_winner": 3,
     "actual_results": [
       {
@@ -7438,12 +7431,19 @@
         "win_odds": 0.0
       }
     ],
-    "results_available": true,
     "actual_top3": [
       3,
       6,
       7
     ],
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 2,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "results_available": true,
     "actual_win_odds": 6.8,
     "is_best_ev": false,
     "is_worst_ev": false
@@ -8548,13 +8548,6 @@
       "trifecta": [],
       "first4": []
     },
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 12,
-      "bet_hit": false,
-      "profit": 0.0
-    },
     "actual_winner": 12,
     "actual_results": [
       {
@@ -8726,12 +8719,19 @@
         "win_odds": 0.0
       }
     ],
-    "results_available": true,
     "actual_top3": [
       1,
       10,
       12
     ],
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 12,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "results_available": true,
     "actual_win_odds": 22.0,
     "is_best_ev": false,
     "is_worst_ev": false
@@ -9842,13 +9842,6 @@
       "trifecta": [],
       "first4": []
     },
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 2,
-      "winner_our_rank": 11,
-      "bet_hit": true,
-      "profit": 0.0
-    },
     "actual_winner": 8,
     "actual_results": [
       {
@@ -10020,12 +10013,19 @@
         "win_odds": 0.0
       }
     ],
-    "results_available": true,
     "actual_top3": [
       8,
       1,
       11
     ],
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 2,
+      "winner_our_rank": 11,
+      "bet_hit": true,
+      "profit": 0.0
+    },
+    "results_available": true,
     "actual_win_odds": 10.0,
     "is_best_ev": true,
     "is_worst_ev": false
@@ -11137,13 +11137,6 @@
       "trifecta": [],
       "first4": []
     },
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 7,
-      "bet_hit": false,
-      "profit": 0.0
-    },
     "actual_winner": 9,
     "actual_results": [
       {
@@ -11315,12 +11308,19 @@
         "win_odds": 0.0
       }
     ],
-    "results_available": true,
     "actual_top3": [
       9,
       1,
       7
     ],
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 7,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "results_available": true,
     "actual_win_odds": 14.0,
     "is_best_ev": false,
     "is_worst_ev": false
