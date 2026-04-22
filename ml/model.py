@@ -226,13 +226,15 @@ class HKJCRacingMLModel:
             self.model.feature_importances_.tolist()
         ))
 
-        # Platt scaling: fit on VALIDATION predictions. Early stopping used this set
-        # for XGBoost loss, but LogisticRegression with 1 input feature has negligible
-        # overfit risk. Test set stays fully held-out for unbiased metric evaluation.
+        # Platt scaling: fit on VALIDATION predictions with the same recency
+        # weights used for XGBoost training — otherwise the calibrator learns
+        # a different prior than the model it's calibrating.
         val_proba = self.model.predict_proba(X_val)[:, 1]
+        sw_val = sample_weight[cut_train:cut_val] if (sample_weight is not None and temporal) else None
         self.calibrator = LogisticRegression(C=1.0, solver='lbfgs', max_iter=1000)
-        self.calibrator.fit(val_proba.reshape(-1, 1), y_val)
-        logger.info(f"Platt calibrator fitted on {len(y_val)} validation samples")
+        self.calibrator.fit(val_proba.reshape(-1, 1), y_val, sample_weight=sw_val)
+        logger.info(f"Platt calibrator fitted on {len(y_val)} validation samples"
+                    + (" (recency-weighted)" if sw_val is not None else ""))
 
         # Re-evaluate test metrics with calibrated probabilities (test is truly held-out)
         y_pred_proba = self.calibrator.predict_proba(
@@ -333,7 +335,8 @@ def create_combined_prediction(
     rule_confidence: str,
     ml_prob: float,
     ml_confidence: str,
-    ml_available: bool
+    ml_available: bool,
+    field_size: int = 12,
 ) -> Tuple[float, str, Dict]:
     weights = {'rule': config.RULE_WEIGHT, 'ml': config.ML_WEIGHT}
 
@@ -341,10 +344,13 @@ def create_combined_prediction(
         weights = {'rule': 1.0, 'ml': 0.0}
 
     ml_prob_adjusted = ml_prob * weights['ml']
-    # Convert rule_score (0-100) to a probability-like value using sigmoid
-    # rule_score=50 → 0.5, rule_score=80 → ~0.73, rule_score=20 → ~0.27
+    # Anchor sigmoid to the field-size base rate so an "average" horse
+    # (rule_score=50) outputs ~1/field_size win probability instead of 50%.
+    # Without this anchor the rule engine was grossly uncalibrated.
     import math
-    rule_prob_raw = 1.0 / (1.0 + math.exp(-0.06 * (rule_score - 50)))
+    base_prob = 1.0 / max(field_size, 2)
+    logit_base = math.log(base_prob / (1.0 - base_prob))
+    rule_prob_raw = 1.0 / (1.0 + math.exp(-(0.06 * (rule_score - 50) + logit_base)))
     rule_prob = rule_prob_raw * weights['rule']
 
     combined_prob = rule_prob + ml_prob_adjusted

@@ -6,34 +6,52 @@ from ml.model import create_combined_prediction
 import config
 
 
+def _expected_rule_prob(rule_score: float, field_size: int = 12) -> float:
+    """Recompute the anchored-sigmoid formula used by create_combined_prediction."""
+    import math
+    base_prob = 1.0 / max(field_size, 2)
+    logit_base = math.log(base_prob / (1.0 - base_prob))
+    return 1.0 / (1.0 + math.exp(-(0.06 * (rule_score - 50) + logit_base)))
+
+
 class TestCombinedPrediction:
-    def test_75_25_blend(self):
-        """Rule score is converted via sigmoid before blending."""
-        import math
+    def test_base_rate_anchored_blend(self):
+        """Rule score sigmoid is anchored to field-size base rate before blending."""
         prob, conf, breakdown = create_combined_prediction(
             rule_score=60.0,
             rule_confidence="MEDIUM",
             ml_prob=0.20,
             ml_confidence="MEDIUM",
             ml_available=True,
+            field_size=12,
         )
-        # sigmoid(0.06 * (60 - 50)) = sigmoid(0.6) ≈ 0.6457
-        rule_prob = 1.0 / (1.0 + math.exp(-0.06 * (60 - 50)))
-        expected = rule_prob * config.RULE_WEIGHT + 0.20 * config.ML_WEIGHT
+        expected = _expected_rule_prob(60.0, 12) * config.RULE_WEIGHT + 0.20 * config.ML_WEIGHT
         assert abs(prob - expected) < 0.001
 
+    def test_average_horse_returns_base_rate(self):
+        """rule_score=50 should output approximately 1/field_size (base rate)."""
+        prob, _, _ = create_combined_prediction(
+            rule_score=50.0,
+            rule_confidence="MEDIUM",
+            ml_prob=1.0 / 12,
+            ml_confidence="MEDIUM",
+            ml_available=True,
+            field_size=12,
+        )
+        # At rule_score=50 the anchored sigmoid outputs exactly 1/12 ≈ 0.083
+        assert abs(prob - 1.0 / 12) < 0.01
+
     def test_ml_unavailable_uses_rule_only(self):
-        """When ML unavailable, weight should be 100% rule (via sigmoid)."""
-        import math
+        """When ML unavailable, weight should be 100% rule (via anchored sigmoid)."""
         prob, conf, breakdown = create_combined_prediction(
             rule_score=80.0,
             rule_confidence="HIGH",
             ml_prob=0.50,
             ml_confidence="HIGH",
             ml_available=False,
+            field_size=12,
         )
-        expected = 1.0 / (1.0 + math.exp(-0.06 * (80 - 50)))
-        assert abs(prob - expected) < 0.001
+        assert abs(prob - _expected_rule_prob(80.0, 12)) < 0.001
         assert breakdown['weights']['ml'] == 0.0
 
     def test_confidence_high_high(self):

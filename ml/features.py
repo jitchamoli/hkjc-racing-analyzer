@@ -96,8 +96,11 @@ class FeatureEngineering:
                     ).fetchone()
                 if owns:
                     c.close()
-                if row and row['rides'] and row['rides'] > 0:
-                    return min(0.6, row['wins'] / row['rides'])
+                rides = (row['rides'] if row else 0) or 0
+                wins = (row['wins'] if row else 0) or 0
+                if rides > 0:
+                    # Bayesian smoothing: Beta prior at HK league avg (0.08) with strength 15
+                    return min(0.6, (wins + 0.08 * 15) / (rides + 15))
                 # Fallback to stats table if no race_results
                 if not owns:
                     stat = conn.execute(
@@ -109,9 +112,9 @@ class FeatureEngineering:
             logger.warning(f"DB lookup failed for jockey {jockey}: {e}")
         jockey_rides = [r for r in all_results if jockey.lower() in r.jockey.lower()]
         if not jockey_rides:
-            return 0.12
+            return 0.08
         wins = sum(1 for r in jockey_rides if r.is_win)
-        return min(0.6, wins / len(jockey_rides))
+        return min(0.6, (wins + 0.08 * 15) / (len(jockey_rides) + 15))
 
     @staticmethod
     def calculate_trainer_win_rate(trainer: str, all_results, conn=None,
@@ -144,8 +147,11 @@ class FeatureEngineering:
                     ).fetchone()
                 if owns:
                     c.close()
-                if row and row['rides'] and row['rides'] > 0:
-                    return min(0.5, row['wins'] / row['rides'])
+                rides = (row['rides'] if row else 0) or 0
+                wins = (row['wins'] if row else 0) or 0
+                if rides > 0:
+                    # Bayesian smoothing: Beta prior at HK league avg (0.08) with strength 15
+                    return min(0.5, (wins + 0.08 * 15) / (rides + 15))
                 if not owns:
                     stat = conn.execute(
                         "SELECT win_rate FROM trainer_stats WHERE name = ?", (trainer,)
@@ -156,9 +162,9 @@ class FeatureEngineering:
             logger.warning(f"DB lookup failed for trainer {trainer}: {e}")
         trainer_horses = [r for r in all_results if trainer.lower() in r.trainer.lower()]
         if not trainer_horses:
-            return 0.12
+            return 0.08
         wins = sum(1 for r in trainer_horses if r.is_win)
-        return min(0.5, wins / len(trainer_horses))
+        return min(0.5, (wins + 0.08 * 15) / (len(trainer_horses) + 15))
 
     @staticmethod
     def calculate_draw_advantage(draw: int, distance) -> float:
@@ -541,12 +547,13 @@ class FeatureEngineering:
         features.append(days_last_win)
 
         # Feature 21: jockey × trainer combo win rate (interaction)
+        # Scale ×2.5 keeps most realistic pairs below 1.0 so the model can
+        # differentiate them. Previously ×5.0 saturated every elite pair at 1.0.
         jt_combo = 0.5
         jockey_rate_val = features[3]   # jockey_win_rate (feature 4, index 3)
         trainer_rate_val = features[4]  # trainer_win_rate (feature 5, index 4)
         if jockey_rate_val > 0 and trainer_rate_val > 0:
-            # Geometric mean normalized — strong pairs score high
-            jt_combo = min(1.0, (jockey_rate_val * trainer_rate_val) ** 0.5 * 5.0)
+            jt_combo = min(1.0, (jockey_rate_val * trainer_rate_val) ** 0.5 * 2.5)
         features.append(jt_combo)
 
         # Feature 22: horse body weight change from prior race (fitness signal)
