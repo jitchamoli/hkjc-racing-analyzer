@@ -596,10 +596,10 @@ async def main():
 
     # Auto-learn: feed results to horse database and retrain ML model
     if args.auto_learn:
-        auto_learn(race_date)
+        await auto_learn(race_date)
 
 
-def auto_learn(race_date: str = None):
+async def auto_learn(race_date: str = None):
     """Automatically ingest results into horse DB and retrain ML model."""
     from data.database import HorseDatabase
     from scrape_history import scrape_meeting_results
@@ -609,13 +609,7 @@ def auto_learn(race_date: str = None):
     race_date = race_date or datetime.now().strftime('%Y/%m/%d')
 
     # 1. Scrape actual results from HKJC and ingest into horse database
-    try:
-        today_races = asyncio.run(scrape_meeting_results(race_date))
-    except RuntimeError:
-        # Event loop already running — use nest_asyncio or new loop
-        loop = asyncio.new_event_loop()
-        today_races = loop.run_until_complete(scrape_meeting_results(race_date))
-        loop.close()
+    today_races = await scrape_meeting_results(race_date)
 
     if today_races:
         db = HorseDatabase()
