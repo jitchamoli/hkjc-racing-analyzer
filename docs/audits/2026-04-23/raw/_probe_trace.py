@@ -378,13 +378,5 @@ def main():
     print(f"File size: {OUTPUT_PATH.stat().st_size:,} bytes")
 
 
-def group_by_race(rows):
-    races = defaultdict(list)
-    for r in rows:
-        key = (r['race_date'], r['race_number'])
-        races[key].append(r)
-    return races
-
-
 if __name__ == '__main__':
     main()
