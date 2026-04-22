@@ -47,7 +47,7 @@ Before the per-case breakdown, one finding is so pervasive it must be stated up 
 | softmax_prob | 0.0716 | 0.0714 |
 | blended_prob | 0.2193 | 0.0621 |
 
-**Suspected failure layer:** feature-driven (compounded by blend-driven)
+**Suspected failure layer:** feature-driven
 **Suspect features:** prior_win_rate, recent_form, adjusted_speed, cd_form_prior, jockey_horse_coop, going_performance, field_rel_speed, last_start_margin, distance_pb_ratio, speed_consistency, prior_pace, days_since_last_win
 **Notes:** SUPERB SPIRIT had zero prior races in DB — all 12 history-dependent features defaulted to 0.5. The model had no information about this horse. Despite this, it ranked #1 because its market odds gave it 34% implied probability, and the 55% market blend elevated it. THOUSAND SPIRIT's actual pace advantage (0.908 prior_pace) and some DB history were invisible to the model for rank-1.
 
