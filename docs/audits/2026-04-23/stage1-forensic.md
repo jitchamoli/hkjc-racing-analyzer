@@ -48,7 +48,7 @@ Before the per-case breakdown, one finding is so pervasive it must be stated up 
 | blended_prob | 0.2193 | 0.0621 |
 
 **Suspected failure layer:** feature-driven (compounded by blend-driven)
-**Suspect features:** prior_win_rate, recent_form, adjusted_speed, cd_form_prior, prior_pace, last_start_margin, going_performance, field_rel_speed, speed_consistency, days_since_last_win
+**Suspect features:** prior_win_rate, recent_form, adjusted_speed, cd_form_prior, jockey_horse_coop, going_performance, field_rel_speed, last_start_margin, distance_pb_ratio, speed_consistency, prior_pace, days_since_last_win
 **Notes:** SUPERB SPIRIT had zero prior races in DB — all 12 history-dependent features defaulted to 0.5. The model had no information about this horse. Despite this, it ranked #1 because its market odds gave it 34% implied probability, and the 55% market blend elevated it. THOUSAND SPIRIT's actual pace advantage (0.908 prior_pace) and some DB history were invisible to the model for rank-1.
 
 ---
@@ -115,9 +115,9 @@ Before the per-case breakdown, one finding is so pervasive it must be stated up 
 | softmax_prob | 0.0909 | 0.0910 |
 | blended_prob | 0.2273 | 0.0564 |
 
-**Suspected failure layer:** mixed (calibration-driven + blend-driven)
-**Suspect features:** prior_win_rate, recent_form, adjusted_speed, prior_pace (all 12 history features fallback for BOTH horses — field-wide data absence)
-**Notes:** Both QUANTUM LEGEND and MY MARS had zero DB history. The raw XGBoost correctly ranked MY MARS higher (0.2176 vs 0.1637) — winner was identified at the raw layer. Platt then compressed both to ~0.090, erasing the 0.054 raw difference to 0.0006. After softmax the two were indistinguishable. The 55% market blend then made the decisive call: MY MARS had only 2.8% market share (outsider) vs QUANTUM LEGEND's 33.9%, resulting in blended probs of 0.057 vs 0.227. A longshot winner completely invisible to both DB history and market. Classic calibration + blend failure.
+**Suspected failure layer:** calibration-driven
+**Suspect features:** prior_win_rate, recent_form, adjusted_speed, cd_form_prior, jockey_horse_coop, going_performance, field_rel_speed, last_start_margin, distance_pb_ratio, speed_consistency, prior_pace, days_since_last_win
+**Notes:** Both QUANTUM LEGEND and MY MARS had zero DB history — all 12 history features defaulted to 0.5. The raw XGBoost correctly ranked MY MARS higher (0.2176 vs 0.1637) — winner was identified at the raw layer. Platt then compressed both to ~0.090, erasing the 0.054 raw difference to 0.0006 (compression factor ~87x). After softmax the two were indistinguishable. The 55% market blend then amplified the damage: MY MARS had only 2.8% market share (outsider) vs QUANTUM LEGEND's 33.9%, resulting in blended probs of 0.057 vs 0.227. Root cause: Platt calibration destruction of the correct raw ML signal. A longshot winner invisible to both DB history and market, but the model got it right before calibration ruined it.
 
 ---
 
@@ -150,7 +150,7 @@ Before the per-case breakdown, one finding is so pervasive it must be stated up 
 | blended_prob | 0.2436 | 0.0955 |
 
 **Suspected failure layer:** feature-driven
-**Suspect features:** prior_win_rate, recent_form, cd_form_prior, prior_pace, field_rel_draw
+**Suspect features:** prior_win_rate, recent_form, cd_form_prior, going_performance, field_rel_speed, prior_pace, days_since_last_win, field_rel_draw
 **Notes:** HAPPY BOSS dominated on all meaningful history features — better form (0.633 vs 0.340), stronger C&D record (0.683 vs 0.200), better prior pace (0.641 vs 0.431). INVICTUS DRAGON's raw XGBoost score was 0.4529 — very high — but Platt crushed this to 0.0936, barely above HAPPY BOSS's 0.0898. Market then pushed INVICTUS DRAGON to the top at 38.4% implied. The raw ML signal might have captured legitimate features (INVICTUS DRAGON had better draw advantage 0.800 vs 0.300), but the market override at 55% weight overrode what HAPPY BOSS's feature profile warranted.
 
 ---
@@ -320,7 +320,7 @@ Before the per-case breakdown, one finding is so pervasive it must be stated up 
 | blended_prob | 0.1934 | 0.1704 |
 
 **Suspected failure layer:** feature-driven
-**Suspect features:** freshness, weight_vs_field, jockey_horse_coop, speed_consistency
+**Suspect features:** jockey_horse_coop, speed_consistency, freshness
 **Notes:** This is the narrowest miss in the set — SIGHT HERMOSO was ranked #2 with blended_prob=0.1704 vs MIGHTY COMMANDER's 0.1934, and both had market support (28.3% vs 24.2%). MIGHTY COMMANDER's adjusted_speed was the highest in the field (1.000) and prior_pace excellent (0.879), but its freshness was poor (0.417 — short turnaround). SIGHT HERMOSO was considerably fresher (0.717). The model weighted speed/pace signals over freshness, missing the fitness deficit. With less Platt compression the raw difference (0.4648 vs 0.3370) would have correctly favoured MIGHTY COMMANDER, suggesting a legitimate speed vs fitness tradeoff that both model and market overrode based on form.
 
 ---
@@ -354,16 +354,16 @@ Before the per-case breakdown, one finding is so pervasive it must be stated up 
 | blended_prob | 0.2153 | 0.1484 |
 
 **Suspected failure layer:** feature-driven
-**Suspect features:** freshness, weight_vs_field, cd_form_prior, distance_pb_ratio
+**Suspect features:** cd_form_prior, jockey_horse_coop, distance_pb_ratio, freshness, weight_vs_field
 **Notes:** The most extreme Platt compression case: MONARCH COUNTY's raw_ml_prob was 0.5358 — 6.2x higher than SMART FIGHTER's 0.0863. After Platt: 0.0946 vs 0.0894 — a difference of 0.0052 (compression 87.5x). SMART FIGHTER had a massive freshness advantage (0.950 — ideal spacing, likely first start after a spell) vs MONARCH COUNTY's 0.133 (very short turnaround) and was significantly lighter in weight (weight_vs_field 0.370 vs 0.037 — MONARCH COUNTY was carrying near the maximum weight in the field). These two fitness signals — freshness and weight — were systematically underweighted at the raw ML level. SMART FIGHTER's going_performance (0.000 — no wins on this going) is a red herring since it still won.
 
 ---
 
 ## Failure Layer Summary
 - Feature-driven: 9 cases — top suspect features (counted across cases): jockey_horse_coop (8 cases), going_performance (6), speed_consistency (6), cd_form_prior (5), freshness (3), adjusted_speed (3), prior_win_rate (3), field_rel_speed (3), distance_pb_ratio (3), prior_pace (3), weight_vs_field (3)
-- Calibration-driven: 0 cases in isolation — the one case where the raw ML ranked the winner higher (Apr 12 R10, MY MARS) was reclassified as mixed because the 55% market blend would have overridden the model regardless
+- Calibration-driven: 1 case (Apr 12 R10) — raw ML correctly ranked winner higher (0.2176 vs 0.1637), but Platt calibration compressed both probabilities to ~0.090, erasing the 0.054 raw signal and allowing market blend to override
 - Blend-driven: 0 cases in isolation — market consistently boosted rank-1 but this interacted with feature-driven misranking
-- Mixed (calibration + blend): 1 case (Apr 12 R10) — raw ML had winner ranked higher, Platt compression erased the signal, market blend compounded the failure
+- Mixed: 0 cases
 
 ## Opaque Layers Encountered (Audit Findings)
 
