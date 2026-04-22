@@ -1,0 +1,76 @@
+Held-out races: 73  |  horses: 881
+
+Config: temp=1.5  model_w=dynamic
+
+======================================================================
+  WIN strategies (73 races total)
+======================================================================
+
+[A: Flat bet model top-pick every race]
+  Bets:   73    Wins: 12 (16.4%)   Total PnL: -44.70u   ROI: -61.23%
+
+[B: EV-filtered (EV ≥ 5%)]
+  Bets:   1     Wins: 0 (0.0%)   Total PnL: -1.00u   ROI: -100.00%
+
+[C: High-conviction (EV ≥ 15%)]
+  Bets:   1     Wins: 0 (0.0%)   Total PnL: -1.00u   ROI: -100.00%
+
+[D: Model disagrees with market fav]
+  Bets:   1     Wins: 0 (0.0%)   Total PnL: -1.00u   ROI: -100.00%
+
+[E: Short-odds banker proxy (odds≤3.5, prob≥25%)]  no qualifying bets
+
+[F: Underdog bets (model top-pick @ odds≥8)]
+  Bets:   1     Wins: 0 (0.0%)   Total PnL: -1.00u   ROI: -100.00%
+
+[Baseline: Bet market favourite every race]
+  Bets:   73    Wins: 12 (16.4%)   Total PnL: -44.70u   ROI: -61.23%
+
+======================================================================
+  EXOTIC-BET HIT RATES (73 races, 12-horse avg field)
+======================================================================
+  Strategy                                    Hits      Rate      Baseline
+  --------------------------------------------------------------------
+  Quinella straight (top-2 model = actual)    11         15.1%     ~3.0% (5.0× random)
+  Box-3 quinella (actual top-2 ⊂ top-3 model) 23         31.5%     ~9.1% (3.5× random)
+  Box-4 quinella (actual top-2 ⊂ top-4 model) 33         45.2%     ~18.2% (2.5× random)
+  Trifecta straight (top-3 model = actual)    6           8.2%     ~2.7% (3.0× random)
+  Rank-1 pick finishes top-2                  31         42.5%     ~16.7% (2.5× random)
+  Rank-1 pick finishes top-3                  41         56.2%     ~25.0% (2.2× random)
+
+----------------------------------------------------------------------
+  QUINELLA P&L (72/72 races use REAL HKJC dividends)
+----------------------------------------------------------------------
+
+  Simulated dividend on winning pairs (when we hit):
+    Straight Q hits (n=11): avg=$71.95, median=$83.50, min=$14.50, max=$114.50
+    Box-3 Q hits (n=22): avg=$93.25, median=$92.00, min=$14.50, max=$228.00
+
+  [Straight quinella (1 unit/race)]
+    Bets: 72 races  |  Stake: $72  |  P&L: $+719.50
+    SIMULATED ROI: +999.31%
+
+  [Box-3 quinella (3 units/race)]
+    Bets: 72 races  |  Stake: $216  |  P&L: $+1835.50
+    SIMULATED ROI: +849.77%
+
+  [Box-4 quinella (6 units/race)]
+    Bets: 72 races  |  Stake: $432  |  P&L: $+4600.00
+    SIMULATED ROI: +1064.81%
+
+======================================================================
+  CLV / MARKET-AGREEMENT
+======================================================================
+  Avg log(model/market):     -0.4510
+  Corr(edge, actual win):    -0.3732  (positive = our disagreements are predictive)
+  Disagreement with market:  1/73 (1.4%)
+
+======================================================================
+  CALIBRATION
+======================================================================
+  Brier score (top-pick): 0.1256
+  bin           n     predicted   actual    diff
+  [ 8.0-12.0%] 4     10.93%       0.00%    -10.93pp
+  [12.0-18.0%] 29    15.12%       6.90%    -8.23pp
+  [18.0-25.0%] 34    21.31%      23.53%    +2.22pp
+  [25.0-100.0%] 6     32.67%      33.33%    +0.67pp
