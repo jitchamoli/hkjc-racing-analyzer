@@ -1,0 +1,9 @@
+STAGE B GATE CHECKS:
+
+[Gate 1] n_samples >= 3000: n_samples=4403 -> PASS
+[Gate 2] trained_date >= 2026-04-23: trained_date=2026-04-23T09:35:46.200397 -> PASS
+[Gate 3] calibrator span >= 0.10: span=0.2604 -> PASS
+[Gate 4] Brier <= 0.080: brier=0.0737 -> PASS
+[Gate 5] BSS >= 0: bss=0.0346 (baseline brier=0.0764) -> PASS
+
+OVERALL: ALL GATES PASS
