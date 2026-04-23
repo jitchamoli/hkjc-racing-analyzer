@@ -65,6 +65,11 @@ def check_model_integrity(metadata: Dict[str, Any]) -> None:
             f"Retrain via `python3 -m scripts.train`."
         )
 
+    # Normalize to naive datetime for comparison. train.py writes
+    # datetime.now().isoformat() which is naive; defend against future
+    # tz-aware writers by stripping tzinfo on read.
+    if trained.tzinfo is not None:
+        trained = trained.replace(tzinfo=None)
     age = datetime.now() - trained
     if age > timedelta(days=MAX_AGE_DAYS):
         raise IntegrityError(
