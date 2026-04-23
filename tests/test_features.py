@@ -109,3 +109,27 @@ class TestFeatureEngineering:
         features = FeatureEngineering.extract_features(minimal, [], "")
         assert len(features) == NUM_FEATURES
         assert not np.any(np.isnan(features))
+
+    def test_field_rel_draw_clipped_to_one(self):
+        """F-16: field_rel_draw must not exceed 1.0.
+
+        14-gate races with field_size=12 (inference default) produce draw/field_size > 1.
+        The clip ensures the schema range (0,1) is always respected.
+        """
+        # draw=14, field_size=12 → raw = 14/12 ≈ 1.167, clipped → 1.0
+        horse_over_gate = {"name": "Test", "distance": 1200, "field_size": 12, "draw": 14}
+        features = FeatureEngineering.extract_features(horse_over_gate, [], "Sha Tin")
+        field_rel_draw_idx = FEATURE_NAMES.index("field_rel_draw")
+        assert features[field_rel_draw_idx] <= 1.0, (
+            f"field_rel_draw={features[field_rel_draw_idx]} exceeds 1.0 for draw=14, field_size=12"
+        )
+
+    def test_field_rel_draw_normal_case(self):
+        """F-16: field_rel_draw stays within [0,1] for normal cases."""
+        for draw in range(1, 15):
+            horse = {"name": "Test", "distance": 1200, "field_size": 14, "draw": draw}
+            features = FeatureEngineering.extract_features(horse, [], "Sha Tin")
+            idx = FEATURE_NAMES.index("field_rel_draw")
+            assert 0.0 <= features[idx] <= 1.0, (
+                f"field_rel_draw={features[idx]} out of [0,1] for draw={draw}"
+            )

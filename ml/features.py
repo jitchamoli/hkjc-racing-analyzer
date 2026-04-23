@@ -277,8 +277,9 @@ class FeatureEngineering:
         # Feature 6: field size
         features.append(field_size / 14.0)
 
-        # Feature 7: field-relative draw
-        features.append(draw / max(1, field_size) if draw > 0 else 0.5)
+        # Feature 7: field-relative draw — clipped to [0,1] (F-16: 14-gate races
+        # can push draw/field_size > 1 when field_size defaults to 12 at inference)
+        features.append(min(1.0, draw / max(1, field_size)) if draw > 0 else 0.5)
 
         # Feature 8: prior pace (field-size-aware normalization)
         pace_vals = []
