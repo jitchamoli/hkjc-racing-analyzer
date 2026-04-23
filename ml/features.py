@@ -514,18 +514,22 @@ class FeatureEngineering:
                 last_margin = max(0.1, min(0.9, 1.0 - m / 12.0))
         features.append(last_margin)
 
-        # Feature 19: class change (drop = positive signal, rise = negative)
+        # Feature 19: class change — F-14: ternary {dropping=1.0, same=0.5, rising=0.0}
         class_change_feat = 0.5
         if prior:
             last_class_str = prior[-1].get('class_type', '') or ''
             last_cm = re.search(r'(\d)', last_class_str)
-            last_class = int(last_cm.group(1)) if last_cm else 3
+            last_class = int(last_cm.group(1)) if last_cm else None
             curr_cm = re.search(r'(\d)', class_type)
-            curr_class = int(curr_cm.group(1)) if curr_cm else 3
-            # Drop (e.g. Class 2→Class 3) = higher number = positive signal
-            # Normalize: -4 (big rise) → 0.0, 0 (same) → 0.5, +4 (big drop) → 1.0
-            diff = curr_class - last_class  # positive = dropped in class
-            class_change_feat = max(0.0, min(1.0, 0.5 + diff * 0.125))
+            curr_class = int(curr_cm.group(1)) if curr_cm else None
+            if last_class is None or curr_class is None:
+                class_change_feat = 0.5
+            elif last_class > curr_class:
+                class_change_feat = 0.0  # rising (harder race) — negative signal
+            elif last_class < curr_class:
+                class_change_feat = 1.0  # dropping (easier race) — positive signal
+            else:
+                class_change_feat = 0.5  # same class
         features.append(class_change_feat)
 
         # Feature 20: days since last win (recency of winning)
