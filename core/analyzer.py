@@ -118,6 +118,11 @@ class HorseAnalysis:
     bet_recommendation: str
     reasoning: List[str]
     prediction_breakdown: Dict
+    # F-19: snapshot of pre-swap model probability for calibration analytics.
+    # combined_probability may be mutated by BANKER/market-fav rank swaps;
+    # model_probability preserves the original value so accuracy.py measures
+    # the model, not human overrides.
+    model_probability: float = None
 
 
 # ---------------------------------------------------------------------------
