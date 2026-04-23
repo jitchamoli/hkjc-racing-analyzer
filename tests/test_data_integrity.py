@@ -80,12 +80,13 @@ class TestTrainedModel:
         assert 0.0 <= prob <= 1.0
         assert isinstance(confidence, str)
 
-    def test_predict_untrained_returns_base_rate(self):
+    def test_predict_untrained_raises(self):
+        """F-17: untrained model must raise RuntimeError, not silently return base rate."""
+        import pytest
         from ml.model import HKJCRacingMLModel
         model = HKJCRacingMLModel.__new__(HKJCRacingMLModel)
         model.model = None
         model.is_trained = False
         features = np.full(NUM_FEATURES, 0.5, dtype=np.float32)
-        prob, confidence = model.predict(features, field_size=10)
-        assert abs(prob - 0.1) < 0.001  # 1/10
-        assert confidence == "MODEL_NOT_TRAINED"
+        with pytest.raises(RuntimeError, match="not trained"):
+            model.predict(features, field_size=10)

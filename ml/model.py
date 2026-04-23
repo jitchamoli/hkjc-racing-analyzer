@@ -334,8 +334,12 @@ class HKJCRacingMLModel:
 
     def predict(self, features: np.ndarray, field_size: int = 12) -> Tuple[float, str]:
         if not self.is_trained or self.model is None:
-            base_prob = 1.0 / max(field_size, 1)
-            return base_prob, "MODEL_NOT_TRAINED"
+            # F-17: never silently return 1/field_size — surface the failure loudly
+            # so load errors aren't masked by plausible-looking probabilities.
+            raise RuntimeError(
+                "Model not trained — refuse to predict. "
+                "Retrain via `python3 -m scripts.train`."
+            )
 
         # F-05: integrity check — fail loudly if pickle is compromised.
         # This runs on every predict() call; cheap enough (dict lookups).
