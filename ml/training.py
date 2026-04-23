@@ -134,14 +134,8 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 if s is not None:
                     race_finish_times.setdefault(rk, []).append(s)
 
-        # Compute recency weights: newest race = 1.0, oldest decays to 0.3
+        # F-18: per-row linear recency weights (computed post-loop via np.linspace)
         all_dates = sorted(set(dict(row).get('race_date', '') for row in rows))
-        if len(all_dates) > 1:
-            date_rank = {d: i for i, d in enumerate(all_dates)}
-            max_rank = len(all_dates) - 1
-        else:
-            date_rank = {all_dates[0]: 0} if all_dates else {}
-            max_rank = 1
 
         # Precompute par times per date bucket to prevent leakage.
         # Group training dates into monthly buckets — each bucket uses only data before that month.
@@ -463,9 +457,16 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             X.append(features)
             y.append(1 if r.get('is_winner', 0) else 0)
             y_place.append(1 if r.get('is_top3', 0) else 0)
-            # Recency weighting: newest races = 1.0, oldest decay to 0.3
-            rank = date_rank.get(race_date, 0)
-            weights.append(0.3 + 0.7 * (rank / max(1, max_rank)))
+            weights.append(0.0)  # placeholder; overwritten below
+
+        # F-18: per-row linear recency weights
+        # Row 0 (oldest) = 0.3, row n-1 (newest) = 1.0 — DB ordered ASC by date
+        n = len(weights)
+        if n > 1:
+            row_weights = np.linspace(0.3, 1.0, n).astype(np.float32)
+        else:
+            row_weights = np.ones(n, dtype=np.float32)
+        weights = list(row_weights)
 
         conn.close()
 
