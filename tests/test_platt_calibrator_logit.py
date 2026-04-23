@@ -26,7 +26,7 @@ def test_calibrator_span_over_realistic_prob_range():
     # base rate ~8%, feature signal at ~20% win rate for a subset
     rng = np.random.default_rng(42)
     n = 2000
-    X = rng.random((n, 23))
+    X = rng.random((n, 21))
     # Signal: y=1 more likely when X[:,0] is high (feature 0 = "strong horse")
     p_true = 0.05 + 0.25 * X[:, 0]
     y = (rng.random(n) < p_true).astype(int)
@@ -64,7 +64,7 @@ def test_predict_span_exercises_production_path():
     # Train with deterministic signal
     rng = np.random.default_rng(42)
     n = 2000
-    X = rng.random((n, 23))
+    X = rng.random((n, 21))
     p_true = 0.05 + 0.25 * X[:, 0]
     y = (rng.random(n) < p_true).astype(int)
     result = model.train(X, y, save=False)
@@ -76,9 +76,9 @@ def test_predict_span_exercises_production_path():
     # Pre-fix: predict() returns nearly the same prob for both (~0.09)
     # because Platt compression flattens the signal.
     # Post-fix: predict() preserves the ranking — high-X[0] should win.
-    feat_low = np.zeros(23)
+    feat_low = np.zeros(21)
     feat_low[0] = 0.05
-    feat_high = np.zeros(23)
+    feat_high = np.zeros(21)
     feat_high[0] = 0.95
 
     prob_low, _ = model.predict(feat_low, field_size=12)

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Feature engineering for ML predictions.
 
-Extracts 22 features per horse using FEATURE_SCHEMA order.
+Extracts 21 features per horse using FEATURE_SCHEMA order.
 All features use only data available BEFORE the race (no leakage).
+Wave 2c: field_rel_speed (was feature 17) dropped due to structural correlations.
 """
 
 import re
@@ -444,65 +445,9 @@ class FeatureEngineering:
                         logger.warning(f"Failed to compute distance PB for {horse_name}: {e}")
         features.append(distance_pb_ratio)
 
-        # Feature 17: field-relative speed (avg percentile within prior race fields)
-        # Solves the problem of absolute speed conflating sprinters with stayers
-        # Uses a single batched query for all prior races instead of per-race queries
-        field_rel_speed = 0.5
-        if prior and conn is not None:
-            # Collect race keys for the last 5 prior races that have finish times
-            race_lookups = []
-            for p in prior[-5:]:
-                p_ft = p.get('finish_time', '') or ''
-                if p_ft and ':' in p_ft:
-                    race_lookups.append((p.get('race_date', ''), p.get('race_number', 0), p_ft))
+        # field_rel_speed (was Feature 17) dropped Wave 2c — see feature_schema.py.
 
-            if race_lookups:
-                try:
-                    # Batch query: get all finish times for all relevant races at once
-                    placeholders = ' OR '.join(['(race_date = ? AND race_number = ?)'] * len(race_lookups))
-                    params = []
-                    for rd, rn, _ in race_lookups:
-                        params.extend([rd, rn])
-                    batch_rows = conn.execute(
-                        f"SELECT race_date, race_number, finish_time FROM race_results "
-                        f"WHERE ({placeholders}) AND finish_time LIKE '%:%'",
-                        params
-                    ).fetchall()
-
-                    # Group finish times by race
-                    race_times_map = {}
-                    for row in batch_rows:
-                        rk = (row[0], row[1])
-                        try:
-                            parts = str(row[2]).split(':')
-                            s = float(parts[0]) * 60 + float(parts[1])
-                            if 0 < s < 999:
-                                race_times_map.setdefault(rk, []).append(s)
-                        except (ValueError, IndexError):
-                            pass
-
-                    # Compute percentile for each prior race
-                    percentiles = []
-                    for rd, rn, p_ft in race_lookups:
-                        try:
-                            parts = p_ft.split(':')
-                            horse_secs = float(parts[0]) * 60 + float(parts[1])
-                            if horse_secs <= 0 or horse_secs >= 999:
-                                continue
-                        except (ValueError, IndexError):
-                            continue
-                        all_secs = race_times_map.get((rd, rn), [])
-                        if len(all_secs) >= 3:
-                            rank = sum(1 for s in all_secs if s > horse_secs)
-                            percentiles.append(rank / (len(all_secs) - 1) if len(all_secs) > 1 else 0.5)
-
-                    if percentiles:
-                        field_rel_speed = sum(percentiles) / len(percentiles)
-                except Exception as e:
-                    logger.warning(f"Failed to compute field_rel_speed for {horse_name}: {e}")
-        features.append(field_rel_speed)
-
-        # Feature 18: last start margin (NEW — how far behind winner last race)
+        # Feature 17: last start margin (how far behind winner last race)
         last_margin = 0.5
         if prior:
             last_race = prior[-1]
@@ -514,7 +459,7 @@ class FeatureEngineering:
                 last_margin = max(0.1, min(0.9, 1.0 - m / 12.0))
         features.append(last_margin)
 
-        # Feature 19: class change — F-14: ternary {dropping=1.0, same=0.5, rising=0.0}
+        # Feature 18: class change — F-14: ternary {dropping=1.0, same=0.5, rising=0.0}
         class_change_feat = 0.5
         if prior:
             last_class_str = prior[-1].get('class_type', '') or ''
@@ -532,7 +477,7 @@ class FeatureEngineering:
                 class_change_feat = 0.5  # same class
         features.append(class_change_feat)
 
-        # Feature 20: days since last win (recency of winning)
+        # Feature 19: days since last win (recency of winning)
         days_last_win = 0.5
         if prior:
             for p in reversed(prior):
@@ -551,7 +496,7 @@ class FeatureEngineering:
                 days_last_win = 0.15
         features.append(days_last_win)
 
-        # Feature 21: horse body weight change from prior race (fitness signal)
+        # Feature 20: horse body weight change from prior race (fitness signal)
         hw_change = 0.5
         horse_weight_val = horse_data.get('horse_weight', 0) or 0
         try:
@@ -569,7 +514,7 @@ class FeatureEngineering:
                     hw_change = max(0.0, min(1.0, 0.5 - pct_change * 10))
         features.append(hw_change)
 
-        # Feature 22: speed consistency (std of adjusted speed figures — low = reliable)
+        # Feature 21: speed consistency (std of adjusted speed figures — low = reliable)
         speed_con = 0.5
         if len(adj_speed_vals) >= 3:
             import numpy as _np
