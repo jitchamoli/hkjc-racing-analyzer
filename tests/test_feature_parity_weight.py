@@ -140,3 +140,24 @@ def test_weight_vs_field_train_predict_parity():
         f"({fail_rate:.1%}) rows exceed 0.1 delta on weight_vs_field. "
         f"Target: <=5%. Pre-fix DS-03 was 68%."
     )
+
+
+def test_core_analyzer_includes_field_weights_in_horse_data():
+    """F-06 regression guard: core/analyzer.py's horse_data dict must
+    include field_weights when building features for extract_features().
+    If removed, extract_features silently falls back to absolute-weight
+    formula and train/predict parity breaks (pre-fix was 82% mismatches).
+
+    This test fails if someone accidentally removes the field_weights line
+    from core/analyzer.py, catching the regression at CI time.
+    """
+    import inspect
+    import core.analyzer as analyzer_module
+
+    # Check that the source code contains the field_weights plumbing
+    source = inspect.getsource(analyzer_module)
+    assert '"field_weights"' in source or "'field_weights'" in source, (
+        "core/analyzer.py does not mention 'field_weights' in horse_data construction. "
+        "F-06 fix likely reverted. Pre-fix state silently falls back to "
+        "absolute-weight formula, breaking train/predict parity (was 82% error rate)."
+    )
