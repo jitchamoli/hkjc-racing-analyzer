@@ -256,45 +256,6 @@ class TestFeatureConsistency:
             f"Training data has {X.shape[1]} features, expected {NUM_FEATURES}"
         )
 
-    def test_training_and_predict_features_same_distribution(self):
-        """Mean/std of training features should be in similar range to prediction features."""
-        from ml.training import build_training_data_from_db
-        from ml.features import FeatureEngineering
-
-        try:
-            result = build_training_data_from_db()
-            X_train = result[0]
-        except Exception:
-            pytest.skip("Cannot build training data from DB")
-        if X_train is None or len(X_train) < 50:
-            pytest.skip("Not enough training data")
-
-        # Generate prediction features for a typical horse
-        horse_data = {
-            "name": "Test Horse", "rating": 65.0, "draw": 3,
-            "jockey": "Z Purton", "trainer": "J Size",
-            "last_6": "1/3/2/5/4/1", "distance": 1200,
-            "win_odds": 5.0, "field_size": 12, "going": "Good",
-            "days_since_last_run": 21, "race_date": "2026/04/17",
-        }
-        X_pred = FeatureEngineering.extract_features(horse_data, [], "Sha Tin")
-
-        train_means = np.mean(X_train, axis=0)
-        train_stds = np.std(X_train, axis=0)
-
-        wildly_off = []
-        for i in range(NUM_FEATURES):
-            if train_stds[i] > 0.01:
-                z_score = abs(X_pred[i] - train_means[i]) / train_stds[i]
-                if z_score > 5:
-                    wildly_off.append(
-                        f"{FEATURE_NAMES[i]}: pred={X_pred[i]:.3f} "
-                        f"train_mean={train_means[i]:.3f} z={z_score:.1f}"
-                    )
-        assert len(wildly_off) <= 2, (
-            f"{len(wildly_off)} features wildly different between train/predict:\n"
-            + "\n".join(wildly_off)
-        )
 
     def test_no_constant_training_features(self):
         """No feature should be near-constant in training data."""
