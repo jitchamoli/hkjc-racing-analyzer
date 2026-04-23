@@ -148,5 +148,5 @@ def trained_model():
 
     model = HKJCRacingMLModel()
     X, y = generate_synthetic_training_data(500)
-    model.train(X, y)
+    model.train(X, y, save=False)
     return model
