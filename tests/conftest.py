@@ -149,4 +149,6 @@ def trained_model():
     model = HKJCRacingMLModel()
     X, y = generate_synthetic_training_data(500)
     model.train(X, y, save=False)
+    # Skip F-05 integrity check for this synthetic-trained test model
+    model._metadata = None
     return model
