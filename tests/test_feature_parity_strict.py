@@ -20,9 +20,9 @@ PER_FEATURE_TOLERANCE = 0.02
 NUM_TEST_ROWS = 20
 
 
-def test_num_features_is_22():
-    """NUM_FEATURES must equal 22 (post-F-15 schema)."""
-    assert NUM_FEATURES == 22, f"NUM_FEATURES={NUM_FEATURES}, expected 22"
+def test_num_features_is_21():
+    """NUM_FEATURES must equal 21 (post-Wave-2c drop of field_rel_speed)."""
+    assert NUM_FEATURES == 21, f"NUM_FEATURES={NUM_FEATURES}, expected 21"
 
 
 def test_strict_feature_parity_per_row_per_feature():
