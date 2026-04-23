@@ -1054,6 +1054,10 @@ class CombinedRaceAnalyzer:
             "going": race.going,
             "days_since_last_run": horse.days_since_last_run,
             "race_date": race.date,
+            # F-06 / DS-03 (2026-04-23): pass field_weights so extract_features()
+            # uses field-relative median formula (matching training). Without this,
+            # inference fell back to absolute-weight formula → 82% parity failure.
+            "field_weights": field_weights,
         }
 
         ml_prediction = self.ml_analyzer.predict(horse_data, all_results or [], "")
