@@ -48,3 +48,26 @@ def test_integrity_rejects_old_trained_date():
     }
     with pytest.raises(IntegrityError, match="trained_date"):
         check_model_integrity(metadata)
+
+
+def test_integrity_accepts_exactly_min_samples():
+    """n_samples == MIN_SAMPLES (1000) must PASS — threshold is inclusive."""
+    metadata = {
+        'n_samples': 1000,  # exactly at threshold
+        'trained_date': '2026-04-23T10:00:00',
+        'n_features': 23,
+        'version': '20260423-100000',
+    }
+    check_model_integrity(metadata)  # no raise
+
+
+def test_integrity_rejects_just_below_min_samples():
+    """n_samples == MIN_SAMPLES - 1 must FAIL."""
+    metadata = {
+        'n_samples': 999,
+        'trained_date': '2026-04-23T10:00:00',
+        'n_features': 23,
+        'version': '20260423-100000',
+    }
+    with pytest.raises(IntegrityError, match="n_samples"):
+        check_model_integrity(metadata)

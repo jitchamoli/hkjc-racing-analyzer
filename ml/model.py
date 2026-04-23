@@ -367,6 +367,10 @@ class HKJCRacingMLModel:
     def predict_place(self, features: np.ndarray, field_size: int = 12) -> float:
         """Predict place (top-3) probability using dedicated place model."""
         if self.place_model is not None:
+            # F-05: integrity check mirrors predict() — place is also a prediction entry point.
+            if self._metadata is not None:
+                from ml.integrity import check_model_integrity
+                check_model_integrity(self._metadata)
             proba = self.place_model.predict_proba(features.reshape(1, -1))[0]
             return float(proba[1]) if len(proba) > 1 else float(proba[0])
         # Fallback: estimate from win probability
