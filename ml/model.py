@@ -81,6 +81,7 @@ class MLPrediction:
 class HKJCRacingMLModel:
     MODEL_DIR = config.MODEL_DIR
     MODEL_FILE = config.MODEL_PATH
+    MIN_SAVE_SAMPLES = 1000  # _save_model() refuses below this — prevents synthetic pickle overwrite
 
     def __init__(self):
         self.model = None
@@ -128,12 +129,25 @@ class HKJCRacingMLModel:
                 self.calibrator = data.get('calibrator')
                 self.model_version = data.get('version', '1.0')
                 self.feature_importance = data.get('feature_importance', {})
+                self._last_train_n_samples = data.get('n_samples', None)
                 self.is_trained = self.model is not None
                 logger.info(f"Loaded model version {self.model_version}")
             except Exception as e:
                 logger.warning(f"Could not load model: {e}")
 
     def _save_model(self):
+        # F-04 belt-and-suspenders: refuse to overwrite production pickle
+        # if this training run used fewer than MIN_SAVE_SAMPLES. Prevents
+        # synthetic/test data from silently clobbering the real-data pickle.
+        n_samples = getattr(self, '_last_train_n_samples', None)
+        if n_samples is not None and n_samples < self.MIN_SAVE_SAMPLES:
+            logger.warning(
+                f"_save_model() refusing to write: n_samples={n_samples} "
+                f"< MIN_SAVE_SAMPLES={self.MIN_SAVE_SAMPLES}. "
+                f"This looks like synthetic/test data. Pickle NOT overwritten."
+            )
+            return
+
         self.MODEL_DIR.mkdir(exist_ok=True)
 
         data = {
@@ -142,6 +156,7 @@ class HKJCRacingMLModel:
             'calibrator': self.calibrator,
             'version': self.model_version,
             'n_features': NUM_FEATURES,
+            'n_samples': n_samples,  # NEW: persisted for F-05 integrity check
             'feature_importance': self.feature_importance,
             'trained_date': datetime.now().isoformat()
         }
@@ -150,14 +165,18 @@ class HKJCRacingMLModel:
         self.MODEL_FILE.write_bytes(model_bytes)
         self._checksum_path().write_text(hashlib.sha256(model_bytes).hexdigest())
 
-        logger.info(f"Saved model version {self.model_version}")
+        logger.info(f"Saved model version {self.model_version} (n_samples={n_samples})")
 
     def train(self, features: np.ndarray, labels: np.ndarray,
               sample_weight: np.ndarray = None,
               temporal: bool = True,
-              place_labels: np.ndarray = None) -> Dict:
+              place_labels: np.ndarray = None,
+              save: bool = True) -> Dict:
         if not ML_AVAILABLE:
             return {'error': 'ML libraries not available'}
+
+        # Record sample count on self so _save_model() can enforce MIN_SAVE_SAMPLES
+        self._last_train_n_samples = len(features)
 
         logger.info(f"Training with {len(features)} samples "
                     f"({labels.sum():.0f} winners, {labels.mean()*100:.1f}% win rate)")
@@ -264,7 +283,10 @@ class HKJCRacingMLModel:
 
         self.is_trained = True
         self.model_version = datetime.now().strftime('%Y%m%d-%H%M%S')
-        self._save_model()
+        if save:
+            self._save_model()
+        else:
+            logger.info(f"train(save=False) — skipping pickle write (n_samples={len(features)})")
 
         # Log experiment
         from ml.experiments import log_experiment
@@ -409,8 +431,10 @@ class CombinedRacingAnalyzer:
             else:
                 logger.info("Insufficient real data — training ML model with synthetic data...")
                 X, y = generate_synthetic_training_data()
-                result = self.ml_model.train(X, y)
-                logger.info(f"Model trained on synthetic data: accuracy={result['accuracy']:.2%}")
+                # F-04: never save a synthetic-trained pickle to disk.
+                result = self.ml_model.train(X, y, save=False)
+                logger.info(f"Model trained on synthetic data (in-memory only, not persisted): "
+                            f"accuracy={result['accuracy']:.2%}")
 
     def predict(self, horse_data: dict, all_results, venue: str) -> MLPrediction:
         features = self.feature_eng.extract_features(horse_data, all_results, venue,
