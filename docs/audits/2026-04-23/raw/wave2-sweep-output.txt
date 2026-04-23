@@ -1,0 +1,71 @@
+Holdout: 73 races  |  881 horses
+Grid: 15 points (field_thresh fixed=10, shift=±0.15)
+
+======================================================================
+  F-09 BLEND-WEIGHT SWEEP (15 points × production pipeline)
+  field_thresh fixed at 10, shift=±0.15
+======================================================================
+  base_model_w  field_thr  dist_thr  Brier     box3_hit%   box3_ROI%   n_races
+  --------------------------------------------------------------------
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.25          10         1200      0.1689    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.25          10         1400      0.1692    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.25          10         1600      0.1693    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.35          10         1200      0.1686    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.35          10         1400      0.1695    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.35          10         1600      0.1697    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.45          10         1200      0.1678    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.45          10         1400      0.1684    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.45          10         1600      0.1684    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.55          10         1200      0.1680    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.55          10         1400      0.1683    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.55          10         1600      0.1682    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.65          10         1200      0.1694    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.65          10         1400      0.1693    40.3        1938.89     73
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+  0.65          10         1600      0.1691    40.3        1938.89     73
+
+Saved: /Users/jitendrachamoli/Documents/Project_Hub/hkjc_racing_analyzer/docs/audits/2026-04-23/raw/wave2-sweep-summary.json
+
+======================================================================
+  SELECTION RESULT
+======================================================================
+  Best Brier: 0.1689 (base_model_w=0.25, dist_thresh=1200)
+  Winner (after tie-break): base_model_w=0.45, field_thresh=10, dist_thresh=1200
+  Winner Brier: 0.1678
+  Winner box3_hit: 40.3%  ROI: 1938.9%
+
+  Top 5 by Brier:
+    base_model_w=0.45  dist_thresh=1200  Brier=0.1678  box3_hit=40.3%  ROI=1938.9% <-- CHOSEN
+    base_model_w=0.55  dist_thresh=1200  Brier=0.1681  box3_hit=40.3%  ROI=1938.9%
+    base_model_w=0.55  dist_thresh=1600  Brier=0.1682  box3_hit=40.3%  ROI=1938.9%
+    base_model_w=0.55  dist_thresh=1400  Brier=0.1683  box3_hit=40.3%  ROI=1938.9%
+    base_model_w=0.45  dist_thresh=1400  Brier=0.1684  box3_hit=40.3%  ROI=1938.9%
