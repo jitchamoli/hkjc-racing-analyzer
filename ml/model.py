@@ -91,6 +91,7 @@ class HKJCRacingMLModel:
         self.is_trained = False
         self.model_version = "1.0"
         self.feature_importance = {}
+        self._metadata = None
 
         if ML_AVAILABLE:
             self._load_model()
@@ -131,6 +132,12 @@ class HKJCRacingMLModel:
                 self.model_version = data.get('version', '1.0')
                 self.feature_importance = data.get('feature_importance', {})
                 self._last_train_n_samples = data.get('n_samples', None)
+                self._metadata = {
+                    'n_samples': data.get('n_samples'),
+                    'trained_date': data.get('trained_date'),
+                    'n_features': data.get('n_features'),
+                    'version': data.get('version'),
+                }
                 self.is_trained = self.model is not None
                 logger.info(f"Loaded model version {self.model_version}")
             except Exception as e:
@@ -329,6 +336,12 @@ class HKJCRacingMLModel:
         if not self.is_trained or self.model is None:
             base_prob = 1.0 / max(field_size, 1)
             return base_prob, "MODEL_NOT_TRAINED"
+
+        # F-05: integrity check — fail loudly if pickle is compromised.
+        # This runs on every predict() call; cheap enough (dict lookups).
+        if self._metadata is not None:
+            from ml.integrity import check_model_integrity
+            check_model_integrity(self._metadata)
 
         proba = self.model.predict_proba(features.reshape(1, -1))[0]
         win_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])

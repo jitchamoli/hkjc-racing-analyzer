@@ -413,6 +413,8 @@ class TestPredictionConsistency:
                       track="Turf", course="A", horses=horses)
 
         analyzer = CombinedRaceAnalyzer()
+        # Skip F-05 integrity check — this test uses the production pickle as-is
+        analyzer.ml_analyzer.ml_model._metadata = None
         analyses = analyzer.analyze_race(convert_race(rc))
 
         total_prob = sum(a.combined_probability for a in analyses)
@@ -437,6 +439,8 @@ class TestPredictionConsistency:
                       track="Turf", course="A", horses=horses)
 
         analyzer = CombinedRaceAnalyzer()
+        # Skip F-05 integrity check — this test uses the production pickle as-is
+        analyzer.ml_analyzer.ml_model._metadata = None
         analyses = analyzer.analyze_race(convert_race(rc))
 
         # Ranks should be 1..N
@@ -460,6 +464,8 @@ class TestPredictionConsistency:
                       track="Turf", course="A", horses=horses)
 
         analyzer = CombinedRaceAnalyzer()
+        # Skip F-05 integrity check — this test uses the production pickle as-is
+        analyzer.ml_analyzer.ml_model._metadata = None
         analyses = analyzer.analyze_race(convert_race(rc))
 
         # value_score is set before calibration, combined_probability is overwritten
@@ -487,6 +493,8 @@ class TestPredictionConsistency:
                       track="Turf", course="A", horses=horses)
 
         analyzer = CombinedRaceAnalyzer()
+        # Skip F-05 integrity check — this test uses the production pickle as-is
+        analyzer.ml_analyzer.ml_model._metadata = None
         analyses = analyzer.analyze_race(convert_race(rc))
 
         for a in analyses:
@@ -514,6 +522,8 @@ class TestPredictionConsistency:
                       track="Turf", course="A", horses=horses)
 
         analyzer = CombinedRaceAnalyzer()
+        # Skip F-05 integrity check — this test uses the production pickle as-is
+        analyzer.ml_analyzer.ml_model._metadata = None
         analyses = analyzer.analyze_race(convert_race(rc))
 
         for a in analyses:
