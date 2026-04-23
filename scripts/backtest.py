@@ -28,6 +28,7 @@ Usage:
 """
 
 import argparse
+import json
 import logging
 import os
 import sqlite3
@@ -836,6 +837,8 @@ def main():
                         help='(sweep only) Override model weight')
     parser.add_argument('--exclude-date', action='append', default=[],
                         help='Exclude specific race dates (YYYY/MM/DD) — can repeat')
+    parser.add_argument('--pnl-json', default=None,
+                        help='Path to write per-race P&L JSON (for bootstrap CI)')
     args = parser.parse_args()
 
     conn = sqlite3.connect(str(config.DB_PATH))
@@ -874,6 +877,26 @@ def main():
     print_exotic_hits(records)
     print_clv(records)
     print_calibration(records)
+
+    # Emit per-race P&L JSON for bootstrap CI computation
+    if args.pnl_json:
+        pnl_out_path = Path(args.pnl_json)
+        pnl_out_path.parent.mkdir(parents=True, exist_ok=True)
+        pnl_rows = []
+        for r in records:
+            with_div = r.get('q_dividend') is not None
+            pnl_rows.append({
+                'race_key': r['race_key'],
+                'straightq_stake': 1.0 if with_div else 0.0,
+                'straightq_return': (r['q_dividend'] if r.get('quinella_hit') else 0.0) if with_div else 0.0,
+                'box3_stake': 3.0 if with_div else 0.0,
+                'box3_return': (r['q_dividend'] if r.get('box3_q_hit') else 0.0) if with_div else 0.0,
+                'box4_stake': 6.0 if with_div else 0.0,
+                'box4_return': (r['q_dividend'] if r.get('box4_q_hit') else 0.0) if with_div else 0.0,
+            })
+        with open(pnl_out_path, 'w') as f:
+            json.dump(pnl_rows, f, indent=2)
+        print(f"\nPer-race P&L written to: {pnl_out_path}")
 
     conn.close()
     return 0

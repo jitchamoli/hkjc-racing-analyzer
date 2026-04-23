@@ -256,14 +256,24 @@ Prior heuristic (base=0.60, dist_thresh=1400): Brier=0.1684.
 - `horse_weight` is in lbs (900-1350 range), `weight` is carried weight assignment (113-133 lbs).
 - `class_type` has 96% coverage in DB. Missing rows default to class 3 for class_change calculation.
 
-### Betting Strategy — Quinella-First (pivoted Apr 22 2026)
+### Betting Strategy — Post-Wave-2a (2026-04-23, F-22)
 
-**Validated by out-of-sample backtest** (`scripts/backtest.py`, 71 held-out races):
-- WIN pool has NO edge: model top-pick = market favourite 98.6% of time → -37% ROI (identical to betting market fav every race — both lose to takeout)
-- Box-3 quinella: **33.8% hit** (3.7× random) — the real edge
-- Rank-1 finishes top-2: **45.1%** (banker-leg strength)
+**Decision**: keep box-4 default unchanged — CIs overlap, statistically indistinguishable at n=72.
 
-**Recommendation logic** (`core/recommender.py`) — revised Apr 23 to default to box-4:
+Evidence (72-race holdout with real HKJC dividends, corrected baseline post-Wave-2a):
+- Straight-Q: hits 14/72 (19.4%), Wilson CI [12.0%, 30.0%], ROI +2876%, bootstrap CI [+1122%, +5215%]
+- Box-3:      hits 30/72 (41.7%), Wilson CI [31.0%, 53.2%], ROI +1939%, bootstrap CI [+1161%, +2871%]
+- Box-4:      hits 39/72 (54.2%), Wilson CI [42.7%, 65.2%], ROI +1402%, bootstrap CI [+905%, +1977%]
+
+Decision rule outcome: box-4 hit-rate CI [42.7%, 65.2%] and box-3 hit-rate CI [31.0%, 53.2%] overlap (42.7% < 53.2%). Box-4 ROI CI [+905%, +1977%] and box-3 ROI CI [+1161%, +2871%] overlap substantially. Neither dominance criterion is met. All three strategies (straight-Q, box-3, box-4) have overlapping ROI CIs — statistically indistinguishable at n=72. Recommender-gated (all strategies mixed by conviction): 66/72 races bet, 47.0% hit rate, ROI +1976%.
+
+Additional notes:
+- Straight-Q yields the highest point ROI (+2876%) but highest variance (wide CI). At n=72 this is driven by a handful of large-dividend hits (avg $153, max $666).
+- Box-4 gives the highest unconditional hit rate (54.2%) and most stable ROI CI lower bound (+905%).
+- The recommender already auto-downgrades to box-3/straight-Q when conviction gates are not met, so the "default" label mainly affects the high-conviction gate threshold — not every race.
+- F-21 data collection is queued to narrow CIs below the current ~20pp width.
+
+**Recommendation logic** (`core/recommender.py`) — unchanged from Apr 23, box-4 default retained:
 - Default: `BOX Q4` — all top-4 model picks flagged `QIN` (6 combinations). Requires rank-3 AND rank-4 each have strong-history signals + top_4_share ≥ 0.38.
 - Fallback: `BOX Q` (box-3, 3 combos) when rank-3 has strong history + top_3_share ≥ 0.30
 - Fallback: `QIN` (straight, 1 combo) when top_2_share ≥ 0.25
@@ -271,7 +281,7 @@ Prior heuristic (base=0.60, dist_thresh=1400): Brier=0.1684.
 - `WIN` rare, only when rank-1 has BANKER signal AND market consensus (≥35% implied) AND clear top-2 gap (>0.08)
 - `SKIP` if no live odds, field < 2, or no conviction gate met
 
-Rationale for box-4 default: backtest measured +1141% ROI (box-4) vs +910% (box-3) vs +999% (straight). Rank-2 calibration audit (`scripts/analyze_rank2.py`) showed 33% of actual 2nd-placers rank 4+ in our model — box-4 captures the longshot-2nd cases that box-3 misses.
+WIN pool context (73-race holdout): model top-pick = market favourite 84.9% of the time. Flat-bet ROI -20.8% vs market-favourite baseline -61.2%. No WIN edge identified.
 
 **Backtest reproduction**:
 ```
