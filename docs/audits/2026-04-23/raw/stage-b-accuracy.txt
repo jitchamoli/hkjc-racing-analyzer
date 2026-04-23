@@ -1,0 +1,63 @@
+
+============================================================
+  PREDICTION ACCURACY — All time
+============================================================
+
+  Races tracked:       337
+  #1 Pick Win Rate:    18.7% (63/337)
+  Top-3 Overlap:       36.5%
+  Avg Winner Rank:     5.6
+
+  --- Betting Performance ---
+  Bets Placed:         1009
+  Bets Won:            271
+  Hit Rate:            26.9%
+  Total P&L:           $-79
+  ROI:                 -0.8%
+
+  --- BANKER Picks ---
+  Total:               1
+  Wins:                1
+  Hit Rate:            100.0%
+
+  --- By Confidence Level ---
+  HIGH                 48/244 (19.7%)
+  LOW                  1/8 (12.5%)
+  LOW ⭐                0/3 (0.0%)
+  MEDIUM               11/73 (15.1%)
+  MEDIUM ⭐⭐            3/8 (37.5%)
+  VERY_LOW             0/1 (0.0%)
+
+  --- Accuracy by Class ---
+  Class            Races  #1 Win%   Top3%      P&L
+  --------------- ------ -------- ------- --------
+  Class 4            156    14.7%   32.7% $  -1023
+  Class 3            101    21.8%   39.3% $   +713
+  Class 5             39    12.8%   36.8% $    +33
+  Class 2             22    22.7%   42.4% $     +3
+  Unknown             16    37.5%   39.6% $   +188
+  Class 1              2    50.0%   66.7% $     -8
+  Griffin              1   100.0%  100.0% $    +15
+
+  --- ROI by Bet Type ---
+  Type             Count  Hits   Hit%      P&L     ROI
+  --------------- ------ ----- ------ -------- -------
+  PLACE              666   209  31.4% $   +173   +2.6%
+  BANKER WIN           1     1 100.0% $   +120 +1200.0%
+  QIN                 12     6  50.0% $    -60  -50.0%
+  WIN                330   151  45.8% $   -312   -9.5%
+
+  --- Probability Calibration ---
+  Brier Score:         0.0882  (lower = better)
+  Baseline (naive):    0.0749  (always predict 8.2%)
+  Brier Skill Score:   -0.1775  (>0 = better than naive)
+
+  Pred Range      Count   Pred%   Actual%     Gap
+  -------------- ------ ------- --------- -------
+  0%-5%        1361   2.8%     5.6%  +2.8%
+  5%-10%       1073   7.3%     7.0%  -0.3%
+  10%-15%       640  12.3%     8.9%  -3.3%
+  15%-25%       528  18.9%     9.3%  -9.6%
+  25%-100%      553  44.0%    14.8% -29.2%
+
+============================================================
