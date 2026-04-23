@@ -1,0 +1,6 @@
+Races with dividend data: 72 / 73 total
+
+Bootstrap 95% CIs on ROI (unconditional, n=72 races with dividend):
+  straightq: point_ROI=+2876.4%, mean_boot=+2871.0%, 95% CI=[+1121.5%, +5214.6%]
+  box3: point_ROI=+1938.9%, mean_boot=+1938.7%, 95% CI=[+1161.1%, +2870.6%]
+  box4: point_ROI=+1402.3%, mean_boot=+1401.2%, 95% CI=[+905.2%, +1977.1%]
