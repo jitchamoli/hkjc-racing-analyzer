@@ -59,7 +59,9 @@ class BettingWeights:
     }
 
 
-# Factors always included (score of 0 means no data; these use 50 as neutral)
+# Historical set — previously forced inclusion even at score=0.
+# As of C1 (2026-04-23), no longer load-bearing; retained for documentation.
+# Missing factors (score <= 0) are now uniformly excluded via renormalization.
 ALWAYS_INCLUDED = {"rating", "form", "jockey", "trainer", "draw",
                    "class_movement", "gear", "weight_carried"}
 
@@ -67,12 +69,19 @@ ALWAYS_INCLUDED = {"rating", "form", "jockey", "trainer", "draw",
 def compute_weighted_score(factors: Dict[str, float]) -> float:
     """Compute rule-based score from factor dict with dynamic weight normalization.
 
-    Factors with score == 0 are excluded (except ALWAYS_INCLUDED factors).
-    Remaining weights are renormalized to sum to 1.0.
+    Factors with score <= 0 are excluded as "no data" and weights are
+    renormalized across the remaining factors to sum to 1.0.
+
+    Historical note (C1, 2026-04-23 audit): `ALWAYS_INCLUDED` previously
+    forced inclusion of rating/gear/etc. even at score=0, dragging rule
+    scores down ~8 points in 86% of backtest races where DB was missing
+    these fields. The set is retained for documentation but no longer
+    has load-bearing inclusion logic — exclusion is now uniform across
+    all factors.
     """
     weight_map = {}
     for key, score in factors.items():
-        if key in ALWAYS_INCLUDED or score > 0:
+        if score > 0:
             if key in BettingWeights.WEIGHT_MAP:
                 weight_map[key] = BettingWeights.WEIGHT_MAP[key]
 
