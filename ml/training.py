@@ -400,14 +400,20 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 elif m > 0:
                     feat_last_margin = max(0.1, min(0.9, 1.0 - m / 12.0))
 
-            # Feature 19: class change (drop = positive signal)
+            # Feature 19: class change — F-14: ternary {dropping=1.0, same=0.5, rising=0.0}
             feat_class_change = 0.5
             if prior:
                 last_class_str = prior[-1].get('class_type', '') or ''
                 last_cm = re.search(r'(\d)', last_class_str)
-                last_class_rank = int(last_cm.group(1)) if last_cm else 3
-                diff = class_rank - last_class_rank  # positive = dropped in class
-                feat_class_change = max(0.0, min(1.0, 0.5 + diff * 0.125))
+                last_class_rank = int(last_cm.group(1)) if last_cm else None
+                if last_class_rank is None:
+                    feat_class_change = 0.5
+                elif last_class_rank > class_rank:
+                    feat_class_change = 0.0  # rising (harder race) — negative signal
+                elif last_class_rank < class_rank:
+                    feat_class_change = 1.0  # dropping (easier race) — positive signal
+                else:
+                    feat_class_change = 0.5  # same class
 
             # Feature 20: days since last win (recency of winning)
             feat_days_last_win = 0.5
@@ -519,8 +525,8 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         # Feature 1 must be prior_win_rate (not rating/100) to match DB training
         prior_win_rate = np.random.beta(2, 8)  # right-skewed, most values 0.05-0.30
         last_margin = np.random.beta(3, 3)  # 0-1, centered around 0.5
-        class_change = np.random.choice([-2, -1, 0, 1, 2], p=[0.05, 0.15, 0.60, 0.15, 0.05])
-        class_change_feat = max(0.0, min(1.0, 0.5 + class_change * 0.125))
+        # F-14: ternary class_change {dropping=1.0, same=0.5, rising=0.0}
+        class_change_feat = np.random.choice([0.0, 0.5, 1.0], p=[0.15, 0.60, 0.25])
         days_last_win = np.random.beta(2, 4)  # right-skewed, most haven't won recently
         days_last_win = np.clip(days_last_win * 0.85 + 0.1, 0.1, 0.95)
         hw_change = np.random.normal(0.5, 0.1)  # body weight change
