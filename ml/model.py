@@ -10,7 +10,7 @@ from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 
 import numpy as np
-from scipy.special import logit, expit
+from scipy.special import logit
 
 import config
 from ml.feature_schema import FEATURE_NAMES, NUM_FEATURES

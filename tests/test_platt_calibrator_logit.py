@@ -53,3 +53,40 @@ def test_calibrator_span_over_realistic_prob_range():
         f"Platt compression still present (calibrator fit on raw probs, not logits). "
         f"Pre-fix was ~0.012 (88x compression)."
     )
+
+
+def test_predict_span_exercises_production_path():
+    """Stronger test: calls model.predict() end-to-end for two feature vectors
+    and confirms outputs differ by at least 0.05. Catches regressions where
+    someone removes the logit transform from predict() itself."""
+    model = HKJCRacingMLModel()
+
+    # Train with deterministic signal
+    rng = np.random.default_rng(42)
+    n = 2000
+    X = rng.random((n, 23))
+    p_true = 0.05 + 0.25 * X[:, 0]
+    y = (rng.random(n) < p_true).astype(int)
+    result = model.train(X, y, save=False)
+    assert result.get('error') is None, f"Training failed: {result}"
+
+    # Two feature vectors: one with low X[0], one with high X[0].
+    # Pre-fix: predict() returns nearly the same prob for both (~0.09)
+    # because Platt compression flattens the signal.
+    # Post-fix: predict() preserves the ranking — high-X[0] should win.
+    feat_low = np.zeros(23)
+    feat_low[0] = 0.05
+    feat_high = np.zeros(23)
+    feat_high[0] = 0.95
+
+    prob_low, _ = model.predict(feat_low, field_size=12)
+    prob_high, _ = model.predict(feat_high, field_size=12)
+
+    assert prob_high > prob_low, (
+        f"Inference path broken: prob_high={prob_high:.4f} should be > prob_low={prob_low:.4f}. "
+        f"Either logit transform dropped from predict() or model did not learn signal."
+    )
+    assert (prob_high - prob_low) >= 0.015, (
+        f"Predict spread {prob_high - prob_low:.4f} < 0.015. "
+        f"Platt compression likely still present in inference path."
+    )
