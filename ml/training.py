@@ -427,12 +427,7 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 else:
                     feat_days_last_win = 0.15
 
-            # Feature 21: jockey × trainer combo (interaction, ×2.5 avoids saturation)
-            feat_jt_combo = 0.5
-            if feat_jockey > 0 and feat_trainer > 0:
-                feat_jt_combo = min(1.0, (feat_jockey * feat_trainer) ** 0.5 * 2.5)
-
-            # Feature 22: horse body weight change (fitness signal)
+            # Feature 21: horse body weight change (fitness signal)
             feat_hw_change = 0.5
             hw_current = r.get('horse_weight', 0) or 0
             if prior and hw_current > 0:
@@ -443,7 +438,7 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                         pct_change = (hw_current - avg_prior_hw) / avg_prior_hw
                         feat_hw_change = max(0.0, min(1.0, 0.5 - pct_change * 10))
 
-            # Feature 23: speed consistency (low std = reliable horse)
+            # Feature 22: speed consistency (low std = reliable horse)
             feat_speed_con = 0.5
             if len(adj_speed_vals) >= 3:
                 feat_speed_con = normalize_consistency(float(np.std(adj_speed_vals)))
@@ -455,7 +450,7 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 feat_class, feat_freshness, going_perf,
                 weight_vs_field, feat_jh_coop, feat_dist_pb, feat_frs,
                 feat_last_margin, feat_class_change, feat_days_last_win,
-                feat_jt_combo, feat_hw_change,
+                feat_hw_change,
                 feat_speed_con,
             ]
             assert len(features) == NUM_FEATURES, f"Expected {NUM_FEATURES} features, got {len(features)}"
@@ -528,7 +523,6 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         class_change_feat = max(0.0, min(1.0, 0.5 + class_change * 0.125))
         days_last_win = np.random.beta(2, 4)  # right-skewed, most haven't won recently
         days_last_win = np.clip(days_last_win * 0.85 + 0.1, 0.1, 0.95)
-        jt_combo = min(1.0, (jockey_rate * trainer_rate) ** 0.5 * 2.5)
         hw_change = np.random.normal(0.5, 0.1)  # body weight change
         hw_change = np.clip(hw_change, 0.0, 1.0)
         adjusted_speed = np.random.beta(3, 3)  # par-adjusted speed figure
@@ -542,7 +536,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             freshness, going_perf,
             weight_vs_field, jockey_horse_coop, distance_pb_ratio, field_rel_speed,
             last_margin, class_change_feat, days_last_win,
-            jt_combo, hw_change,
+            hw_change,
             speed_con,
         ]
         assert len(features) == NUM_FEATURES
@@ -570,7 +564,6 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 1.5 * (last_margin - 0.5)  # strong signal
             + 1.2 * (class_change_feat - 0.5)  # class drop = strong edge
             + 0.8 * (days_last_win - 0.4)  # recent winners
-            + 1.0 * (jt_combo - 0.3)  # strong jockey+trainer combos
             + 0.3 * (hw_change - 0.5)  # body weight fitness
             + 0.4 * (speed_con - 0.6)  # consistent runners
             - 2.8

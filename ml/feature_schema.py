@@ -3,7 +3,7 @@
 Both extract_features() and build_training_data_from_db() MUST build
 feature vectors in FEATURE_SCHEMA order. This prevents train/predict mismatch.
 
-24 features — all use data available BEFORE the race (no leakage).
+22 features — all use data available BEFORE the race (no leakage).
 No direct market odds features — ML must provide independent signal.
 """
 
@@ -30,9 +30,8 @@ FEATURE_SCHEMA = [
     {"name": "last_start_margin", "default": 0.5, "range": (0.0, 1.0)},    # 18
     {"name": "class_change", "default": 0.5, "range": (0.0, 1.0)},         # 19 (class drop=high, rise=low)
     {"name": "days_since_last_win", "default": 0.5, "range": (0.0, 1.0)},  # 20
-    {"name": "jockey_trainer_combo", "default": 0.5, "range": (0.0, 1.0)}, # 21 (interaction: jockey×trainer)
-    {"name": "horse_weight_change", "default": 0.5, "range": (0.0, 1.0)},  # 22 (body weight change from prior race)
-    {"name": "speed_consistency", "default": 0.5, "range": (0.0, 1.0)},    # 23 (low std of adj speed = reliable)
+    {"name": "horse_weight_change", "default": 0.5, "range": (0.0, 1.0)},  # 21 (body weight change from prior race)
+    {"name": "speed_consistency", "default": 0.5, "range": (0.0, 1.0)},    # 22 (low std of adj speed = reliable)
 ]
 
 FEATURE_NAMES = [f["name"] for f in FEATURE_SCHEMA]

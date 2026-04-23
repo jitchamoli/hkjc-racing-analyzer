@@ -1,0 +1,12 @@
+STAGE B GATE CHECKS (Wave 2a, corrected):
+[Gate 1] n_samples >= 3000: 4403 -> PASS
+[Gate 2] trained_date: 2026-04-23T23:28:44.178848 -> PASS
+[Gate 3] n_features == 22: 22 -> PASS
+[Gate 4] span >= 0.10: span=0.2498 -> PASS
+[Gate 5] Brier <= 0.080: 0.0734 -> PASS
+[Gate 6] BSS >= 0: 0.0389 -> PASS
+[Gate 7] |Brier - Wave1 (0.0737)| <= 0.01: delta=0.0003 -> PASS
+[Gate 8] jockey_trainer_combo pairs eliminated: combo_pairs=[] -> PASS
+[Gate 8 note] Pre-existing structural correlations (NOT F-15 scope, Wave 2b work): ['recent_form × field_rel_speed', 'recent_form × days_since_last_win', 'field_rel_speed × last_start_margin']
+
+OVERALL: ALL GATES PASS
