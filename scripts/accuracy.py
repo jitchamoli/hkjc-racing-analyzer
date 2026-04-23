@@ -108,6 +108,11 @@ def print_brier_and_calibration(days: int):
     skill = 1 - brier / brier_baseline if brier_baseline > 0 else 0
     print(f"  Brier Skill Score:   {skill:+.4f}  (>0 = better than naive)")
 
+    # F-19: calibrated_prob in prediction_log stores the post-swap combined_probability.
+    # HorseAnalysis.model_probability (added F-19) preserves the pre-swap value on live
+    # objects, but the DB column for it (model_prob) is not yet added to prediction_log.
+    # Once added, SELECT model_prob (falling back to calibrated_prob when NULL) here.
+
     # Calibration curve: bin predictions, compare predicted vs actual
     bins = [(0, 0.05), (0.05, 0.10), (0.10, 0.15), (0.15, 0.25), (0.25, 1.0)]
     print(f"\n  {'Pred Range':<14} {'Count':>6} {'Pred%':>7} {'Actual%':>9} {'Gap':>7}")

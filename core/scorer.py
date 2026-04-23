@@ -171,8 +171,15 @@ def calibrate_probabilities(analyses, field_size: int = 12,
 
 
 def apply_calibrated_probs(analyses, calibrated_probs: List[float]) -> None:
-    """Write calibrated probabilities, value_score, and expected returns onto analyses."""
+    """Write calibrated probabilities, value_score, and expected returns onto analyses.
+
+    F-19: On the first call (model_probability is still None), snapshot the
+    calibrated prob into model_probability so accuracy.py can measure the model
+    without contamination from subsequent BANKER/market-fav rank swaps.
+    """
     for i, a in enumerate(analyses):
+        if a.model_probability is None:
+            a.model_probability = calibrated_probs[i]
         a.combined_probability = calibrated_probs[i]
         a.value_score = calibrated_probs[i] * 100
         if a.horse.win_odds and a.horse.win_odds > 0:
