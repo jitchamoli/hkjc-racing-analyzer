@@ -10,6 +10,7 @@ from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 
 import numpy as np
+from scipy.special import logit, expit
 
 import config
 from ml.feature_schema import FEATURE_NAMES, NUM_FEATURES
@@ -248,16 +249,22 @@ class HKJCRacingMLModel:
         # Platt scaling: fit on VALIDATION predictions with the same recency
         # weights used for XGBoost training — otherwise the calibrator learns
         # a different prior than the model it's calibrating.
+        # F-01: fit on logit(val_proba) not raw val_proba. Raw probs cluster
+        # near base rate (~0.08), making the LR slope mechanically bounded
+        # and producing ~88x compression. Logits spread input over
+        # (-inf, +inf) and let the calibrator learn a meaningful decision.
         val_proba = self.model.predict_proba(X_val)[:, 1]
+        val_logit = logit(np.clip(val_proba, 1e-6, 1 - 1e-6))
         sw_val = sample_weight[cut_train:cut_val] if (sample_weight is not None and temporal) else None
         self.calibrator = LogisticRegression(C=1.0, solver='lbfgs', max_iter=1000)
-        self.calibrator.fit(val_proba.reshape(-1, 1), y_val, sample_weight=sw_val)
-        logger.info(f"Platt calibrator fitted on {len(y_val)} validation samples"
+        self.calibrator.fit(val_logit.reshape(-1, 1), y_val, sample_weight=sw_val)
+        logger.info(f"Platt calibrator fitted on {len(y_val)} validation samples (logit-input)"
                     + (" (recency-weighted)" if sw_val is not None else ""))
 
         # Re-evaluate test metrics with calibrated probabilities (test is truly held-out)
-        y_pred_proba = self.calibrator.predict_proba(
-            self.model.predict_proba(X_test)[:, 1].reshape(-1, 1))[:, 1]
+        test_raw = self.model.predict_proba(X_test)[:, 1]
+        test_logit = logit(np.clip(test_raw, 1e-6, 1 - 1e-6))
+        y_pred_proba = self.calibrator.predict_proba(test_logit.reshape(-1, 1))[:, 1]
         logloss = log_loss(y_test, y_pred_proba)
         brier = float(np.mean((y_pred_proba - y_test) ** 2))
 
@@ -327,9 +334,11 @@ class HKJCRacingMLModel:
         win_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])
 
         # Apply Platt scaling if calibrator is available
+        # F-01: calibrator was fit on logits, so transform input the same way
         if self.calibrator is not None:
+            win_logit = float(logit(np.clip(win_prob, 1e-6, 1 - 1e-6)))
             win_prob = float(self.calibrator.predict_proba(
-                np.array([[win_prob]]))[0, 1])
+                np.array([[win_logit]]))[0, 1])
 
         if win_prob > 0.30:
             confidence = "HIGH"
