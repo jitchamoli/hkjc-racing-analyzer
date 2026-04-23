@@ -98,18 +98,25 @@ def _dynamic_blend_weights(field_size: int, distance: int) -> Tuple[float, float
     heavier market weighting. Smaller fields and longer distances have
     thinner pools where the model has more edge.
 
+    F-09 grid sweep (2026-04-23, 15 points × 73-race holdout):
+    best Brier at base_model_w=0.45, field_threshold=10, distance_threshold=1200.
+    All 15 points fell within ±0.002 Brier (noise floor), so the tie-break rule
+    (within ±0.005 Brier, prefer simpler schedule = base_model_w closest to 0.5)
+    selected base_model_w=0.45 over the prior heuristic 0.60.
+    See docs/audits/2026-04-23/raw/wave2-sweep-summary.json.
+
     Returns (model_weight, market_weight) summing to 1.0.
     """
-    # Base weights from config (always respected as starting point)
-    model_w = config.MODEL_BLEND_WEIGHT
-    market_w = config.MARKET_BLEND_WEIGHT
+    # F-09 empirically chosen: base 45/55 model/market, sprint threshold 1200m
+    model_w = 0.45
+    market_w = 0.55
 
-    # Large field (10+) + sprint (≤1400m): market is sharpest → shift +15% toward market
-    if field_size >= 10 and distance <= 1400:
+    # Large field (10+) + sprint (≤1200m): market is sharpest → shift +15% toward market
+    if field_size >= 10 and distance <= 1200:
         market_w = min(0.70, market_w + 0.15)
         model_w = 1.0 - market_w
-    # Small field (<8) or long distance (≥1800m): thinner pool → shift +15% toward model
-    elif field_size < 8 or distance >= 1800:
+    # Small field (<10) or long distance (≥1800m): thinner pool → shift +15% toward model
+    elif field_size < 10 or distance >= 1800:
         model_w = min(0.70, model_w + 0.15)
         market_w = 1.0 - model_w
 

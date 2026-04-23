@@ -237,10 +237,17 @@ Prices all exotic bet combinations using conditional probability elimination:
 ### Dynamic Market/Model Blend
 
 Market blend weights adjust by race characteristics (HK bettors are sharp — larger/shorter races have sharper pools):
-- Large fields (10+) + sprints (≤1400m): 55% market / 45% model
-- Small fields (<8) or routes (≥1800m): 35% market / 65% model
-- Default: 40% market / 60% model
+- Large fields (10+) + sprints (≤1200m): 70% market / 30% model
+- Small fields (<10) or routes (≥1800m): 40% market / 60% model
+- Default: 55% market / 45% model
 - Quinella pool: lean 55-65% ML (less sharp money, public ignores consistent placers)
+
+Grid-sweep chosen 2026-04-23: see docs/audits/2026-04-23/raw/wave2-sweep-summary.json.
+Selection rule: lowest Brier on 73-race holdout (15 grid points, field_thresh fixed=10,
+shift=±15%), tie-break within ±0.005 Brier toward simpler schedule (base_model_w
+closest to 0.5). All 15 points within ±0.002 Brier — effectively at the noise floor.
+Winner: base_model_w=0.45, field_thresh=10, dist_thresh=1200, Brier=0.1678.
+Prior heuristic (base=0.60, dist_thresh=1400): Brier=0.1684.
 
 ### DB Data Gaps
 
@@ -282,8 +289,8 @@ rule_score (0-100) → sigmoid → ×0.75
 ml_prob (Platt-calibrated) → ×0.25
 combined_prob = rule + ml (uncalibrated)
 → softmax (temp=1.5, mild normalization)
-→ dynamic blend: model × (45-65%) + market × (35-55%)
-  (weights depend on field_size + distance)
+→ dynamic blend: model × (30-60%) + market × (40-70%)
+  (F-09 chosen: base 45/55, sprint threshold 1200m, field threshold 10)
 → normalize to sum=1.0
 → expected_return = odds × prob - 1
 → exotic pricing: conditional elimination for exacta/trifecta/quinella/first4
