@@ -1,7 +1,11 @@
-"""F-05 tests: integrity check refuses to predict against a bad pickle."""
+"""F-05 / F-17 tests: integrity check refuses to predict against a bad pickle;
+untrained model raises instead of returning silent fallback."""
+import numpy as np
 import pytest
 
 from ml.integrity import check_model_integrity, IntegrityError
+from ml.model import HKJCRacingMLModel
+from ml.feature_schema import NUM_FEATURES
 
 
 def test_integrity_accepts_real_pickle():
@@ -71,3 +75,42 @@ def test_integrity_rejects_just_below_min_samples():
     }
     with pytest.raises(IntegrityError, match="n_samples"):
         check_model_integrity(metadata)
+
+
+# ---------------------------------------------------------------------------
+# F-17: untrained model must raise, not silently return 1/field_size
+# ---------------------------------------------------------------------------
+
+def test_predict_raises_on_untrained_model():
+    """F-17: HKJCRacingMLModel.predict() must raise RuntimeError when untrained.
+
+    Prevents silent load failures from producing plausible-looking probabilities.
+    """
+    model = HKJCRacingMLModel.__new__(HKJCRacingMLModel)
+    model.model = None
+    model.place_model = None
+    model.calibrator = None
+    model.is_trained = False
+    model._metadata = None
+    model.feature_importance = {}
+    model.model_version = None
+
+    dummy_features = np.full(NUM_FEATURES, 0.5, dtype=np.float32)
+    with pytest.raises(RuntimeError, match="not trained"):
+        model.predict(dummy_features, field_size=12)
+
+
+def test_predict_place_raises_on_untrained_model():
+    """F-17: predict_place() also raises when model is untrained (via fallback to predict())."""
+    model = HKJCRacingMLModel.__new__(HKJCRacingMLModel)
+    model.model = None
+    model.place_model = None
+    model.calibrator = None
+    model.is_trained = False
+    model._metadata = None
+    model.feature_importance = {}
+    model.model_version = None
+
+    dummy_features = np.full(NUM_FEATURES, 0.5, dtype=np.float32)
+    with pytest.raises(RuntimeError, match="not trained"):
+        model.predict_place(dummy_features, field_size=12)
