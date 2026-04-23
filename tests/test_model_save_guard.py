@@ -39,6 +39,11 @@ def test_save_model_refuses_below_min_samples(tmp_path, monkeypatch):
     sentinel = b"PREEXISTING"
     pkl_path.write_bytes(sentinel)
 
+    # Pre-seed sha file with sentinel too so we can pin both side-effects
+    pre_sha = hashlib.sha256(sentinel).hexdigest()
+    sha_path = tmp_path / "model.sha256"
+    sha_path.write_text(pre_sha)
+
     model = HKJCRacingMLModel()
     rng = np.random.default_rng(42)
     X = rng.random((300, 23))  # below 1000 MIN_SAVE_SAMPLES
@@ -47,3 +52,4 @@ def test_save_model_refuses_below_min_samples(tmp_path, monkeypatch):
     model.train(X, y, save=True)
 
     assert pkl_path.read_bytes() == sentinel, "_save_model wrote a pickle trained on <1000 samples"
+    assert sha_path.read_text() == pre_sha, "_save_model wrote a sha256 despite <1000-sample guard"
