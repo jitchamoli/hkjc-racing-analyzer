@@ -94,11 +94,24 @@ def _merge_with_existing(json_file: str, new_races: list) -> list:
     return new_races
 
 
-def build_race_data(race, analyses, race_date, db, odds_db):
+def _load_previous_race_data(json_file: str) -> list:
+    """Return race list from the most recent prior JSON at this path, or []."""
+    if not os.path.exists(json_file):
+        return []
+    try:
+        with open(json_file) as f:
+            data = json.load(f)
+        return data.get('races', data) if isinstance(data, dict) else data
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     """Build the JSON-serializable race data dict from analyses.
 
     Shared between generator and monitor to avoid duplication.
     Returns race_data dict with horses, speed_map, and exotic_value.
+    analyzer: optional CombinedRaceAnalyzer instance — used for ML integrity check (G6).
     """
     race_going = race.going or ''
     race_distance = int(race.distance) if race.distance and str(race.distance).isdigit() else 1200
@@ -184,7 +197,67 @@ def build_race_data(race, analyses, race_date, db, odds_db):
 
     race_data["speed_map"] = speed_map
 
-    # === Post-bet analytics: Harville dividend + strategy confidence + EV ===
+    # === Edge math (pure_prob, market_prob, edge fields, edge_fires) ===
+    from betting.edge_calculator import (
+        compute_pure_probs, compute_market_probs, compute_edge_fields,
+        apply_edge_gates, EdgeGates,
+    )
+    try:
+        from ml.integrity import check_model_integrity
+    except ImportError:
+        check_model_integrity = None
+
+    horses_for_edge = [{
+        'rule_score': h['rule_score'], 'ml_prob': h['ml_prob'],
+        'win_odds': h['win_odds'] or 0,
+    } for h in race_data['horses']]
+
+    pure_probs_list = compute_pure_probs(horses_for_edge)
+    market_probs_list = compute_market_probs(horses_for_edge)
+
+    # Model integrity — used by G6.
+    integrity_ok = False
+    try:
+        if check_model_integrity is not None:
+            ml_model = getattr(analyzer, 'ml_analyzer', None)
+            ml_model = getattr(ml_model, 'ml_model', None) if ml_model else None
+            metadata = getattr(ml_model, '_metadata', {}) if ml_model else {}
+            check_model_integrity(metadata)
+            integrity_ok = True
+    except Exception:
+        integrity_ok = False
+
+    gates = EdgeGates()
+    has_edge_race = False
+    for i, h in enumerate(race_data['horses']):
+        pure = pure_probs_list[i]
+        market = market_probs_list[i]
+        odds = h['win_odds'] or 0
+        fields = compute_edge_fields(pure, market, odds)
+
+        odds_age_min = 0  # generator.py fetches fresh odds during this run
+        model_rank = h['rank']  # already 1-indexed in the horses loop
+
+        ok, _failed = apply_edge_gates(
+            ev_win=fields['ev_win'], pure_prob=pure, edge_pp=fields['edge_pp'],
+            model_rank=model_rank, odds_age_min=odds_age_min,
+            integrity_ok=integrity_ok, gates=gates,
+        )
+
+        h['pure_prob'] = round(pure, 4)
+        h['market_prob'] = round(market, 4)
+        h['edge_pp'] = round(fields['edge_pp'], 2)
+        h['ev_win'] = round(fields['ev_win'], 3)
+        h['overlay'] = round(fields['overlay'], 3)
+        h['edge_fires'] = ok
+        h['model_rank'] = model_rank
+        if ok:
+            has_edge_race = True
+
+    race_data['has_edge'] = has_edge_race
+    race_data['odds_age_minutes'] = 0
+
+    # === Post-bet analytics: Harville dividend + conviction tier + EV ===
     from betting.dividends import (
         estimate_quinella_dividend, quinella_bet_ev, normalize_market_probs
     )
@@ -194,21 +267,23 @@ def build_race_data(race, analyses, race_date, db, odds_db):
     model_probs = [h.get('calibrated_prob') or 0 for h in horses_json]
     market_probs = normalize_market_probs(win_odds_list)
 
-    # Confidence tier from model conviction on top-2/top-3
+    # Conviction tier (replaces strategy_confidence — spec §4)
+    from betting.conviction import assign_conviction_tier
     sorted_probs = sorted(model_probs, reverse=True)
     top_2_share = sum(sorted_probs[:2]) if len(sorted_probs) >= 2 else 0
     top_3_share = sum(sorted_probs[:3]) if len(sorted_probs) >= 3 else 0
-    if top_2_share >= 0.33 or top_3_share >= 0.42:
-        confidence = 'HIGH'
-    elif top_2_share >= 0.27 or top_3_share >= 0.35:
-        confidence = 'MEDIUM'
-    elif top_2_share >= 0.22:
-        confidence = 'LOW'
-    else:
-        confidence = 'NONE'
-    race_data['strategy_confidence'] = confidence
+    race_data['conviction_tier'] = assign_conviction_tier(
+        has_edge=race_data['has_edge'],
+        top_2_share=top_2_share,
+        top_3_share=top_3_share,
+    )
     race_data['top_2_share'] = round(top_2_share, 4)
     race_data['top_3_share'] = round(top_3_share, 4)
+
+    # Legacy alias for Task-5→6 window: old template still reads strategy_confidence.
+    # TODO: remove this alias when Task 6 (template.py rewrite) lands.
+    _tier_to_legacy = {'EDGE': 'HIGH', 'HIGH': 'HIGH', 'MED': 'MEDIUM', 'LOW': 'LOW', 'SKIP': 'NONE'}
+    race_data['strategy_confidence'] = _tier_to_legacy.get(race_data['conviction_tier'], 'NONE')
 
     # Quinella dividend estimate + EV (only when QIN bet is active)
     if len(qin_indices) >= 2:
@@ -301,7 +376,7 @@ async def main():
             break
 
         analyses = analyzer.analyze_race(race)
-        race_data = build_race_data(race, analyses, race_date, db, odds_db)
+        race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)
         all_races.append(race_data)
         logger.info(f"  Race {race_no}: {len(race.horses)} horses, bet: {analyses[0].bet_recommendation if analyses else 'N/A'}")
 
@@ -311,20 +386,19 @@ async def main():
     # Merge: preserve result fields from prior run (e.g. actual_position, accuracy)
     all_races = _merge_with_existing(json_file, all_races)
 
-    # Cross-race EV ranking — flag relative best/worst among active bets.
-    # Most races show negative EV because model ≈ market for QIN pairs (takeout
-    # drag). The ranking is still informative: highest EV = smallest drag =
-    # best value of the day, even when absolute EV is negative.
-    races_with_ev = [r for r in all_races if r.get('qin_bet_ev')]
-    if len(races_with_ev) >= 2:
-        best = max(races_with_ev, key=lambda r: r['qin_bet_ev']['ev_pct'])
-        worst = min(races_with_ev, key=lambda r: r['qin_bet_ev']['ev_pct'])
-        # Only flag if there's a meaningful spread between best and worst
-        ev_spread = best['qin_bet_ev']['ev_pct'] - worst['qin_bet_ev']['ev_pct']
-        if ev_spread >= 5.0:  # at least 5 percentage points apart
-            for r in all_races:
-                r['is_best_ev'] = (r['race_number'] == best['race_number'])
-                r['is_worst_ev'] = (r['race_number'] == worst['race_number'])
+    # Tier stats — load from cache (refreshed on results ingestion, Task 8)
+    from betting.tier_stats import load_cached_stats
+    tier_stats = load_cached_stats()
+    for r in all_races:
+        r['tier_stats'] = tier_stats
+
+    # Alerts — diff current vs previous race_data file
+    from betting.alerts import compute_alerts, AlertState
+    prev_json = _load_previous_race_data(json_file)
+    state = AlertState()
+    alerts = compute_alerts(all_races, prev_json, state)
+    for r in all_races:
+        r['alerts'] = [a for a in alerts if a['race'] == r['race_number']]
 
     with open(json_file, 'w') as f:
         json.dump(all_races, f, indent=2)

@@ -923,8 +923,8 @@ class HorseDatabase:
                         field_size, horse_name, horse_number, predicted_rank,
                         rule_score, ml_prob, calibrated_prob, expected_return,
                         bet_recommendation, confidence, win_odds, model_version,
-                        predicted_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        conviction_tier, predicted_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(race_date, race_number, horse_name)
                     DO UPDATE SET
                         predicted_rank=excluded.predicted_rank,
@@ -936,6 +936,7 @@ class HorseDatabase:
                         confidence=excluded.confidence,
                         win_odds=excluded.win_odds,
                         model_version=excluded.model_version,
+                        conviction_tier=excluded.conviction_tier,
                         predicted_at=excluded.predicted_at
                 """, (
                     race_date, race_no, venue, distance, class_type, going,
@@ -944,7 +945,9 @@ class HorseDatabase:
                     h.get('ml_prob', 0), h.get('calibrated_prob', 0),
                     h.get('expected_return', 0), h.get('bet_recommendation', 'SKIP'),
                     h.get('confidence', ''), h.get('win_odds', 0),
-                    model_version, now,
+                    model_version,
+                    race.get('conviction_tier'),  # per-race, same for every horse
+                    now,
                 ))
 
         self.conn.commit()
