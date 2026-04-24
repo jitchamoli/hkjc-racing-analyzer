@@ -19,7 +19,7 @@ try:
     import xgboost as xgb
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, log_loss, precision_score, recall_score
-    from sklearn.linear_model import LogisticRegression
+    from sklearn.isotonic import IsotonicRegression
     ML_AVAILABLE = True
 except ImportError:
     ML_AVAILABLE = False
@@ -87,7 +87,7 @@ class HKJCRacingMLModel:
     def __init__(self):
         self.model = None
         self.place_model = None
-        self.calibrator = None  # Platt scaling (LogisticRegression)
+        self.calibrator = None  # Isotonic calibrator (Wave 2c: replaced Platt/LogisticRegression)
         self.is_trained = False
         self.model_version = "1.0"
         self.feature_importance = {}
@@ -253,25 +253,27 @@ class HKJCRacingMLModel:
             self.model.feature_importances_.tolist()
         ))
 
-        # Platt scaling: fit on VALIDATION predictions with the same recency
+        # Isotonic calibrator: fit on VALIDATION predictions with the same recency
         # weights used for XGBoost training — otherwise the calibrator learns
         # a different prior than the model it's calibrating.
-        # F-01: fit on logit(val_proba) not raw val_proba. Raw probs cluster
-        # near base rate (~0.08), making the LR slope mechanically bounded
-        # and producing ~88x compression. Logits spread input over
-        # (-inf, +inf) and let the calibrator learn a meaningful decision.
+        # Wave 2c: switched from Platt (LogisticRegression on logits) to
+        # IsotonicRegression to handle the non-linear mid-range miscalibration
+        # seen in the [18-25%] bin (33 races, ~3% actual vs ~20% predicted).
+        # Isotonic is non-parametric and can reshape the calibration curve freely.
+        # Input: logit(val_proba) — isotonic operates on the raw logit domain
+        # to spread inputs over a useful range (same as Platt pre-Wave-2c).
         val_proba = self.model.predict_proba(X_val)[:, 1]
         val_logit = logit(np.clip(val_proba, 1e-6, 1 - 1e-6))
         sw_val = sample_weight[cut_train:cut_val] if (sample_weight is not None and temporal) else None
-        self.calibrator = LogisticRegression(C=1.0, solver='lbfgs', max_iter=1000)
-        self.calibrator.fit(val_logit.reshape(-1, 1), y_val, sample_weight=sw_val)
-        logger.info(f"Platt calibrator fitted on {len(y_val)} validation samples (logit-input)"
+        self.calibrator = IsotonicRegression(out_of_bounds='clip')
+        self.calibrator.fit(val_logit.ravel(), y_val, sample_weight=sw_val)
+        logger.info(f"Isotonic calibrator fitted on {len(y_val)} validation samples (logit-input)"
                     + (" (recency-weighted)" if sw_val is not None else ""))
 
         # Re-evaluate test metrics with calibrated probabilities (test is truly held-out)
         test_raw = self.model.predict_proba(X_test)[:, 1]
         test_logit = logit(np.clip(test_raw, 1e-6, 1 - 1e-6))
-        y_pred_proba = self.calibrator.predict_proba(test_logit.reshape(-1, 1))[:, 1]
+        y_pred_proba = self.calibrator.predict(test_logit.ravel())
         logloss = log_loss(y_test, y_pred_proba)
         brier = float(np.mean((y_pred_proba - y_test) ** 2))
 
@@ -350,12 +352,19 @@ class HKJCRacingMLModel:
         proba = self.model.predict_proba(features.reshape(1, -1))[0]
         win_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])
 
-        # Apply Platt scaling if calibrator is available
-        # F-01: calibrator was fit on logits, so transform input the same way
+        # Apply calibration if calibrator is available.
+        # Calibrator was fit on logit(val_proba), so transform input the same way.
+        # Supports both IsotonicRegression (Wave 2c+, uses .predict(1D)) and
+        # legacy LogisticRegression pickles (uses .predict_proba(2D)).
         if self.calibrator is not None:
             win_logit = float(logit(np.clip(win_prob, 1e-6, 1 - 1e-6)))
-            win_prob = float(self.calibrator.predict_proba(
-                np.array([[win_logit]]))[0, 1])
+            try:
+                # IsotonicRegression: predict(1D array) → values directly
+                win_prob = float(self.calibrator.predict(np.array([win_logit]))[0])
+            except (ValueError, TypeError):
+                # Legacy LogisticRegression: predict_proba(2D array) → proba
+                win_prob = float(self.calibrator.predict_proba(
+                    np.array([[win_logit]]))[0, 1])
 
         if win_prob > 0.30:
             confidence = "HIGH"
