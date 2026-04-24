@@ -20,3 +20,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Model rollback backups (per-wave snapshots; rollback points live in git tags)
+models/*.pkl.*-backup
+models/*.sha256.*-backup
