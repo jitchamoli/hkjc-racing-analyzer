@@ -399,6 +399,11 @@ function renderHero() {{
   var html = '<div class="hero-label">TODAY\'S BETS — ' + bets.length + ' OF ' + RACES.length + ' RACES</div>';
   bets.forEach(function(race) {{ html += renderBetCard(race); }});
   hero.innerHTML = html;
+  hero.querySelectorAll('.wa-btn').forEach(function(btn) {{
+    btn.addEventListener('click', function() {{
+      copyWA(JSON.parse(btn.dataset.payload), btn);
+    }});
+  }});
 }}
 
 function renderBetCard(race) {{
@@ -445,7 +450,7 @@ function renderBetCard(race) {{
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
         '<span style="font-size:.7rem;color:var(--dim)">' + esc(edgeDetail) + '</span>' +
-        '<button class="wa-btn" onclick="copyWA(\'' + waPayload.replace(/'/g, "\\'").replace(/\n/g, '\\n') + '\', this)">Copy WA</button>' +
+        '<button class="wa-btn" data-payload="' + esc(JSON.stringify(waPayload)) + '">Copy WA</button>' +
       '</div>' +
     '</div>' +
     '<div class="bet-card-pick">#' + esc(topH.number) + ' ' + esc(topH.name) +
