@@ -145,6 +145,7 @@ class HorseDatabase:
                 expected_return REAL,
                 bet_recommendation TEXT,
                 confidence TEXT,
+                conviction_tier TEXT DEFAULT NULL,
                 win_odds REAL,
                 model_version TEXT,
                 actual_position INTEGER DEFAULT 0,
@@ -158,6 +159,12 @@ class HorseDatabase:
                 UNIQUE(race_date, race_number, horse_name)
             )
         """)
+
+        # Add columns if upgrading prediction_log from older schema
+        try:
+            c.execute("ALTER TABLE prediction_log ADD COLUMN conviction_tier TEXT DEFAULT NULL")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
         # Race-level dividends (scraped from HKJC results pages)
         c.execute("""
