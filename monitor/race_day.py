@@ -109,7 +109,7 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
             if not race or not race.horses:
                 break
             analyses = analyzer.analyze_race(race)
-            race_data = build_race_data(race, analyses, race_date, db, odds_db)
+            race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)
             all_races.append(race_data)
 
         if owns_db:
