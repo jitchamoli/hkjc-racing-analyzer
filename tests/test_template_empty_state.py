@@ -58,3 +58,19 @@ def test_killed_fields_not_referenced():
     html = generate_html(json.dumps(races), '2026-04-27 13:00:00', '2026/04/27')
     assert 'is_best_ev' not in html.lower()
     assert 'grade-aplus' not in html.lower()
+
+
+def test_race_detail_renders_reasoning_and_speed_map():
+    race = _race(1, tier='HIGH')
+    race['horses'][0]['reasoning'] = ['Jockey change to Purton', 'Draw 4 sweet spot']
+    race['speed_map'] = {'leaders': [1, 4], 'stalkers': [2, 7]}
+    html = generate_html(json.dumps([race]), '2026-04-27 13:00:00', '2026/04/27')
+    assert 'Jockey change to Purton' in html
+    assert 'leaders' in html
+
+
+def test_copy_all_button_present():
+    races = [_race(1)]
+    html = generate_html(json.dumps(races), '2026-04-27 13:00:00', '2026/04/27')
+    assert 'copy-all-btn' in html
+    assert 'Copy all bets' in html
