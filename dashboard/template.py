@@ -256,6 +256,28 @@ button {{ font-family:inherit; cursor:pointer; }}
 .edge-positive {{ color:var(--green); font-weight:700; }}
 .edge-neutral {{ color:var(--dim); }}
 
+/* ── Detail sections (speed map + reasoning) ── */
+.detail-section {{
+  margin-top:14px; background:rgba(15,23,42,.3);
+  border:1px solid var(--border); border-radius:8px; padding:12px;
+}}
+.section-label {{
+  font-size:.6rem; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--dim); margin-bottom:8px;
+}}
+.sm-row {{ font-size:.78rem; margin-bottom:4px; }}
+.rsn-row {{ margin-bottom:10px; }}
+.rsn-row ul {{ margin:4px 0 0 16px; padding:0; font-size:.78rem; line-height:1.6; color:var(--dim); }}
+
+/* ── Copy all bets button ── */
+.wa-btn-all {{
+  background:linear-gradient(135deg,#25d366,#128c7e); color:#fff;
+  border:none; padding:5px 12px; border-radius:6px;
+  font-size:.72rem; font-weight:700; cursor:pointer;
+  display:inline-flex; align-items:center; gap:5px; transition:opacity .2s;
+}}
+.wa-btn-all:hover {{ opacity:.85; }}
+
 /* ── Alerts rail ── */
 .rail-label {{ font-size:.6rem; letter-spacing:.12em; color:var(--dim); text-transform:uppercase; margin-bottom:10px; }}
 .alert-item {{
@@ -312,6 +334,7 @@ button {{ font-family:inherit; cursor:pointer; }}
     <button id="refresh-btn" onclick="refreshDashboard()" style="display:none;margin-left:12px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.75rem;font-weight:700;cursor:pointer;">
       ↻ Refresh
     </button>
+    <button id="copy-all-btn" class="wa-btn-all" style="margin-left:8px">Copy all bets</button>
   </div>
 </div>
 
@@ -548,6 +571,36 @@ function showRaceDetail(raceNum) {{
     '</tr>';
   }}).join('');
 
+  // Speed map block
+  var speedMap = race.speed_map || {{}};
+  var speedKeys = Object.keys(speedMap);
+  var speedMapHTML = '';
+  if (speedKeys.length) {{
+    speedMapHTML = '<div class="detail-section">' +
+      '<div class="section-label">SPEED MAP</div>' +
+      speedKeys.map(function(k) {{
+        var v = speedMap[k];
+        var inner = Array.isArray(v) ? v.join(', ') : esc(String(v));
+        return '<div class="sm-row"><strong>' + esc(k) + ':</strong> ' + inner + '</div>';
+      }}).join('') +
+    '</div>';
+  }}
+
+  // Per-horse reasoning block
+  var reasoningHTML = race.horses.filter(function(h) {{
+    return (h.reasoning || []).length > 0;
+  }}).map(function(h) {{
+    return '<div class="rsn-row">' +
+      '<strong>#' + esc(h.number) + ' ' + esc(h.name) + '</strong>' +
+      '<ul>' + (h.reasoning || []).map(function(r) {{
+        return '<li>' + esc(r) + '</li>';
+      }}).join('') + '</ul>' +
+    '</div>';
+  }}).join('');
+  var reasoningBlock = reasoningHTML
+    ? '<div class="detail-section"><div class="section-label">REASONING</div>' + reasoningHTML + '</div>'
+    : '';
+
   var det = document.getElementById('race-detail');
   det.innerHTML =
     '<div class="detail-panel">' +
@@ -570,6 +623,8 @@ function showRaceDetail(raceNum) {{
         '</tr></thead>' +
         '<tbody>' + rowsHtml + '</tbody>' +
       '</table>' +
+      speedMapHTML +
+      reasoningBlock +
     '</div>';
   det.scrollIntoView({{behavior:'smooth', block:'nearest'}});
 }}
@@ -693,7 +748,29 @@ async function refreshDashboard() {{
   }}
 }}
 
-window.addEventListener('DOMContentLoaded', initRefreshButton);
+window.addEventListener('DOMContentLoaded', function() {{
+  initRefreshButton();
+  var copyAllBtn = document.getElementById('copy-all-btn');
+  if (copyAllBtn) {{
+    copyAllBtn.addEventListener('click', function() {{
+      var heroBtns = document.querySelectorAll('#hero .wa-btn');
+      if (heroBtns.length === 0) {{
+        copyAllBtn.textContent = 'No bets today';
+        setTimeout(function() {{ copyAllBtn.textContent = 'Copy all bets'; }}, 1500);
+        return;
+      }}
+      var payloads = [];
+      heroBtns.forEach(function(btn) {{
+        try {{ payloads.push(JSON.parse(btn.dataset.payload)); }} catch(e) {{}}
+      }});
+      var combined = payloads.join('\n\n---\n\n');
+      navigator.clipboard.writeText(combined).then(function() {{
+        copyAllBtn.textContent = 'Copied!';
+        setTimeout(function() {{ copyAllBtn.textContent = 'Copy all bets'; }}, 1500);
+      }});
+    }});
+  }}
+}});
 
 // ─────────────────────────────────────────────────────────────
 // Boot
