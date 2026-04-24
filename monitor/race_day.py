@@ -8,6 +8,8 @@ and regenerates the dashboard with auto-refresh enabled.
 import asyncio
 import json
 import logging
+import os
+import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -31,6 +33,24 @@ logger = logging.getLogger(__name__)
 import config
 POLL_INTERVAL = config.POLL_INTERVAL
 PRE_RACE_WINDOW = config.PRE_RACE_WINDOW
+
+
+def _look_up_latest_odds(odds_db, race_date, race_num, horse_num):
+    """Peek the most recent win_odds for a horse from odds history.
+
+    Returns 0 if no row is found or the query fails — callers must
+    guard against a 0 return (no comparison if prev or curr is 0).
+    """
+    try:
+        row = odds_db.conn.execute(
+            "SELECT win_odds FROM odds_history "
+            "WHERE race_date = ? AND race_number = ? AND horse_number = ? "
+            "ORDER BY ts DESC LIMIT 1",
+            (race_date, race_num, horse_num),
+        ).fetchone()
+        return row[0] if row else 0
+    except Exception:
+        return 0
 
 
 def parse_race_time(time_str: str, race_date: str) -> datetime:
@@ -173,8 +193,52 @@ async def run_monitor(race_date: str):
             # Snapshot and regenerate
             logger.info(f"R{race_no}: Pre-race window active")
             await snapshot_odds(fetcher, race_date, race_no, odds_db=odds_db)
-            await regenerate_dashboard(race_date, fetcher=fetcher, analyzer=analyzer,
-                                       db=db, odds_db=odds_db)
+
+            # Sharp-move auto-rerun trigger (spec §7): if any top-2 pick moved
+            # ≥ 25% (steam) or ≥ 40% (cold), force a full re-run.
+            date_str = race_date.replace('/', '')
+            race_data_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                'results', f'race_data_{date_str}.json',
+            )
+            sharp_move = False
+            if os.path.exists(race_data_path):
+                try:
+                    with open(race_data_path) as f:
+                        prev = json.load(f)
+                    prev_races = prev if isinstance(prev, list) else prev.get('races', [])
+                    for race_prev in prev_races:
+                        for h in race_prev.get('horses', [])[:2]:  # top-2 only
+                            prev_odds = h.get('win_odds', 0)
+                            curr_odds = _look_up_latest_odds(
+                                odds_db, race_date,
+                                race_prev['race_number'], h['number'],
+                            )
+                            if prev_odds and curr_odds:
+                                pct = (curr_odds - prev_odds) / prev_odds
+                                if pct <= -0.25 or pct >= 0.40:
+                                    sharp_move = True
+                                    logger.info(
+                                        f"Sharp move on R{race_prev['race_number']} "
+                                        f"#{h['number']}: {prev_odds} → {curr_odds} "
+                                        f"({pct:+.1%}) — forcing re-run"
+                                    )
+                                    break
+                        if sharp_move:
+                            break
+                except Exception as e:
+                    logger.warning(f"Sharp-move detection failed: {e}")
+
+            if sharp_move:
+                # Full re-run in subprocess — re-fetches cards AND odds
+                subprocess.run(
+                    ['python3', 'generate_predictions.py', race_date],
+                    check=False, timeout=300,
+                )
+            else:
+                # Keep the existing call exactly as it was before this patch
+                await regenerate_dashboard(race_date, fetcher=fetcher, analyzer=analyzer,
+                                           db=db, odds_db=odds_db)
 
         logger.info("All races processed. Monitor complete.")
     finally:
