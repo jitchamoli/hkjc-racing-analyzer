@@ -383,25 +383,9 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 else:
                     feat_class_change = 0.5  # same class
 
-            # Feature 19: days since last win (recency of winning)
-            feat_days_last_win = 0.5
-            if prior:
-                for p in reversed(prior):
-                    if p.get('is_winner', 0):
-                        win_date = p.get('race_date', '')
-                        if win_date and race_date:
-                            try:
-                                w_dt = datetime.strptime(win_date.replace('/', '-'), '%Y-%m-%d')
-                                r_dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
-                                days = (r_dt - w_dt).days
-                                feat_days_last_win = max(0.1, min(0.95, 1.0 - days / 350.0))
-                            except Exception:
-                                pass
-                        break
-                else:
-                    feat_days_last_win = 0.15
+            # days_since_last_win (was Feature 19) dropped Wave 2c — see feature_schema.py.
 
-            # Feature 20: horse body weight change (fitness signal)
+            # Feature 19: horse body weight change (fitness signal)
             feat_hw_change = 0.5
             hw_current = r.get('horse_weight', 0) or 0
             if prior and hw_current > 0:
@@ -412,7 +396,7 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                         pct_change = (hw_current - avg_prior_hw) / avg_prior_hw
                         feat_hw_change = max(0.0, min(1.0, 0.5 - pct_change * 10))
 
-            # Feature 21: speed consistency (low std = reliable horse)
+            # Feature 20: speed consistency (low std = reliable horse)
             feat_speed_con = 0.5
             if len(adj_speed_vals) >= 3:
                 feat_speed_con = normalize_consistency(float(np.std(adj_speed_vals)))
@@ -423,7 +407,7 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 feat_field_draw, feat_pace, feat_adj_speed, feat_cd,
                 feat_class, feat_freshness, going_perf,
                 weight_vs_field, feat_jh_coop, feat_dist_pb,
-                feat_last_margin, feat_class_change, feat_days_last_win,
+                feat_last_margin, feat_class_change,
                 feat_hw_change,
                 feat_speed_con,
             ]
@@ -502,8 +486,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         last_margin = np.random.beta(3, 3)  # 0-1, centered around 0.5
         # F-14: ternary class_change {dropping=1.0, same=0.5, rising=0.0}
         class_change_feat = np.random.choice([0.0, 0.5, 1.0], p=[0.15, 0.60, 0.25])
-        days_last_win = np.random.beta(2, 4)  # right-skewed, most haven't won recently
-        days_last_win = np.clip(days_last_win * 0.85 + 0.1, 0.1, 0.95)
+        # days_last_win dropped Wave 2c
         hw_change = np.random.normal(0.5, 0.1)  # body weight change
         hw_change = np.clip(hw_change, 0.0, 1.0)
         adjusted_speed = np.random.beta(3, 3)  # par-adjusted speed figure
@@ -516,7 +499,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             1.0 - class_level,  # inverted: Class 1=high, Class 5=low
             freshness, going_perf,
             weight_vs_field, jockey_horse_coop, distance_pb_ratio,
-            last_margin, class_change_feat, days_last_win,
+            last_margin, class_change_feat,
             hw_change,
             speed_con,
         ]
@@ -543,7 +526,6 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 0.2 * (distance_pb_ratio - 0.85)
             + 1.5 * (last_margin - 0.5)  # strong signal
             + 1.2 * (class_change_feat - 0.5)  # class drop = strong edge
-            + 0.8 * (days_last_win - 0.4)  # recent winners
             + 0.3 * (hw_change - 0.5)  # body weight fitness
             + 0.4 * (speed_con - 0.6)  # consistent runners
             - 2.8

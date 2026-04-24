@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Feature engineering for ML predictions.
 
-Extracts 21 features per horse using FEATURE_SCHEMA order.
+Extracts 20 features per horse using FEATURE_SCHEMA order.
 All features use only data available BEFORE the race (no leakage).
-Wave 2c: field_rel_speed (was feature 17) dropped due to structural correlations.
+Wave 2c: field_rel_speed and days_since_last_win dropped due to structural correlations.
 """
 
 import re
@@ -477,26 +477,9 @@ class FeatureEngineering:
                 class_change_feat = 0.5  # same class
         features.append(class_change_feat)
 
-        # Feature 19: days since last win (recency of winning)
-        days_last_win = 0.5
-        if prior:
-            for p in reversed(prior):
-                if p.get('is_winner', 0):
-                    win_date = p.get('race_date', '')
-                    if win_date and race_date:
-                        try:
-                            w_dt = datetime.strptime(win_date.replace('/', '-'), '%Y-%m-%d')
-                            r_dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
-                            days = (r_dt - w_dt).days
-                            days_last_win = max(0.1, min(0.95, 1.0 - days / 350.0))
-                        except Exception:
-                            pass
-                    break
-            else:
-                days_last_win = 0.15
-        features.append(days_last_win)
+        # days_since_last_win (was Feature 19) dropped Wave 2c — see feature_schema.py.
 
-        # Feature 20: horse body weight change from prior race (fitness signal)
+        # Feature 19: horse body weight change from prior race (fitness signal)
         hw_change = 0.5
         horse_weight_val = horse_data.get('horse_weight', 0) or 0
         try:
@@ -514,7 +497,7 @@ class FeatureEngineering:
                     hw_change = max(0.0, min(1.0, 0.5 - pct_change * 10))
         features.append(hw_change)
 
-        # Feature 21: speed consistency (std of adjusted speed figures — low = reliable)
+        # Feature 20: speed consistency (std of adjusted speed figures — low = reliable)
         speed_con = 0.5
         if len(adj_speed_vals) >= 3:
             import numpy as _np
