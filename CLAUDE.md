@@ -62,14 +62,14 @@ python3 -m scripts.analyze_rank2
 
 ```
 core/       — fetcher, analyzer, scorer, recommender, ML predictor
-ml/         — feature schema, feature extraction, model, training, experiments
+ml/         — feature schema (20 features), feature extraction, model, training, integrity, experiments
 analytics/  — 12 specialized analyzers (draw bias, pace, sectionals, etc.)
 data/       — database, odds tracker, scraper, validation
-monitor/    — race day monitor
-dashboard/  — prediction generator, HTML template
-betting/    — Kelly Criterion optimizer
+monitor/    — race day monitor (auto-rerun on sharp moves)
+dashboard/  — prediction generator, edge-first HTML template
+betting/    — edge_calculator (pure_prob + 6 gates), conviction tiers, alerts, tier_stats, dividends, exotic_calculator, optimizer
 scripts/    — CLI entry points
-tests/      — pytest suite (77 tests)
+tests/      — pytest suite (170 tests)
 ```
 
 Root-level shims exist for backwards compatibility (e.g., `hkjc_data_fetcher.py` re-exports from `core/fetcher.py`).
@@ -91,7 +91,7 @@ scripts/train.py → models/hkjc_racing_model.pkl
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
 - **Rule engine (60%)**: 24 factors with dynamic weighting — factors with missing data are excluded and remaining weights renormalize to 1.0. The rule_score (0-100) is converted to a probability via a **base-rate-anchored sigmoid**: `sigmoid(0.06 × (score - 50) + logit(1/field_size))`, so an "average" horse (score=50) outputs ~1/field_size instead of 50%. Note: `odds` and `odds_movement` were removed from the rule engine to prevent triple-counting market signal (market info enters via the dynamic market blend in calibration). Approximate grouping: Core (rating, form, jockey, trainer, draw, tips), Expert (going, rolling form, margins, field size, career stats), Technical (pace, sectionals, C&D, class movement, gear, weight, freshness). Actual percentages vary per race due to renormalization.
-- **ML model (40%)**: XGBoost classifier with 23 features (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a dedicated **place model** (is_top3) for place bet recommendations and quinella pricing. Both models use Platt scaling (LogisticRegression) for probability calibration, **weighted by the same recency weights used for XGBoost training** so the calibrator sees the same prior as the model. Trained on 4155+ real race results from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `scripts/train.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist.
+- **ML model (40%)**: XGBoost classifier with **20 features** (`ml/model.py`, schema in `ml/feature_schema.py` — `field_rel_speed` and `days_since_last_win` were dropped Wave 2c for r > 0.7 with `recent_form`/`last_start_margin`). Includes a dedicated **place model** (is_top3) for place bet recommendations and quinella pricing. Both models use **IsotonicRegression** (Wave 2c switch from Platt) for probability calibration, **weighted by the same recency weights used for XGBoost training** so the calibrator sees the same prior as the model. Trained on **7,540+ real race results** from DB via `build_training_data_from_db()`; falls back to synthetic data if <50 results. The `scripts/train.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist. The 60/40 rule+ML blend (pre-market) forms `pure_prob`, the model's "independent opinion" used by edge math.
 
 The 13 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change, **speed figures**).
 
@@ -134,7 +134,11 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 
 ### Dashboard
 
-`generate_predictions.py` generates a self-contained HTML dashboard with embedded race data as JSON. The venue is detected dynamically from race data. `results/racing_dashboard.html` is always overwritten with the latest run (date-stamped archive also saved). Dashboard includes grade legend (A+/A/B+/B/B-), WhatsApp copy with full betting strategy, and race detail views. All scraped data (horse names, jockeys, trainers, reasoning) is HTML-escaped via a JS `esc()` helper before `innerHTML` injection (XSS protection). The JSON embedding sanitizes `</script>` tags to prevent script block injection.
+`generate_predictions.py` generates a self-contained HTML dashboard with embedded race data as JSON. The venue is detected dynamically from race data. `results/racing_dashboard.html` is always overwritten with the latest run (date-stamped archive also saved).
+
+**Edge-first layout** (v6.0): top bar → hero (0–5 bet cards with trust card showing per-tier hit-rate + Wilson CI) → 11-tile race strip → race-detail (click to expand any tile) → sticky alerts rail on ≥1024px. The legacy A+/A/B+/B/B- grade system, `is_best_ev`/`is_worst_ev` ring highlights, and `strategy_confidence` string have all been removed. An "Expand all" button on the strip stacks every race detail panel for at-a-glance scanning. Empty-state honest-day message renders when no race clears MED+ tier.
+
+All scraped data (horse names, jockeys, trainers, reasoning) is HTML-escaped via a JS `esc()` helper before `innerHTML` injection (XSS protection). The JSON embedding sanitizes `</script>` tags to prevent script block injection. The WA Copy buttons use a `data-payload` attribute + `addEventListener` pattern (not inline `onclick`) to prevent attribute-injection on horse names containing apostrophes or backslashes.
 
 ### Race Day Monitor
 
@@ -144,24 +148,40 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 
 JSON output now includes per-horse: `going_form`, `jockey_horse_stats`, `distance_pb`, `distance_record`, `odds_movement`, `steam_move`, `cold_horse`. Per-race: `speed_map`. Dashboard renders these as enhanced stats grid, market move badges (steam/drift/cold), and a visual speed map.
 
-### Quinella Dividend & EV Fields (Apr 22 addition)
+### Edge Math + Conviction Tiers (v6.0)
 
-Per-race JSON additions from `betting/dividends.py` (Harville independence model, HK 17.5% takeout):
+Per-race JSON fields produced by `betting/edge_calculator.py`, `betting/conviction.py`, `betting/alerts.py`, `betting/tier_stats.py`:
 
-- `strategy_confidence`: HIGH / MEDIUM / LOW / NONE based on top_2_share and top_3_share (model's conviction on pair identification)
-- `top_2_share`, `top_3_share`: sum of calibrated_prob across top model picks
-- `qin_top_pair_dividend`: estimated quinella dividend for rank-1 + rank-2 pair (per $1 stake)
-- `qin_bet_ev`: dict with `ev_pct`, `avg_dividend`, `hit_prob`, `total_stake`, `expected_profit` for the actual bet configuration (straight QIN or box-3). Uses model probs for P(hit), market probs for dividend.
-- `is_best_ev` / `is_worst_ev`: per-race flag for the highest/lowest EV among active QIN races (only set when ≥2 races have QIN bets with EV spread ≥5pp)
+**Per-horse:**
+- `pure_prob`: softmax of `0.6·sigmoid(rule_score) + 0.4·ml_prob` — our independent opinion BEFORE market blend. Feeds edge math.
+- `market_prob`: normalized `1/win_odds`
+- `edge_pp`: `(pure_prob − market_prob) × 100` — percentage-point gap
+- `ev_win`: `pure_prob × win_odds − 1` — expected ROI per $1 WIN stake
+- `overlay`: `pure_prob × win_odds` (>1.0 = edge exists)
+- `edge_fires`: bool — True only when all 6 ★ EDGE gates pass
+- `model_rank`: 1-indexed model rank within field
 
-**Interpretation of EV%**: Usually negative (typically -30% to -60%) because our model closely tracks market, so Harville dividend ≈ (1-takeout)/model_prob → EV ≈ -takeout × n_combos. The RELATIVE ranking across races (BEST EV vs LOW EV) is what identifies allocation priority. Absolute positive EV would indicate strong model-market divergence — rare in current setup.
+**Per-race:**
+- `conviction_tier`: EDGE / HIGH / MED / LOW / SKIP (replaces deprecated `strategy_confidence`)
+- `has_edge`: bool — any horse has `edge_fires=True`
+- `odds_age_minutes`: derived from `MAX(odds_snapshots.timestamp)` for the race; feeds G5
+- `top_2_share`, `top_3_share`: sum of `calibrated_prob` across top model picks (feeds tier math)
+- `tier_stats`: per-tier `{hit, total, rate, ci_low, ci_high}` from `prediction_log × race_results` over a sliding 124-race window, Wilson 95% CI via `statsmodels.stats.proportion`. Cached to `tracking_data/tier_stats.json`, refreshed by `dashboard/results_fetcher.py` on every results ingestion.
+- `alerts`: list of `{type, race, horse, ts, severity, detail}` — STEAM (-25%), COLD (+40% on top-pick), EDGE_OPENED/CLOSED/WIDENED, RACE_UPCOMING. Per-day deduplication persisted to `tracking_data/alerts_state_YYYYMMDD.json` so re-running `generate_predictions.py` doesn't double-fire alerts. EDGE_CLOSED suppresses subsequent EDGE_OPENED on the same race within the day.
+- `qin_top_pair_dividend`, `qin_bet_ev`, `qin_dividend_source`: Harville-based quinella pricing (or real HKJC payout when results are ingested). HK 17.5% takeout factored in.
+- **Removed in v6.0**: `is_best_ev`/`is_worst_ev` (superseded by EDGE gate), `combined_score` (redundant with `calibrated_prob × 100`), `strategy_confidence` (renamed to `conviction_tier`).
 
-Dashboard renders:
-- Strategy caveat banner at top ("validated on 71 held-out races, 95% CI 9-25%")
-- Confidence badge per race card next to race number
-- EV% + dividend estimate in race card footer
-- BEST EV / LOW EV highlight ring + badge
-- Detailed EV breakdown (hit prob, avg dividend, EV%) in race-detail "What To Bet" panel
+**6-gate EDGE filter** (all must pass for ★ EDGE):
+| Gate | Threshold | Reason |
+|------|-----------|--------|
+| G1 EV | `ev_win ≥ +0.05` | 5% expected ROI per $1 WIN stake |
+| G2 Prob floor | `pure_prob ≥ 0.10` | No edge-flagging on noise-floor longshots |
+| G3 Edge gap | `edge_pp ≥ 5.0` | Raw gap backstop |
+| G4 Rank alignment | `model_rank ≤ 2` | Don't flag rank-5 longshot as edge |
+| G5 Odds freshness | `odds_age_min < 30` | Stale odds invalidate EV |
+| G6 Integrity | F-05 check passes | Model trained on ≥1000 real samples, <90 days old |
+
+**Sample-size note**: at the current 124-race holdout, `Corr(edge_pp, actual win) = -0.21` over the 25 model-vs-market disagreement points — i.e. our disagreements at ≥5pp are NEGATIVELY predictive. CI is wide (n=25). Watch for ~50 disagreements before deciding whether to tighten G3 from +5pp to +8pp.
 
 ### Historical Scraping (scrape_history.py)
 
@@ -183,7 +203,7 @@ Uses Playwright to scrape HKJC results pages (JS-rendered). Extracts from result
 
 1. **No data leakage**: Every feature must use ONLY data available BEFORE the race. Never use finish_position, finish_time, running_position, or margin from the CURRENT race. For horse history features (C&D form, pace, speed), use strictly `prior_date < current_date`. `extract_features()` now accepts `race_date` via `horse_data` and filters DB queries with `AND race_date < ?`. Track records in training are also date-aware (cumulative best-time lookup, not global).
 
-2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. `generate_synthetic_training_data()` must also match the same 23-feature schema. The DB (race_results) has different fields than race cards: rating, last_6, gear are ~97% missing in DB but always present on race cards. Use DB-available proxies (prior finishes, prior win rate) instead.
+2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. `generate_synthetic_training_data()` must also match the same 20-feature schema. The DB (race_results) has different fields than race cards: rating, last_6, gear are ~97% missing in DB but always present on race cards. Use DB-available proxies (prior finishes, prior win rate) instead.
 
 3. **No constant features**: If a feature has std < 0.01 in training data, it's wasted. Common cause: field is mostly null and falls back to 0.5. Check with `np.std()` after building features. Feature correlation matrix is logged after each training run — pairs with |r| > 0.7 are flagged.
 
@@ -197,27 +217,25 @@ Uses Playwright to scrape HKJC results pages (JS-rendered). Extracts from result
 
 8. **Model integrity**: `.sha256` sidecar is required for loading. Missing checksum = hard refusal. `train_ml_model.py` backs up the old model before training and restores on failure.
 
-### Current 23 ML Features (all prior-race only)
+### Current 20 ML Features (all prior-race only, post Wave 2c)
 
-Features 1-9: `prior_win_rate, recent_form, draw_advantage, jockey_win_rate, trainer_win_rate, field_size, field_rel_draw, prior_pace, adjusted_speed` (Beyer-style par-adjusted, weight-corrected — replaces raw prior_speed)
+Features 1–8: `prior_win_rate, recent_form, draw_advantage, jockey_win_rate, trainer_win_rate, field_size, field_rel_draw, prior_pace`
 
-Features 10-17: `cd_form_prior, class_level, freshness, going_performance` (merged), `weight_vs_field` (relative to field median), `jockey_horse_coop, distance_pb_ratio, field_rel_speed` (percentile within prior fields)
+Features 9–16: `adjusted_speed` (Beyer-style par-adjusted, weight-corrected — replaces raw prior_speed), `cd_form_prior, class_level, freshness, going_performance` (merged), `weight_vs_field` (relative to field median), `jockey_horse_coop, distance_pb_ratio`
 
-Features 18-23:
+Features 17–20:
 - `last_start_margin`: how far behind winner last race (normalized)
 - `class_change`: current class vs last-race class (drop = positive signal)
-- `days_since_last_win`: recency of last win (normalized decay)
-- `jockey_trainer_combo`: geometric mean of jockey × trainer win rates (interaction)
 - `horse_weight_change`: body weight % change from last 3 races (fitness signal)
-- `speed_consistency`: std of adjusted speed figures — low = reliable horse (important for exotic bets)
+- `speed_consistency`: std of adjusted speed figures — low = reliable horse
 
-Features removed during audit: `odds_implied_prob`, `venue_win_rate` (r=0.984), `weight_carried_norm` (r=0.877), `draw_field_interact` (r=0.934), `prior_avg_position`, `prior_speed` (replaced by adjusted_speed), `late_money_signal` (constant 0.5 in training — DB lacks opening odds — removed to eliminate train/predict distribution mismatch; odds signal enters via market blend instead).
+Features removed during audit / Wave 2c: `odds_implied_prob`, `venue_win_rate` (r=0.984), `weight_carried_norm` (r=0.877), `draw_field_interact` (r=0.934), `prior_avg_position`, `prior_speed` (replaced by `adjusted_speed`), `late_money_signal` (constant 0.5 — train/predict distribution mismatch), `field_rel_speed` (Wave 2c: r=0.72/0.71 with `recent_form`/`last_start_margin`), `days_since_last_win` (Wave 2c: r=0.74 with `recent_form`), `jockey_trainer_combo` (Wave 2a: cleanup).
 
 ### Training Pipeline
 
-- **60/20/20 temporal split**: Train on first 60%, validate (early stopping + Platt calibration) on next 20%, evaluate on final 20%. Test metrics are computed through the calibrator but the calibrator was never fitted on test data — metrics are unbiased.
-- **Recency weighting**: Sample weights decay from 1.0 (newest) to 0.3 (oldest). Recent races get 3.3x weight.
-- **Platt scaling**: LogisticRegression fitted on validation set predictions → actual outcomes. Recalibrates XGBoost's overconfident probabilities. Fitted on validation (not test) so test metrics remain unbiased.
+- **60/20/20 temporal split**: Train on first 60%, validate (early stopping + isotonic calibration) on next 20%, evaluate on final 20%. Test metrics are computed through the calibrator but the calibrator was never fitted on test data — metrics are unbiased.
+- **Recency weighting**: Per-row linear from 1.0 (newest) to 0.3 (oldest). Recent races get 3.3× weight.
+- **Isotonic calibration** (Wave 2c switch from Platt): `IsotonicRegression(out_of_bounds='clip')` fitted on validation-set predictions (logit-input) → actual outcomes. Recalibrates XGBoost's overconfident probabilities. Fitted on validation (not test) so test metrics remain unbiased. **Mid-range [18-25%] gap fixed** at -3.2pp once training crossed 7,000 rows (was -18.6pp at 4,500 — the larger validation slice gave isotonic enough samples to fit the mid-range knee).
 - **Place model**: Separate XGBoost trained on `is_top3` labels alongside the win model. Used for place bet probability and quinella placer-boost pricing.
 - **Precomputed lookups**: Par times (per distance/going/class), track records, field sizes, field median weights, and per-race finish times are all precomputed before the training loop.
 
@@ -256,22 +274,23 @@ Prior heuristic (base=0.60, dist_thresh=1400): Brier=0.1684.
 - `horse_weight` is in lbs (900-1350 range), `weight` is carried weight assignment (113-133 lbs).
 - `class_type` has 96% coverage in DB. Missing rows default to class 3 for class_change calculation.
 
-### Betting Strategy — Post-Wave-2a (2026-04-23, F-22)
+### Betting Strategy — Post v6.0 + Data Backfill (2026-04-25)
 
-**Decision**: keep box-4 default unchanged — CIs overlap, statistically indistinguishable at n=72.
+**Decision**: keep box-4 default unchanged — CIs still overlap at n=124. Recommender-gated mode (auto-downgrade by conviction tier) is the operational default.
 
-Evidence (72-race holdout with real HKJC dividends, corrected baseline post-Wave-2a):
-- Straight-Q: hits 14/72 (19.4%), Wilson CI [12.0%, 30.0%], ROI +2876%, bootstrap CI [+1122%, +5215%]
-- Box-3:      hits 30/72 (41.7%), Wilson CI [31.0%, 53.2%], ROI +1939%, bootstrap CI [+1161%, +2871%]
-- Box-4:      hits 39/72 (54.2%), Wilson CI [42.7%, 65.2%], ROI +1402%, bootstrap CI [+905%, +1977%]
+Evidence (124-race holdout with real HKJC dividends, post-backfill 7,540-sample retrain):
+- Recommender-gated: 110 bets, 45 hits (40.9%), ROI **+1843%**
+- Box-4: ROI +1768% (hits ~54%, Wilson CI from 73-race baseline still applies — re-bootstrap pending)
+- Box-3: ROI +1713%
+- Straight-Q: highest point ROI but highest variance
 
-Decision rule outcome: box-4 hit-rate CI [42.7%, 65.2%] and box-3 hit-rate CI [31.0%, 53.2%] overlap (42.7% < 53.2%). Box-4 ROI CI [+905%, +1977%] and box-3 ROI CI [+1161%, +2871%] overlap substantially. Neither dominance criterion is met. All three strategies (straight-Q, box-3, box-4) have overlapping ROI CIs — statistically indistinguishable at n=72. Recommender-gated (all strategies mixed by conviction): 66/72 races bet, 47.0% hit rate, ROI +1976%.
+All strategies (straight-Q, box-3, box-4) have overlapping ROI CIs — **statistically indistinguishable at n=124**. The recommender already auto-downgrades to box-3/straight-Q when conviction gates aren't met, so the "default" label mainly affects the high-conviction gate threshold.
 
-Additional notes:
-- Straight-Q yields the highest point ROI (+2876%) but highest variance (wide CI). At n=72 this is driven by a handful of large-dividend hits (avg $153, max $666).
-- Box-4 gives the highest unconditional hit rate (54.2%) and most stable ROI CI lower bound (+905%).
-- The recommender already auto-downgrades to box-3/straight-Q when conviction gates are not met, so the "default" label mainly affects the high-conviction gate threshold — not every race.
-- F-21 data collection is queued to narrow CIs below the current ~20pp width.
+**New finding (n=124)**: `Corr(edge_pp, actual win) = -0.21` over 25 model-vs-market disagreement points (≥5pp). Negative correlation is concerning — means the market is sharper than us at the EDGE points. CI is wide on n=25; watch for ~50 disagreements before deciding whether to tighten G3 from +5pp to +8pp. **Don't act on this yet.**
+
+Historical baselines (kept for context):
+- Wave 2a baseline (n=72): recommender ROI +1976%, hit rate 47.0%
+- Pre-audit (synthetic-trained pickle): backtest was measuring wrong pipeline, numbers not comparable
 
 **Recommendation logic** (`core/recommender.py`) — unchanged from Apr 23, box-4 default retained:
 - Default: `BOX Q4` — all top-4 model picks flagged `QIN` (6 combinations). Requires rank-3 AND rank-4 each have strong-history signals + top_4_share ≥ 0.38.
@@ -295,18 +314,25 @@ python3 -m scripts.backtest --sweep      # Grid over temperature × model_w
 ### Probability Pipeline
 
 ```
-rule_score (0-100) → sigmoid → ×0.75
-ml_prob (Platt-calibrated) → ×0.25
-combined_prob = rule + ml (uncalibrated)
-→ softmax (temp=1.5, mild normalization)
+rule_score (0-100) → sigmoid(0.06×(score-50)+logit(1/field_size)) → ×0.60
+ml_prob (isotonic-calibrated) → ×0.40
+pure_prob = softmax(rule × 0.6 + ml × 0.4) — independent opinion, pre-market
+
 → dynamic blend: model × (30-60%) + market × (40-70%)
   (F-09 chosen: base 45/55, sprint threshold 1200m, field threshold 10)
-→ normalize to sum=1.0
-→ expected_return = odds × prob - 1
-→ exotic pricing: conditional elimination for exacta/trifecta/quinella/first4
+→ calibrated_prob (post-blend, normalized to sum=1.0)
+→ expected_return = odds × calibrated_prob - 1
+
+Edge math (additive, computed from pure_prob NOT calibrated_prob):
+edge_pp = (pure_prob − market_prob) × 100
+ev_win  = pure_prob × win_odds − 1
+overlay = pure_prob × win_odds
+→ 6 EDGE gates → edge_fires bool → conviction_tier
+
+Exotic pricing: conditional elimination for exacta/trifecta/quinella/first4.
 ```
 
-Market odds enter ONLY through the dynamic market blend — removed from rule engine to prevent triple-counting. Blend weights are heavier on market for large sprint fields (sharp pool), heavier on model for small/long fields and exotics (thinner pool).
+Market odds enter ONLY through the dynamic market blend — removed from rule engine to prevent triple-counting. Blend weights are heavier on market for large sprint fields (sharp pool), heavier on model for small/long fields and exotics (thinner pool). **Edge math uses `pure_prob` (pre-blend) NOT `calibrated_prob` (post-blend)** — otherwise edge would be mechanically tiny because we'd be comparing market-influenced-us against market.
 
 ### Accuracy Report
 
