@@ -413,13 +413,13 @@ function renderHero() {{
       '<div class="empty-hero">' +
         '<div class="empty-horse">🏇</div>' +
         '<div class="empty-title">No bets meet the threshold today</div>' +
-        '<div class="empty-body">Model and market agree too closely for an edge play, and no race clears HIGH/MED conviction on pair identification. The strip below shows all races if you want to drill in, but <strong>skipping the card is the dashboard\'s recommendation.</strong></div>' +
+        '<div class="empty-body">Model and market agree too closely for an edge play, and no race clears HIGH/MED conviction on pair identification. The strip below shows all races if you want to drill in, but <strong>skipping the card is the dashboard&#39;s recommendation.</strong></div>' +
         (closestMsg ? '<div class="closest-miss">' + esc(closestMsg) + '</div>' : '') +
       '</div>';
     return;
   }}
 
-  var html = '<div class="hero-label">TODAY\'S BETS — ' + bets.length + ' OF ' + RACES.length + ' RACES</div>';
+  var html = '<div class="hero-label">TODAY&#39;S BETS — ' + bets.length + ' OF ' + RACES.length + ' RACES</div>';
   bets.forEach(function(race) {{ html += renderBetCard(race); }});
   hero.innerHTML = html;
   hero.querySelectorAll('.wa-btn').forEach(function(btn) {{
@@ -463,7 +463,7 @@ function renderBetCard(race) {{
   // WA copy payload
   var waPayload = tier + ' — R' + race.race_number + ' #' + topH.number + ' ' + (topH.name||'') +
     ' @ $' + (topH.win_odds||'?') + ' | ' + betRec +
-    (whyItems.length ? '\n' + whyItems.slice(0,2).join(' | ') : '');
+    (whyItems.length ? '\\n' + whyItems.slice(0,2).join(' | ') : '');
 
   return '<div class="bet-card tier-' + tier + '">' +
     '<div class="bet-card-top">' +
@@ -497,7 +497,7 @@ function renderBetCard(race) {{
 // WhatsApp copy
 // ─────────────────────────────────────────────────────────────
 function copyWA(text, btn) {{
-  var fullText = text + '\n⚠️ For entertainment only. Gamble responsibly.';
+  var fullText = text + '\\n⚠️ For entertainment only. Gamble responsibly.';
   navigator.clipboard.writeText(fullText).then(function() {{
     var orig = btn.textContent;
     btn.textContent = 'Copied!';
@@ -767,7 +767,7 @@ function updateBanner(elapsed, subText) {{
 
 function parseProgress(logText) {{
   if(!logText) return 'Starting…';
-  var lines=logText.split('\n'); var lastRace=0; var phase='starting';
+  var lines=logText.split('\\n'); var lastRace=0; var phase='starting';
   for(var i=0;i<lines.length;i++) {{
     var line=lines[i];
     var done=line.match(/Race (\\d+): \\d+ horses, bet: (\\S+)/);
@@ -853,7 +853,7 @@ window.addEventListener('DOMContentLoaded', function() {{
       heroBtns.forEach(function(btn) {{
         try {{ payloads.push(JSON.parse(btn.dataset.payload)); }} catch(e) {{}}
       }});
-      var combined = payloads.join('\n\n---\n\n');
+      var combined = payloads.join('\\n\\n---\\n\\n');
       navigator.clipboard.writeText(combined).then(function() {{
         copyAllBtn.textContent = 'Copied!';
         setTimeout(function() {{ copyAllBtn.textContent = 'Copy all bets'; }}, 1500);
