@@ -289,6 +289,9 @@ class ResultsFetcher:
         # Fill prediction_log with actual results for longitudinal tracking
         self._fill_prediction_log(race_date, actual_results)
 
+        # Refresh tier_stats cache — new results shift the windowed hit-rate
+        self._refresh_tier_stats()
+
         output_file = self.save_merged_data(merged, race_date, summary)
 
         logger.info("Results fetched successfully!")
@@ -320,6 +323,18 @@ class ResultsFetcher:
             logger.info(f"Filled prediction_log with results for {len(actual_results)} races")
         except Exception as e:
             logger.warning(f"Could not fill prediction_log: {e}")
+
+    @staticmethod
+    def _refresh_tier_stats():
+        """Refresh tier_stats.json cache after new results ingested."""
+        try:
+            from betting.tier_stats import refresh_cache
+            db = HorseDatabase()
+            refresh_cache(db.conn, window=73)
+            db.close()
+            logger.info("Refreshed tier_stats.json cache")
+        except Exception as e:
+            logger.warning(f"tier_stats refresh failed: {e}")
 
     def _regenerate_dashboard(self, data: List, summary: Dict, race_date: str):
         """Inject results data into the dashboard by adding a RESULTS constant."""
