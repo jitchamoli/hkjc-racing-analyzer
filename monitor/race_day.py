@@ -42,13 +42,17 @@ def _look_up_latest_odds(odds_db, race_date, race_num, horse_num):
     guard against a 0 return (no comparison if prev or curr is 0).
     """
     try:
-        row = odds_db.conn.execute(
-            "SELECT win_odds FROM odds_history "
-            "WHERE race_date = ? AND race_number = ? AND horse_number = ? "
-            "ORDER BY ts DESC LIMIT 1",
-            (race_date, race_num, horse_num),
-        ).fetchone()
-        return row[0] if row else 0
+        conn = odds_db._get_conn()
+        try:
+            row = conn.execute(
+                "SELECT win_odds FROM odds_snapshots "
+                "WHERE race_date = ? AND race_number = ? AND horse_number = ? "
+                "ORDER BY timestamp DESC LIMIT 1",
+                (race_date, race_num, horse_num),
+            ).fetchone()
+            return row[0] if row else 0
+        finally:
+            conn.close()
     except Exception:
         return 0
 
