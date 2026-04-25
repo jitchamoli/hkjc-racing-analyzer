@@ -20,6 +20,7 @@ import argparse
 import http.server
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -116,6 +117,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path == '/api/refresh':
             race_date = (self.headers.get('X-Race-Date')
                          or datetime.now().strftime('%Y/%m/%d'))
+            # Validate before passing to subprocess — even with shell=False,
+            # an unvalidated string lets any loopback caller spawn unlimited
+            # background python processes.
+            if not re.fullmatch(r'\d{4}/\d{2}/\d{2}', race_date):
+                self._send_json({'error': 'invalid race_date, expected YYYY/MM/DD'}, status=400)
+                return
             with State.lock:
                 if State.refreshing:
                     self._send_json({'error': 'already refreshing'}, status=409)
