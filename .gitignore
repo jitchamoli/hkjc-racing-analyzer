@@ -30,3 +30,18 @@ tracking_data/alerts_state_*.json
 
 # Superpowers brainstorming session artifacts (mockups, event logs)
 .superpowers/
+
+# Playwright MCP session artifacts
+.playwright-mcp/
+
+# Large local databases — regenerate via scripts/scrape.py +
+# scripts/load_renavon_csvs.py + scripts/backfill_from_renavon.py
+tracking_data/horse_history.db
+tracking_data/odds_history.db
+tracking_data/horse_history.db-shm
+tracking_data/horse_history.db-wal
+tracking_data/odds_history.db-shm
+tracking_data/odds_history.db-wal
+
+# Renavon one-time export CSVs (user-purchased, ~80MB gzipped)
+renavon_Hongkong_Jockey_Club_races_and_horses/
