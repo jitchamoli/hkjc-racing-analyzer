@@ -413,10 +413,11 @@ async def main():
         r['tier_stats'] = tier_stats
 
     # Alerts — diff current vs previous race_data file
-    from betting.alerts import compute_alerts, AlertState
+    from betting.alerts import compute_alerts, AlertState, load_alert_state, save_alert_state
     prev_json = _load_previous_race_data(json_file)
-    state = AlertState()
+    state = load_alert_state(race_date)
     alerts = compute_alerts(all_races, prev_json, state)
+    save_alert_state(race_date, state)
     for r in all_races:
         r['alerts'] = [a for a in alerts if a['race'] == r['race_number']]
 

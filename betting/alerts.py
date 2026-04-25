@@ -6,9 +6,16 @@ we also mark EDGE_OPENED as already-emitted for that race so the window
 doesn't re-open on a subsequent tick. See spec §7.
 """
 
+import json
+import os
 import time
 from dataclasses import dataclass, field
 from typing import List, Dict, Set, Tuple
+
+ALERTS_STATE_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'tracking_data',
+)
 
 
 @dataclass
@@ -96,3 +103,28 @@ def compute_alerts(current_races: List[Dict], previous_races: List[Dict],
             _mark(state, race_num, 0, 'RACE_UPCOMING')
 
     return list(reversed(out))  # newest-first within tick
+
+
+def load_alert_state(race_date: str) -> AlertState:
+    """Load persisted AlertState for a date, or return a fresh one."""
+    date_str = race_date.replace('/', '')
+    path = os.path.join(ALERTS_STATE_DIR, f'alerts_state_{date_str}.json')
+    if not os.path.exists(path):
+        return AlertState()
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        # Tuples are stored as lists in JSON — convert back
+        emitted = {tuple(item) for item in data.get('emitted', [])}
+        return AlertState(emitted=emitted)
+    except (json.JSONDecodeError, OSError):
+        return AlertState()
+
+
+def save_alert_state(race_date: str, state: AlertState) -> None:
+    """Persist AlertState.emitted to tracking_data/alerts_state_YYYYMMDD.json."""
+    date_str = race_date.replace('/', '')
+    path = os.path.join(ALERTS_STATE_DIR, f'alerts_state_{date_str}.json')
+    os.makedirs(ALERTS_STATE_DIR, exist_ok=True)
+    with open(path, 'w') as f:
+        json.dump({'emitted': [list(item) for item in state.emitted]}, f, indent=2)

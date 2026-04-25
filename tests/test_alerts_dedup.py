@@ -1,6 +1,6 @@
 """Alert generation + dedup across snapshots."""
 import pytest
-from betting.alerts import compute_alerts, AlertState
+from betting.alerts import compute_alerts, AlertState, load_alert_state, save_alert_state
 
 
 def _make_race(race_num, horses, has_edge=False, minutes_to_post=30):
@@ -118,3 +118,30 @@ def test_alerts_sorted_newest_first():
     assert len(alerts) == 2
     types = {a['type'] for a in alerts}
     assert 'STEAM' in types and 'COLD' in types
+
+
+def test_alert_state_persistence(tmp_path, monkeypatch):
+    """AlertState round-trips via load/save to JSON."""
+    import betting.alerts
+    monkeypatch.setattr(betting.alerts, 'ALERTS_STATE_DIR', str(tmp_path))
+
+    state = AlertState()
+    state.emitted.add((5, 0, 'EDGE_OPENED'))
+    state.emitted.add((3, 4, 'STEAM'))
+
+    save_alert_state('2026/04/27', state)
+
+    loaded = load_alert_state('2026/04/27')
+    assert (5, 0, 'EDGE_OPENED') in loaded.emitted
+    assert (3, 4, 'STEAM') in loaded.emitted
+    assert len(loaded.emitted) == 2
+
+
+def test_alert_state_load_returns_fresh_on_missing(tmp_path, monkeypatch):
+    """load_alert_state returns an empty AlertState when no file exists."""
+    import betting.alerts
+    monkeypatch.setattr(betting.alerts, 'ALERTS_STATE_DIR', str(tmp_path))
+
+    s = load_alert_state('2026/04/27')
+    assert isinstance(s, AlertState)
+    assert len(s.emitted) == 0
