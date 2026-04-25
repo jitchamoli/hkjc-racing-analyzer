@@ -571,19 +571,108 @@ function showRaceDetail(raceNum) {{
     '</tr>';
   }}).join('');
 
-  // Speed map block
-  var speedMap = race.speed_map || {{}};
-  var speedKeys = Object.keys(speedMap);
-  var speedMapHTML = '';
-  if (speedKeys.length) {{
-    speedMapHTML = '<div class="detail-section">' +
-      '<div class="section-label">SPEED MAP</div>' +
-      speedKeys.map(function(k) {{
-        var v = speedMap[k];
-        var inner = Array.isArray(v) ? v.join(', ') : esc(String(v));
-        return '<div class="sm-row"><strong>' + esc(k) + ':</strong> ' + inner + '</div>';
+  // Per-horse detail table (spec §5 KEEP: last_6, horse_weight, days_since_last_run,
+  // rating_change, going_form, jockey_horse_stats, distance_pb)
+  var detailFields = [
+    {{key: 'last_6', label: 'L6', render: function(h){{ return esc(h.last_6 || ''); }}}},
+    {{key: 'horse_weight', label: 'WT', render: function(h){{ return h.horse_weight != null ? h.horse_weight : '—'; }}}},
+    {{key: 'days_since_last_run', label: 'DSLR', render: function(h){{ return h.days_since_last_run != null ? h.days_since_last_run : '—'; }}}},
+    {{key: 'rating_change', label: 'ΔR', render: function(h){{ return h.rating_change != null ? h.rating_change : '—'; }}}},
+    {{key: 'going_form', label: 'GOING', render: function(h){{
+      if (!h.going_form) return '—';
+      if (typeof h.going_form === 'object' && h.going_form.wins != null && h.going_form.runs != null) {{
+        return h.going_form.wins + '/' + h.going_form.runs;
+      }}
+      return esc(String(h.going_form));
+    }}}},
+    {{key: 'jockey_horse_stats', label: 'J×H', render: function(h){{
+      if (!h.jockey_horse_stats) return '—';
+      var j = h.jockey_horse_stats;
+      if (typeof j === 'object' && j.starts != null) {{
+        return (j.wins || 0) + '/' + j.starts;
+      }}
+      return esc(String(j));
+    }}}},
+    {{key: 'distance_pb', label: 'PB', render: function(h){{
+      if (!h.distance_pb) return '—';
+      if (typeof h.distance_pb === 'object' && h.distance_pb.time != null) {{
+        return esc(String(h.distance_pb.time));
+      }}
+      return esc(String(h.distance_pb));
+    }}}},
+  ];
+  var activeCols = detailFields.filter(function(col) {{
+    return race.horses.some(function(h) {{
+      var v = h[col.key];
+      return v != null && v !== '' && !(typeof v === 'object' && Object.keys(v).length === 0);
+    }});
+  }});
+  var detailTableHTML = '';
+  if (activeCols.length) {{
+    detailTableHTML = '<div class="detail-section">' +
+      '<div class="section-label">PER-HORSE DETAIL</div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:.76rem">' +
+      '<thead><tr><th style="text-align:left;padding:4px">#</th><th style="text-align:left;padding:4px">NAME</th>' +
+        activeCols.map(function(col) {{
+          return '<th style="text-align:left;padding:4px">' + esc(col.label) + '</th>';
+        }}).join('') +
+      '</tr></thead><tbody>' +
+      race.horses.map(function(h) {{
+        return '<tr>' +
+          '<td style="padding:4px">' + h.number + '</td>' +
+          '<td style="padding:4px">' + esc(h.name) + '</td>' +
+          activeCols.map(function(col) {{
+            return '<td style="padding:4px">' + col.render(h) + '</td>';
+          }}).join('') +
+        '</tr>';
       }}).join('') +
-    '</div>';
+      '</tbody></table></div>';
+  }}
+
+  // Speed map block
+  var speedMapHTML = '';
+  var sm = race.speed_map;
+  if (sm) {{
+    if (Array.isArray(sm) && sm.length) {{
+      // Production shape — List[Dict] from analytics/pace.generate_speed_map()
+      speedMapHTML = '<div class="detail-section">' +
+        '<div class="section-label">SPEED MAP</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:.78rem"><thead><tr>' +
+          '<th style="text-align:left;padding:4px">#</th>' +
+          '<th style="text-align:left;padding:4px">NAME</th>' +
+          '<th style="text-align:left;padding:4px">STYLE</th>' +
+          '<th style="text-align:right;padding:4px">POS</th>' +
+          '<th style="text-align:right;padding:4px">DRAW</th>' +
+        '</tr></thead><tbody>' +
+        sm.map(function(entry) {{
+          return '<tr>' +
+            '<td style="padding:4px">' + esc(entry.number) + '</td>' +
+            '<td style="padding:4px">' + esc(entry.name) + '</td>' +
+            '<td style="padding:4px">' + esc(entry.style || '') + '</td>' +
+            '<td style="padding:4px;text-align:right">' + esc(entry.predicted_pos != null ? entry.predicted_pos : '') + '</td>' +
+            '<td style="padding:4px;text-align:right">' + esc(entry.draw != null ? entry.draw : '') + '</td>' +
+          '</tr>';
+        }}).join('') +
+        '</tbody></table></div>';
+    }} else if (typeof sm === 'object') {{
+      // Legacy/test shape — Dict[str, Any]
+      var speedKeys = Object.keys(sm);
+      if (speedKeys.length) {{
+        speedMapHTML = '<div class="detail-section">' +
+          '<div class="section-label">SPEED MAP</div>' +
+          speedKeys.map(function(k) {{
+            var v = sm[k];
+            var inner;
+            if (Array.isArray(v)) {{
+              inner = v.map(function(x) {{ return esc(String(x)); }}).join(', ');
+            }} else {{
+              inner = esc(String(v));
+            }}
+            return '<div class="sm-row"><strong>' + esc(k) + ':</strong> ' + inner + '</div>';
+          }}).join('') +
+        '</div>';
+      }}
+    }}
   }}
 
   // Per-horse reasoning block
@@ -623,6 +712,7 @@ function showRaceDetail(raceNum) {{
         '</tr></thead>' +
         '<tbody>' + rowsHtml + '</tbody>' +
       '</table>' +
+      detailTableHTML +
       speedMapHTML +
       reasoningBlock +
     '</div>';
