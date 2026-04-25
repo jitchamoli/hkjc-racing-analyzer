@@ -63,10 +63,25 @@ def test_killed_fields_not_referenced():
 def test_race_detail_renders_reasoning_and_speed_map():
     race = _race(1, tier='HIGH')
     race['horses'][0]['reasoning'] = ['Jockey change to Purton', 'Draw 4 sweet spot']
-    race['speed_map'] = {'leaders': [1, 4], 'stalkers': [2, 7]}
+    # Production shape for speed_map — List[Dict]
+    race['speed_map'] = [
+        {'number': 1, 'name': 'Test', 'style': 'Leader', 'predicted_pos': 1, 'draw': 4},
+    ]
     html = generate_html(json.dumps([race]), '2026-04-27 13:00:00', '2026/04/27')
+    # Content substrings
     assert 'Jockey change to Purton' in html
-    assert 'leaders' in html
+    # Structural markers from the JS render (prove the render path exists)
+    assert '<div class="section-label">REASONING</div>' in html
+    assert '<div class="section-label">SPEED MAP</div>' in html
+
+
+def test_race_detail_renders_per_horse_detail_table():
+    race = _race(1, tier='HIGH')
+    # One horse has going_form; column should activate
+    race['horses'][0]['going_form'] = {'wins': 3, 'runs': 4}
+    race['horses'][0]['last_6'] = '1-3-2-4-1-5'
+    html = generate_html(json.dumps([race]), '2026-04-27 13:00:00', '2026/04/27')
+    assert '<div class="section-label">PER-HORSE DETAIL</div>' in html
 
 
 def test_copy_all_button_present():
