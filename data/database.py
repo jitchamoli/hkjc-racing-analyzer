@@ -260,6 +260,8 @@ class HorseDatabase:
                         horse_weight=CASE WHEN excluded.horse_weight > 0 THEN excluded.horse_weight ELSE race_results.horse_weight END,
                         last_6=CASE WHEN excluded.last_6 != '' THEN excluded.last_6 ELSE race_results.last_6 END,
                         age=CASE WHEN excluded.age != '' THEN excluded.age ELSE race_results.age END,
+                        rating=CASE WHEN excluded.rating > 0 THEN excluded.rating ELSE race_results.rating END,
+                        gear=CASE WHEN excluded.gear != '' THEN excluded.gear ELSE race_results.gear END,
                         running_position=CASE WHEN excluded.running_position != '' THEN excluded.running_position ELSE race_results.running_position END,
                         finish_time=CASE WHEN excluded.finish_time != '' THEN excluded.finish_time ELSE race_results.finish_time END,
                         days_since_last_run=CASE WHEN excluded.days_since_last_run > 0 THEN excluded.days_since_last_run ELSE race_results.days_since_last_run END,
@@ -893,6 +895,60 @@ class HorseDatabase:
 
         self.conn.commit()
         logger.info("Rebuilt jockey_stats and trainer_stats from race_results")
+
+    # ------------------------------------------------------------------
+    # Card-field backfill (rating, last_6, gear, age, rating_change)
+    # ------------------------------------------------------------------
+
+    def backfill_card_fields(self, race_date: str, race_data: list) -> int:
+        """Fill rating / last_6 / gear / age / rating_change into race_results
+        from a saved race_data prediction JSON.
+
+        Card-only fields aren't on HKJC results pages, so the scrape pipeline
+        leaves them sparse. The prediction JSON (results/race_data_*.json)
+        captures them at race-card scrape time. This walks the saved races
+        and updates matching race_results rows by (race_date, race_number,
+        horse_name), only writing when the new value is non-empty AND the
+        existing row's value is missing/zero (preserves manually corrected data).
+
+        Returns the count of rows actually updated.
+        """
+        c = self.conn.cursor()
+        n_updated = 0
+        for race in race_data:
+            race_no = race.get('race_number') or race.get('race_no') or 0
+            for h in race.get('horses', []):
+                horse_name = h.get('name', '')
+                if not horse_name:
+                    continue
+                rating = h.get('rating') or 0
+                last_6 = h.get('last_6') or ''
+                gear = h.get('gear') or ''
+                age = str(h.get('age') or '') or ''
+                rating_change = h.get('rating_change') or 0
+
+                # Only update fields where new value is meaningful AND
+                # existing row's value is missing — preserves manual edits.
+                c.execute("""
+                    UPDATE race_results SET
+                        rating = CASE WHEN ? > 0 AND (rating IS NULL OR rating = 0) THEN ? ELSE rating END,
+                        last_6 = CASE WHEN ? != '' AND (last_6 IS NULL OR last_6 = '') THEN ? ELSE last_6 END,
+                        gear = CASE WHEN ? != '' AND (gear IS NULL OR gear = '') THEN ? ELSE gear END,
+                        age = CASE WHEN ? != '' AND (age IS NULL OR age = '') THEN ? ELSE age END,
+                        rating_change = CASE WHEN ? != 0 AND (rating_change IS NULL OR rating_change = 0) THEN ? ELSE rating_change END
+                    WHERE race_date = ? AND race_number = ? AND horse_name = ?
+                """, (
+                    rating, rating,
+                    last_6, last_6,
+                    gear, gear,
+                    age, age,
+                    rating_change, rating_change,
+                    race_date, race_no, horse_name,
+                ))
+                if c.rowcount > 0:
+                    n_updated += c.rowcount
+        self.conn.commit()
+        return n_updated
 
     # ------------------------------------------------------------------
     # Prediction tracking

@@ -629,6 +629,26 @@ async def auto_learn(race_date: str = None):
     if today_races:
         db = HorseDatabase()
         db.ingest_race_day(today_races)
+
+        # Card-field backfill: pull rating/last_6/gear/age/rating_change from
+        # the prediction JSON (which has card data the results page lacks).
+        date_str = race_date.replace('/', '')
+        results_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'results')
+        for variant in (f'race_data_{date_str}_with_results.json',
+                        f'race_data_{date_str}.json'):
+            pred_path = os.path.join(results_dir, variant)
+            if os.path.exists(pred_path):
+                try:
+                    with open(pred_path) as f:
+                        pred_data = json.load(f)
+                    pred_races = pred_data if isinstance(pred_data, list) else pred_data.get('races', [])
+                    n_back = db.backfill_card_fields(race_date, pred_races)
+                    if n_back > 0:
+                        logger.info(f"Backfilled card fields on {n_back} race_results rows from {variant}")
+                except Exception as e:
+                    logger.warning(f"Card-field backfill from {variant} failed: {e}")
+                break
+
         summary = db.get_summary()
         logger.info(f"Horse DB updated: {summary['horses']} horses, "
                     f"{summary['race_results']} results, {summary['race_days']} days")

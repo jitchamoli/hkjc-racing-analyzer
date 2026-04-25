@@ -207,6 +207,11 @@ button {{ font-family:inherit; cursor:pointer; }}
   background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.2);
   border-radius:6px; padding:6px 12px; display:inline-block;
 }}
+.edge-note {{
+  font-size:.7rem; color:var(--dim); font-style:italic;
+  margin:-4px 0 10px 0; padding:4px 0;
+  border-bottom:1px dashed var(--border);
+}}
 
 /* ── Race strip ── */
 .strip-section {{ margin-bottom:12px; }}
@@ -425,7 +430,11 @@ function renderHero() {{
     return;
   }}
 
+  var hasEdgeRace = bets.some(function(r) {{ return r.has_edge; }});
   var html = '<div class="hero-label">TODAY&#39;S BETS — ' + bets.length + ' OF ' + RACES.length + ' RACES</div>';
+  if (!hasEdgeRace) {{
+    html += '<div class="edge-note">★ EDGE not seen in current sample — HIGH / MED tiers are the operational signal.</div>';
+  }}
   bets.forEach(function(race) {{ html += renderBetCard(race); }});
   hero.innerHTML = html;
   hero.querySelectorAll('.wa-btn').forEach(function(btn) {{
