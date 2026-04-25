@@ -285,11 +285,19 @@ Prior heuristic (base=0.60, dist_thresh=1400): Brier=0.1684.
 
 ### Renavon Bulk Datasets (2026-04-25 import)
 
-After purchasing Renavon's $49 one-time HKJC History Export, 11 gzipped CSVs
+After purchasing Renavon's **one-time** $49 HKJC History Export, 11 gzipped CSVs
 were ingested into dedicated `renavon_*` tables alongside our scraped data.
 The DB grew from ~4MB to ~614MB; **`tracking_data/*.db` is now gitignored**,
 so the database must be regenerated locally from the source CSVs in
 `renavon_Hongkong_Jockey_Club_races_and_horses/` (also gitignored).
+
+**IMPORTANT: Renavon is a frozen snapshot, not a subscription.** All
+`renavon_*` tables end at 2026/04/22 and will never grow. For new race data,
+dividends, and rankings, use the HKJC scraper (`scripts/scrape.py`,
+`scripts/scrape.py --rankings`, `scripts/backfill_dividends.py`). Don't
+design features that assume continuous renavon_* updates — they won't
+arrive. Renavon's role is one-shot historical backfill; ongoing freshness
+comes from the scraper.
 
 To rebuild from scratch:
 ```bash
