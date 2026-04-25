@@ -2,6 +2,7 @@
 """XGBoost model for HKJC race prediction — train, predict, save, load."""
 
 import hashlib
+import math
 import pickle
 import logging
 from datetime import datetime
@@ -391,7 +392,7 @@ class HKJCRacingMLModel:
                 check_model_integrity(self._metadata)
             proba = self.place_model.predict_proba(features.reshape(1, -1))[0]
             return float(proba[1]) if len(proba) > 1 else float(proba[0])
-        # Fallback: estimate from win probability
+        # Fallback: predict() runs its own integrity check, so don't double-fire.
         win_prob, _ = self.predict(features, field_size)
         return min(0.85, win_prob * 2.5)
 
@@ -413,7 +414,6 @@ def create_combined_prediction(
     # Anchor sigmoid to the field-size base rate so an "average" horse
     # (rule_score=50) outputs ~1/field_size win probability instead of 50%.
     # Without this anchor the rule engine was grossly uncalibrated.
-    import math
     base_prob = 1.0 / max(field_size, 2)
     logit_base = math.log(base_prob / (1.0 - base_prob))
     rule_prob_raw = 1.0 / (1.0 + math.exp(-(0.06 * (rule_score - 50) + logit_base)))

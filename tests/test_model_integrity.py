@@ -1,5 +1,7 @@
 """F-05 / F-17 tests: integrity check refuses to predict against a bad pickle;
 untrained model raises instead of returning silent fallback."""
+from datetime import datetime, timedelta
+
 import numpy as np
 import pytest
 
@@ -8,11 +10,18 @@ from ml.model import HKJCRacingMLModel
 from ml.feature_schema import NUM_FEATURES
 
 
+# Compute a "recent" timestamp dynamically so this test doesn't time-bomb
+# in ~July 2026 when the previously-hardcoded 2026-04-23 ages past the
+# 90-day window. Use 10 days ago (well inside the limit but still aged
+# enough to exercise the date-parsing path).
+_RECENT_TRAINED_DATE = (datetime.now() - timedelta(days=10)).isoformat(timespec='seconds')
+
+
 def test_integrity_accepts_real_pickle():
     """A pickle with n_samples >= 1000 and recent trained_date must pass."""
     metadata = {
         'n_samples': 4403,
-        'trained_date': '2026-04-23T10:00:00',
+        'trained_date': _RECENT_TRAINED_DATE,
         'n_features': 23,
         'version': '20260423-100000',
     }
@@ -58,7 +67,7 @@ def test_integrity_accepts_exactly_min_samples():
     """n_samples == MIN_SAMPLES (1000) must PASS — threshold is inclusive."""
     metadata = {
         'n_samples': 1000,  # exactly at threshold
-        'trained_date': '2026-04-23T10:00:00',
+        'trained_date': _RECENT_TRAINED_DATE,
         'n_features': 23,
         'version': '20260423-100000',
     }
@@ -69,7 +78,7 @@ def test_integrity_rejects_just_below_min_samples():
     """n_samples == MIN_SAMPLES - 1 must FAIL."""
     metadata = {
         'n_samples': 999,
-        'trained_date': '2026-04-23T10:00:00',
+        'trained_date': _RECENT_TRAINED_DATE,
         'n_features': 23,
         'version': '20260423-100000',
     }

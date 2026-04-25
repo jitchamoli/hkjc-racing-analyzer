@@ -26,6 +26,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _atomic_write(path: str, content: str) -> None:
+    # Write to a sibling temp file then os.replace so concurrent readers
+    # (the dashboard server, a browser polling the file) never see a
+    # half-written file. os.replace is atomic on POSIX and Windows ≥ Vista.
+    tmp = f"{path}.tmp.{os.getpid()}"
+    with open(tmp, 'w') as f:
+        f.write(content)
+    os.replace(tmp, path)
+
+
 # Result fields set by results_fetcher that should survive prediction re-runs
 _RESULT_KEYS_RACE = {'results_available', 'actual_results', 'actual_winner', 'actual_top3', 'actual_win_odds', 'accuracy'}
 _RESULT_KEYS_HORSE = {'actual_position'}
@@ -106,11 +116,13 @@ def _load_previous_race_data(json_file: str) -> list:
         return []
 
 
-def _compute_odds_age_minutes(odds_db, race_date: str, race_number: int) -> int:
+def _compute_odds_age_minutes(odds_db, race_date: str, race_number: int):
     """Return minutes elapsed since the most recent odds snapshot for this race.
 
-    Returns 0 if no snapshot exists (treated as fresh — G5 won't fire).
-    Returns 0 on any error so the gate fails open (safe default).
+    Returns None when no snapshot exists OR on any error — caller treats
+    None as 'no fresh odds' and FAILS G5. Previously this returned 0, which
+    passed the `< 30` gate even when there were zero snapshots in the DB,
+    inverting the gate's stated purpose ('stale odds invalidate EV').
     """
     try:
         conn = odds_db._get_conn()
@@ -127,7 +139,7 @@ def _compute_odds_age_minutes(odds_db, race_date: str, race_number: int) -> int:
             conn.close()
     except Exception:
         pass
-    return 0
+    return None
 
 
 def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
@@ -137,6 +149,10 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     Returns race_data dict with horses, speed_map, and exotic_value.
     analyzer: optional CombinedRaceAnalyzer instance — used for ML integrity check (G6).
     """
+    # Reset per-run caches so backtests across multiple race dates don't
+    # bleed stale jockey/trainer rates between dates.
+    from ml.features import clear_feature_caches
+    clear_feature_caches()
     race_going = race.going or ''
     race_distance = int(race.distance) if race.distance and str(race.distance).isdigit() else 1200
 
@@ -235,7 +251,7 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
         'win_odds': h['win_odds'] or 0,
     } for h in race_data['horses']]
 
-    pure_probs_list = compute_pure_probs(horses_for_edge)
+    pure_probs_list = compute_pure_probs(horses_for_edge, field_size=len(horses_for_edge))
     market_probs_list = compute_market_probs(horses_for_edge)
 
     # Model integrity — used by G6.
@@ -421,8 +437,7 @@ async def main():
     for r in all_races:
         r['alerts'] = [a for a in alerts if a['race'] == r['race_number']]
 
-    with open(json_file, 'w') as f:
-        json.dump(all_races, f, indent=2)
+    _atomic_write(json_file, json.dumps(all_races, indent=2))
 
     # Log predictions to DB for longitudinal accuracy tracking
     model_ver = analyzer.ml_analyzer.ml_model.model_version if hasattr(analyzer, 'ml_analyzer') else ''
@@ -444,13 +459,9 @@ async def main():
     html = generate_html(json_data, now, race_date, venue)
 
     html_file = os.path.join(results_dir, f"racing_dashboard_{date_str}.html")
-    with open(html_file, 'w') as f:
-        f.write(html)
-
-    # Always write to a fixed URL so you can bookmark one path
     latest_file = os.path.join(results_dir, "racing_dashboard.html")
-    with open(latest_file, 'w') as f:
-        f.write(html)
+    _atomic_write(html_file, html)
+    _atomic_write(latest_file, html)
 
     logger.info(f"Saved dashboard to {html_file}")
     logger.info(f"Saved latest dashboard to {latest_file}")

@@ -149,8 +149,12 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
 
         html_file = results_dir / f"racing_dashboard_{date_str}.html"
         latest_file = results_dir / "racing_dashboard.html"
-        html_file.write_text(html)
-        latest_file.write_text(html)
+        # Atomic write so a browser polling the file never sees a half-written
+        # HTML during regeneration. os.replace is atomic on POSIX/Windows.
+        for path in (html_file, latest_file):
+            tmp = path.with_suffix(path.suffix + f'.tmp.{os.getpid()}')
+            tmp.write_text(html)
+            os.replace(tmp, path)
 
         logger.info(f"Dashboard regenerated with {len(all_races)} races")
 
@@ -234,9 +238,13 @@ async def run_monitor(race_date: str):
                     logger.warning(f"Sharp-move detection failed: {e}")
 
             if sharp_move:
-                # Full re-run in subprocess — re-fetches cards AND odds
+                # Full re-run in subprocess — re-fetches cards AND odds.
+                # Use sys.executable + absolute path so this works regardless
+                # of CWD or which python is on PATH.
+                from pathlib import Path
+                gen_script = Path(__file__).resolve().parent.parent / 'generate_predictions.py'
                 subprocess.run(
-                    ['python3', 'generate_predictions.py', race_date],
+                    [sys.executable, str(gen_script), race_date],
                     check=False, timeout=300,
                 )
             else:

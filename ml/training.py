@@ -143,8 +143,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             except (ValueError, IndexError):
                 return None
 
-        # F-18: per-row linear recency weights (computed post-loop via np.linspace)
-        all_dates = sorted(set(dict(row).get('race_date', '') for row in rows))
+        # v6.4: per-row exponential recency weights computed post-loop with np.exp.
         # par_times precompute removed v6.4 — only adjusted_speed used it.
 
         # Build per-horse chronological race history for PRIOR-only lookups
@@ -269,14 +268,14 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             else:
                 feat_cd = 0.5
 
-            # Feature 11: class level (INVERTED: Group 1/2=1.0, Class 1=0.8, Class 5=0.0)
+            # Feature 9: class level (INVERTED: Group 1/2=1.0, Class 1=0.8, Class 5=0.0)
             # Uses extract_class_rank to handle G1/G2/G3/GRIFFIN/4YO correctly.
             class_type = r.get('class_type', '') or ''
             class_rank_or_none = extract_class_rank(class_type)
             class_rank = class_rank_or_none if class_rank_or_none is not None else 3
             feat_class = max(0.0, min(1.0, 1.0 - class_rank / 5.0))
 
-            # Feature 12: freshness
+            # Feature 10: freshness
             # 87.7% of race_results rows have days_since_last_run = 0/null (it's
             # only populated for races where predictions were generated). Falling
             # back to 0.5 there made freshness a near-constant feature (0.0
@@ -297,7 +296,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             else:
                 feat_freshness = 0.5
 
-            # Feature 13: going performance (merged — win rate + place rate on this going)
+            # Feature 11: going performance (merged — win rate + place rate on this going)
             going_perf = 0.5
             if prior and going:
                 prior_same_going = [p for p in prior if p.get('going', '') == going]
@@ -307,7 +306,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                     n = len(prior_same_going)
                     going_perf = min(1.0, (g_wins / n) * 0.6 * 5 + (g_top3 / n) * 0.4 * 2)
 
-            # Feature 14: weight vs field (carried weight relative to field median)
+            # Feature 12: weight vs field (carried weight relative to field median)
             weight_vs_field = 0.5
             weight_val = r.get('weight', 0) or 0
             try:
@@ -322,7 +321,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 else:
                     weight_vs_field = max(0.0, min(1.0, 1.0 - (weight_val - 108) / 27.0))
 
-            # Feature 15: jockey-horse cooperation
+            # Feature 13: jockey-horse cooperation
             jockey_name = r.get('jockey', '') or ''
             if prior and jockey_name:
                 prior_same_jh = [p for p in prior if p.get('jockey', '') == jockey_name]
@@ -337,7 +336,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
 
             # distance_pb_ratio dropped v6.4 — see feature_schema.py.
 
-            # Feature 14: last start margin
+            # Feature 14: last start margin (top importance ~16% in v6.4)
             feat_last_margin = 0.5
             if prior:
                 last_race = prior[-1]
@@ -347,25 +346,30 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 elif m > 0:
                     feat_last_margin = max(0.1, min(0.9, 1.0 - m / 12.0))
 
-            # Feature 18: class change — ternary {dropping=1.0, same=0.5, rising=0.0}
+            # Feature 15: class change — ternary {dropping=1.0, same=0.5, rising=0.0}
             # Uses extract_class_rank — Group races (G1/G2/G3) properly placed
-            # above the digit ladder, GRIFFIN/MAIDEN/4YO handled.
+            # above the digit ladder, GRIFFIN/MAIDEN/4YO handled. M15: when
+            # EITHER side is unknown (current race or prior had unparseable
+            # class_type), fall back to 0.5 — don't compare against the
+            # default-3 placeholder, which would silently encode wrong
+            # direction for Group races (G1 → unparseable → falls back to
+            # rank=3 → "dropping" vs Class 1).
             feat_class_change = 0.5
-            if prior:
+            if prior and class_rank_or_none is not None:
                 last_class_str = prior[-1].get('class_type', '') or ''
                 last_class_rank = extract_class_rank(last_class_str)
                 if last_class_rank is None:
                     feat_class_change = 0.5
-                elif last_class_rank > class_rank:
+                elif last_class_rank > class_rank_or_none:
                     feat_class_change = 0.0  # rising (harder race) — negative signal
-                elif last_class_rank < class_rank:
+                elif last_class_rank < class_rank_or_none:
                     feat_class_change = 1.0  # dropping (easier race) — positive signal
                 else:
                     feat_class_change = 0.5  # same class
 
             # days_since_last_win (was Feature 19) dropped Wave 2c — see feature_schema.py.
 
-            # Feature 19: horse body weight change (fitness signal)
+            # Feature 16: horse body weight change (fitness signal)
             feat_hw_change = 0.5
             hw_current = r.get('horse_weight', 0) or 0
             if prior and hw_current > 0:

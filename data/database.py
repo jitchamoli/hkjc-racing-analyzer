@@ -214,6 +214,10 @@ class HorseDatabase:
         c = self.conn.cursor()
         now = datetime.now().strftime('%Y-%m-%d %H:%M')
 
+        # Track the date range we are touching so the days_since_last_run
+        # backfill below can be scoped instead of scanning all 368K rows.
+        ingested_dates = sorted({r.get('date', '') for r in race_data if r.get('date')})
+
         for race in race_data:
             race_date = race.get('date', '')
             race_no = race.get('race_no', 0)
@@ -256,7 +260,7 @@ class HorseDatabase:
                         is_winner=CASE WHEN excluded.finish_position > 0 THEN excluded.is_winner ELSE race_results.is_winner END,
                         is_top3=CASE WHEN excluded.finish_position > 0 THEN excluded.is_top3 ELSE race_results.is_top3 END,
                         win_odds=CASE WHEN excluded.win_odds > 0 THEN excluded.win_odds ELSE race_results.win_odds END,
-                        margin=CASE WHEN excluded.margin > 0 THEN excluded.margin ELSE race_results.margin END,
+                        margin=CASE WHEN excluded.finish_position > 0 THEN excluded.margin ELSE race_results.margin END,
                         horse_weight=CASE WHEN excluded.horse_weight > 0 THEN excluded.horse_weight ELSE race_results.horse_weight END,
                         last_6=CASE WHEN excluded.last_6 != '' THEN excluded.last_6 ELSE race_results.last_6 END,
                         age=CASE WHEN excluded.age != '' THEN excluded.age ELSE race_results.age END,
@@ -284,10 +288,11 @@ class HorseDatabase:
                     days_since, rat_change,
                 ))
 
-                # Upsert horse master record — derive stats from race_results
-                # to avoid double-counting on re-ingestion
-                # Upsert horse master record — stats are recomputed by rebuild_stats()
-                # so no need for correlated subqueries here
+                # Upsert horse master record. total_starts/wins/places are
+                # recomputed from race_results below (see _refresh_horse_aggregates)
+                # so the values inserted here are placeholders that will be
+                # immediately overwritten — they only matter for the very
+                # first-ever insert of a brand-new horse before the refresh runs.
                 c.execute("""
                     INSERT INTO horses (name, trainer, rating, total_starts,
                         total_wins, total_places, last_seen_date)
@@ -318,32 +323,70 @@ class HorseDatabase:
                     DO UPDATE SET dividend = excluded.dividend
                 """, (race_date, race_no, pool, combo, float(div)))
 
-        # Backfill days_since_last_run from race_results where missing
-        # REPLACE converts YYYY/MM/DD to YYYY-MM-DD for julianday()
-        c.execute("""
-            UPDATE race_results SET days_since_last_run = (
-                SELECT CAST(julianday(REPLACE(race_results.race_date,'/','-'))
-                          - julianday(REPLACE(prev.race_date,'/','-')) AS INTEGER)
-                FROM race_results AS prev
-                WHERE prev.horse_name = race_results.horse_name
-                  AND prev.race_date < race_results.race_date
-                ORDER BY prev.race_date DESC LIMIT 1
-            )
-            WHERE (days_since_last_run IS NULL OR days_since_last_run = 0)
-              AND EXISTS (
-                SELECT 1 FROM race_results AS prev
-                WHERE prev.horse_name = race_results.horse_name
-                  AND prev.race_date < race_results.race_date
-              )
-        """)
+        # Backfill days_since_last_run from race_results where missing.
+        # REPLACE converts YYYY/MM/DD to YYYY-MM-DD for julianday().
+        # Scope to the dates we just ingested — without this WHERE clause
+        # the correlated subquery scans all 368K rows on every ingestion
+        # (renavon-era DB) and holds a write lock for minutes.
+        if ingested_dates:
+            min_date = ingested_dates[0]
+            c.execute("""
+                UPDATE race_results SET days_since_last_run = (
+                    SELECT CAST(julianday(REPLACE(race_results.race_date,'/','-'))
+                              - julianday(REPLACE(prev.race_date,'/','-')) AS INTEGER)
+                    FROM race_results AS prev
+                    WHERE prev.horse_name = race_results.horse_name
+                      AND prev.race_date < race_results.race_date
+                    ORDER BY prev.race_date DESC LIMIT 1
+                )
+                WHERE race_date >= ?
+                  AND (days_since_last_run IS NULL OR days_since_last_run = 0)
+                  AND EXISTS (
+                    SELECT 1 FROM race_results AS prev
+                    WHERE prev.horse_name = race_results.horse_name
+                      AND prev.race_date < race_results.race_date
+                  )
+            """, (min_date,))
+
+        # Refresh horses.total_* aggregates from race_results so the
+        # master-table counters don't permanently lag (the columns existed
+        # but were only set on first insert before this fix). Scoped to the
+        # horses we just touched.
+        touched_horses = sorted({
+            entry.get('name', '')
+            for r in race_data
+            for entry in r.get('entries', [])
+            if entry.get('name')
+        })
+        if touched_horses:
+            placeholders = ','.join('?' for _ in touched_horses)
+            c.execute(f"""
+                UPDATE horses SET
+                    total_starts = COALESCE((SELECT COUNT(*) FROM race_results r
+                                             WHERE r.horse_name = horses.name), 0),
+                    total_wins   = COALESCE((SELECT SUM(is_winner) FROM race_results r
+                                             WHERE r.horse_name = horses.name), 0),
+                    total_places = COALESCE((SELECT SUM(is_top3) FROM race_results r
+                                             WHERE r.horse_name = horses.name), 0)
+                WHERE name IN ({placeholders})
+            """, touched_horses)
 
         # Single commit for atomicity — upserts + backfill are all-or-nothing
         self.conn.commit()
 
         logger.info(f"Ingested {len(race_data)} races into horse database")
 
-        # Rebuild stats from source of truth to avoid double-counting on re-ingestion
-        self.rebuild_stats()
+        # Rebuild stats from source of truth to avoid double-counting on
+        # re-ingestion. Wrap in its own try so a stats-table failure (e.g.
+        # missing renavon ranking tables) doesn't appear to roll back the
+        # already-committed ingestion above.
+        try:
+            self.rebuild_stats()
+        except Exception:
+            logger.error("rebuild_stats failed after ingest — race_results "
+                         "already committed; jockey/trainer stats may be stale",
+                         exc_info=True)
+            raise
 
     # ------------------------------------------------------------------
     # Query methods — used by analyzer at prediction time

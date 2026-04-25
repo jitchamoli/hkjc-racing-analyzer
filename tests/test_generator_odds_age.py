@@ -29,12 +29,17 @@ def _make_odds_db(ts_str=None):
     return db, tmp.name
 
 
-def test_no_snapshot_returns_zero():
-    """When no snapshot exists, age is 0 — G5 treated as fresh."""
+def test_no_snapshot_returns_none():
+    """When no snapshot exists, age is None — G5 must FAIL the gate.
+
+    Previously this returned 0 (treated as 'fresh') which inverted the
+    gate's intent: pre-market races with zero odds data could fire EDGE
+    on the strength of rule_score alone, with no live-odds anchor.
+    """
     db, path = _make_odds_db()
     try:
         age = _compute_odds_age_minutes(db, '2026/04/27', 5)
-        assert age == 0
+        assert age is None, f"Expected None for no-snapshot, got {age}"
     finally:
         os.unlink(path)
 
