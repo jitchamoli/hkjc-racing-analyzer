@@ -24,3 +24,6 @@ Thumbs.db
 # Model rollback backups (per-wave snapshots; rollback points live in git tags)
 models/*.pkl.*-backup
 models/*.sha256.*-backup
+
+# Superpowers brainstorming session artifacts (mockups, event logs)
+.superpowers/
