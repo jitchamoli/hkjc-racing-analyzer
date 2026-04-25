@@ -20,9 +20,11 @@ PER_FEATURE_TOLERANCE = 0.02
 NUM_TEST_ROWS = 20
 
 
-def test_num_features_is_20():
-    """NUM_FEATURES must equal 20 (post-Wave-2c drops of field_rel_speed and days_since_last_win)."""
-    assert NUM_FEATURES == 20, f"NUM_FEATURES={NUM_FEATURES}, expected 20"
+def test_num_features_is_16():
+    """NUM_FEATURES must equal 16 — v6.4 dropped 4 dead-importance features
+    (prior_pace, adjusted_speed, distance_pb_ratio, speed_consistency) on
+    top of the Wave 2c drops (field_rel_speed, days_since_last_win)."""
+    assert NUM_FEATURES == 16, f"NUM_FEATURES={NUM_FEATURES}, expected 16"
 
 
 def test_strict_feature_parity_per_row_per_feature():

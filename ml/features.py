@@ -11,7 +11,7 @@ import sqlite3
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -19,6 +19,44 @@ from ml.feature_schema import FEATURE_SCHEMA, NUM_FEATURES, validate_features
 import config
 
 logger = logging.getLogger(__name__)
+
+
+def extract_class_rank(class_type: str) -> Optional[int]:
+    """Extract HKJC class rank from a class string.
+
+    Returns int 0-5 where 0 = highest tier (Group 1/2), 5 = lowest (Class 5).
+    None if the string is empty or unparseable. The previous regex r'(\\d)'
+    incorrectly turned 'G1' into class 1 — Group races sit ABOVE class 1, not
+    inside the digit ladder.
+
+    HKJC tier ladder (high → low):
+        Group 1/2  → 0
+        Group 3    → 1   (≈ top of class 1 in difficulty)
+        Class 1    → 1
+        Class 2    → 2
+        Class 3    → 3
+        Class 4    → 4
+        Class 5    → 5
+        GRIFFIN, MAIDEN     → 4   (restricted, lower-tier)
+        4YO / AGE-restricted → 3   (mixed-class restricted)
+    """
+    if not class_type:
+        return None
+    s = str(class_type).strip().upper()
+    if not s:
+        return None
+    if s in ('G1', 'GROUP 1', 'G2', 'GROUP 2'):
+        return 0
+    if s in ('G3', 'GROUP 3'):
+        return 1
+    m = re.match(r'^(?:CLASS\s+)?(\d)$', s)
+    if m:
+        return int(m.group(1))
+    if 'GRIFFIN' in s or 'MAIDEN' in s:
+        return 4
+    if '4YO' in s or 'AGE' in s or s.startswith('Y'):
+        return 3
+    return None
 
 
 class FeatureEngineering:
@@ -282,47 +320,10 @@ class FeatureEngineering:
         # can push draw/field_size > 1 when field_size defaults to 12 at inference)
         features.append(min(1.0, draw / max(1, field_size)) if draw > 0 else 0.5)
 
-        # Feature 8: prior pace (field-size-aware normalization)
-        pace_vals = []
-        for p in prior[-5:]:
-            rp = p.get('running_position', '') or ''
-            if rp:
-                if ' ' in rp:
-                    positions = [int(x) for x in rp.split() if x.isdigit()]
-                else:
-                    positions = [int(c) for c in rp if c.isdigit()]
-                if positions:
-                    early = min(positions[0], 14)
-                    pace_vals.append(1.0 - (early - 1) / max(1, field_size - 1))
-        features.append(sum(pace_vals) / len(pace_vals) if pace_vals else 0.5)
+        # prior_pace, adjusted_speed dropped v6.4 — both had 0.0 importance
+        # in v6.3 because last_start_margin (16.9%) carried the form signal.
 
-        # Feature 9: adjusted speed (Beyer-style par-adjusted, weight-corrected)
-        from analytics.speed_figures import (
-            compute_par_times, adjusted_speed_figure,
-            normalize_speed_figure, normalize_consistency,
-        )
-        adj_speed_vals = []
-        # Compute par times from DB (cached on first call via horse_data)
-        par_times = horse_data.get('_par_times')
-        if par_times is None and conn is not None:
-            par_times = compute_par_times(conn, before_date=race_date or None)
-            horse_data['_par_times'] = par_times  # cache for subsequent horses
-        if par_times and prior:
-            for p in prior[-5:]:
-                ft = p.get('finish_time', '') or ''
-                d = p.get('distance', 0) or 0
-                g = p.get('going', '') or ''
-                ct = p.get('class_type', '') or ''
-                w = p.get('weight', 0) or 0
-                fig = adjusted_speed_figure(ft, d, g, ct, w, par_times)
-                if fig is not None:
-                    adj_speed_vals.append(fig)
-        if adj_speed_vals:
-            features.append(normalize_speed_figure(sum(adj_speed_vals) / len(adj_speed_vals)))
-        else:
-            features.append(0.5)
-
-        # Feature 10: C&D form from prior races (winning trip = strong signal)
+        # Feature 8: C&D form from prior races (winning trip = strong signal)
         prior_at_dist = [p for p in prior if p.get('distance') == distance]
         if prior_at_dist:
             cd_wins = sum(1 for p in prior_at_dist if p.get('is_winner', 0))
@@ -343,10 +344,11 @@ class FeatureEngineering:
         else:
             features.append(0.5)
 
-        # Feature 11: class level (INVERTED: Class 1=0.8, Class 5=0.0)
+        # Feature 11: class level (INVERTED: Group 1/2=1.0, Class 1=0.8, Class 5=0.0)
         class_type = horse_data.get('class_type', '')
-        cm = re.search(r'(\d)', class_type)
-        class_rank = int(cm.group(1)) if cm else 3
+        class_rank = extract_class_rank(class_type)
+        if class_rank is None:
+            class_rank = 3
         features.append(max(0.0, min(1.0, 1.0 - class_rank / 5.0)))
 
         # Feature 12: freshness
@@ -406,48 +408,9 @@ class FeatureEngineering:
                 jockey_horse_coop = min(1.0, (jh_wins * 2 + jh_places) / (len(prior_same_jockey) * 3))
         features.append(jockey_horse_coop)
 
-        # Feature 16: distance personal best ratio
-        distance_pb_ratio = 0.5
-        if prior:
-            prior_dist_with_time = [p for p in prior
-                                    if p.get('distance') == distance
-                                    and p.get('finish_time', '')
-                                    and ':' in str(p.get('finish_time', ''))]
-            if prior_dist_with_time:
-                def _parse_time(t):
-                    try:
-                        parts = str(t).split(':')
-                        return float(parts[0]) * 60 + float(parts[1])
-                    except (ValueError, IndexError):
-                        return 999.0
-                times = [_parse_time(p['finish_time']) for p in prior_dist_with_time]
-                valid_times = [t for t in times if t < 999]
-                if valid_times:
-                    horse_pb = min(valid_times)
-                    try:
-                        if conn is not None:
-                            # Always filter by date to prevent future leakage
-                            cutoff = race_date or datetime.now().strftime('%Y/%m/%d')
-                            pb_query = ("SELECT finish_time FROM race_results "
-                                        "WHERE distance = ? AND finish_time != '' "
-                                        "AND finish_time IS NOT NULL AND finish_time LIKE '%:%' "
-                                        "AND race_date < ?")
-                            pb_params = [distance, cutoff]
-                            row_pb = conn.execute(pb_query, pb_params).fetchall()
-                            best_time = None
-                            for rr in row_pb:
-                                t = _parse_time(rr[0])
-                                if t < 999 and (best_time is None or t < best_time):
-                                    best_time = t
-                            if best_time is not None and best_time < 999 and horse_pb < 999:
-                                distance_pb_ratio = min(1.0, best_time / horse_pb)
-                    except Exception as e:
-                        logger.warning(f"Failed to compute distance PB for {horse_name}: {e}")
-        features.append(distance_pb_ratio)
+        # distance_pb_ratio dropped v6.4 — 0.0 importance in v6.3.
 
-        # field_rel_speed (was Feature 17) dropped Wave 2c — see feature_schema.py.
-
-        # Feature 17: last start margin (how far behind winner last race)
+        # Feature 14: last start margin (how far behind winner last race)
         last_margin = 0.5
         if prior:
             last_race = prior[-1]
@@ -460,13 +423,12 @@ class FeatureEngineering:
         features.append(last_margin)
 
         # Feature 18: class change — F-14: ternary {dropping=1.0, same=0.5, rising=0.0}
+        # Uses proper class extractor — handles G1/G2/G3 above the digit ladder.
         class_change_feat = 0.5
         if prior:
             last_class_str = prior[-1].get('class_type', '') or ''
-            last_cm = re.search(r'(\d)', last_class_str)
-            last_class = int(last_cm.group(1)) if last_cm else None
-            curr_cm = re.search(r'(\d)', class_type)
-            curr_class = int(curr_cm.group(1)) if curr_cm else None
+            last_class = extract_class_rank(last_class_str)
+            curr_class = extract_class_rank(class_type)
             if last_class is None or curr_class is None:
                 class_change_feat = 0.5
             elif last_class > curr_class:
@@ -497,17 +459,7 @@ class FeatureEngineering:
                     hw_change = max(0.0, min(1.0, 0.5 - pct_change * 10))
         features.append(hw_change)
 
-        # Feature 20: speed consistency (std of adjusted speed figures — low = reliable)
-        speed_con = 0.5
-        if len(adj_speed_vals) >= 3:
-            import numpy as _np
-            speed_con = normalize_consistency(float(_np.std(adj_speed_vals)))
-        features.append(speed_con)
-
-        # Feature 24 (late_money_signal) REMOVED — constant 0.5 in training (DB lacks
-        # opening odds), variable at prediction time. The model never learned from it,
-        # so non-default values at inference were out-of-distribution noise.
-        # Odds signal enters via the market blend in calibrate_probabilities() instead.
+        # speed_consistency dropped v6.4 — degenerate after adjusted_speed dropped.
 
         if owns_conn and conn is not None:
             conn.close()
