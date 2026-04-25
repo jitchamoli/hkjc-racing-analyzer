@@ -204,7 +204,6 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
             "rule_score": a.rule_score,
             "ml_prob": ml_prob,
             "place_prob": place_prob,
-            "combined_score": a.value_score,
             "calibrated_prob": calibrated_prob,
             "expected_return": a.expected_return,
             "bet_recommendation": a.bet_recommendation,
@@ -305,11 +304,6 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     )
     race_data['top_2_share'] = round(top_2_share, 4)
     race_data['top_3_share'] = round(top_3_share, 4)
-
-    # Legacy alias for Task-5→6 window: old template still reads strategy_confidence.
-    # TODO: remove this alias when Task 6 (template.py rewrite) lands.
-    _tier_to_legacy = {'EDGE': 'HIGH', 'HIGH': 'HIGH', 'MED': 'MEDIUM', 'LOW': 'LOW', 'SKIP': 'NONE'}
-    race_data['strategy_confidence'] = _tier_to_legacy.get(race_data['conviction_tier'], 'NONE')
 
     # Quinella dividend estimate + EV (only when QIN bet is active)
     if len(qin_indices) >= 2:
