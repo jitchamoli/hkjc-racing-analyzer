@@ -106,6 +106,30 @@ def _load_previous_race_data(json_file: str) -> list:
         return []
 
 
+def _compute_odds_age_minutes(odds_db, race_date: str, race_number: int) -> int:
+    """Return minutes elapsed since the most recent odds snapshot for this race.
+
+    Returns 0 if no snapshot exists (treated as fresh — G5 won't fire).
+    Returns 0 on any error so the gate fails open (safe default).
+    """
+    try:
+        conn = odds_db._get_conn()
+        try:
+            row = conn.execute(
+                "SELECT MAX(timestamp) FROM odds_snapshots "
+                "WHERE race_date = ? AND race_number = ?",
+                (race_date, race_number),
+            ).fetchone()
+            if row and row[0]:
+                last_ts = datetime.strptime(row[0], '%Y-%m-%d %H:%M:%S')
+                return max(0, int((datetime.now() - last_ts).total_seconds() / 60))
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    return 0
+
+
 def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     """Build the JSON-serializable race data dict from analyses.
 
@@ -227,6 +251,9 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     except Exception:
         integrity_ok = False
 
+    # G5 odds freshness — compute once for the race, reuse per-horse
+    odds_age_min = _compute_odds_age_minutes(odds_db, race_date, race.race_number)
+
     gates = EdgeGates()
     has_edge_race = False
     for i, h in enumerate(race_data['horses']):
@@ -235,7 +262,6 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
         odds = h['win_odds'] or 0
         fields = compute_edge_fields(pure, market, odds)
 
-        odds_age_min = 0  # generator.py fetches fresh odds during this run
         model_rank = h['rank']  # already 1-indexed in the horses loop
 
         ok, _failed = apply_edge_gates(
@@ -255,7 +281,7 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
             has_edge_race = True
 
     race_data['has_edge'] = has_edge_race
-    race_data['odds_age_minutes'] = 0
+    race_data['odds_age_minutes'] = odds_age_min
 
     # === Post-bet analytics: Harville dividend + conviction tier + EV ===
     from betting.dividends import (
