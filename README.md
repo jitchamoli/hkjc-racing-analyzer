@@ -1,20 +1,32 @@
-# HKJC Horse Racing Analyzer v6.0
+# HKJC Horse Racing Analyzer v6.4
 
-Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 24-factor rule-based engine with an XGBoost ML model (20 features, isotonic-calibrated) to surface bets the public may be underestimating. The dashboard uses an edge-first layout: a hero block of 0–5 high-conviction picks with a trust card showing per-tier historical hit-rates, a live alerts rail for sharp odds moves, and an honest "no bets today" empty state when the model and market agree too closely.
+Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 24-factor rule-based engine with an XGBoost ML model (16 features, isotonic-calibrated) to surface bets the public may be underestimating. The dashboard uses an edge-first layout: a hero block of 0–5 high-conviction picks with a trust card showing per-tier historical hit-rates, a live alerts rail for sharp odds moves, and an honest "no bets today" empty state when the model and market agree too closely.
 
-## What's New in v6.0
+## What's New in v6.4
 
-- **Dashboard redesign — edge-first layout**: hero (0–5 bets) + 11-tile race strip + sticky alerts rail + race-detail with per-horse tables
-- **★ EDGE gate**: 6-gate filter (EV ≥ +5%, prob ≥ 10%, edge gap ≥ 5pp, model rank ≤ 2, odds age < 30min, model integrity) flags only races where model-vs-market disagreement is statistically backed
-- **Conviction tiers**: EDGE / HIGH / MED / LOW / SKIP replaces the old A+/A/B+/B/B- grade system
-- **Trust Card**: per-tier hit-rate with Wilson 95% CI from `prediction_log` × `race_results`, computed offline and cached
-- **Live alerts rail**: STEAM (-25%), COLD (+40% on top-pick), EDGE_OPENED/CLOSED/WIDENED, RACE_UPCOMING — newest first, deduplicated per day, persisted across re-runs
-- **Monitor auto-rerun**: sharp move on a top-2 pick triggers a full prediction re-run (not just dashboard regenerate)
-- **20-feature ML model**: dropped `field_rel_speed` and `days_since_last_win` (correlation cleanup), retrained on 7,540 real race results
-- **Isotonic calibrator**: replaces Platt scaling; mid-range [18-25%] calibration gap reduced from -18.6pp to -3.2pp after data backfill
-- **Real HKJC dividend integration**: 6,005 dividend rows backfilled across 63 meetings; backtest uses real payouts where available, Harville fallback only when missing
+Data-scientist audit on v6.3 surfaced multiple data-quality bugs and architectural issues. v6.4 fixes them and ships a leaner model.
+
+- **16-feature schema** (was 20): dropped `prior_pace`, `adjusted_speed`, `distance_pb_ratio`, `speed_consistency` — all had 0.0 importance because `last_start_margin` (16%) carried the form/speed signal
+- **Field clipping fix**: training-side feature extraction was missing the [0,1] clip on `field_size` and `field_rel_draw` (inference clipped via F-16). Model trained on values up to 15.0 from oversize legacy fields
+- **Class-type extractor**: new `extract_class_rank()` correctly handles HKJC's full class ladder. Old regex `r'(\d)'` read 'G1' as class 1; Group races sit ABOVE class 1. Now Group 1/2 → 0, Group 3 → 1, Class 1-5 → 1-5, GRIFFIN/MAIDEN → 4, 4YO → 3
+- **Freshness fallback**: 87.7% of legacy rows had `days_since_last_run` = 0/null, making freshness near-constant 0.5 (0.0 importance in v6.3). Now falls back to `(race_date - prior race_date)` math like inference does
+- **Exponential recency weighting**: was linear 0.3→1.0. Switched to `0.25 + 0.75·exp((i−n+1)/(n/3))` so newest third weighs ~2× the oldest third (was 1.5× under linear). With 50% jockey turnover and 94% horse turnover since 2021, older rows describe a different field
+- **5-year training cutoff** (introduced v6.3): empirically training on 49y of data dropped ROI by ~30% vs the recent 5y window — different jockey rosters, rule sets, and pool dynamics in older eras
+
+### v6.4 Performance (recent 500-race holdout, real HKJC dividends)
+
+| Metric | v6.3 | v6.4 |
+|---|---|---|
+| Recommender-gated ROI | +1359% | **+1433%** |
+| Hit rate | 38.3% | **39.5%** |
+| Brier score (top-pick) | 0.176 | **0.108** |
+| Dead features | 5 | **0** |
 
 ### Previous Versions
+- **v6.3**: 5-year recency cutoff (50K samples), Renavon bulk import (368K legacy rows ingested for backfill)
+- **v6.2**: Full 49-year training (360K rows) — regressed by ~30% ROI vs v6.1 / v6.3
+- **v6.1**: Wave 2c, 7,540 samples, isotonic calibrator
+- **v6.0**: Dashboard redesign — edge-first layout, EDGE gate, conviction tiers, trust card, alerts rail
 - **v5.3**: Speed figure weight correction, train/predict consistency, place model wired
 - **v5.2**: Beyer speed figures, exotic calculator, dynamic blend, 24-feature ML
 - **v5.1**: 22-feature ML, Platt scaling, place model, correlation audit
@@ -34,7 +46,7 @@ Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a
 | Tips Index page | Live odds, Initial Tips Index, Race Day Tips Index, top picks per race |
 | Horse Profile page | Running positions, sectional times, class history, C&D record |
 | Results page | Finishing positions, margins, odds, real dividend payouts (WIN/PLACE/QIN/QPL/FORECAST/TRIO/TIERCE/FIRST 4/QUARTET) |
-| Horse Database (local) | 7,540+ race results, 6,005 dividend rows across 63 meetings (Sept 2025 – Apr 2026), jockey/trainer season stats |
+| Horse Database (local) | 50,692 training rows (5y window, ~4,200 winners), 6,005+ dividend rows across 63 recent meetings, jockey/trainer season stats sourced from Renavon rankings |
 
 ### Prediction Pipeline
 
@@ -90,12 +102,12 @@ hkjc_racing_analyzer/
     recommender.py           #   Bet recommendation engine
     predictor.py             #   ML predictor shim
   ml/                        # ML pipeline
-    feature_schema.py        #   20-feature schema (Wave 2c)
-    features.py              #   Feature extraction for prediction
+    feature_schema.py        #   16-feature schema (v6.4)
+    features.py              #   Feature extraction + extract_class_rank helper
     model.py                 #   XGBoost — isotonic-calibrated, integrity-checked
-    training.py              #   Training data builders (DB + synthetic)
+    training.py              #   Training data builders (5y default, exp recency)
     integrity.py             #   F-05 model integrity check (≥1000 samples, <90 days)
-    experiments.py           #   JSON-based experiment tracking
+    experiments.py           #   JSON-based experiment tracking (production-runs only)
   betting/                   # Betting + edge math
     edge_calculator.py       #   pure_prob, market_prob, edge_pp, 6-gate filter
     conviction.py            #   Tier assignment (EDGE/HIGH/MED/LOW/SKIP)
@@ -193,23 +205,39 @@ pytest tests/ -v
 # Wilson CI, template rendering, JS-syntax validation, end-to-end integration
 ```
 
-## Performance (124-race holdout, real HKJC dividends)
+## Performance (last 500 races with real HKJC dividends)
 
-| Strategy | Hit Rate | Wilson 95% CI | ROI | Bootstrap 95% CI |
-|----------|----------|---------------|-----|------------------|
-| Recommender-gated | 40.9% | — | **+1843%** | — |
-| Box-4 quinella | 54.2% | [42.7%, 65.2%] | +1768% | [+905%, +1977%] |
-| Box-3 quinella | 41.7% | [31.0%, 53.2%] | +1713% | [+1161%, +2871%] |
+41 races in this window have full real-dividend metadata; the rest backtest with the Harville-estimated quinella payouts.
+
+| Strategy | Bets | Hit Rate | ROI |
+|----------|------|----------|-----|
+| Recommender-gated (v6.4) | 38 | 39.5% | **+1433%** |
+| Straight quinella | 41 | — | +1813% |
+| Box-3 quinella | 41 | — | +1918% |
+| Box-4 quinella | 41 | — | +1283% |
 
 ### Calibration
 
-- **Brier score (top-pick): 0.1945** (lower is better)
-- **BSS vs base-rate: +0.0246** (positive = better than predicting the prior)
-- **Mid-range [18-25%] gap: -3.2pp** (was -18.6pp before data backfill — structurally fixed)
+- **Brier score (top-pick): 0.108** (was 0.176 in v6.3; UK ML benchmark ~0.18)
+- **All 16 features have 4–16% importance** — no dead weight after schema cuts
 
 ### Strategy Decision
 
-All three strategies (straight-Q, box-3, box-4) have overlapping ROI confidence intervals at the current 124-race sample size. **No strategy is statistically dominant.** The recommender's conviction-gated mode (BOX Q4 / BOX Q3 / QIN / SKIP per race) is the operational default.
+All quinella strategies have overlapping ROI confidence intervals at this sample size. **No strategy is statistically dominant.** The recommender's conviction-gated mode (BOX Q4 / BOX Q3 / QIN / SKIP per race) is the operational default — it auto-downgrades when conviction tiers aren't met.
+
+### Audit Trail
+
+Bug fixes shipped between v6.3 and v6.4:
+1. Field clipping: training extraction now clips `field_size` and `field_rel_draw` to [0,1] (matched inference)
+2. Class regex: G1/G2/G3/GRIFFIN/4YO no longer mishandled by digit-only extraction
+3. Freshness fallback: dslr computed from prior race date when DB column is null
+4. Exponential recency: replaced linear 0.3→1.0 weighting
+5. experiment_log: tests with `save=False` no longer pollute the production training ledger
+
+Issues NOT addressed (worth tracking):
+- Calibrator validation slice spans 2024-04 → 2025-04 (1y stale on field strength)
+- Distance imbalance (1200m has 19,555 rows vs 14 at 1050m)
+- `Corr(edge_pp, actual win)` is mildly negative on disagreements (n still small)
 
 ## Requirements
 
