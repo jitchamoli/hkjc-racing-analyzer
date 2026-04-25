@@ -25,5 +25,8 @@ Thumbs.db
 models/*.pkl.*-backup
 models/*.sha256.*-backup
 
+# Per-date alert dedup state (ephemeral, regenerated each day)
+tracking_data/alerts_state_*.json
+
 # Superpowers brainstorming session artifacts (mockups, event logs)
 .superpowers/
