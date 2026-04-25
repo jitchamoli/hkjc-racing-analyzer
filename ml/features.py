@@ -230,7 +230,7 @@ class FeatureEngineering:
     @staticmethod
     def extract_features(horse_data: dict, all_results, venue: str,
                          conn: sqlite3.Connection = None) -> np.ndarray:
-        """Extract 22 features matching FEATURE_SCHEMA order exactly.
+        """Extract 16 features matching FEATURE_SCHEMA order exactly (v6.4).
 
         Args:
             conn: Optional shared SQLite connection. If None, opens/closes its own.
@@ -313,8 +313,9 @@ class FeatureEngineering:
             trainer, all_results, conn=conn, before_date=race_date or None)
         features.append(min(0.4, trainer_rate) if trainer_rate > 0 else 0.06)
 
-        # Feature 6: field size
-        features.append(field_size / 14.0)
+        # Feature 6: field size — clipped to [0,1] (parity with training fix v6.4).
+        # Legacy oversize fields and bad-data rows could push field_size > 14.
+        features.append(min(1.0, field_size / 14.0))
 
         # Feature 7: field-relative draw — clipped to [0,1] (F-16: 14-gate races
         # can push draw/field_size > 1 when field_size defaults to 12 at inference)
@@ -351,14 +352,22 @@ class FeatureEngineering:
             class_rank = 3
         features.append(max(0.0, min(1.0, 1.0 - class_rank / 5.0)))
 
-        # Feature 12: freshness
+        # Feature 10: freshness
+        # When days_since_last_run is missing, fall back to (race_date - prior race_date)
+        # — NOT (datetime.now() - prior race_date), which would give wrong values when
+        # back-testing past races or predicting future-dated cards. This matches the
+        # training-side fallback added in v6.4.
         dslr = horse_data.get('days_since_last_run', 0) or 0
         if not dslr and prior:
             last_date = prior[-1].get('race_date', '')
             if last_date:
                 try:
                     last_dt = datetime.strptime(last_date.replace('/', '-'), '%Y-%m-%d')
-                    dslr = (datetime.now() - last_dt).days
+                    if race_date:
+                        curr_dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
+                    else:
+                        curr_dt = datetime.now()
+                    dslr = (curr_dt - last_dt).days
                 except Exception:
                     pass
         if dslr > 0:

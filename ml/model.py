@@ -328,10 +328,11 @@ class HKJCRacingMLModel:
                     logger.warning(f"High correlation: {pair} = {r:.3f}")
 
         # Only log to the production experiment ledger when this is a real
-        # training run (save=True). Tests pass save=False and were polluting
-        # experiment_log.json with n_samples=300/2000 dummy entries that made
-        # the audit trail unreadable.
-        if save:
+        # training run that actually persisted (save=True AND samples are
+        # above MIN_SAVE_SAMPLES). Tests with save=True but tiny samples
+        # also tripped the ledger — the F-04 save-guard rejects the pickle
+        # but log_experiment fired anyway. Mirror the same check here.
+        if save and len(features) >= self.MIN_SAVE_SAMPLES:
             from ml.experiments import log_experiment
             log_experiment(result, FEATURE_NAMES, n_samples=len(features),
                            feature_correlations=high_corrs if high_corrs else None)
@@ -465,9 +466,17 @@ class CombinedRacingAnalyzer:
             self._conn.row_factory = sqlite3.Row
 
         if ML_AVAILABLE and not self.ml_model.is_trained:
-            X_real, y_real, sw_real, y_place = build_training_data_from_db()
+            # Auto-train fallback: use the same 5y window the production trainer
+            # uses by default (TRAINING_YEARS_BACK env var, default 5). v6.2 was
+            # the regression where training on the full 49y dropped ROI ~30%; we
+            # don't want this fallback path to silently reproduce that.
+            import os
+            yrs_str = os.environ.get('TRAINING_YEARS_BACK', '5')
+            yrs = None if yrs_str.strip() == '0' else int(yrs_str)
+            X_real, y_real, sw_real, y_place = build_training_data_from_db(years_back=yrs)
             if X_real is not None and len(X_real) >= config.MIN_REAL_SAMPLES:
-                logger.info(f"Training ML model with {len(X_real)} REAL race results...")
+                logger.info(f"Training ML model with {len(X_real)} REAL race results "
+                            f"({'no cutoff' if yrs is None else f'{yrs}y window'})...")
                 result = self.ml_model.train(X_real, y_real, sample_weight=sw_real,
                                             place_labels=y_place)
                 logger.info(f"Model trained on REAL data: accuracy={result['accuracy']:.2%}")

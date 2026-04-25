@@ -131,8 +131,9 @@ def calibrate_probabilities(analyses, field_size: int = 12,
     then blends with market-implied probabilities using dynamic weights
     based on field size and distance.
 
-    Note: Individual ML probabilities are already Platt-calibrated at the model
-    level, so softmax here is purely for normalization, not recalibration.
+    Note: Individual ML probabilities are already isotonic-calibrated at the
+    model level (Wave 2c switch from Platt), so the softmax here is purely
+    for normalization, not recalibration.
     """
     if not analyses:
         return []
