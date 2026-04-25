@@ -304,8 +304,6 @@ class HKJCRacingMLModel:
         else:
             logger.info(f"train(save=False) — skipping pickle write (n_samples={len(features)})")
 
-        # Log experiment
-        from ml.experiments import log_experiment
         result = {
             'accuracy': accuracy,
             'logloss': logloss,
@@ -329,8 +327,14 @@ class HKJCRacingMLModel:
                     high_corrs[pair] = round(float(r), 3)
                     logger.warning(f"High correlation: {pair} = {r:.3f}")
 
-        log_experiment(result, FEATURE_NAMES, n_samples=len(features),
-                       feature_correlations=high_corrs if high_corrs else None)
+        # Only log to the production experiment ledger when this is a real
+        # training run (save=True). Tests pass save=False and were polluting
+        # experiment_log.json with n_samples=300/2000 dummy entries that made
+        # the audit trail unreadable.
+        if save:
+            from ml.experiments import log_experiment
+            log_experiment(result, FEATURE_NAMES, n_samples=len(features),
+                           feature_correlations=high_corrs if high_corrs else None)
 
         return result
 
