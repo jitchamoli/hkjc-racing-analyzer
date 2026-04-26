@@ -30,12 +30,14 @@ logger = logging.getLogger(__name__)
 # clear_feature_caches() so backtests don't see stale rates.
 _jockey_rate_cache: dict = {}
 _trainer_rate_cache: dict = {}
+_jockey_window_cache: dict = {}  # keyed by (jockey, before_date, window_days)
 
 
 def clear_feature_caches() -> None:
     """Reset jockey/trainer rate caches. Call at the start of each race-day run."""
     _jockey_rate_cache.clear()
     _trainer_rate_cache.clear()
+    _jockey_window_cache.clear()
 
 
 def extract_class_rank(class_type: str) -> Optional[int]:
@@ -247,6 +249,70 @@ class FeatureEngineering:
             return 0.08
         wins = sum(1 for r in trainer_horses if r.is_win)
         return min(0.5, (wins + 0.08 * 15) / (len(trainer_horses) + 15))
+
+    @staticmethod
+    def calculate_jockey_form_window(jockey: str, conn=None,
+                                     before_date: str = None,
+                                     window_days: int = 30) -> float:
+        """v6.5 Feature 19: Bayesian-smoothed jockey strike rate over a recent window.
+
+        Captures hot/cold streaks the all-time aggregate (Feature 4) hides.
+        Same Bayesian Beta(0.08, 15) prior as the all-time rate so unknown
+        or new jockeys default to HK league average. Cached per
+        (jockey, before_date, window_days) to avoid N+1 SQL.
+        """
+        if not jockey:
+            return 0.08
+        cache_key = (jockey, before_date, window_days)
+        if cache_key in _jockey_window_cache:
+            return _jockey_window_cache[cache_key]
+        rate = FeatureEngineering._compute_jockey_form_window(
+            jockey, conn, before_date, window_days,
+        )
+        _jockey_window_cache[cache_key] = rate
+        return rate
+
+    @staticmethod
+    def _compute_jockey_form_window(jockey, conn, before_date, window_days):
+        c = None
+        owns = conn is None
+        try:
+            if owns and config.DB_PATH.exists():
+                c = sqlite3.connect(str(config.DB_PATH))
+                c.row_factory = sqlite3.Row
+            else:
+                c = conn
+            if c is None:
+                return 0.08
+            # Use julianday for date arithmetic; race_date is YYYY/MM/DD so
+            # REPLACE to YYYY-MM-DD for sqlite to parse correctly.
+            if before_date:
+                row = c.execute(
+                    "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
+                    "FROM race_results WHERE jockey = ? "
+                    "  AND race_date < ? "
+                    "  AND julianday(REPLACE(race_date,'/','-')) >= "
+                    "      julianday(REPLACE(?,'/','-')) - ?",
+                    (jockey, before_date, before_date, window_days),
+                ).fetchone()
+            else:
+                # No reference date — fall back to all-time (degenerates
+                # gracefully to Feature 4's signal).
+                row = c.execute(
+                    "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
+                    "FROM race_results WHERE jockey = ?",
+                    (jockey,),
+                ).fetchone()
+            rides = (row['rides'] if row else 0) or 0
+            wins = (row['wins'] if row else 0) or 0
+            if rides > 0:
+                return min(0.6, (wins + 0.08 * 15) / (rides + 15))
+        except Exception as e:
+            logger.warning(f"DB lookup failed for jockey-form-window {jockey}: {e}")
+        finally:
+            if owns and c is not None:
+                c.close()
+        return 0.08
 
     @staticmethod
     def calculate_draw_advantage(draw: int, distance) -> float:
@@ -514,6 +580,37 @@ class FeatureEngineering:
         features.append(hw_change)
 
         # speed_consistency dropped v6.4 — degenerate after adjusted_speed dropped.
+
+        # Feature 17: horse age (v6.5). 3yo→1.0, 6yo→0.5, 9yo+→0.0.
+        # Younger HK horses systematically improve; older horses decline.
+        age_raw = horse_data.get('age', 0) or 0
+        try:
+            age_int = int(str(age_raw).strip()[:2]) if age_raw else 0
+        except (ValueError, TypeError):
+            age_int = 0
+        if age_int and 2 <= age_int <= 15:
+            age_score = max(0.0, min(1.0, (9 - age_int) / 6.0))
+        else:
+            age_score = 0.5
+        features.append(age_score)
+
+        # Feature 18: rating change from previous race (v6.5). +10pts→1.0,
+        # 0→0.5, -10→0.0. Captures handicapper's view of recent form change.
+        rc_raw = horse_data.get('rating_change', 0) or 0
+        try:
+            rc = int(rc_raw)
+        except (ValueError, TypeError):
+            rc = 0
+        rating_change_score = max(0.0, min(1.0, 0.5 + rc / 20.0))
+        features.append(rating_change_score)
+
+        # Feature 19: jockey 30-day form (v6.5). Captures hot streaks the
+        # all-time strike rate (Feature 4) hides. Bayesian-smoothed with
+        # the same Beta prior so unknown/new jockeys default to league avg.
+        jockey_30d = FeatureEngineering.calculate_jockey_form_window(
+            jockey, conn=conn, before_date=race_date or None, window_days=30,
+        )
+        features.append(min(0.6, jockey_30d) if jockey_30d > 0 else 0.08)
 
         if owns_conn and conn is not None:
             conn.close()

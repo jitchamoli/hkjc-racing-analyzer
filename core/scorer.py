@@ -123,17 +123,61 @@ def _dynamic_blend_weights(field_size: int, distance: int) -> Tuple[float, float
     return model_w, market_w
 
 
+_BLEND_CALIBRATOR = None  # cached on first load
+_BLEND_CALIBRATOR_LOADED = False
+
+
+def _load_blend_calibrator():
+    """Lazy-load models/blend_calibrator.pkl. Returns None if absent.
+
+    The blend calibrator is an IsotonicRegression fitted on
+    (production calibrated_prob → actual_won) over the held-out 20% of
+    races. It corrects the residual under-prediction bias the post-C1
+    pipeline exhibits on top picks. Built by `python3 -m scripts.calibrate_blend`.
+    """
+    global _BLEND_CALIBRATOR, _BLEND_CALIBRATOR_LOADED
+    if _BLEND_CALIBRATOR_LOADED:
+        return _BLEND_CALIBRATOR
+    _BLEND_CALIBRATOR_LOADED = True
+    import hashlib, pickle
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parent.parent
+    pkl = repo_root / 'models' / 'blend_calibrator.pkl'
+    sha = pkl.with_suffix('.sha256')
+    if not pkl.exists():
+        return None
+    try:
+        raw = pkl.read_bytes()
+        if sha.exists():
+            expected = sha.read_text().strip()
+            if hashlib.sha256(raw).hexdigest() != expected:
+                # Don't silently load a tampered/stale file
+                return None
+        payload = pickle.loads(raw)
+        _BLEND_CALIBRATOR = payload.get('calibrator')
+    except Exception:
+        _BLEND_CALIBRATOR = None
+    return _BLEND_CALIBRATOR
+
+
 def calibrate_probabilities(analyses, field_size: int = 12,
                             distance: int = 1200) -> List[float]:
     """Convert combined_probability scores into calibrated race-level probabilities.
 
-    Uses mild softmax normalization (to ensure probabilities sum to 1),
-    then blends with market-implied probabilities using dynamic weights
-    based on field size and distance.
+    Pipeline:
+      1. Mild softmax over combined_probability → cal_probs
+      2. Dynamic blend with market-implied probs → blended
+      3. (optional) Apply post-blend isotonic calibrator if present
+      4. Normalize so sum==1
 
-    Note: Individual ML probabilities are already isotonic-calibrated at the
-    model level (Wave 2c switch from Platt), so the softmax here is purely
-    for normalization, not recalibration.
+    The post-blend calibrator (step 3) corrects a residual under-prediction
+    bias on the post-C1 anchored-sigmoid distribution — top picks were
+    predicted ~32% but actual win rate was ~46% on a 5,966-race holdout.
+    Calibrator is fit by `scripts/calibrate_blend.py`; absent file → step 3
+    is skipped (backwards-compatible).
+
+    Per-horse isotonic preserves rank ordering (monotonic), so renormalizing
+    after applying maintains both the win-prob calibration and sum-to-one.
     """
     if not analyses:
         return []
@@ -171,6 +215,15 @@ def calibrate_probabilities(analyses, field_size: int = 12,
             # the blended horses — no systematic over/under-weighting.
             b = cal_probs[i]
         blended.append(b)
+
+    # Optional post-blend isotonic recalibration.
+    iso = _load_blend_calibrator()
+    if iso is not None:
+        try:
+            import numpy as _np
+            blended = list(iso.predict(_np.array(blended)))
+        except Exception:
+            pass  # fall through to raw blended values on any sklearn error
 
     blend_total = sum(blended) or 1.0
     return [p / blend_total for p in blended]
