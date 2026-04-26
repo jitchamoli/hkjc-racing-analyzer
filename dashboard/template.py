@@ -667,6 +667,14 @@ function renderBetCard(race) {{
     var box4Nums = top4wa.map(function(h) {{ return h.number; }}).join(', ');
     summaryLines.push('PROT: BOX QIN-4 → ' + box4Nums);
   }}
+  // QIN PLACE BANKER summary for short-favorite races — same gating as
+  // the visual ticket. Way better ROI than straight WIN at sub-2.0 odds.
+  var top1Wa = race.horses[0];
+  if (top1Wa && top1Wa.win_odds && top1Wa.win_odds <= 1.8 && race.horses.length >= 4) {{
+    var bnkNums = race.horses.slice(1, 4).map(function(h) {{ return h.number; }}).join(', ');
+    summaryLines.push('QPL BANKER: ' + top1Wa.number + ' with ' + bnkNums + '  · 3 combos');
+  }}
+
   // FIRST 4 longshot saver — top 4 model picks in their model-rank order.
   // 1 unit, exact order. Pays handsomely when it hits; meant as a low-cost
   // protection layer alongside the QIN box.
@@ -1191,6 +1199,27 @@ function _buildRaceDetailPanel(race) {{
       '</div>'
     );
   }});
+
+  // QIN PLACE BANKER — for short-favorite races (top pick odds <= 1.8)
+  // a straight WIN bet pays barely above stake. QIN PLACE on the
+  // favorite with the next 3 model picks gives us 3 combos that hit
+  // when the favorite finishes top-3 (very likely) AND any of the
+  // bankers finishes top-3. Much better EV than WIN at sub-2.0 odds.
+  var topH2 = race.horses[0];
+  if (topH2 && topH2.win_odds && topH2.win_odds <= 1.8 && race.horses.length >= 4) {{
+    var bankers = race.horses.slice(1, 4);
+    ticketLines.push(
+      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25)">' +
+        '<span style="display:inline-block;background:rgba(59,130,246,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
+          '+ QIN PLACE BANKER · 3 combos' +
+        '</span>' +
+        '<span style="font-weight:600">#' + esc(topH2.number) + ' ' + esc(topH2.name) + ' </span>' +
+        '<span style="color:var(--dim);margin:0 4px">with</span>' +
+        bankers.map(function(h) {{ return '#' + esc(h.number) + ' ' + esc(h.name); }}).join(' / ') +
+        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when fav places (very likely at $' + esc(topH2.win_odds) + ') and any banker places. Way better ROI than straight WIN.</div>' +
+      '</div>'
+    );
+  }}
 
   // BOX Q4 PROTECTION — always shown when the race has at least 4 ranked
   // horses, regardless of the recommender primary choice. Catches the
