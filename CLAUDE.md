@@ -140,10 +140,12 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 
 Each card is **click-to-expand**: clicking anywhere on the card toggles a per-race detail panel inserted directly below it (per-horse table, **same-format history** of each horse's prior runs at this exact venue+distance, speed map, reasoning). Top-right chevron flips ▼ → ▲ and the card gets a gold ring when expanded. **Copy WA** button uses `event.stopPropagation` so it does not toggle the card. Each expanded panel also has a × close button in the top-LEFT (top-RIGHT was hidden behind the tier badge in earlier versions).
 
-Each card (and expanded panel) shows a 3-line **BET TICKET**:
-1. **PRIMARY** (gold pill) — the recommender's choice, with each pick tagged by jockey + 30-day strike rate (gold) + all-time strike rate (dim). Eg. `PRIMARY · BOX QIN-4 · #1 ABSOLUTE HEART @3.1 (J: K C Leung 7% 30d)`
-2. **+ PROTECTION** (green pill) — always-on BOX QIN-4 over the top-4 model picks when there are 4+ ranked horses, even when the recommender chose a tighter primary. Catches R1-PACKING-KING-style upsets where the placing pair sits in model ranks 3-4.
-3. **+ F4 SAVER** (purple pill) — top-4 model picks placed in 1-2-3-4 order as a single-unit First-4 longshot saver.
+Each card (and expanded panel) shows a 5-layer **BET TICKET**:
+1. **PRIMARY** (gold pill) — the recommender's choice, each pick tagged with jockey + 30-day strike rate (gold) + all-time strike rate (dim).
+2. **+ PROTECTION · BOX QIN-4** (green pill) — always-on top-4 model picks when there are 4+ ranked horses, even when the recommender chose a tighter primary. Catches placing-pair upsets where the winner sits in model ranks 3-4.
+3. **+ F4 SAVER** (purple pill) — top-4 model picks placed in 1-2-3-4 exact order as a single-unit First-4 longshot saver.
+4. **+ QIN PLACE BANKER** (blue pill) — only renders when top pick odds ≤ 1.8. For short-favorite races a straight WIN bet pays barely above stake; QPL on (favorite + 3 next picks) gives 3 combos that hit when the favorite places (very likely at sub-2.0) AND any banker also places. Validated on Apr 26 R9 ROMANTIC WARRIOR 1.4 — 2 of 3 QPL combos hit alongside the WIN.
+5. **+ BOX TRIO-5** (pink pill) — top-5 model picks in a 10-combo TRIO box. Hits when any 3 of the 5 finish top-3 in any order. Catches the rank-5/6 spoilers that QIN-4 misses (validated by user's Apr 26 R10 manual play paying 12x; subsequent R11 hit cleanly on first auto-rendered iteration).
 
 **Top Bets sub-toggle**: Inside the Top Bets tab, two more buttons (`Next` / `Past`) filter to upcoming or finished races. `Next` is default. Past races render with an outcome badge in the card header:
 - 🟡 `★ STRIKE · WIN` — top model pick won
@@ -153,9 +155,17 @@ Each card (and expanded panel) shows a 3-line **BET TICKET**:
 
 Badges render in BOTH views (Race Order shows them on finished races inline; Top Bets · Past filters to ONLY finished races for focused review). Determined client-side via `_didBetHit(race)` from each horse's `actual_position` field.
 
-**WhatsApp Copy** mirrors the BET TICKET in plain text — first line is a scannable summary like `BET: BOX QIN-4 → 1, 9, 2, 13` followed by `F4 (exact): 1-9-2-13 · 1 unit`, then per-horse breakdown with jockey strike rates, then "Why strong" bullets.
+**Top Bets sub-toggle (Next / Past)** — surfaces upcoming HIGH/MED/EDGE picks (Next, default) or finished-race results with STRIKE/MISS badges (Past). Auto-flips to Past at end-of-meeting (when all races have `results_available=True`) so a click on Top Bets after the card is over lands on the day's record instead of an empty pane. Empty-state messages are case-aware: "All races finished — no next race today" with inline jump-links when post-meeting Next is hit, "No past races yet" pre-meeting Past, original "no bets meet threshold" copy mid-day.
+
+**WhatsApp Copy** mirrors the BET TICKET in plain text — first line is a scannable summary like `BET: BOX QIN-4 → 1, 9, 2, 13` followed by `F4 (exact): 1-9-2-13 · 1 unit` and `BOX TRIO-5: 1, 9, 2, 13, 8 · 10 combos`, then per-horse breakdown with jockey strike rates, then "Why strong" bullets.
 
 **Attribute-context escape (`escAttr`)** is mandatory for any value rendered into an HTML attribute via string concatenation (`data-payload`, etc.). The text-context `esc()` does NOT escape `"` or `'` so values containing those would close the attribute prematurely. `escAttr` is implemented with a charcode-built regex (avoids quote-literal pairs that the JS-syntax test scanner misreads).
+
+**Results merging into the dashboard (`dashboard/results_fetcher.py:_regenerate_dashboard`)** uses `generate_html()` to re-render from the merged-results JSON, then writes BOTH `results/racing_dashboard_{date}.html` (archive) AND `results/racing_dashboard.html` (always-latest, what the user views via file://). The legacy runtime-injection mechanism that patched `renderDashboard`/`renderRaceDetail` was REMOVED in v6.5 because the card-stack rewrite removed those helpers. Atomic write (tmp + `os.replace`) so a polling browser never sees a half-written file.
+
+**Race-day live workflow** — recommended setup uses two persistent monitors:
+- **Pre-race refresh + results merge** at **T-6 min** before each race (user explicitly bumped from T-5 to T-6 mid-day on Apr 26 so PLACE odds have time to publish). Each fire chains `generate_predictions.py` then `results_fetcher.py` so the dashboard has fresh win/place odds AND the past STRIKE/MISS badges persist after the regen.
+- **Results poll + auto-learn** every 15 min via `python3 results_fetcher.py 'YYYY/MM/DD' --auto-learn` so each new race result ingests into `tracking_data/horse_history.db` (race_results table) and triggers an attempted retrain. The auto-learn scraper drops the LAST race of a card (end-of-card detection bug); on race day 2026-04-26 R11 was direct-ingested from `race_data_*_with_results.json` to recover the missing 4 horse-rows.
 
 Plain-English Pure / Market / Edge labels with click-to-toggle ⓘ popovers (replaces native `title=""` tooltips so it works on touch). Topbar **⟳ Hard reload** button bypasses browser cache. Atomic dashboard writes (`os.replace`) so a polling browser never sees a half-written file.
 

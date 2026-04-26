@@ -25,12 +25,15 @@ The XGBoost-side isotonic calibrator only sees raw model probs; it doesn't see t
 - **Two prominent View tabs** above the card stack: **📋 Race Order** (default — all 11 races as full cards in chronological order) and **⭐ Top Bets** (curated HIGH/MED/EDGE subset, tier-sorted then by edge_pp).
 - **Click anywhere on a race card** to expand its detail panel inline (per-horse table, same-format history, speed map, reasoning). Click again to collapse. Top-right chevron flips ▼ → ▲.
 - **Same-format history per horse** — for every horse with prior runs at this exact venue + distance, the expanded panel lists their last 5 attempts (date, going, class, finish position colour-coded, odds, margin, jockey).
-- **BET TICKET** with three layers per race:
+- **BET TICKET** with FIVE layers per race:
   1. 🟡 **PRIMARY** — recommender's choice (QIN / TRIO / BOX QIN-4 / BANKER WIN), each pick tagged with jockey + 30-day strike rate (gold) + all-time strike rate.
   2. 🟢 **+ PROTECTION · BOX QIN-4 (6 combos)** — always-on top-4 quinella box. Catches placing-pair upsets where the winner sits in model ranks 3-4.
   3. 🟣 **+ F4 SAVER · 1 unit** — top-4 in exact 1-2-3-4 finishing order. Cheap longshot saver.
-- **Top Bets · Next / Past sub-toggle** — switch between upcoming bets and finished races. Past races show outcome badges in the header: 🟡 `★ STRIKE · WIN`, 🟢 `★ STRIKE · QIN`, 🟢 `★ STRIKE · BOX-4`, 🔴 `✗ MISS (winner #X was rank Y)`. Badges render in BOTH views (Race Order shows them on finished races inline; Top Bets · Past filters to ONLY finished races for focused review).
-- **WhatsApp Copy** mirrors the BET TICKET — first line is a scannable summary like `BET: BOX QIN-4 → 1, 9, 2, 13` for terminal entry; full per-horse breakdown follows.
+  4. 🔵 **+ QIN PLACE BANKER · 3 combos** — only when top pick odds ≤ 1.8. For short-favorite races a WIN bet pays barely above stake; QPL on (favorite + 3 banker picks) hits when fav places (very likely) AND any banker also places. Validated Apr 26 R9: ROMANTIC WARRIOR 1.4 — 2 of 3 QPL combos hit alongside the WIN.
+  5. 🩷 **+ BOX TRIO-5 · 10 combos** — top-5 model picks in a TRIO box. Hits when any 3 of 5 finish top-3 in any order. Catches the rank-5/6 spoilers that QIN-4 misses; validated by a user-driven 4-horse trio on Apr 26 R10 paying 12x, then again automatically on R11.
+- **Top Bets · Next / Past sub-toggle** — Next surfaces upcoming bets, Past shows finished races with outcome badges (🟡 `★ STRIKE · WIN`, 🟢 `★ STRIKE · QIN`, 🟢 `★ STRIKE · BOX-4`, 🔴 `✗ MISS`). Auto-flips to Past at end-of-meeting so a click after the last race lands on the day's record. Badges render in both views.
+- **WhatsApp Copy** mirrors the BET TICKET — first line is a scannable summary like `BET: BOX QIN-4 → 1, 9, 2, 13` for terminal entry; followed by `F4 (exact)`, `BOX TRIO-5`, full per-horse breakdown with jockey strike rates, then "Why strong" bullets.
+- **Race-day workflow** — two persistent monitors keep the dashboard fresh: pre-race refresh + results merge at **T-6 min** before each race, and a 15-min `--auto-learn` poll that ingests each new race result into `tracking_data/horse_history.db` so the model improves day-over-day.
 - **Same-format history per horse** — for every horse with prior runs at this exact venue + distance, the expanded panel lists their last 5 attempts (date, going, class, finish position colour-coded, odds, margin, jockey).
 - **Plain-English labels** with click-to-toggle ⓘ popovers on Pure / Market / Edge ("Pure" → "Our model").
 - **⟳ Hard reload** button in the topbar that bypasses browser cache.
