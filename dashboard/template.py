@@ -245,6 +245,24 @@ button {{ font-family:inherit; cursor:pointer; }}
 .strip-tab {{ background:transparent; border:1px solid var(--border); color:var(--dim); padding:3px 10px; border-radius:4px; font-size:.66rem; font-weight:600; letter-spacing:.05em; cursor:pointer; text-transform:uppercase; transition:all .12s; }}
 .strip-tab:hover {{ background:rgba(15,23,42,.5); color:var(--fg); }}
 .strip-tab.active {{ background:var(--gold); color:#000; border-color:var(--gold); }}
+
+/* Prominent View tabs row — sits ABOVE the race strip, much larger
+   and bolder than the inline strip-tab variant. */
+.view-tabs {{
+  display:flex; align-items:center; gap:8px; margin:8px 0 12px 0;
+  padding:8px; background:rgba(30,41,59,.5); border:1px solid var(--border);
+  border-radius:8px; flex-wrap:wrap;
+}}
+.view-tab {{
+  background:transparent; border:1.5px solid var(--border);
+  color:var(--dim); padding:9px 18px; border-radius:6px;
+  font-size:.85rem; font-weight:700; letter-spacing:.04em;
+  cursor:pointer; transition:all .15s;
+  display:inline-flex; align-items:center; gap:6px;
+}}
+.view-tab-icon {{ font-size:.95rem; }}
+.view-tab:hover {{ background:rgba(15,23,42,.6); color:var(--fg); border-color:var(--fg); }}
+.view-tab.active {{ background:var(--gold); color:#000; border-color:var(--gold); box-shadow:0 2px 8px rgba(251,191,36,.3); }}
 .info-tip {{ display:inline-block; margin-left:6px; font-size:.7rem; color:var(--dim); cursor:pointer; border:1px solid var(--border); border-radius:50%; width:16px; height:16px; line-height:14px; text-align:center; vertical-align:middle; user-select:none; }}
 .info-tip:hover {{ color:var(--gold); border-color:var(--gold); background:rgba(251,191,36,.08); }}
 .info-pop {{ position:fixed; max-width:320px; background:#1e293b; border:1px solid var(--gold); color:var(--fg); padding:10px 12px; border-radius:6px; font-size:.75rem; line-height:1.45; z-index:9999; box-shadow:0 8px 24px rgba(0,0,0,.5); }}
@@ -364,15 +382,17 @@ button {{ font-family:inherit; cursor:pointer; }}
 <div class="shell">
   <div class="main-col">
     <div class="hero" id="hero"></div>
+    <div class="view-tabs">
+      <button class="view-tab active" id="tab-race-order" onclick="setStripView('race')">
+        <span class="view-tab-icon">📋</span> Race Order
+      </button>
+      <button class="view-tab" id="tab-top-bets" onclick="setStripView('bets')">
+        <span class="view-tab-icon">⭐</span> Top Bets
+      </button>
+      <span style="flex:1"></span>
+      <button id="expand-all-btn" class="expand-all-btn">Expand all</button>
+    </div>
     <div class="strip-section">
-      <div class="strip-label">
-        <div style="display:flex;gap:6px;align-items:center">
-          <span style="margin-right:4px">View:</span>
-          <button class="strip-tab active" id="tab-race-order" onclick="setStripView('race')">Race order</button>
-          <button class="strip-tab" id="tab-top-bets" onclick="setStripView('bets')">Top bets</button>
-        </div>
-        <button id="expand-all-btn" class="expand-all-btn">Expand all</button>
-      </div>
       <div class="strip" id="strip">{strip_tiles_html}</div>
     </div>
     <div id="race-detail"></div>
