@@ -1,28 +1,49 @@
-# HKJC Horse Racing Analyzer v6.4
+# HKJC Horse Racing Analyzer v6.5
 
-Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 24-factor rule-based engine with an XGBoost ML model (16 features, isotonic-calibrated) to surface bets the public may be underestimating. The dashboard uses an edge-first layout: a hero block of 0–5 high-conviction picks with a trust card showing per-tier historical hit-rates, a live alerts rail for sharp odds moves, and an honest "no bets today" empty state when the model and market agree too closely.
+Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 24-factor rule-based engine with an XGBoost ML model (19 features, isotonic-calibrated, post-blend recalibrated) to surface bets the public may be underestimating. The dashboard renders every race as a clickable card stack with two views — **Race Order** (all 11 chronological) and **Top Bets** (curated tier-sorted) — plus a sticky live alerts rail.
 
-## What's New in v6.4
+## What's New in v6.5
 
-Data-scientist audit on v6.3 surfaced multiple data-quality bugs and architectural issues. v6.4 fixes them and ships a leaner model.
+Two compounding improvements on top of v6.4 + 4-expert review fixes.
 
-- **16-feature schema** (was 20): dropped `prior_pace`, `adjusted_speed`, `distance_pb_ratio`, `speed_consistency` — all had 0.0 importance because `last_start_margin` (16%) carried the form/speed signal
-- **Field clipping fix**: training-side feature extraction was missing the [0,1] clip on `field_size` and `field_rel_draw` (inference clipped via F-16). Model trained on values up to 15.0 from oversize legacy fields
-- **Class-type extractor**: new `extract_class_rank()` correctly handles HKJC's full class ladder. Old regex `r'(\d)'` read 'G1' as class 1; Group races sit ABOVE class 1. Now Group 1/2 → 0, Group 3 → 1, Class 1-5 → 1-5, GRIFFIN/MAIDEN → 4, 4YO → 3
-- **Freshness fallback**: 87.7% of legacy rows had `days_since_last_run` = 0/null, making freshness near-constant 0.5 (0.0 importance in v6.3). Now falls back to `(race_date - prior race_date)` math like inference does
-- **Exponential recency weighting**: was linear 0.3→1.0. Switched to `0.25 + 0.75·exp((i−n+1)/(n/3))` so newest third weighs ~2× the oldest third (was 1.5× under linear). With 50% jockey turnover and 94% horse turnover since 2021, older rows describe a different field
-- **5-year training cutoff** (introduced v6.3): empirically training on 49y of data dropped ROI by ~30% vs the recent 5y window — different jockey rosters, rule sets, and pool dynamics in older eras
+### Three "data-already-here" features (16 → 19)
 
-### v6.4 Performance (recent 500-race holdout, real HKJC dividends)
+Sourced from the Renavon backfill, previously used only by the rule engine:
 
-| Metric | v6.3 | v6.4 |
-|---|---|---|
-| Recommender-gated ROI | +1359% | **+1433%** |
-| Hit rate | 38.3% | **39.5%** |
-| Brier score (top-pick) | 0.176 | **0.108** |
-| Dead features | 5 | **0** |
+- **`horse_age`** (3.2% importance) — DB at 99.8% post-Renavon. Younger HK horses (3-5y) systematically improve.
+- **`rating_change`** (4.6% importance — beats `prior_win_rate`!) — DB at 62.6%. Captures handicapper's view of recent form change.
+- **`jockey_form_30d`** (4.5% importance) — Bayesian-smoothed 30-day jockey strike rate. Captures hot streaks the all-time aggregate (Feature 4) hides.
+
+Schema is now 19 features, all with non-zero importance.
+
+### Post-blend isotonic calibrator
+
+The XGBoost-side isotonic calibrator only sees raw model probs; it doesn't see the post-rule-blend or post-market-blend output. A second isotonic was fit on **71,360 (calibrated_prob, is_winner) pairs** from the held-out 20% via the production pipeline (`scripts/calibrate_blend.py`). Stored as `models/blend_calibrator.pkl` with `.sha256` sidecar. Lazy-loaded by `core/scorer.py:calibrate_probabilities` and applied per-horse with renormalization. On v6.5 the bin shifts are small (0.30 → 0.346 vs v6.4's 0.30 → 0.459) because the new features already pull raw output closer to actual win rates.
+
+### Dashboard restructure
+
+- **Two prominent View tabs** above the card stack: **📋 Race Order** (default — all 11 races as full cards in chronological order) and **⭐ Top Bets** (curated HIGH/MED/EDGE subset, tier-sorted then by edge_pp).
+- **Click anywhere on a race card** to expand its detail panel inline (per-horse table, same-format history, speed map, reasoning). Click again to collapse. Top-right chevron flips ▼ → ▲.
+- **Same-format history per horse** — for every horse with prior runs at this exact venue + distance, the expanded panel lists their last 5 attempts (date, going, class, finish position colour-coded, odds, margin, jockey).
+- **BET TICKET** block at the top of every expanded race — synthesizes per-horse bet recommendations into one race-level instruction (e.g. "STRAIGHT QIN · #5 THE HEIR + #11 PRESTIGE HALL").
+- **Plain-English labels** with click-to-toggle ⓘ popovers on Pure / Market / Edge ("Pure" → "Our model").
+- **⟳ Hard reload** button in the topbar that bypasses browser cache.
+- **Atomic dashboard writes** (write-temp-then-`os.replace`) so a polling browser never sees a half-written file.
+
+### v6.5 Performance (5,966-race holdout, 554 with real HKJC dividends)
+
+| Metric | v6.4 OFF | v6.4 + cal | **v6.5 + cal** |
+|---|---|---|---|
+| Recommender quinella ROI | +113.05% | +117.97% | **+168.71%** |
+| EV ≥ 5% (WIN) ROI | +65.61% | +1.50% | +67.67% |
+| EV ≥ 15% (WIN) ROI | +59.20% | -4.32% | +75.20% |
+| Bet market favourite (baseline) | -16.67% | — | -16.67% |
+| Top-pick Brier | 0.2165 | 0.2045 | 0.2145 |
+
+Recommender ROI jumped **+50pp** (v6.4 → v6.5 + calibrator). Brier on the new 5,966-race holdout is honest about residual under-prediction; old "0.108" was measured on a smaller specific sample. Strategy A (flat WIN on top pick) remains slightly negative across all model versions — market takeout dominates flat staking.
 
 ### Previous Versions
+- **v6.4**: 16-feature lean schema, exponential recency weighting, isotonic-fit-on-validation, `extract_class_rank()` helper. Dropped `prior_pace`, `adjusted_speed`, `distance_pb_ratio`, `speed_consistency` (all 0.0 importance after audit fixes)
 - **v6.3**: 5-year recency cutoff (50K samples), Renavon bulk import (368K legacy rows ingested for backfill)
 - **v6.2**: Full 49-year training (360K rows) — regressed by ~30% ROI vs v6.1 / v6.3
 - **v6.1**: Wave 2c, 7,540 samples, isotonic calibrator

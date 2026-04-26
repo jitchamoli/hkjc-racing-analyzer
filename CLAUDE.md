@@ -91,7 +91,7 @@ scripts/train.py → models/hkjc_racing_model.pkl
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
 - **Rule engine (60%)**: 24 factors with dynamic weighting — factors with missing data are excluded and remaining weights renormalize to 1.0. The rule_score (0-100) is converted to a probability via a **base-rate-anchored sigmoid**: `sigmoid(0.06 × (score - 50) + logit(1/field_size))`, so an "average" horse (score=50) outputs ~1/field_size instead of 50%. Note: `odds` and `odds_movement` were removed from the rule engine to prevent triple-counting market signal (market info enters via the dynamic market blend in calibration). Approximate grouping: Core (rating, form, jockey, trainer, draw, tips), Expert (going, rolling form, margins, field size, career stats), Technical (pace, sectionals, C&D, class movement, gear, weight, freshness). Actual percentages vary per race due to renormalization.
-- **ML model (40%)**: XGBoost classifier with **16 features** (`ml/model.py`, schema in `ml/feature_schema.py`). v6.4 dropped 4 features that had 0.0 importance after the bug fixes (`prior_pace`, `adjusted_speed`, `distance_pb_ratio`, `speed_consistency`); they were redundant with `last_start_margin` (16% importance). Wave 2c had previously dropped `field_rel_speed` and `days_since_last_win` for r > 0.7 collinearity. Includes a dedicated **place model** (is_top3) for place bet recommendations and quinella pricing. Both models use **IsotonicRegression** (Wave 2c switch from Platt) for probability calibration, **weighted by the same recency weights used for XGBoost training** so the calibrator sees the same prior as the model. Trained on **50,692 real race results** from a 5-year window via `build_training_data_from_db(years_back=5)`; falls back to synthetic data if <50 results. The `scripts/train.py` pipeline prefers DB data over scraped training_data when ≥200 samples exist. The 60/40 rule+ML blend (pre-market) forms `pure_prob`, the model's "independent opinion" used by edge math.
+- **ML model (40%)**: XGBoost classifier with **19 features** (`ml/model.py`, schema in `ml/feature_schema.py`). v6.5 added 3 features sourced from the Renavon backfill (`horse_age`, `rating_change`, `jockey_form_30d` — all non-zero importance). v6.4 had dropped 4 features with 0.0 importance after audit fixes (`prior_pace`, `adjusted_speed`, `distance_pb_ratio`, `speed_consistency`). Wave 2c had previously dropped `field_rel_speed` and `days_since_last_win` for r > 0.7 collinearity. Includes a dedicated **place model** (is_top3). Both models use **IsotonicRegression** (Wave 2c switch from Platt) recency-weighted. Trained on **50,692 real race results** from a 5-year window. The 60/40 rule+ML blend (pre-market) forms `pure_prob`. After the market blend a **second isotonic** (`models/blend_calibrator.pkl`, fit by `scripts/calibrate_blend.py` on 71,360 production-pipeline pairs) recalibrates the post-blend distribution per-horse with renormalization. v6.5 + calibrator backtest (5,966 races): recommender quinella ROI **+168.71%**, Brier 0.2145.
 
 The 13 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change, **speed figures**).
 
@@ -136,7 +136,17 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 
 `generate_predictions.py` generates a self-contained HTML dashboard with embedded race data as JSON. The venue is detected dynamically from race data. `results/racing_dashboard.html` is always overwritten with the latest run (date-stamped archive also saved).
 
-**Edge-first layout** (v6.0): top bar → hero (0–5 bet cards with trust card showing per-tier hit-rate + Wilson CI) → 11-tile race strip → race-detail (click to expand any tile) → sticky alerts rail on ≥1024px. The legacy A+/A/B+/B/B- grade system, `is_best_ev`/`is_worst_ev` ring highlights, and `strategy_confidence` string have all been removed. An "Expand all" button on the strip stacks every race detail panel for at-a-glance scanning. Empty-state honest-day message renders when no race clears MED+ tier.
+**Card-stack layout** (v6.5): topbar with brand + **📋 Race Order / ⭐ Top Bets** view tabs → hero stack of full bet cards (one per race in Race Order, curated subset in Top Bets) → sticky alerts rail on ≥1024px.
+
+Each card is **click-to-expand**: clicking anywhere on the card toggles a per-race detail panel inserted directly below it (per-horse table, **same-format history** of each horse's prior runs at this exact venue+distance, speed map, reasoning). Top-right chevron flips ▼ → ▲ and the card gets a gold ring when expanded. **Copy WA** button uses `event.stopPropagation` so it does not toggle the card. Each expanded panel also has a × close button in the top-LEFT (top-RIGHT was hidden behind the tier badge in earlier versions).
+
+Each expanded race shows a **BET TICKET** block at the top — synthesizes per-horse `bet_recommendation` values into a single race-level instruction (e.g. "STRAIGHT QIN · #5 THE HEIR + #11 PRESTIGE HALL", "BOX QIN-4 · #1 + #9 + #13 + #2", "BANKER WIN · #1 KA YING RISING").
+
+Plain-English Pure / Market / Edge labels with click-to-toggle ⓘ popovers (replaces native `title=""` tooltips so it works on touch). Topbar **⟳ Hard reload** button bypasses browser cache. Atomic dashboard writes (`os.replace`) so a polling browser never sees a half-written file.
+
+The legacy 11-tile strip + per-tile detail panel are still in the DOM (hidden by default) for backwards compatibility; the unified card stack supersedes them. Legacy A+/B+ grade system, `is_best_ev`/`is_worst_ev` ring highlights, and `strategy_confidence` string have all been removed. Empty-state honest-day message renders in Top Bets view when no race clears HIGH/MED tier.
+
+**Critical inline-handler note**: All click-handler functions (`showRaceDetail`, `closeRaceDetail`, `toggleCardDetail`, `setStripView`, `hardReload`, `refreshDashboard`, `copyWA`, `showInfoPop`, `_closeInfoPop`, `toggleExpandAll`) are explicitly assigned to `window.X = X` at the bottom of the IIFE. Without this, the IIFE wraps everything and inline `onclick=""` attributes throw "X is not defined". Add the same `window.X` line whenever introducing a new function called from inline HTML.
 
 All scraped data (horse names, jockeys, trainers, reasoning) is HTML-escaped via a JS `esc()` helper before `innerHTML` injection (XSS protection). The JSON embedding sanitizes `</script>` tags to prevent script block injection. The WA Copy buttons use a `data-payload` attribute + `addEventListener` pattern (not inline `onclick`) to prevent attribute-injection on horse names containing apostrophes or backslashes.
 
@@ -217,14 +227,18 @@ Uses Playwright to scrape HKJC results pages (JS-rendered). Extracts from result
 
 8. **Model integrity**: `.sha256` sidecar is required for loading. Missing checksum = hard refusal. `train_ml_model.py` backs up the old model before training and restores on failure.
 
-### Current 16 ML Features (v6.4 — all prior-race only)
+### Current 19 ML Features (v6.5 — all prior-race only)
 
 Features 1–8: `prior_win_rate, recent_form, draw_advantage, jockey_win_rate, trainer_win_rate, field_size, field_rel_draw, cd_form_prior`
 
 Features 9–16: `class_level` (Group=1.0, Class1=0.8, Class5=0.0), `freshness, going_performance, weight_vs_field, jockey_horse_coop, last_start_margin, class_change, horse_weight_change`
 
-Feature importance on the v6.4 50K-row training (none zero):
-- `last_start_margin` 16.0%, `jockey_win_rate` 10.5%, `recent_form` 8.5%, `field_rel_draw` 6.3%, `class_level` 5.7%, `going_performance` 5.3%, `cd_form_prior` 5.0%, `field_size` 5.0%, `prior_win_rate` 5.0%, `jockey_horse_coop` 4.9%, `weight_vs_field` 4.9%, `trainer_win_rate` 4.8%, `class_change` 4.7%, `horse_weight_change` 4.7%, `freshness` 4.5%, `draw_advantage` 4.1%
+Features 17–19 (v6.5 additions): `horse_age` (3yo→1.0, 9yo+→0.0), `rating_change` (+10pts→1.0, 0→0.5, -10→0.0), `jockey_form_30d` (Bayesian-smoothed 30-day strike rate)
+
+Feature importance on the v6.5 50K-row training (none zero):
+- `last_start_margin` 15.8%, `jockey_win_rate` 8.4%, `recent_form` 8.3%, `field_rel_draw` 5.7%, `class_level` 5.0%, **`rating_change` 4.6%**, `prior_win_rate` 4.6%, **`jockey_form_30d` 4.5%**, `going_performance` 4.3%, `field_size` 4.2%, `trainer_win_rate` 4.2%, `horse_weight_change` 4.2%, `weight_vs_field` 4.1%, `jockey_horse_coop` 4.0%, `cd_form_prior` 3.9%, `freshness` 3.9%, `draw_advantage` 3.6%, `class_change` 3.5%, **`horse_age` 3.2%**
+
+**Caveat (worth tracking)**: `jockey_win_rate × jockey_form_30d` correlation = 0.750 (just over Wave 2c's 0.72 drop threshold). Both jockey signals; XGBoost handles correlated trees fine. Worth revisiting in a v6.6 cleanup pass.
 
 Features removed:
 - v6.4 (2026-04-25): `prior_pace, adjusted_speed, distance_pb_ratio, speed_consistency` — all 0.0 importance after the v6.3 → v6.4 bug fixes; redundant with `last_start_margin`.
@@ -398,6 +412,9 @@ pure_prob = softmax(rule × 0.6 + ml × 0.4) — independent opinion, pre-market
 
 → dynamic blend: model × (30-60%) + market × (40-70%)
   (F-09 chosen: base 45/55, sprint threshold 1200m, field threshold 10)
+→ post-blend isotonic calibrator (v6.5, models/blend_calibrator.pkl, optional —
+  loaded lazily by core/scorer.py if file present; rebuilt by
+  scripts/calibrate_blend.py on 71K production-pipeline pairs)
 → calibrated_prob (post-blend, normalized to sum=1.0)
 → expected_return = odds × calibrated_prob - 1
 
