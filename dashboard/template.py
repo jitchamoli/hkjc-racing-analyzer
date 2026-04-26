@@ -392,9 +392,10 @@ button {{ font-family:inherit; cursor:pointer; }}
       <span style="flex:1"></span>
       <button id="expand-all-btn" class="expand-all-btn">Expand all</button>
     </div>
-    <div class="strip-section">
+    <div class="strip-section" id="strip-section">
       <div class="strip" id="strip">{strip_tiles_html}</div>
     </div>
+    <div id="top-bets-view" style="display:none"></div>
     <div id="race-detail"></div>
     <div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>
     <div class="footer">HKJC Racing Analyzer v6.5 — Generated: {now}</div>
@@ -437,22 +438,30 @@ setInterval(function() {{
 // Hero: 0-5 bet cards from EDGE/HIGH/MED races
 // ─────────────────────────────────────────────────────────────
 function renderHero() {{
+  // Behaviour driven by _stripView:
+  //   'race' (default) → all 11 races as cards in race order (R1, R2, ...)
+  //   'bets'           → curated stack of HIGH/MED/EDGE picks, tier-sorted
   var hero = document.getElementById('hero');
-  var tierOrder = {{EDGE:0, HIGH:1, MED:2}};
+  var label, races;
+  if (_stripView === 'bets') {{
+    var tierOrder = {{EDGE:0, HIGH:1, MED:2}};
+    races = RACES
+      .filter(function(r) {{ return ['EDGE','HIGH','MED'].indexOf(r.conviction_tier) >= 0; }})
+      .sort(function(a, b) {{
+        if (tierOrder[a.conviction_tier] !== tierOrder[b.conviction_tier])
+          return tierOrder[a.conviction_tier] - tierOrder[b.conviction_tier];
+        var aPp = Math.max.apply(null, a.horses.map(function(h) {{ return h.edge_pp || 0; }}));
+        var bPp = Math.max.apply(null, b.horses.map(function(h) {{ return h.edge_pp || 0; }}));
+        if (aPp !== bPp) return bPp - aPp;
+        return (b.top_3_share || 0) - (a.top_3_share || 0);
+      }});
+    label = 'TOP BETS — ' + races.length + ' OF ' + RACES.length + ' RACES';
+  }} else {{
+    races = RACES.slice().sort(function(a, b) {{ return a.race_number - b.race_number; }});
+    label = 'ALL RACES — ' + races.length + ' RACES IN CHRONOLOGICAL ORDER';
+  }}
 
-  var bets = RACES
-    .filter(function(r) {{ return ['EDGE','HIGH','MED'].indexOf(r.conviction_tier) >= 0; }})
-    .sort(function(a, b) {{
-      if (tierOrder[a.conviction_tier] !== tierOrder[b.conviction_tier])
-        return tierOrder[a.conviction_tier] - tierOrder[b.conviction_tier];
-      var aPp = Math.max.apply(null, a.horses.map(function(h) {{ return h.edge_pp || 0; }}));
-      var bPp = Math.max.apply(null, b.horses.map(function(h) {{ return h.edge_pp || 0; }}));
-      if (aPp !== bPp) return bPp - aPp;
-      return (b.top_3_share || 0) - (a.top_3_share || 0);
-    }})
-    .slice(0, 5);
-
-  if (bets.length === 0) {{
+  if (races.length === 0) {{
     var closest = RACES
       .filter(function(r) {{ return r.top_3_share != null; }})
       .sort(function(a, b) {{ return (b.top_3_share||0) - (a.top_3_share||0); }})[0];
@@ -463,18 +472,18 @@ function renderHero() {{
       '<div class="empty-hero">' +
         '<div class="empty-horse">🏇</div>' +
         '<div class="empty-title">No bets meet the threshold today</div>' +
-        '<div class="empty-body">Model and market agree too closely for an edge play, and no race clears HIGH/MED conviction on pair identification. The strip below shows all races if you want to drill in, but <strong>skipping the card is the dashboard&#39;s recommendation.</strong></div>' +
+        '<div class="empty-body">Model and market agree too closely for an edge play, and no race clears HIGH/MED conviction on pair identification. Switch to <strong>Race Order</strong> to browse all races anyway.</div>' +
         (closestMsg ? '<div class="closest-miss">' + esc(closestMsg) + '</div>' : '') +
       '</div>';
     return;
   }}
 
-  var hasEdgeRace = bets.some(function(r) {{ return r.has_edge; }});
-  var html = '<div class="hero-label">TODAY&#39;S BETS — ' + bets.length + ' OF ' + RACES.length + ' RACES</div>';
-  if (!hasEdgeRace) {{
+  var hasEdgeRace = races.some(function(r) {{ return r.has_edge; }});
+  var html = '<div class="hero-label">' + label + '</div>';
+  if (!hasEdgeRace && _stripView === 'bets') {{
     html += '<div class="edge-note">★ EDGE not seen in current sample — HIGH / MED tiers are the operational signal.</div>';
   }}
-  bets.forEach(function(race) {{ html += renderBetCard(race); }});
+  races.forEach(function(race) {{ html += renderBetCard(race); }});
   hero.innerHTML = html;
   hero.querySelectorAll('.wa-btn').forEach(function(btn) {{
     btn.addEventListener('click', function() {{
@@ -594,15 +603,104 @@ function setStripView(view) {{
   _stripView = view;
   document.getElementById('tab-race-order').classList.toggle('active', view === 'race');
   document.getElementById('tab-top-bets').classList.toggle('active', view === 'bets');
-  renderStrip();
-  // Re-apply .active classes on tiles for any currently-expanded races
-  if (typeof _renderActiveRaces === 'function') {{
-    document.querySelectorAll('.strip-tile').forEach(function(t) {{ t.classList.remove('active'); }});
-    Array.from(_activeRaces).forEach(function(rn) {{
-      var tile = document.getElementById('tile-' + rn);
-      if (tile) tile.classList.add('active');
+
+  // Both views render their content into #hero via renderHero() (cards
+  // for all 11 races in race-order, or curated cards for bets).
+  // The strip + race-detail panels are hidden in both — cards in the
+  // hero now carry all the actionable info inline. The Top Bets
+  // dedicated container is also hidden because the hero now handles
+  // both modes (kept in DOM for backwards-compat with prior snapshots).
+  var stripSection = document.getElementById('strip-section');
+  var topBetsView = document.getElementById('top-bets-view');
+  var raceDetail = document.getElementById('race-detail');
+  var expandBtn = document.getElementById('expand-all-btn');
+  if (stripSection) stripSection.style.display = 'none';
+  if (raceDetail) raceDetail.style.display = 'none';
+  if (expandBtn) expandBtn.style.display = 'none';
+  if (topBetsView) topBetsView.style.display = 'none';
+
+  renderHero();
+}}
+
+function renderTopBetsView() {{
+  // Stacked betting-opportunity cards: every race that has a non-SKIP bet,
+  // sorted by tier strength → top-pick edge_pp → race_number. Each card
+  // shows the BET TICKET, top picks, and "View full race" button.
+  var container = document.getElementById('top-bets-view');
+  if (!container) return;
+
+  var actionable = RACES.filter(function(r) {{
+    return r.horses && r.horses.some(function(h) {{
+      var b = (h.bet_recommendation || '').trim();
+      return b && b !== 'SKIP';
     }});
+  }});
+  actionable.sort(function(a, b) {{
+    var ta = _stripTierWeight(a.conviction_tier || 'SKIP');
+    var tb = _stripTierWeight(b.conviction_tier || 'SKIP');
+    if (ta !== tb) return tb - ta;
+    var ea = _topPickEdge(a), eb = _topPickEdge(b);
+    if (ea !== eb) return eb - ea;
+    return a.race_number - b.race_number;
+  }});
+
+  if (actionable.length === 0) {{
+    container.innerHTML =
+      '<div style="background:rgba(71,85,105,.18);border:1px solid var(--border);' +
+      'padding:24px;border-radius:8px;text-align:center;color:var(--dim);font-size:.95rem">' +
+        '<div style="font-size:1.6rem;margin-bottom:8px">🤷</div>' +
+        '<strong>No bets meet the conviction threshold today.</strong><br>' +
+        '<span style="font-size:.8rem">Switch to Race Order to browse all races anyway.</span>' +
+      '</div>';
+    return;
   }}
+
+  container.innerHTML = actionable.map(function(r) {{
+    var tier = r.conviction_tier || 'SKIP';
+    var tierColor = TIER_COLORS[tier] || '#64748b';
+
+    // Group horses by bet type for a clean ticket synthesis
+    var bets = {{}};
+    r.horses.forEach(function(h) {{
+      var b = (h.bet_recommendation || '').trim();
+      if (b && b !== 'SKIP') {{ (bets[b] = bets[b] || []).push(h); }}
+    }});
+    var ticketLines = Object.keys(bets).map(function(betType) {{
+      var picks = bets[betType];
+      var label = betType;
+      if ((betType === 'QIN' || betType === 'BOX QIN') && picks.length >= 2) {{
+        label = picks.length === 2 ? 'STRAIGHT QIN' : 'BOX QIN-' + picks.length;
+      }} else if (betType === 'TRIO' && picks.length >= 3) {{
+        label = picks.length === 3 ? 'STRAIGHT TRIO' : 'BOX TRIO-' + picks.length;
+      }}
+      var ids = picks.map(function(h) {{
+        return '<span style="display:inline-block;background:rgba(15,23,42,.7);padding:2px 8px;border-radius:4px;margin:2px 4px 2px 0;font-size:.82rem">' +
+          '#' + esc(h.number) + ' ' + esc(h.name) +
+          ' <span style="color:var(--dim);font-size:.72rem">@' + esc(h.win_odds) + '</span>' +
+        '</span>';
+      }}).join('');
+      return '<div style="margin:6px 0">' +
+        '<span style="display:inline-block;background:var(--gold);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' + esc(label) + '</span>' +
+        ids +
+      '</div>';
+    }}).join('');
+
+    return '<div class="top-bet-card" style="background:rgba(30,41,59,.6);border:1px solid var(--border);border-left:4px solid ' + tierColor + ';border-radius:8px;padding:14px 18px;margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
+        '<div>' +
+          '<span style="font-size:1.05rem;font-weight:800">R' + r.race_number + '</span>' +
+          '<span style="margin-left:10px;color:var(--dim);font-size:.78rem">' +
+            esc(r.time||'') + ' · ' + esc(r.distance) + 'm · ' + esc(r.class_type||'') + ' · ' + esc(r.going||'') +
+          '</span>' +
+        '</div>' +
+        '<span style="font-size:.7rem;padding:3px 10px;border-radius:4px;background:' + tierColor + ';color:#000;font-weight:800">' + esc(tier) + '</span>' +
+      '</div>' +
+      ticketLines +
+      '<button onclick="setStripView(&quot;race&quot;); showRaceDetail(' + r.race_number + ')" ' +
+        'style="margin-top:8px;background:transparent;border:1px solid var(--border);color:var(--fg);padding:5px 12px;border-radius:4px;font-size:.74rem;cursor:pointer">' +
+        'View full race →</button>' +
+    '</div>';
+  }}).join('');
 }}
 
 function renderStrip() {{
@@ -1184,9 +1282,11 @@ window._closeInfoPop = _closeInfoPop;
 window.setStripView = setStripView;
 
 // ─────────────────────────────────────────────────────────────
-// Boot
+// Boot — Race Order is the default view (all 11 races as cards).
+// renderStrip is still called so the hidden strip stays in sync if
+// the user toggles to a layout that needs it.
 // ─────────────────────────────────────────────────────────────
-renderHero();
+setStripView('race');
 renderStrip();
 renderAlertsRail();
 
