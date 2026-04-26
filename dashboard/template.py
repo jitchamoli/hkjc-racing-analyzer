@@ -358,7 +358,7 @@ button {{ font-family:inherit; cursor:pointer; }}
     </div>
     <div id="race-detail"></div>
     <div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>
-    <div class="footer">HKJC Racing Analyzer v6.4 — Generated: {now}</div>
+    <div class="footer">HKJC Racing Analyzer v6.5 — Generated: {now}</div>
   </div>
   <div class="alerts-rail" id="alerts-rail"></div>
 </div>
