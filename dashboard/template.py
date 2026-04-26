@@ -342,6 +342,9 @@ button {{ font-family:inherit; cursor:pointer; }}
     <button id="refresh-btn" onclick="refreshDashboard()" style="display:none;margin-left:12px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.75rem;font-weight:700;cursor:pointer;">
       ↻ Refresh
     </button>
+    <button id="hard-reload-btn" onclick="hardReload()" title="Bypass browser cache and reload this page" style="margin-left:8px;background:transparent;color:var(--fg);border:1px solid var(--border);padding:5px 10px;border-radius:6px;font-size:.72rem;font-weight:600;cursor:pointer;">
+      ⟳ Hard reload
+    </button>
     <button id="copy-all-btn" class="wa-btn-all" style="margin-left:8px">Copy all bets</button>
   </div>
 </div>
@@ -832,6 +835,14 @@ function renderAlertsRail() {{
 // Refresh banner + button (only active when served via scripts.serve)
 // ─────────────────────────────────────────────────────────────
 var EXPECTED_REFRESH_SECONDS = 60;
+
+function hardReload() {{
+  // Force a fresh fetch by appending a timestamp query string. Works
+  // for both file:// and http:// — the new URL guarantees the browser
+  // cannot serve a cached copy. Strips any prior ?v= cache-buster first.
+  var cleanPath = location.pathname + location.hash.replace(/[?&]v=\d+/, '');
+  location.href = cleanPath + '?v=' + Date.now();
+}}
 
 function showBanner() {{ var b=document.getElementById('refresh-banner'); if(b) b.style.display='block'; }}
 function hideBanner() {{ var b=document.getElementById('refresh-banner'); if(b) b.style.display='none'; }}
