@@ -682,6 +682,13 @@ function renderBetCard(race) {{
     var f4Order = top4wa.map(function(h) {{ return h.number; }}).join('-');
     summaryLines.push('F4 (exact): ' + f4Order + '  · 1 unit');
   }}
+
+  // BOX TRIO-5 summary line — same gating as the visual ticket
+  var top5wa = race.horses.slice(0, 5);
+  if (top5wa.length === 5) {{
+    var t5Nums = top5wa.map(function(h) {{ return h.number; }}).join(', ');
+    summaryLines.push('BOX TRIO-5: ' + t5Nums + '  · 10 combos');
+  }}
   if (summaryLines.length) {{
     waLines.push('');
     summaryLines.forEach(function(l) {{ waLines.push(l); }});
@@ -1250,6 +1257,24 @@ function _buildRaceDetailPanel(race) {{
         '</span>' +
         '<span style="color:var(--fg);font-weight:600">' + f4Nums + '</span>' +
         '<span style="color:var(--dim);font-size:.7rem;margin-left:8px">(exact order — 1st → 4th)</span>' +
+      '</div>'
+    );
+  }}
+
+  // BOX TRIO-5 protection — top 5 model picks in a 10-combo box.
+  // Hits when any 3 of the 5 finish top-3 in any order. Validated on
+  // Apr 26 R10 by a user-driven 4-horse trio that paid 12x. Adds the
+  // 5th model pick to expand placing-pool coverage beyond the QIN-4
+  // box. 10 combos at 1 unit = 10-unit stake.
+  var top5 = race.horses.slice(0, 5);
+  if (top5.length === 5) {{
+    ticketLines.push(
+      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+        '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+          '+ BOX TRIO-5 · 10 combos' +
+        '</span>' +
+        top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
+        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
       '</div>'
     );
   }}
