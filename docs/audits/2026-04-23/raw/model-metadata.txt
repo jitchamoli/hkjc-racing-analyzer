@@ -1,0 +1,6 @@
+version: 20260423-012955
+trained_date: 2026-04-23T01:29:55.559167
+n_features: 23
+has_place_model: True
+has_calibrator: True
+feature_importance_keys: ['prior_win_rate', 'recent_form', 'draw_advantage', 'jockey_win_rate', 'trainer_win_rate'] ...

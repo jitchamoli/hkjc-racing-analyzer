@@ -1,0 +1,96 @@
+Held-out races: 73  |  horses: 881
+Pipeline: production (CombinedRaceAnalyzer + assign_bet_recommendations)
+
+[F-03 note] 63/73 races (86%) used neutral fallbacks for missing DB fields (last_6/rating/gear/age/season_stakes). Rule engine excluded these factors; other factors scored normally.
+
+Config: production pipeline (temp=1.5, dynamic market blend)
+
+======================================================================
+  WIN strategies (73 races total)
+======================================================================
+
+[A: Flat bet model top-pick every race]
+  Bets:   73    Wins: 15 (20.5%)   Total PnL: -19.00u   ROI: -26.03%
+
+[B: EV-filtered (EV ≥ 5%)]
+  Bets:   2     Wins: 0 (0.0%)   Total PnL: -2.00u   ROI: -100.00%
+
+[C: High-conviction (EV ≥ 15%)]
+  Bets:   2     Wins: 0 (0.0%)   Total PnL: -2.00u   ROI: -100.00%
+
+[D: Model disagrees with market fav]
+  Bets:   14    Wins: 5 (35.7%)   Total PnL: +19.40u   ROI: +138.57%
+
+[E: Short-odds banker proxy (odds≤3.5, prob≥25%)]  no qualifying bets
+
+[F: Underdog bets (model top-pick @ odds≥8)]
+  Bets:   2     Wins: 0 (0.0%)   Total PnL: -2.00u   ROI: -100.00%
+
+[Baseline: Bet market favourite every race]
+  Bets:   73    Wins: 12 (16.4%)   Total PnL: -44.70u   ROI: -61.23%
+
+======================================================================
+  EXOTIC-BET HIT RATES (73 races, 12-horse avg field)
+======================================================================
+  Strategy                                    Hits      Rate      Baseline
+  --------------------------------------------------------------------
+  Quinella straight (top-2 model = actual)    11         15.1%     ~3.0% (5.0× random)
+  Box-3 quinella (actual top-2 ⊂ top-3 model) 29         39.7%     ~9.1% (4.4× random)
+  Box-4 quinella (actual top-2 ⊂ top-4 model) 39         53.4%     ~18.2% (2.9× random)
+  Trifecta straight (top-3 model = actual)    8          11.0%     ~2.7% (4.1× random)
+  Rank-1 pick finishes top-2                  33         45.2%     ~16.7% (2.7× random)
+  Rank-1 pick finishes top-3                  44         60.3%     ~25.0% (2.4× random)
+
+----------------------------------------------------------------------
+  QUINELLA P&L — UNCONDITIONAL (72/72 races use REAL HKJC dividends)
+----------------------------------------------------------------------
+
+  Dividend on winning pairs (when we hit):
+    Straight Q hits (n=11): avg=$154.00, median=$90.00, min=$28.00, max=$666.00
+    Box-3 Q hits (n=28): avg=$151.16, median=$110.75, min=$14.50, max=$666.00
+
+  [Straight quinella (1 unit/race)]
+    Bets: 72 races  |  Stake: $72  |  P&L: $+1622.00
+    SIMULATED ROI: +2252.78%
+
+  [Box-3 quinella (3 units/race)]
+    Bets: 72 races  |  Stake: $216  |  P&L: $+4016.50
+    SIMULATED ROI: +1859.49%
+
+  [Box-4 quinella (6 units/race)]
+    Bets: 72 races  |  Stake: $432  |  P&L: $+5979.00
+    SIMULATED ROI: +1384.03%
+
+----------------------------------------------------------------------
+  QUINELLA P&L — RECOMMENDER-GATED (conviction gates applied)
+  (BOX Q4 / BOX Q / QIN per race, SKIP when no conviction)
+----------------------------------------------------------------------
+
+  Bet-type distribution:
+    BOX Q4      : 31 races (42%)
+    BOX Q       : 22 races (30%)
+    QIN         : 10 races (14%)
+    SKIP        : 8 races (11%)
+    TRIO        : 2 races (3%)
+
+  [62 races bet]
+    Bets: 62  |  Stake: $261  |  P&L: $+4976.00  |  Hits: 30 (48.4%)
+    SIMULATED ROI: +1906.51%
+
+======================================================================
+  CLV / MARKET-AGREEMENT
+======================================================================
+  Avg log(model/market):     -0.5696
+  Corr(edge, actual win):    -0.1728  (positive = our disagreements are predictive)
+  Disagreement with market:  14/73 (19.2%)
+
+======================================================================
+  CALIBRATION
+======================================================================
+  Brier score (top-pick): 0.1580
+  bin           n     predicted   actual    diff
+  [ 0.0- 8.0%] 1      5.80%       0.00%    -5.80pp
+  [ 8.0-12.0%] 10    10.53%      40.00%    +29.47pp
+  [12.0-18.0%] 21    15.49%       4.76%    -10.72pp
+  [18.0-25.0%] 34    21.47%      20.59%    -0.88pp
+  [25.0-100.0%] 7     32.23%      42.86%    +10.63pp

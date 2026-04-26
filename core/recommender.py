@@ -80,29 +80,33 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
         gap_2_3 = second_prob - third_prob
         top_3_share = top_prob + second_prob + third_prob
 
-    # === QUINELLA-FIRST STRATEGY (revised Apr 22) ===
-    # Backtest findings (71 held-out races, Harville-model simulated P&L):
+    # === QUINELLA-FIRST STRATEGY (revised Apr 23, box-4 default) ===
+    # Backtest findings with REAL HKJC dividends (72 held-out races):
     #   - WIN pool: NO edge (agrees with market 98.6%, -37% ROI)
-    #   - Straight QIN (top-2, 1 combo): +11-16% ROI, 16.9% hit — the validated edge
-    #   - Box-3 QIN (3 combos): +0.4% / -5% ROI on most races
-    # Default is straight QIN on top-2. Rank-3 is added as a 3rd leg (effectively
-    # box-3) ONLY when it has strong historical credentials — this concentrates
-    # the box-3 stake on races where rank-3 is genuinely live, not just because
-    # the model ranks it.
-    # Caveat: 71-race sample has wide CIs — weakly positive evidence, not conclusive.
+    #   - Straight QIN (top-2, 1 combo): +999% ROI, 16.9% hit rate
+    #   - Box-3 QIN (3 combos): +910% ROI, 33.8% hit rate
+    #   - Box-4 QIN (6 combos): +1141% ROI, 46.5% hit rate — best measured
+    #
+    # Rank-2 analysis (Apr 23): actual 2nd-placers are rank 4+ in our model
+    # 33% of the time. Box-4 captures these longshot 2nd-placers; box-3 misses.
+    # Box-4 is now the default when top-4 conviction is present. Falls back to
+    # box-3 → straight QIN → SKIP as conviction degrades.
 
     top_is_banker_now = any("BANKER" in r for r in analyses[0].reasoning)
-
-    # Require live odds — without them EV and market comparisons are meaningless
     has_live_odds = any(a.horse.win_odds and a.horse.win_odds > 0 for a in analyses)
 
-    # Conviction gates
+    # Conviction gates (uniform baselines: top2=0.167, top3=0.25, top4=0.333)
     top_2_share = top_prob + second_prob
-    MIN_TOP2_CONVICTION = 0.25  # 1.5× uniform 12-horse
-    MIN_TOP3_CONVICTION = 0.30  # for box-3 upgrade
+    fourth_prob = calibrated_probs[3] if n >= 4 else 0
+    top_4_share = top_3_share + fourth_prob
 
-    # Rank-3 inclusion gate: only if horse has genuinely strong history
-    rank3_strong = n >= 3 and _rank3_has_strong_history(analyses[2])
+    MIN_TOP2_CONVICTION = 0.25  # 1.5× uniform
+    MIN_TOP3_CONVICTION = 0.30  # 1.2× uniform
+    MIN_TOP4_CONVICTION = 0.38  # 1.14× uniform
+
+    # Rank-3 and rank-4 inclusion gates — horse must have strong history
+    rank3_strong = n >= 3 and _rank_has_strong_history(analyses[2])
+    rank4_strong = n >= 4 and _rank_has_strong_history(analyses[3])
 
     if not has_live_odds or n < 2:
         race_bet_type = "SKIP"
@@ -110,11 +114,12 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
         race_bet_type = "WIN"
     elif gap_1_2 < 0.02 and gap_2_3 < 0.02 and top_3_share > 0.35 and n >= 3:
         race_bet_type = "TRIO"
+    elif rank4_strong and rank3_strong and top_4_share >= MIN_TOP4_CONVICTION:
+        # DEFAULT: box-4 quinella when top-4 has conviction AND rank 3+4 qualify
+        race_bet_type = "BOX Q4"
     elif rank3_strong and top_3_share >= MIN_TOP3_CONVICTION:
-        # Box-3 justified — rank-3 has strong history AND model has top-3 edge
         race_bet_type = "BOX Q"
     elif top_2_share >= MIN_TOP2_CONVICTION:
-        # DEFAULT: straight quinella (validated +11-16% ROI)
         race_bet_type = "QIN"
     else:
         race_bet_type = "SKIP"
@@ -141,6 +146,12 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
                 a.bet_recommendation = "TRIO"
             else:
                 a.bet_recommendation = "SKIP"
+        elif race_bet_type == "BOX Q4":
+            # Box-4 quinella — all top-4 as QIN legs (6 combinations)
+            if rank <= 4:
+                a.bet_recommendation = "QIN"
+            else:
+                a.bet_recommendation = "SKIP"
         elif race_bet_type == "BOX Q":
             # Box-3 quinella — rank-3 has strong history, all top-3 as QIN legs
             if rank <= 3:
@@ -159,13 +170,13 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
             a.bet_recommendation = "SKIP"
 
 
-def _rank3_has_strong_history(analysis) -> bool:
-    """Check if rank-3 horse has genuinely strong historical credentials.
+def _rank_has_strong_history(analysis) -> bool:
+    """Check if a horse has genuinely strong historical credentials.
 
-    Used to gate inclusion as a 3rd QIN leg (box-3 upgrade). We require
+    Used to gate inclusion as a 3rd/4th QIN leg (box-3/box-4 upgrade). Requires
     specific evidence of past performance, not just the model ranking — the
-    backtest showed box-3 ONLY becomes profitable when rank-3 is a real
-    contender, not a speculative pick.
+    backtest showed wider boxes are only profitable when the added horses are
+    real contenders, not speculative picks.
 
     Returns True if any of:
       - BANKER or WINNING TRIP flagged in reasoning
@@ -188,6 +199,10 @@ def _rank3_has_strong_history(analysis) -> bool:
             if m and int(m.group(1)) >= 40:
                 return True
     return analysis.rule_score >= 70.0
+
+
+# Backward-compatible alias
+_rank3_has_strong_history = _rank_has_strong_history
 
 
 def _resync_ranks_and_probs(analyses, calibrated_probs: List[float]) -> None:

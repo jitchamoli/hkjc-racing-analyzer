@@ -118,6 +118,11 @@ class HorseAnalysis:
     bet_recommendation: str
     reasoning: List[str]
     prediction_breakdown: Dict
+    # F-19: snapshot of pre-swap model probability for calibration analytics.
+    # combined_probability may be mutated by BANKER/market-fav rank swaps;
+    # model_probability preserves the original value so accuracy.py measures
+    # the model, not human overrides.
+    model_probability: float = None
 
 
 # ---------------------------------------------------------------------------
@@ -1054,16 +1059,40 @@ class CombinedRaceAnalyzer:
             "going": race.going,
             "days_since_last_run": horse.days_since_last_run,
             "race_date": race.date,
+            # F-06 / DS-03 (2026-04-23): pass field_weights so extract_features()
+            # uses field-relative median formula (matching training). Without this,
+            # inference fell back to absolute-weight formula → 82% parity failure.
+            "field_weights": field_weights,
         }
 
-        ml_prediction = self.ml_analyzer.predict(horse_data, all_results or [], "")
+        # Graceful degradation: if the model is missing/expired/corrupt,
+        # fall back to rule-only blending instead of crashing the dashboard.
+        # IntegrityError fires for >90-day-old models (per ml/integrity.py);
+        # RuntimeError for untrained models (F-17). Both are recoverable.
+        try:
+            ml_prediction = self.ml_analyzer.predict(horse_data, all_results or [], "")
+            ml_available_for_horse = ML_AVAILABLE
+        except Exception as e:
+            from ml.model import MLPrediction
+            logger.warning(
+                f"ML predict failed for {horse.name} ({type(e).__name__}: {e}); "
+                "degrading to rule-only blend"
+            )
+            ml_prediction = MLPrediction(
+                horse_number=horse.number, horse_name=horse.name,
+                win_probability=1.0 / max(len(all_horses or []), 2),
+                place_probability=3.0 / max(len(all_horses or []), 2),
+                ml_confidence='UNAVAILABLE', feature_importance={},
+                model_version='',
+            )
+            ml_available_for_horse = False
 
         combined_prob, combined_confidence, breakdown = create_combined_prediction(
             rule_score=rule_score,
             rule_confidence=rule_confidence,
             ml_prob=ml_prediction.win_probability,
             ml_confidence=ml_prediction.ml_confidence,
-            ml_available=ML_AVAILABLE,
+            ml_available=ml_available_for_horse,
             field_size=len(all_horses) if all_horses else 12,
         )
 

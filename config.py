@@ -52,7 +52,9 @@ SYNTHETIC_FALLBACK_SIZE = 2000
 
 # Softmax temperature for probability normalization
 # Used as multiplier: exp((s - max) * T). Lower = flatter distribution.
-# With Platt scaling handling calibration, temperature is for normalization only.
+# Per-horse calibration is handled at the model level by IsotonicRegression
+# (Wave 2c switch from Platt). The softmax here is purely for race-level
+# normalization on top of already-calibrated probabilities.
 # 1.5 = mild differentiation without overconfidence.
 SOFTMAX_TEMPERATURE = 1.5
 

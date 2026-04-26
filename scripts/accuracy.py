@@ -12,6 +12,8 @@ import os
 import argparse
 import sqlite3
 
+import numpy as np
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
@@ -108,8 +110,21 @@ def print_brier_and_calibration(days: int):
     skill = 1 - brier / brier_baseline if brier_baseline > 0 else 0
     print(f"  Brier Skill Score:   {skill:+.4f}  (>0 = better than naive)")
 
-    # Calibration curve: bin predictions, compare predicted vs actual
-    bins = [(0, 0.05), (0.05, 0.10), (0.10, 0.15), (0.15, 0.25), (0.25, 1.0)]
+    # F-19: calibrated_prob in prediction_log stores the post-swap combined_probability.
+    # HorseAnalysis.model_probability (added F-19) preserves the pre-swap value on live
+    # objects, but the DB column for it (model_prob) is not yet added to prediction_log.
+    # Once added, SELECT model_prob (falling back to calibrated_prob when NULL) here.
+
+    # Calibration curve — F-12 (2026-04-23 audit): equal-count bins so every
+    # bin has comparable sample size. Fixed-edge bins left many bins near-empty
+    # or overfilled depending on the probability distribution.
+    probs_arr = np.sort(probs)
+    n = len(probs_arr)
+    n_bins = 5
+    bin_edges = [float(probs_arr[int(i * n / n_bins)]) for i in range(n_bins)]
+    bin_edges.append(1.0)
+    bins = list(zip(bin_edges[:-1], bin_edges[1:]))
+
     print(f"\n  {'Pred Range':<14} {'Count':>6} {'Pred%':>7} {'Actual%':>9} {'Gap':>7}")
     print(f"  {'-'*14} {'-'*6} {'-'*7} {'-'*9} {'-'*7}")
     for lo, hi in bins:

@@ -201,35 +201,43 @@ def main():
             all_races = json.load(f)
         logger.info(f"Loaded {len(all_races)} cached races from {TRAINING_DATA_FILE}")
 
-    # Step 2: Fetch new data
-    cached_dates = set()
-    for r in all_races:
-        cached_dates.add(r['date'])
-
-    logger.info("Finding recent meeting dates...")
-    meetings = find_race_dates(n_meetings=15)
-    logger.info(f"Found {len(meetings)} meetings")
-
-    client = HKJCApiClient()
+    # Step 2: Fetch new data (skip if SKIP_FETCH=1 — when DB already has all
+    # we need, the Playwright meeting fetch is wasteful and prone to hangs).
     new_races = 0
-    for date_str, n_races in meetings:
-        if date_str in cached_dates:
-            logger.info(f"  {date_str}: already cached, skipping")
-            continue
+    if os.environ.get('SKIP_FETCH', '0') == '1':
+        logger.info("SKIP_FETCH=1 — bypassing meeting-data fetch (using DB only)")
+    else:
+        cached_dates = set(r['date'] for r in all_races)
 
-        logger.info(f"Fetching {date_str} ({n_races} races)...")
-        race_data = fetch_meeting_data(client, date_str, n_races)
-        all_races.extend(race_data)
-        new_races += len(race_data)
-        time.sleep(1)
+        logger.info("Finding recent meeting dates...")
+        meetings = find_race_dates(n_meetings=15)
+        logger.info(f"Found {len(meetings)} meetings")
 
-    if new_races > 0:
-        with open(TRAINING_DATA_FILE, 'w') as f:
-            json.dump(all_races, f)
-        logger.info(f"Saved {len(all_races)} total races to {TRAINING_DATA_FILE}")
+        client = HKJCApiClient()
+        for date_str, n_races in meetings:
+            if date_str in cached_dates:
+                logger.info(f"  {date_str}: already cached, skipping")
+                continue
+
+            logger.info(f"Fetching {date_str} ({n_races} races)...")
+            race_data = fetch_meeting_data(client, date_str, n_races)
+            all_races.extend(race_data)
+            new_races += len(race_data)
+            time.sleep(1)
+
+        if new_races > 0:
+            with open(TRAINING_DATA_FILE, 'w') as f:
+                json.dump(all_races, f)
+            logger.info(f"Saved {len(all_races)} total races to {TRAINING_DATA_FILE}")
 
     # Step 3: Build features — prefer DB data (richer, more complete)
-    X_db, y_db, sw_db, y_place_db = build_training_data_from_db()
+    # 2026-04-25: TRAINING_YEARS_BACK env var caps training to recent races.
+    # Empirical: training on 49y (360K rows) gave ROI +927% vs +1359% on
+    # 7K-row recent-only window. Default 5y if unset; override with
+    # TRAINING_YEARS_BACK=0 (no cutoff) or any int.
+    yrs_str = os.environ.get('TRAINING_YEARS_BACK', '5')
+    yrs = None if yrs_str.strip() == '0' else int(yrs_str)
+    X_db, y_db, sw_db, y_place_db = build_training_data_from_db(years_back=yrs)
 
     place_labels = None
     if X_db is not None and len(X_db) >= 200:

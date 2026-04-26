@@ -1,0 +1,659 @@
+[
+  {
+    "race_key": "2026/03/29-R7",
+    "straightq_stake": 0.0,
+    "straightq_return": 0.0,
+    "box3_stake": 0.0,
+    "box3_return": 0.0,
+    "box4_stake": 0.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/03/29-R8",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/03/29-R9",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/03/29-R10",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 93.5
+  },
+  {
+    "race_key": "2026/03/29-R11",
+    "straightq_stake": 1.0,
+    "straightq_return": 117.5,
+    "box3_stake": 3.0,
+    "box3_return": 117.5,
+    "box4_stake": 6.0,
+    "box4_return": 117.5
+  },
+  {
+    "race_key": "2026/04/01-R1",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/01-R2",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 269.5,
+    "box4_stake": 6.0,
+    "box4_return": 269.5
+  },
+  {
+    "race_key": "2026/04/01-R3",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/01-R4",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 28.0,
+    "box4_stake": 6.0,
+    "box4_return": 28.0
+  },
+  {
+    "race_key": "2026/04/01-R5",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 330.0
+  },
+  {
+    "race_key": "2026/04/01-R6",
+    "straightq_stake": 1.0,
+    "straightq_return": 666.0,
+    "box3_stake": 3.0,
+    "box3_return": 666.0,
+    "box4_stake": 6.0,
+    "box4_return": 666.0
+  },
+  {
+    "race_key": "2026/04/01-R7",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/01-R8",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 75.5,
+    "box4_stake": 6.0,
+    "box4_return": 75.5
+  },
+  {
+    "race_key": "2026/04/01-R9",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/06-R1",
+    "straightq_stake": 1.0,
+    "straightq_return": 132.0,
+    "box3_stake": 3.0,
+    "box3_return": 132.0,
+    "box4_stake": 6.0,
+    "box4_return": 132.0
+  },
+  {
+    "race_key": "2026/04/06-R2",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/06-R3",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/06-R4",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 694.0
+  },
+  {
+    "race_key": "2026/04/06-R5",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/06-R6",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 94.0,
+    "box4_stake": 6.0,
+    "box4_return": 94.0
+  },
+  {
+    "race_key": "2026/04/06-R7",
+    "straightq_stake": 1.0,
+    "straightq_return": 14.5,
+    "box3_stake": 3.0,
+    "box3_return": 14.5,
+    "box4_stake": 6.0,
+    "box4_return": 14.5
+  },
+  {
+    "race_key": "2026/04/06-R8",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 131.5,
+    "box4_stake": 6.0,
+    "box4_return": 131.5
+  },
+  {
+    "race_key": "2026/04/06-R9",
+    "straightq_stake": 1.0,
+    "straightq_return": 63.5,
+    "box3_stake": 3.0,
+    "box3_return": 63.5,
+    "box4_stake": 6.0,
+    "box4_return": 63.5
+  },
+  {
+    "race_key": "2026/04/06-R10",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/06-R11",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/08-R1",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/08-R2",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 159.0
+  },
+  {
+    "race_key": "2026/04/08-R3",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 141.5,
+    "box4_stake": 6.0,
+    "box4_return": 141.5
+  },
+  {
+    "race_key": "2026/04/08-R4",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 105.5,
+    "box4_stake": 6.0,
+    "box4_return": 105.5
+  },
+  {
+    "race_key": "2026/04/08-R5",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/08-R6",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 129.5
+  },
+  {
+    "race_key": "2026/04/08-R7",
+    "straightq_stake": 1.0,
+    "straightq_return": 41.5,
+    "box3_stake": 3.0,
+    "box3_return": 41.5,
+    "box4_stake": 6.0,
+    "box4_return": 41.5
+  },
+  {
+    "race_key": "2026/04/08-R8",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/08-R9",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/12-R1",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 48.0,
+    "box4_stake": 6.0,
+    "box4_return": 48.0
+  },
+  {
+    "race_key": "2026/04/12-R2",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 401.5,
+    "box4_stake": 6.0,
+    "box4_return": 401.5
+  },
+  {
+    "race_key": "2026/04/12-R3",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/12-R4",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/12-R5",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 152.0,
+    "box4_stake": 6.0,
+    "box4_return": 152.0
+  },
+  {
+    "race_key": "2026/04/12-R6",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/12-R7",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 362.0
+  },
+  {
+    "race_key": "2026/04/12-R8",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/12-R9",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/12-R10",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/12-R11",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/15-R1",
+    "straightq_stake": 1.0,
+    "straightq_return": 83.5,
+    "box3_stake": 3.0,
+    "box3_return": 83.5,
+    "box4_stake": 6.0,
+    "box4_return": 83.5
+  },
+  {
+    "race_key": "2026/04/15-R2",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 296.0,
+    "box4_stake": 6.0,
+    "box4_return": 296.0
+  },
+  {
+    "race_key": "2026/04/15-R3",
+    "straightq_stake": 1.0,
+    "straightq_return": 114.5,
+    "box3_stake": 3.0,
+    "box3_return": 114.5,
+    "box4_stake": 6.0,
+    "box4_return": 114.5
+  },
+  {
+    "race_key": "2026/04/15-R4",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/15-R5",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 100.0,
+    "box4_stake": 6.0,
+    "box4_return": 100.0
+  },
+  {
+    "race_key": "2026/04/15-R6",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/15-R7",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/15-R8",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/19-R1",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 96.5
+  },
+  {
+    "race_key": "2026/04/19-R2",
+    "straightq_stake": 1.0,
+    "straightq_return": 120.0,
+    "box3_stake": 3.0,
+    "box3_return": 120.0,
+    "box4_stake": 6.0,
+    "box4_return": 120.0
+  },
+  {
+    "race_key": "2026/04/19-R3",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/19-R4",
+    "straightq_stake": 1.0,
+    "straightq_return": 193.5,
+    "box3_stake": 3.0,
+    "box3_return": 193.5,
+    "box4_stake": 6.0,
+    "box4_return": 193.5
+  },
+  {
+    "race_key": "2026/04/19-R5",
+    "straightq_stake": 1.0,
+    "straightq_return": 67.0,
+    "box3_stake": 3.0,
+    "box3_return": 67.0,
+    "box4_stake": 6.0,
+    "box4_return": 67.0
+  },
+  {
+    "race_key": "2026/04/19-R6",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/19-R7",
+    "straightq_stake": 1.0,
+    "straightq_return": 171.5,
+    "box3_stake": 3.0,
+    "box3_return": 171.5,
+    "box4_stake": 6.0,
+    "box4_return": 171.5
+  },
+  {
+    "race_key": "2026/04/19-R8",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/19-R9",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 107.0,
+    "box4_stake": 6.0,
+    "box4_return": 107.0
+  },
+  {
+    "race_key": "2026/04/19-R10",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/19-R11",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/22-R1",
+    "straightq_stake": 1.0,
+    "straightq_return": 90.0,
+    "box3_stake": 3.0,
+    "box3_return": 90.0,
+    "box4_stake": 6.0,
+    "box4_return": 90.0
+  },
+  {
+    "race_key": "2026/04/22-R2",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 67.0
+  },
+  {
+    "race_key": "2026/04/22-R3",
+    "straightq_stake": 1.0,
+    "straightq_return": 268.0,
+    "box3_stake": 3.0,
+    "box3_return": 268.0,
+    "box4_stake": 6.0,
+    "box4_return": 268.0
+  },
+  {
+    "race_key": "2026/04/22-R4",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/22-R5",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 48.0,
+    "box4_stake": 6.0,
+    "box4_return": 48.0
+  },
+  {
+    "race_key": "2026/04/22-R6",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 263.0,
+    "box4_stake": 6.0,
+    "box4_return": 263.0
+  },
+  {
+    "race_key": "2026/04/22-R7",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  },
+  {
+    "race_key": "2026/04/22-R8",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 154.5
+  },
+  {
+    "race_key": "2026/04/22-R9",
+    "straightq_stake": 1.0,
+    "straightq_return": 0.0,
+    "box3_stake": 3.0,
+    "box3_return": 0.0,
+    "box4_stake": 6.0,
+    "box4_return": 0.0
+  }
+]

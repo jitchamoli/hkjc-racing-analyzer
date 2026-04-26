@@ -289,6 +289,9 @@ class ResultsFetcher:
         # Fill prediction_log with actual results for longitudinal tracking
         self._fill_prediction_log(race_date, actual_results)
 
+        # Refresh tier_stats cache — new results shift the windowed hit-rate
+        self._refresh_tier_stats()
+
         output_file = self.save_merged_data(merged, race_date, summary)
 
         logger.info("Results fetched successfully!")
@@ -320,6 +323,18 @@ class ResultsFetcher:
             logger.info(f"Filled prediction_log with results for {len(actual_results)} races")
         except Exception as e:
             logger.warning(f"Could not fill prediction_log: {e}")
+
+    @staticmethod
+    def _refresh_tier_stats():
+        """Refresh tier_stats.json cache after new results ingested."""
+        try:
+            from betting.tier_stats import refresh_cache
+            db = HorseDatabase()
+            refresh_cache(db.conn, window=73)
+            db.close()
+            logger.info("Refreshed tier_stats.json cache")
+        except Exception as e:
+            logger.warning(f"tier_stats refresh failed: {e}")
 
     def _regenerate_dashboard(self, data: List, summary: Dict, race_date: str):
         """Inject results data into the dashboard by adding a RESULTS constant."""
@@ -596,10 +611,10 @@ async def main():
 
     # Auto-learn: feed results to horse database and retrain ML model
     if args.auto_learn:
-        auto_learn(race_date)
+        await auto_learn(race_date)
 
 
-def auto_learn(race_date: str = None):
+async def auto_learn(race_date: str = None):
     """Automatically ingest results into horse DB and retrain ML model."""
     from data.database import HorseDatabase
     from scrape_history import scrape_meeting_results
@@ -609,17 +624,31 @@ def auto_learn(race_date: str = None):
     race_date = race_date or datetime.now().strftime('%Y/%m/%d')
 
     # 1. Scrape actual results from HKJC and ingest into horse database
-    try:
-        today_races = asyncio.run(scrape_meeting_results(race_date))
-    except RuntimeError:
-        # Event loop already running — use nest_asyncio or new loop
-        loop = asyncio.new_event_loop()
-        today_races = loop.run_until_complete(scrape_meeting_results(race_date))
-        loop.close()
+    today_races = await scrape_meeting_results(race_date)
 
     if today_races:
         db = HorseDatabase()
         db.ingest_race_day(today_races)
+
+        # Card-field backfill: pull rating/last_6/gear/age/rating_change from
+        # the prediction JSON (which has card data the results page lacks).
+        date_str = race_date.replace('/', '')
+        results_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'results')
+        for variant in (f'race_data_{date_str}_with_results.json',
+                        f'race_data_{date_str}.json'):
+            pred_path = os.path.join(results_dir, variant)
+            if os.path.exists(pred_path):
+                try:
+                    with open(pred_path) as f:
+                        pred_data = json.load(f)
+                    pred_races = pred_data if isinstance(pred_data, list) else pred_data.get('races', [])
+                    n_back = db.backfill_card_fields(race_date, pred_races)
+                    if n_back > 0:
+                        logger.info(f"Backfilled card fields on {n_back} race_results rows from {variant}")
+                except Exception as e:
+                    logger.warning(f"Card-field backfill from {variant} failed: {e}")
+                break
+
         summary = db.get_summary()
         logger.info(f"Horse DB updated: {summary['horses']} horses, "
                     f"{summary['race_results']} results, {summary['race_days']} days")

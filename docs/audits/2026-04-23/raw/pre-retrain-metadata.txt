@@ -1,0 +1,5 @@
+PRE-RETRAIN STATE:
+  version=20260423-012955
+  trained_date=2026-04-23T01:29:55.559167
+  n_samples=MISSING (pre-F-04 pickle)
+  has calibrator: True
