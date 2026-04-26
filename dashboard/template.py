@@ -152,6 +152,11 @@ button {{ font-family:inherit; cursor:pointer; }}
   border-radius:10px; padding:14px; margin-bottom:8px;
   border:1px solid var(--border);
 }}
+.card-clickable {{ cursor:pointer; transition:transform .1s, box-shadow .1s; }}
+.card-clickable:hover {{ transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,.4); }}
+.card-clickable.card-expanded {{ box-shadow:0 0 0 2px var(--gold); }}
+.card-detail-inline {{ margin:-4px 0 12px 0; }}
+.card-expand-chevron {{ display:inline-block; transition:transform .15s; }}
 .bet-card.tier-EDGE {{
   background:linear-gradient(135deg,rgba(251,191,36,.18),rgba(251,191,36,.06));
   border-color:rgba(251,191,36,.4);
@@ -528,7 +533,13 @@ function renderBetCard(race) {{
     ' @ $' + (topH.win_odds||'?') + ' | ' + betRec +
     (whyItems.length ? '\\n' + whyItems.slice(0,2).join(' | ') : '');
 
-  return '<div class="bet-card tier-' + tier + '">' +
+  // Whole card is clickable → toggles the per-race detail panel below it.
+  // The WA button uses stopPropagation so clicking Copy WA does not also
+  // toggle the expansion. The expanded indicator (▼/▲) lives in the
+  // top-right next to Copy WA so the affordance is unmissable.
+  return '<div class="bet-card tier-' + tier + ' card-clickable" id="card-' + race.race_number +
+    '" data-race-num="' + race.race_number + '" onclick="toggleCardDetail(' + race.race_number + ', event)" ' +
+    'title="Click anywhere on the card to see full per-horse detail, format history, speed map and reasoning">' +
     '<div class="bet-card-top">' +
       '<div>' +
         '<span class="tier-badge" style="background:' + tierColor + '">' + (isEdge ? '★ EDGE' : esc(tier)) + '</span>' +
@@ -536,7 +547,9 @@ function renderBetCard(race) {{
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
         '<span style="font-size:.7rem;color:var(--dim)">' + esc(edgeDetail) + '</span>' +
-        '<button class="wa-btn" data-payload="' + esc(JSON.stringify(waPayload)) + '">Copy WA</button>' +
+        '<button class="wa-btn" data-payload="' + esc(JSON.stringify(waPayload)) +
+          '" onclick="event.stopPropagation()">Copy WA</button>' +
+        '<span class="card-expand-chevron" id="chev-' + race.race_number + '" style="font-size:.85rem;color:var(--gold);font-weight:700">▼</span>' +
       '</div>' +
     '</div>' +
     '<div class="bet-card-pick">#' + esc(topH.number) + ' ' + esc(topH.name) +
@@ -597,6 +610,40 @@ function _stripTierWeight(tier) {{
 function _topPickEdge(r) {{
   var h = (r.horses && r.horses[0]) ? r.horses[0] : {{}};
   return h.edge_pp != null ? h.edge_pp : -100;
+}}
+
+function toggleCardDetail(raceNum, event) {{
+  // Click on a bet-card → toggle a detail panel inserted right after it.
+  // The detail panel reuses _buildRaceDetailPanel so it has the same
+  // per-horse table, format history, speed map and reasoning as the
+  // legacy strip-tile expansion did.
+  if (event) event.stopPropagation();
+
+  var card = document.getElementById('card-' + raceNum);
+  if (!card) return;
+  var existingDetail = document.getElementById('card-detail-' + raceNum);
+  var chev = document.getElementById('chev-' + raceNum);
+
+  if (existingDetail) {{
+    existingDetail.remove();
+    if (chev) chev.textContent = '▼';
+    card.classList.remove('card-expanded');
+    return;
+  }}
+
+  var race = null;
+  for (var i=0; i<RACES.length; i++) {{ if (RACES[i].race_number === raceNum) {{ race = RACES[i]; break; }} }}
+  if (!race) return;
+
+  var wrapper = document.createElement('div');
+  wrapper.id = 'card-detail-' + raceNum;
+  wrapper.className = 'card-detail-inline';
+  wrapper.innerHTML = _buildRaceDetailPanel(race);
+  card.parentNode.insertBefore(wrapper, card.nextSibling);
+  if (chev) chev.textContent = '▲';
+  card.classList.add('card-expanded');
+
+  wrapper.scrollIntoView({{behavior:'smooth', block:'nearest'}});
 }}
 
 function setStripView(view) {{
@@ -1280,6 +1327,7 @@ window.copyWA = copyWA;
 window.showInfoPop = showInfoPop;
 window._closeInfoPop = _closeInfoPop;
 window.setStripView = setStripView;
+window.toggleCardDetail = toggleCardDetail;
 
 // ─────────────────────────────────────────────────────────────
 // Boot — Race Order is the default view (all 11 races as cards).
