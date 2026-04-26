@@ -198,6 +198,15 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
             going='',  # going is variable; loose match for now
             before_date=race_date, limit=5,
         )
+        # Jockey strike rate (Bayesian-smoothed, prior-only). Reuse the same
+        # cached helper the ML feature pipeline uses so we don't re-query.
+        from ml.features import FeatureEngineering
+        jockey_strike_rate = FeatureEngineering.calculate_jockey_win_rate(
+            h.jockey or '', [], conn=db.conn, before_date=race_date,
+        )
+        jockey_form_30d = FeatureEngineering.calculate_jockey_form_window(
+            h.jockey or '', conn=db.conn, before_date=race_date, window_days=30,
+        )
 
         horse_odds_move = odds_summary.get(h.number, {})
         is_steam, steam_severity, steam_label = OddsMovementAnalyzer.detect_steam_move(
@@ -237,6 +246,8 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
             "distance_pb": dist_pb,
             "distance_record": dist_record,
             "format_history": format_history,
+            "jockey_strike_rate": round(jockey_strike_rate, 4),
+            "jockey_form_30d": round(jockey_form_30d, 4),
             "odds_movement": horse_odds_move,
             "steam_move": {"is_steam": is_steam, "severity": steam_severity, "label": steam_label},
             "cold_horse": {"is_cold": is_cold, "label": cold_label},

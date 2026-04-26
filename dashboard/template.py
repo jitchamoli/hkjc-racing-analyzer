@@ -975,8 +975,27 @@ function _buildRaceDetailPanel(race) {{
     '</div>';
   }}
 
-  // BET TICKET — synthesize the per-horse bet_recommendation values into
-  // a single race-level instruction (e.g. "BOX QIN with #5 + #11").
+  // BET TICKET block — shows the recommender primary bet plus an
+  // always-on BOX Q4 protection line whenever the race has 4+ horses
+  // ranked. Each pick surfaces its jockey + 30-day strike rate so the
+  // user can see at a glance who is riding hot.
+  function _renderPick(h) {{
+    var pct30 = h.jockey_form_30d != null ? Math.round(h.jockey_form_30d * 100) : null;
+    var pctAll = h.jockey_strike_rate != null ? Math.round(h.jockey_strike_rate * 100) : null;
+    var jockeyTag = h.jockey
+      ? '<span style="color:var(--dim);font-size:.7rem;margin-left:4px">' +
+          'J: ' + esc(h.jockey) +
+          (pct30 != null && pct30 > 0 ? ' <span style="color:var(--gold)">' + pct30 + '%</span> 30d' : '') +
+          (pctAll != null && pctAll > 0 ? ' · ' + pctAll + '% all-time' : '') +
+        '</span>'
+      : '';
+    return '<span style="display:inline-block;background:rgba(15,23,42,.6);padding:3px 8px;border-radius:4px;margin:2px 4px 2px 0;font-size:.82rem">' +
+      '#' + esc(h.number) + ' ' + esc(h.name) +
+      ' <span style="color:var(--dim);font-size:.72rem">@' + esc(h.win_odds || '?') + '</span>' +
+      jockeyTag +
+    '</span>';
+  }}
+
   var bets = {{}};
   race.horses.forEach(function(h) {{
     var b = (h.bet_recommendation || '').trim();
@@ -985,7 +1004,6 @@ function _buildRaceDetailPanel(race) {{
   var ticketLines = [];
   Object.keys(bets).forEach(function(betType) {{
     var picks = bets[betType];
-    var ids = picks.map(function(h) {{ return '#' + esc(h.number) + ' ' + esc(h.name); }}).join('  +  ');
     var label = betType;
     if ((betType === 'QIN' || betType === 'BOX QIN') && picks.length >= 2) {{
       label = picks.length === 2 ? 'STRAIGHT QIN' : 'BOX QIN-' + picks.length;
@@ -993,12 +1011,36 @@ function _buildRaceDetailPanel(race) {{
       label = picks.length === 3 ? 'STRAIGHT TRIO' : 'BOX TRIO-' + picks.length;
     }}
     ticketLines.push(
-      '<div style="margin:3px 0">' +
-        '<span style="display:inline-block;background:var(--gold);color:#000;font-weight:800;padding:2px 8px;border-radius:4px;font-size:.72rem;margin-right:8px">' + esc(label) + '</span>' +
-        '<span style="color:var(--fg);font-size:.85rem">' + ids + '</span>' +
+      '<div style="margin:6px 0">' +
+        '<span style="display:inline-block;background:var(--gold);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
+          'PRIMARY · ' + esc(label) +
+        '</span>' +
+        picks.map(_renderPick).join('') +
       '</div>'
     );
   }});
+
+  // BOX Q4 PROTECTION — always shown when the race has at least 4 ranked
+  // horses, regardless of the recommender primary choice. Catches the
+  // R1-PACKING-KING-style upsets where the placing pair sits in model
+  // ranks 3-4 outside our straight QIN. 6 combinations.
+  var top4 = race.horses.slice(0, 4);
+  if (top4.length === 4) {{
+    var primaryNums = {{}};
+    Object.keys(bets).forEach(function(bt) {{ bets[bt].forEach(function(h) {{ primaryNums[h.number] = true; }}); }});
+    var hasNonPrimary = top4.some(function(h) {{ return !primaryNums[h.number]; }});
+    if (hasNonPrimary || ticketLines.length === 0) {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25)">' +
+          '<span style="display:inline-block;background:rgba(16,185,129,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
+            '+ PROTECTION · BOX QIN-4 (6 combos)' +
+          '</span>' +
+          top4.map(_renderPick).join('') +
+        '</div>'
+      );
+    }}
+  }}
+
   var betTicketHTML = ticketLines.length
     ? '<div class="bet-ticket" style="background:rgba(251,191,36,.08);border-left:3px solid var(--gold);padding:8px 10px;margin:10px 0;border-radius:4px">' +
         '<div style="font-size:.62rem;color:var(--gold);letter-spacing:.12em;font-weight:700;margin-bottom:4px">BET TICKET</div>' +
