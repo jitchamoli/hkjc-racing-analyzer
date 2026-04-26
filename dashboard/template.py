@@ -534,18 +534,36 @@ function renderHero() {{
   }}
 
   if (races.length === 0) {{
-    var closest = RACES
-      .filter(function(r) {{ return r.top_3_share != null; }})
-      .sort(function(a, b) {{ return (b.top_3_share||0) - (a.top_3_share||0); }})[0];
-    var closestMsg = closest
-      ? 'Closest to HIGH: R' + closest.race_number + ' (top_3_share ' + Math.round((closest.top_3_share||0)*100) + '%)'
-      : '';
+    // Three distinct empty cases:
+    //   (a) Top Bets · Next AND all races finished  → "no next race today"
+    //   (b) Top Bets · Past AND no past races yet   → "no past races yet"
+    //   (c) Top Bets · Next AND no race clears HIGH → "no bets meet threshold"
+    var allFinished = RACES.length > 0 && RACES.every(function(r) {{ return r.results_available; }});
+    var anyFinished = RACES.some(function(r) {{ return r.results_available; }});
+    var emptyTitle, emptyBody, emptyIcon = '🏇';
+    if (_stripView === 'bets' && _topBetsFilter === 'next' && allFinished) {{
+      emptyIcon = '🏁';
+      emptyTitle = 'All races finished — no next race today';
+      emptyBody = 'Card complete. Switch to <strong onclick="setTopBetsFilter(&quot;past&quot;);" style="cursor:pointer;color:var(--gold);text-decoration:underline">Past</strong> to see today&#39;s record, or <strong onclick="setStripView(&quot;race&quot;);" style="cursor:pointer;color:var(--gold);text-decoration:underline">Race Order</strong> to review every race with results.';
+    }} else if (_stripView === 'bets' && _topBetsFilter === 'past' && !anyFinished) {{
+      emptyTitle = 'No past races yet';
+      emptyBody = 'No race has finished. Switch to <strong onclick="setTopBetsFilter(&quot;next&quot;);" style="cursor:pointer;color:var(--gold);text-decoration:underline">Next</strong> to see upcoming bets.';
+    }} else {{
+      var closest = RACES
+        .filter(function(r) {{ return r.top_3_share != null; }})
+        .sort(function(a, b) {{ return (b.top_3_share||0) - (a.top_3_share||0); }})[0];
+      var closestMsg = closest
+        ? 'Closest to HIGH: R' + closest.race_number + ' (top_3_share ' + Math.round((closest.top_3_share||0)*100) + '%)'
+        : '';
+      emptyTitle = 'No bets meet the threshold today';
+      emptyBody = 'Model and market agree too closely for an edge play, and no race clears HIGH/MED conviction on pair identification. Switch to <strong onclick="setStripView(&quot;race&quot;);" style="cursor:pointer;color:var(--gold);text-decoration:underline">Race Order</strong> to browse all races anyway.' +
+        (closestMsg ? '<div class="closest-miss" style="margin-top:8px">' + esc(closestMsg) + '</div>' : '');
+    }}
     hero.innerHTML =
       '<div class="empty-hero">' +
-        '<div class="empty-horse">🏇</div>' +
-        '<div class="empty-title">No bets meet the threshold today</div>' +
-        '<div class="empty-body">Model and market agree too closely for an edge play, and no race clears HIGH/MED conviction on pair identification. Switch to <strong>Race Order</strong> to browse all races anyway.</div>' +
-        (closestMsg ? '<div class="closest-miss">' + esc(closestMsg) + '</div>' : '') +
+        '<div class="empty-horse">' + emptyIcon + '</div>' +
+        '<div class="empty-title">' + emptyTitle + '</div>' +
+        '<div class="empty-body">' + emptyBody + '</div>' +
       '</div>';
     return;
   }}
@@ -667,12 +685,27 @@ function renderBetCard(race) {{
     var box4Nums = top4wa.map(function(h) {{ return h.number; }}).join(', ');
     summaryLines.push('PROT: BOX QIN-4 → ' + box4Nums);
   }}
+  // QIN PLACE BANKER summary for short-favorite races — same gating as
+  // the visual ticket. Way better ROI than straight WIN at sub-2.0 odds.
+  var top1Wa = race.horses[0];
+  if (top1Wa && top1Wa.win_odds && top1Wa.win_odds <= 1.8 && race.horses.length >= 4) {{
+    var bnkNums = race.horses.slice(1, 4).map(function(h) {{ return h.number; }}).join(', ');
+    summaryLines.push('QPL BANKER: ' + top1Wa.number + ' with ' + bnkNums + '  · 3 combos');
+  }}
+
   // FIRST 4 longshot saver — top 4 model picks in their model-rank order.
   // 1 unit, exact order. Pays handsomely when it hits; meant as a low-cost
   // protection layer alongside the QIN box.
   if (top4wa.length === 4) {{
     var f4Order = top4wa.map(function(h) {{ return h.number; }}).join('-');
     summaryLines.push('F4 (exact): ' + f4Order + '  · 1 unit');
+  }}
+
+  // BOX TRIO-5 summary line — same gating as the visual ticket
+  var top5wa = race.horses.slice(0, 5);
+  if (top5wa.length === 5) {{
+    var t5Nums = top5wa.map(function(h) {{ return h.number; }}).join(', ');
+    summaryLines.push('BOX TRIO-5: ' + t5Nums + '  · 10 combos');
   }}
   if (summaryLines.length) {{
     waLines.push('');
@@ -826,6 +859,16 @@ function setStripView(view) {{
   _stripView = view;
   document.getElementById('tab-race-order').classList.toggle('active', view === 'race');
   document.getElementById('tab-top-bets').classList.toggle('active', view === 'bets');
+
+  // End-of-meeting auto-switch: if all races are finished, default the
+  // Top Bets sub-toggle to past mode so the user sees the day record
+  // instead of an empty Next pane.
+  if (view === 'bets') {{
+    var allFinished = RACES.length > 0 && RACES.every(function(r) {{ return r.results_available; }});
+    if (allFinished) {{
+      _topBetsFilter = 'past';
+    }}
+  }}
 
   // Both views render their content into #hero via renderHero() (cards
   // for all 11 races in race-order, or curated cards for bets).
@@ -1192,6 +1235,27 @@ function _buildRaceDetailPanel(race) {{
     );
   }});
 
+  // QIN PLACE BANKER — for short-favorite races (top pick odds <= 1.8)
+  // a straight WIN bet pays barely above stake. QIN PLACE on the
+  // favorite with the next 3 model picks gives us 3 combos that hit
+  // when the favorite finishes top-3 (very likely) AND any of the
+  // bankers finishes top-3. Much better EV than WIN at sub-2.0 odds.
+  var topH2 = race.horses[0];
+  if (topH2 && topH2.win_odds && topH2.win_odds <= 1.8 && race.horses.length >= 4) {{
+    var bankers = race.horses.slice(1, 4);
+    ticketLines.push(
+      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25)">' +
+        '<span style="display:inline-block;background:rgba(59,130,246,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
+          '+ QIN PLACE BANKER · 3 combos' +
+        '</span>' +
+        '<span style="font-weight:600">#' + esc(topH2.number) + ' ' + esc(topH2.name) + ' </span>' +
+        '<span style="color:var(--dim);margin:0 4px">with</span>' +
+        bankers.map(function(h) {{ return '#' + esc(h.number) + ' ' + esc(h.name); }}).join(' / ') +
+        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when fav places (very likely at $' + esc(topH2.win_odds) + ') and any banker places. Way better ROI than straight WIN.</div>' +
+      '</div>'
+    );
+  }}
+
   // BOX Q4 PROTECTION — always shown when the race has at least 4 ranked
   // horses, regardless of the recommender primary choice. Catches the
   // R1-PACKING-KING-style upsets where the placing pair sits in model
@@ -1221,6 +1285,24 @@ function _buildRaceDetailPanel(race) {{
         '</span>' +
         '<span style="color:var(--fg);font-weight:600">' + f4Nums + '</span>' +
         '<span style="color:var(--dim);font-size:.7rem;margin-left:8px">(exact order — 1st → 4th)</span>' +
+      '</div>'
+    );
+  }}
+
+  // BOX TRIO-5 protection — top 5 model picks in a 10-combo box.
+  // Hits when any 3 of the 5 finish top-3 in any order. Validated on
+  // Apr 26 R10 by a user-driven 4-horse trio that paid 12x. Adds the
+  // 5th model pick to expand placing-pool coverage beyond the QIN-4
+  // box. 10 combos at 1 unit = 10-unit stake.
+  var top5 = race.horses.slice(0, 5);
+  if (top5.length === 5) {{
+    ticketLines.push(
+      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+        '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+          '+ BOX TRIO-5 · 10 combos' +
+        '</span>' +
+        top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
+        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
       '</div>'
     );
   }}

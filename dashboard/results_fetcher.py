@@ -337,15 +337,53 @@ class ResultsFetcher:
             logger.warning(f"tier_stats refresh failed: {e}")
 
     def _regenerate_dashboard(self, data: List, summary: Dict, race_date: str):
-        """Inject results data into the dashboard by adding a RESULTS constant."""
-        date_str = race_date.replace('/', '')
-        dashboard_path = os.path.join(self.results_dir, f"racing_dashboard_{date_str}.html")
+        """Re-render the dashboard from the merged-results data so actual_position
+        fields are baked into the embedded RACES const. STRIKE/MISS badges
+        depend on actual_position being present at JS-eval time.
 
-        if not os.path.exists(dashboard_path):
-            logger.warning(f"Dashboard not found: {dashboard_path}")
+        Writes BOTH the date-stamped archive AND the always-latest path so a
+        browser viewing either stays in sync.
+
+        v6.5 update: replaces the legacy runtime-injection mechanism that
+        called helper functions (renderDashboard, renderRaceDetail) which
+        were removed in the card-stack rewrite.
+        """
+        from datetime import datetime
+        from dashboard.template import generate_html
+
+        date_str = race_date.replace('/', '')
+        archive_path = os.path.join(self.results_dir, f"racing_dashboard_{date_str}.html")
+        latest_path = os.path.join(self.results_dir, "racing_dashboard.html")
+
+        # Build venue from race data so the rendered page header is accurate
+        venue = 'Happy Valley' if any(
+            (r.get('venue') or '').startswith('Happy') for r in data
+        ) else 'Sha Tin'
+
+        json_data = json.dumps(data)
+        json_data = json_data.replace('</script>', r'<\/script>').replace('</Script>', r'<\/Script>')
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        html = generate_html(json_data, now, race_date, venue)
+
+        # Atomic write — same pattern the generator uses
+        for path in (archive_path, latest_path):
+            tmp = f"{path}.tmp.{os.getpid()}"
+            with open(tmp, 'w') as f:
+                f.write(html)
+            os.replace(tmp, path)
+
+        logger.info(f"Dashboard re-rendered with results: {archive_path}")
+        logger.info(f"Dashboard re-rendered with results: {latest_path}")
+        return
+
+        # ===== Legacy runtime-injection path (kept below as dead code for
+        # reference; v6.5 card-stack template doesn't expose the renderDashboard /
+        # renderRaceDetail helpers it patched). Remove on next cleanup pass. =====
+        if not os.path.exists(archive_path):
+            logger.warning(f"Dashboard not found: {archive_path}")
             return
 
-        with open(dashboard_path, 'r') as f:
+        with open(archive_path, 'r') as f:
             html = f.read()
 
         # Remove any previous RESULTS injection (handles both old and new marker styles)
