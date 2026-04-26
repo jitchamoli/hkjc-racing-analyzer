@@ -140,7 +140,22 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 
 Each card is **click-to-expand**: clicking anywhere on the card toggles a per-race detail panel inserted directly below it (per-horse table, **same-format history** of each horse's prior runs at this exact venue+distance, speed map, reasoning). Top-right chevron flips ▼ → ▲ and the card gets a gold ring when expanded. **Copy WA** button uses `event.stopPropagation` so it does not toggle the card. Each expanded panel also has a × close button in the top-LEFT (top-RIGHT was hidden behind the tier badge in earlier versions).
 
-Each expanded race shows a **BET TICKET** block at the top — synthesizes per-horse `bet_recommendation` values into a single race-level instruction (e.g. "STRAIGHT QIN · #5 THE HEIR + #11 PRESTIGE HALL", "BOX QIN-4 · #1 + #9 + #13 + #2", "BANKER WIN · #1 KA YING RISING").
+Each card (and expanded panel) shows a 3-line **BET TICKET**:
+1. **PRIMARY** (gold pill) — the recommender's choice, with each pick tagged by jockey + 30-day strike rate (gold) + all-time strike rate (dim). Eg. `PRIMARY · BOX QIN-4 · #1 ABSOLUTE HEART @3.1 (J: K C Leung 7% 30d)`
+2. **+ PROTECTION** (green pill) — always-on BOX QIN-4 over the top-4 model picks when there are 4+ ranked horses, even when the recommender chose a tighter primary. Catches R1-PACKING-KING-style upsets where the placing pair sits in model ranks 3-4.
+3. **+ F4 SAVER** (purple pill) — top-4 model picks placed in 1-2-3-4 order as a single-unit First-4 longshot saver.
+
+**Top Bets sub-toggle**: Inside the Top Bets tab, two more buttons (`Next` / `Past`) filter to upcoming or finished races. `Next` is default. Past races render with an outcome badge in the card header:
+- 🟡 `★ STRIKE · WIN` — top model pick won
+- 🟢 `★ STRIKE · QIN` — winning quinella pair was inside top-2 picks
+- 🟢 `★ STRIKE · BOX-4` — winning quinella pair was inside top-4 picks
+- 🔴 `✗ MISS (winner #X was rank Y)` — winning pair fell outside top-4
+
+Badges render in BOTH views (Race Order shows them on finished races inline; Top Bets · Past filters to ONLY finished races for focused review). Determined client-side via `_didBetHit(race)` from each horse's `actual_position` field.
+
+**WhatsApp Copy** mirrors the BET TICKET in plain text — first line is a scannable summary like `BET: BOX QIN-4 → 1, 9, 2, 13` followed by `F4 (exact): 1-9-2-13 · 1 unit`, then per-horse breakdown with jockey strike rates, then "Why strong" bullets.
+
+**Attribute-context escape (`escAttr`)** is mandatory for any value rendered into an HTML attribute via string concatenation (`data-payload`, etc.). The text-context `esc()` does NOT escape `"` or `'` so values containing those would close the attribute prematurely. `escAttr` is implemented with a charcode-built regex (avoids quote-literal pairs that the JS-syntax test scanner misreads).
 
 Plain-English Pure / Market / Edge labels with click-to-toggle ⓘ popovers (replaces native `title=""` tooltips so it works on touch). Topbar **⟳ Hard reload** button bypasses browser cache. Atomic dashboard writes (`os.replace`) so a polling browser never sees a half-written file.
 
