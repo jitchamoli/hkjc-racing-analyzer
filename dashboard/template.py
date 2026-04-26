@@ -416,6 +416,18 @@ button {{ font-family:inherit; cursor:pointer; }}
 (function() {{
 // XSS-safe escape helper
 function esc(s) {{ var d=document.createElement('div'); d.textContent=String(s!=null?s:''); return d.innerHTML; }}
+// Attribute-context escape — the text-context esc() does NOT escape
+// double or single quotes, so attribute values built via string
+// concatenation could be broken by quote characters in the data. Use
+// escAttr for any value rendered inside an HTML attribute.
+function escAttr(s) {{
+  return String(s != null ? s : '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}}
 
 const RACES = {races_json};
 const RACE_DATE = "{race_date}";
@@ -496,7 +508,9 @@ function renderHero() {{
   hero.innerHTML = html;
   hero.querySelectorAll('.wa-btn').forEach(function(btn) {{
     btn.addEventListener('click', function() {{
-      copyWA(JSON.parse(btn.dataset.payload), btn);
+      // data-payload is a plain string (escAttr-encoded for the attribute);
+      // browser already decoded it, so no JSON.parse needed.
+      copyWA(btn.dataset.payload, btn);
     }});
   }});
 }}
@@ -532,10 +546,60 @@ function renderBetCard(race) {{
     ? ('+' + edgePp + 'pp gap · ev +' + (topH.ev_win != null ? topH.ev_win.toFixed(2) : '0.00'))
     : ('top_3 ' + Math.round((race.top_3_share||0)*100) + '%');
 
-  // WA copy payload
-  var waPayload = tier + ' — R' + race.race_number + ' #' + topH.number + ' ' + (topH.name||'') +
-    ' @ $' + (topH.win_odds||'?') + ' | ' + betRec +
-    (whyItems.length ? '\\n' + whyItems.slice(0,2).join(' | ') : '');
+  // WA copy payload — mirrors the BET TICKET so the copied message has
+  // the same primary + protection bets the user sees on screen, plus
+  // jockey strike rates and the top "why strong" bullets.
+  function _waPick(h) {{
+    var p30 = h.jockey_form_30d != null ? Math.round(h.jockey_form_30d * 100) : null;
+    var jk = h.jockey
+      ? ' (' + h.jockey + (p30 != null && p30 > 0 ? ' ' + p30 + '%' : '') + ')'
+      : '';
+    return '#' + h.number + ' ' + (h.name||'') + ' @' + (h.win_odds||'?') + jk;
+  }}
+  var waLines = [];
+  // Race header
+  waLines.push(tier + ' · R' + race.race_number + ' ' + (race.time||'') +
+               ' · ' + (race.class_type||'') + ' ' + (race.distance||'') + 'm');
+  // Group horses by primary bet type for the WA payload
+  var waBets = {{}};
+  race.horses.forEach(function(h) {{
+    var b = (h.bet_recommendation || '').trim();
+    if (b && b !== 'SKIP') {{ (waBets[b] = waBets[b] || []).push(h); }}
+  }});
+  Object.keys(waBets).forEach(function(bt) {{
+    var picks = waBets[bt];
+    var lbl = bt;
+    if ((bt === 'QIN' || bt === 'BOX QIN') && picks.length >= 2) {{
+      lbl = picks.length === 2 ? 'STRAIGHT QIN' : 'BOX QIN-' + picks.length;
+    }} else if (bt === 'TRIO' && picks.length >= 3) {{
+      lbl = picks.length === 3 ? 'STRAIGHT TRIO' : 'BOX TRIO-' + picks.length;
+    }}
+    waLines.push('');
+    waLines.push('PRIMARY: ' + lbl);
+    picks.forEach(function(h) {{ waLines.push('  ' + _waPick(h)); }});
+  }});
+  // Box Q4 protection — same gating rules as the on-screen ticket
+  var top4wa = race.horses.slice(0, 4);
+  if (top4wa.length === 4) {{
+    var primNumsWa = {{}};
+    Object.keys(waBets).forEach(function(bt) {{ waBets[bt].forEach(function(h) {{ primNumsWa[h.number] = true; }}); }});
+    var hasNonPrimWa = top4wa.some(function(h) {{ return !primNumsWa[h.number]; }});
+    if (hasNonPrimWa || waLines.length === 1) {{
+      waLines.push('');
+      waLines.push('+ PROTECTION: BOX QIN-4 (6 combos)');
+      top4wa.forEach(function(h) {{ waLines.push('  ' + _waPick(h)); }});
+    }}
+  }}
+  if (waBets && Object.keys(waBets).length === 0 && top4wa.length < 4) {{
+    waLines.push('');
+    waLines.push('SKIP — no bet recommended');
+  }}
+  if (whyItems.length) {{
+    waLines.push('');
+    waLines.push('Why strong:');
+    whyItems.slice(0, 3).forEach(function(w) {{ waLines.push('- ' + w); }});
+  }}
+  var waPayload = waLines.join('\\n');
 
   // Whole card is clickable → toggles the per-race detail panel below it.
   // The WA button uses stopPropagation so clicking Copy WA does not also
@@ -551,7 +615,7 @@ function renderBetCard(race) {{
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
         '<span style="font-size:.7rem;color:var(--dim)">' + esc(edgeDetail) + '</span>' +
-        '<button class="wa-btn" data-payload="' + esc(JSON.stringify(waPayload)) +
+        '<button class="wa-btn" data-payload="' + escAttr(waPayload) +
           '" onclick="event.stopPropagation()">Copy WA</button>' +
         '<span class="card-expand-chevron" id="chev-' + race.race_number + '" style="font-size:.85rem;color:var(--gold);font-weight:700">▼</span>' +
       '</div>' +
@@ -1347,7 +1411,8 @@ window.addEventListener('DOMContentLoaded', function() {{
       }}
       var payloads = [];
       heroBtns.forEach(function(btn) {{
-        try {{ payloads.push(JSON.parse(btn.dataset.payload)); }} catch(e) {{}}
+        // data-payload is a plain string (escAttr-encoded); already decoded by browser.
+        if (btn.dataset.payload) payloads.push(btn.dataset.payload);
       }});
       var combined = payloads.join('\\n\\n---\\n\\n');
       navigator.clipboard.writeText(combined).then(function() {{
