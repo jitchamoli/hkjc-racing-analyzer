@@ -68,6 +68,7 @@ def _make_mocks():
     db.get_jockey_horse_stats.return_value = None
     db.get_distance_best_time.return_value = None
     db.get_distance_record.return_value = None
+    db.get_horse_format_history.return_value = []
     # db.conn.execute used for real dividend lookup — return no rows
     db.conn.execute.return_value.fetchall.return_value = []
 

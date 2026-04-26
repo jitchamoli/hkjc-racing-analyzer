@@ -242,6 +242,8 @@ button {{ font-family:inherit; cursor:pointer; }}
 .strip-sub {{ font-size:.58rem; color:var(--dim); margin-top:1px; }}
 .strip-chevron {{ font-size:.6rem; color:var(--dim); margin-top:2px; transition:transform .15s; }}
 .strip-tile.active .strip-chevron {{ transform:rotate(180deg); color:var(--gold); }}
+.info-tip {{ display:inline-block; margin-left:4px; font-size:.7rem; color:var(--dim); cursor:help; border-bottom:1px dotted var(--dim); }}
+.info-tip:hover {{ color:var(--gold); border-bottom-color:var(--gold); }}
 
 /* ── Race detail ── */
 #race-detail {{ margin-top:4px; }}
@@ -502,11 +504,21 @@ function renderBetCard(race) {{
     '</div>' +
     '<div class="trust-card">' +
       '<div class="trust-block"><div class="trust-label">Why Strong</div><div class="trust-body">' + whyHtml + '</div></div>' +
-      '<div class="trust-block"><div class="trust-label">Our vs Market</div>' +
+      '<div class="trust-block"><div class="trust-label">Our vs Market ' +
+        '<span class="info-tip" title="' +
+          'Our model = our win probability based on form, draw, jockey, etc. ' +
+          '· Market = bookmakers implied probability (1 / odds). ' +
+          '· Edge = our model minus market in percentage points. ' +
+          '· Positive edge = we think horse is undervalued (potential bet). ' +
+          '· Negative edge = market more confident than us (avoid).' +
+        '">ⓘ</span></div>' +
         '<div class="trust-body" style="margin-top:4px">' +
-          'Pure <strong style="color:var(--green)">' + purePct + '%</strong><br>' +
-          'Market <strong style="color:var(--dim)">' + mktPct + '%</strong><br>' +
-          'Edge <strong style="color:var(--gold)">' + edgePp + 'pp</strong>' +
+          '<span title="Our model win probability before any market input">' +
+            'Our model <strong style="color:var(--green)">' + purePct + '%</strong></span><br>' +
+          '<span title="Bookmakers implied probability from the win odds (1 / odds)">' +
+            'Market <strong style="color:var(--dim)">' + mktPct + '%</strong></span><br>' +
+          '<span title="Our model minus market in percentage points. Positive = we see value the market does not.">' +
+            'Edge <strong style="color:var(--gold)">' + edgePp + 'pp</strong></span>' +
         '</div>' +
       '</div>' +
       '<div class="trust-block"><div class="trust-label">Tier Track Record</div><div class="trust-body" style="margin-top:4px">' + trackHtml + '</div></div>' +
@@ -696,6 +708,58 @@ function _buildRaceDetailPanel(race) {{
     ? '<div class="detail-section"><div class="section-label">REASONING</div>' + reasoningHTML + '</div>'
     : '';
 
+  // Same-format history block. For every horse with prior runs at the
+  // current venue and distance, render their last 5 attempts so the user
+  // can see what happened in identical conditions, inline.
+  var formatHistRows = race.horses.filter(function(h) {{
+    return h.format_history && h.format_history.length > 0;
+  }}).map(function(h) {{
+    var rows = h.format_history.map(function(p) {{
+      var pos = p.finish_position;
+      var posStyle = pos === 1 ? 'color:var(--gold);font-weight:700'
+                   : (pos > 0 && pos <= 3) ? 'color:var(--green);font-weight:600'
+                   : 'color:var(--dim)';
+      return '<tr>' +
+        '<td style="padding:3px 6px">' + esc(p.race_date||'') + '</td>' +
+        '<td style="padding:3px 6px">' + esc(p.going||'') + '</td>' +
+        '<td style="padding:3px 6px">' + esc(p.class_type||'') + '</td>' +
+        '<td style="padding:3px 6px;text-align:right;' + posStyle + '">' +
+          (pos > 0 ? esc(pos) : '–') + '</td>' +
+        '<td style="padding:3px 6px;text-align:right">' +
+          (p.win_odds ? esc(p.win_odds) : '–') + '</td>' +
+        '<td style="padding:3px 6px;text-align:right;color:var(--dim)">' +
+          (p.margin > 0 ? esc(p.margin) + 'L' : (pos === 1 ? 'won' : '–')) + '</td>' +
+        '<td style="padding:3px 6px;color:var(--dim)">' + esc(p.jockey||'') + '</td>' +
+      '</tr>';
+    }}).join('');
+    return '<tr><td colspan="7" style="padding:6px 4px 2px 4px;font-weight:700;color:var(--gold);font-size:.78rem">' +
+        '#' + esc(h.number) + ' ' + esc(h.name) +
+        ' <span style="color:var(--dim);font-weight:400;font-size:.72rem">' +
+          '(' + h.format_history.length + ' prior run' + (h.format_history.length === 1 ? '' : 's') +
+          ' at ' + esc(race.venue||'') + ' ' + esc(race.distance) + 'm)' +
+        '</span></td></tr>' + rows;
+  }}).join('');
+
+  var formatHistoryHTML = '';
+  if (formatHistRows) {{
+    formatHistoryHTML = '<div class="detail-section">' +
+      '<div class="section-label">SAME-FORMAT HISTORY ' +
+        '<span class="info-tip" title="Past runs by these horses at the SAME venue and SAME distance. Position colours: gold=win, green=top-3, grey=other.">ⓘ</span>' +
+      '</div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:.74rem">' +
+        '<thead><tr style="border-bottom:1px solid var(--border);color:var(--dim)">' +
+          '<th style="text-align:left;padding:3px 6px">DATE</th>' +
+          '<th style="text-align:left;padding:3px 6px">GOING</th>' +
+          '<th style="text-align:left;padding:3px 6px">CLASS</th>' +
+          '<th style="text-align:right;padding:3px 6px">POS</th>' +
+          '<th style="text-align:right;padding:3px 6px">ODDS</th>' +
+          '<th style="text-align:right;padding:3px 6px">MARGIN</th>' +
+          '<th style="text-align:left;padding:3px 6px">JOCKEY</th>' +
+        '</tr></thead><tbody>' + formatHistRows + '</tbody>' +
+      '</table>' +
+    '</div>';
+  }}
+
   return '<div class="detail-panel">' +
       '<div class="detail-header">' +
         '<div>' +
@@ -717,6 +781,7 @@ function _buildRaceDetailPanel(race) {{
         '<tbody>' + rowsHtml + '</tbody>' +
       '</table>' +
       detailTableHTML +
+      formatHistoryHTML +
       speedMapHTML +
       reasoningBlock +
     '</div>';

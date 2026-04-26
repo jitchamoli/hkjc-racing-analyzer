@@ -191,6 +191,13 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
         going_form = db.get_horse_going_form(h.name, race_going, race_date)
         jh_stats = db.get_jockey_horse_stats(h.jockey, h.name, race_date)
         dist_pb = db.get_distance_best_time(h.name, race_distance, race_date)
+        # Same-format history: prior runs at this exact venue+distance
+        # so the dashboard can show "this horse has run here before, here is what happened"
+        format_history = db.get_horse_format_history(
+            h.name, race.venue or '', race_distance,
+            going='',  # going is variable; loose match for now
+            before_date=race_date, limit=5,
+        )
 
         horse_odds_move = odds_summary.get(h.number, {})
         is_steam, steam_severity, steam_label = OddsMovementAnalyzer.detect_steam_move(
@@ -229,6 +236,7 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
             "jockey_horse_stats": jh_stats,
             "distance_pb": dist_pb,
             "distance_record": dist_record,
+            "format_history": format_history,
             "odds_movement": horse_odds_move,
             "steam_move": {"is_steam": is_steam, "severity": steam_severity, "label": steam_label},
             "cold_horse": {"is_cold": is_cold, "label": cold_label},

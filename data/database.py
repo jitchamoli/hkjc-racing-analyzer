@@ -478,6 +478,52 @@ class HorseDatabase:
         row = c.fetchone()
         return dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
 
+    def get_horse_format_history(self, horse_name: str, venue: str,
+                                  distance: int, going: str = '',
+                                  before_date: str = '',
+                                  limit: int = 6) -> list:
+        """v6.6 dashboard: per-horse history at the SAME race format.
+
+        "Same format" = same venue + same distance (exact). Optionally
+        filter by going if `going` is provided (loose: returns all when
+        empty). Returns the most-recent `limit` runs with finish position,
+        odds, margin, jockey, race_date — used by the per-horse detail
+        panel so users can see "this horse's last 5 runs at Sha Tin 1200m
+        on Good".
+        """
+        c = self.conn.cursor()
+        venue_norm = self._normalize_venue(venue)
+        if going and before_date:
+            c.execute("""
+                SELECT race_date, venue, distance, going, class_type,
+                       finish_position, win_odds, margin, jockey, draw
+                FROM race_results
+                WHERE horse_name = ?
+                  AND venue = ? AND distance = ? AND going = ?
+                  AND race_date < ?
+                ORDER BY race_date DESC LIMIT ?
+            """, (horse_name, venue_norm, int(distance), going, before_date, limit))
+        elif before_date:
+            c.execute("""
+                SELECT race_date, venue, distance, going, class_type,
+                       finish_position, win_odds, margin, jockey, draw
+                FROM race_results
+                WHERE horse_name = ?
+                  AND venue = ? AND distance = ?
+                  AND race_date < ?
+                ORDER BY race_date DESC LIMIT ?
+            """, (horse_name, venue_norm, int(distance), before_date, limit))
+        else:
+            c.execute("""
+                SELECT race_date, venue, distance, going, class_type,
+                       finish_position, win_odds, margin, jockey, draw
+                FROM race_results
+                WHERE horse_name = ?
+                  AND venue = ? AND distance = ?
+                ORDER BY race_date DESC LIMIT ?
+            """, (horse_name, venue_norm, int(distance), limit))
+        return [dict(r) for r in c.fetchall()]
+
     def get_horse_cd_history(self, horse_name: str, venue: str,
                               distance: int, tolerance: int = 100) -> list:
         """Get horse's race-by-race C&D history with dates for winning trip detection."""
