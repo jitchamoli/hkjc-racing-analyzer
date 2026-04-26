@@ -534,18 +534,36 @@ function renderHero() {{
   }}
 
   if (races.length === 0) {{
-    var closest = RACES
-      .filter(function(r) {{ return r.top_3_share != null; }})
-      .sort(function(a, b) {{ return (b.top_3_share||0) - (a.top_3_share||0); }})[0];
-    var closestMsg = closest
-      ? 'Closest to HIGH: R' + closest.race_number + ' (top_3_share ' + Math.round((closest.top_3_share||0)*100) + '%)'
-      : '';
+    // Three distinct empty cases:
+    //   (a) Top Bets · Next AND all races finished  → "no next race today"
+    //   (b) Top Bets · Past AND no past races yet   → "no past races yet"
+    //   (c) Top Bets · Next AND no race clears HIGH → "no bets meet threshold"
+    var allFinished = RACES.length > 0 && RACES.every(function(r) {{ return r.results_available; }});
+    var anyFinished = RACES.some(function(r) {{ return r.results_available; }});
+    var emptyTitle, emptyBody, emptyIcon = '🏇';
+    if (_stripView === 'bets' && _topBetsFilter === 'next' && allFinished) {{
+      emptyIcon = '🏁';
+      emptyTitle = 'All races finished — no next race today';
+      emptyBody = 'Card complete. Switch to <strong onclick="setTopBetsFilter(&quot;past&quot;);" style="cursor:pointer;color:var(--gold);text-decoration:underline">Past</strong> to see today&#39;s record, or <strong onclick="setStripView(&quot;race&quot;);" style="cursor:pointer;color:var(--gold);text-decoration:underline">Race Order</strong> to review every race with results.';
+    }} else if (_stripView === 'bets' && _topBetsFilter === 'past' && !anyFinished) {{
+      emptyTitle = 'No past races yet';
+      emptyBody = 'No race has finished. Switch to <strong onclick="setTopBetsFilter(&quot;next&quot;);" style="cursor:pointer;color:var(--gold);text-decoration:underline">Next</strong> to see upcoming bets.';
+    }} else {{
+      var closest = RACES
+        .filter(function(r) {{ return r.top_3_share != null; }})
+        .sort(function(a, b) {{ return (b.top_3_share||0) - (a.top_3_share||0); }})[0];
+      var closestMsg = closest
+        ? 'Closest to HIGH: R' + closest.race_number + ' (top_3_share ' + Math.round((closest.top_3_share||0)*100) + '%)'
+        : '';
+      emptyTitle = 'No bets meet the threshold today';
+      emptyBody = 'Model and market agree too closely for an edge play, and no race clears HIGH/MED conviction on pair identification. Switch to <strong onclick="setStripView(&quot;race&quot;);" style="cursor:pointer;color:var(--gold);text-decoration:underline">Race Order</strong> to browse all races anyway.' +
+        (closestMsg ? '<div class="closest-miss" style="margin-top:8px">' + esc(closestMsg) + '</div>' : '');
+    }}
     hero.innerHTML =
       '<div class="empty-hero">' +
-        '<div class="empty-horse">🏇</div>' +
-        '<div class="empty-title">No bets meet the threshold today</div>' +
-        '<div class="empty-body">Model and market agree too closely for an edge play, and no race clears HIGH/MED conviction on pair identification. Switch to <strong>Race Order</strong> to browse all races anyway.</div>' +
-        (closestMsg ? '<div class="closest-miss">' + esc(closestMsg) + '</div>' : '') +
+        '<div class="empty-horse">' + emptyIcon + '</div>' +
+        '<div class="empty-title">' + emptyTitle + '</div>' +
+        '<div class="empty-body">' + emptyBody + '</div>' +
       '</div>';
     return;
   }}
@@ -841,6 +859,16 @@ function setStripView(view) {{
   _stripView = view;
   document.getElementById('tab-race-order').classList.toggle('active', view === 'race');
   document.getElementById('tab-top-bets').classList.toggle('active', view === 'bets');
+
+  // End-of-meeting auto-switch: if all races are finished, default the
+  // Top Bets sub-toggle to past mode so the user sees the day record
+  // instead of an empty Next pane.
+  if (view === 'bets') {{
+    var allFinished = RACES.length > 0 && RACES.every(function(r) {{ return r.results_available; }});
+    if (allFinished) {{
+      _topBetsFilter = 'past';
+    }}
+  }}
 
   // Both views render their content into #hero via renderHero() (cards
   // for all 11 races in race-order, or curated cards for bets).
