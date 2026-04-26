@@ -416,14 +416,15 @@ button {{ font-family:inherit; cursor:pointer; }}
 (function() {{
 // XSS-safe escape helper
 function esc(s) {{ var d=document.createElement('div'); d.textContent=String(s!=null?s:''); return d.innerHTML; }}
-// Attribute-context escape via a single regex + lookup so the
-// implementation does not contain string literals with mixed
-// quote types (which the JS-syntax test scanner naively misreads
-// as broken strings). Use this for any value rendered inside an
-// HTML attribute; esc() is fine for text content.
+// Attribute-context escape — implemented with character-code lookup
+// so no quote literals appear next to other quote literals (the
+// JS-syntax test scanner is naive about regex char classes).
+// Use for values rendered inside an HTML attribute; esc() handles text.
 var _ATTR_MAP = {{ 38:'&amp;', 60:'&lt;', 62:'&gt;', 34:'&quot;', 39:'&#39;' }};
+var _ATTR_RE = new RegExp(
+  '[' + String.fromCharCode(38, 60, 62, 34, 39) + ']', 'g');
 function escAttr(s) {{
-  return String(s != null ? s : '').replace(/[&<>"']/g, function(c) {{
+  return String(s != null ? s : '').replace(_ATTR_RE, function(c) {{
     return _ATTR_MAP[c.charCodeAt(0)] || c;
   }});
 }}
