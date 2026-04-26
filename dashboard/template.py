@@ -251,12 +251,16 @@ button {{ font-family:inherit; cursor:pointer; }}
 .strip-tab:hover {{ background:rgba(15,23,42,.5); color:var(--fg); }}
 .strip-tab.active {{ background:var(--gold); color:#000; border-color:var(--gold); }}
 
-/* Prominent View tabs row — sits ABOVE the race strip, much larger
-   and bolder than the inline strip-tab variant. */
+/* View tabs — by default boxed (legacy below-strip placement).
+   In the .view-tabs-topbar variant they live inline in the topbar
+   so they need no own background or border. */
 .view-tabs {{
   display:flex; align-items:center; gap:8px; margin:8px 0 12px 0;
   padding:8px; background:rgba(30,41,59,.5); border:1px solid var(--border);
   border-radius:8px; flex-wrap:wrap;
+}}
+.view-tabs-topbar {{
+  margin:0; padding:0; background:transparent; border:none; border-radius:0;
 }}
 .view-tab {{
   background:transparent; border:1.5px solid var(--border);
@@ -365,9 +369,19 @@ button {{ font-family:inherit; cursor:pointer; }}
 </div>
 
 <div class="topbar">
-  <div>
-    <span class="topbar-brand">HKJC Racing</span>
-    <span class="topbar-meta" style="margin-left:10px">{race_date} · {venue}</span>
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div>
+      <span class="topbar-brand">HKJC Racing</span>
+      <span class="topbar-meta" style="margin-left:10px">{race_date} · {venue}</span>
+    </div>
+    <div class="view-tabs view-tabs-topbar">
+      <button class="view-tab active" id="tab-race-order" onclick="setStripView('race')">
+        <span class="view-tab-icon">📋</span> Race Order
+      </button>
+      <button class="view-tab" id="tab-top-bets" onclick="setStripView('bets')">
+        <span class="view-tab-icon">⭐</span> Top Bets
+      </button>
+    </div>
   </div>
   <div class="topbar-meta">
     <span class="live-dot"></span>
@@ -387,16 +401,6 @@ button {{ font-family:inherit; cursor:pointer; }}
 <div class="shell">
   <div class="main-col">
     <div class="hero" id="hero"></div>
-    <div class="view-tabs">
-      <button class="view-tab active" id="tab-race-order" onclick="setStripView('race')">
-        <span class="view-tab-icon">📋</span> Race Order
-      </button>
-      <button class="view-tab" id="tab-top-bets" onclick="setStripView('bets')">
-        <span class="view-tab-icon">⭐</span> Top Bets
-      </button>
-      <span style="flex:1"></span>
-      <button id="expand-all-btn" class="expand-all-btn">Expand all</button>
-    </div>
     <div class="strip-section" id="strip-section">
       <div class="strip" id="strip">{strip_tiles_html}</div>
     </div>
