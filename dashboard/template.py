@@ -73,9 +73,10 @@ def _build_strip_tiles(races_list: list) -> str:
             sub = 'skip' if tier == 'SKIP' else bet
         tiles.append(
             '<div class="strip-tile tier-{tier}" id="tile-{num}"'
-            ' onclick="showRaceDetail({num})" title="{tier}">'
+            ' onclick="showRaceDetail({num})" title="Click to expand · {tier}">'
             '<div class="strip-num">{label}</div>'
             '<div class="strip-sub">{sub}</div>'
+            '<div class="strip-chevron">▼</div>'
             '</div>'.format(
                 tier=_esc(tier),
                 num=_esc(num),
@@ -239,6 +240,8 @@ button {{ font-family:inherit; cursor:pointer; }}
 .tier-SKIP {{ background:rgba(71,85,105,.18); opacity:.6; }}
 .strip-num {{ font-size:.72rem; font-weight:700; }}
 .strip-sub {{ font-size:.58rem; color:var(--dim); margin-top:1px; }}
+.strip-chevron {{ font-size:.6rem; color:var(--dim); margin-top:2px; transition:transform .15s; }}
+.strip-tile.active .strip-chevron {{ transform:rotate(180deg); color:var(--gold); }}
 
 /* ── Race detail ── */
 #race-detail {{ margin-top:4px; }}
@@ -542,9 +545,10 @@ function renderStrip() {{
     var tier = r.conviction_tier || 'SKIP';
     var label = tier === 'EDGE' ? 'R' + r.race_number + ' ★' : 'R' + r.race_number;
     var sub = tier === 'SKIP' ? 'skip' : (r.horses[0] ? (r.horses[0].bet_recommendation || '') : '');
-    return '<div class="strip-tile tier-' + tier + '" id="tile-' + r.race_number + '" onclick="showRaceDetail(' + r.race_number + ')" title="' + esc(tier) + '">' +
+    return '<div class="strip-tile tier-' + tier + '" id="tile-' + r.race_number + '" onclick="showRaceDetail(' + r.race_number + ')" title="Click to expand · ' + esc(tier) + '">' +
       '<div class="strip-num">' + esc(label) + '</div>' +
       '<div class="strip-sub">' + esc(sub) + '</div>' +
+      '<div class="strip-chevron">▼</div>' +
     '</div>';
   }}).join('');
 }}
