@@ -3,7 +3,7 @@
 Both extract_features() and build_training_data_from_db() MUST build
 feature vectors in FEATURE_SCHEMA order. This prevents train/predict mismatch.
 
-16 features — all use data available BEFORE the race (no leakage).
+19 features — all use data available BEFORE the race (no leakage).
 No direct market odds features — ML must provide independent signal.
 
 Wave 2c drops:
@@ -16,9 +16,12 @@ v6.4 drops (2026-04-25, after sweep on 50K rows showed 0.0 importance):
 - distance_pb_ratio: ditto — finish-time signal redundant with form signal
 - speed_consistency: ditto — std-of-speed becomes noise when speed itself is dead
 
-The 4 dropped features were 100% redundant with last_start_margin in the v6.3
-build. Brier on the 16-feature build matches the 20-feature build (statistically
-indistinguishable; details in models/experiment_log.json).
+v6.5 adds (2026-04-26): three "data-already-here" features sourced from the
+Renavon backfill that were previously only used by the rule engine:
+- horse_age: 99.8% DB coverage; younger horses (3-5y) systematically improve
+- rating_change: 62.6% DB coverage; rating delta from previous race signals trend
+- jockey_form_30d: short-window jockey strike rate captures hot streaks the
+  all-time aggregate hides
 """
 
 import numpy as np
@@ -40,6 +43,9 @@ FEATURE_SCHEMA = [
     {"name": "last_start_margin", "default": 0.5, "range": (0.0, 1.0)},    # 14
     {"name": "class_change", "default": 0.5, "range": (0.0, 1.0)},         # 15
     {"name": "horse_weight_change", "default": 0.5, "range": (0.0, 1.0)},  # 16
+    {"name": "horse_age", "default": 0.5, "range": (0.0, 1.0)},            # 17 (3yo→1.0, 9yo→0.0)
+    {"name": "rating_change", "default": 0.5, "range": (0.0, 1.0)},        # 18 (+10pts→1.0, -10→0.0)
+    {"name": "jockey_form_30d", "default": 0.08, "range": (0.0, 0.6)},     # 19 (last 30-day strike rate)
 ]
 
 FEATURE_NAMES = [f["name"] for f in FEATURE_SCHEMA]

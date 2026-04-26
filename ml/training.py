@@ -10,7 +10,7 @@ Three sources in priority order:
 import re
 import sqlite3
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
 from pathlib import Path
 
@@ -21,6 +21,15 @@ from ml.feature_schema import FEATURE_SCHEMA, NUM_FEATURES
 from ml.features import FeatureEngineering, extract_class_rank
 
 logger = logging.getLogger(__name__)
+
+
+def _date_30d_before(race_date: str) -> str:
+    """Return YYYY/MM/DD 30 days before race_date. Used by Feature 19."""
+    try:
+        dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
+        return (dt - timedelta(days=30)).strftime('%Y/%m/%d')
+    except (ValueError, TypeError):
+        return '0000/00/00'
 
 
 def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
@@ -382,6 +391,36 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
 
             # speed_consistency dropped v6.4.
 
+            # Feature 17 (v6.5): horse age. 3yo→1.0, 9yo+→0.0. Default 0.5.
+            age_raw = r.get('age', 0) or 0
+            try:
+                age_int = int(str(age_raw).strip()[:2]) if age_raw else 0
+            except (ValueError, TypeError):
+                age_int = 0
+            if age_int and 2 <= age_int <= 15:
+                feat_age = max(0.0, min(1.0, (9 - age_int) / 6.0))
+            else:
+                feat_age = 0.5
+
+            # Feature 18 (v6.5): rating change from previous race. +10pts→1.0,
+            # 0→0.5, -10→0.0. Default 0.5 when missing.
+            rc_raw = r.get('rating_change', 0) or 0
+            try:
+                rc_int = int(rc_raw)
+            except (ValueError, TypeError):
+                rc_int = 0
+            feat_rating_change = max(0.0, min(1.0, 0.5 + rc_int / 20.0))
+
+            # Feature 19 (v6.5): jockey 30-day form (Bayesian-smoothed).
+            # Filter jockey_history (already chronological per name) to the
+            # 30 days BEFORE race_date. Default 0.08 (HK league avg) when
+            # the jockey has no rides in that window.
+            j_30d = [(d, w) for d, w in jockey_history.get(jockey_name, [])
+                     if d < race_date and d >= _date_30d_before(race_date)]
+            j30_rides = len(j_30d)
+            j30_wins = sum(w for _, w in j_30d)
+            feat_jockey_30d = min(0.6, (j30_wins + 0.08 * 15) / (j30_rides + 15))
+
             features = [
                 feat_form_proxy, feat_form, feat_draw,
                 feat_jockey, feat_trainer, feat_field_size,
@@ -390,6 +429,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 weight_vs_field, feat_jh_coop,
                 feat_last_margin, feat_class_change,
                 feat_hw_change,
+                feat_age, feat_rating_change, feat_jockey_30d,
             ]
             assert len(features) == NUM_FEATURES, f"Expected {NUM_FEATURES} features, got {len(features)}"
             X.append(features)

@@ -20,11 +20,10 @@ PER_FEATURE_TOLERANCE = 0.02
 NUM_TEST_ROWS = 20
 
 
-def test_num_features_is_16():
-    """NUM_FEATURES must equal 16 — v6.4 dropped 4 dead-importance features
-    (prior_pace, adjusted_speed, distance_pb_ratio, speed_consistency) on
-    top of the Wave 2c drops (field_rel_speed, days_since_last_win)."""
-    assert NUM_FEATURES == 16, f"NUM_FEATURES={NUM_FEATURES}, expected 16"
+def test_num_features_is_19():
+    """NUM_FEATURES must equal 19 — v6.5 added horse_age, rating_change,
+    jockey_form_30d on top of the v6.4 16-feature lean schema."""
+    assert NUM_FEATURES == 19, f"NUM_FEATURES={NUM_FEATURES}, expected 19"
 
 
 def test_strict_feature_parity_per_row_per_feature():
