@@ -242,6 +242,9 @@ button {{ font-family:inherit; cursor:pointer; }}
 .strip-sub {{ font-size:.58rem; color:var(--dim); margin-top:1px; }}
 .strip-chevron {{ font-size:.6rem; color:var(--dim); margin-top:2px; transition:transform .15s; }}
 .strip-tile.active .strip-chevron {{ transform:rotate(180deg); color:var(--gold); }}
+.strip-tab {{ background:transparent; border:1px solid var(--border); color:var(--dim); padding:3px 10px; border-radius:4px; font-size:.66rem; font-weight:600; letter-spacing:.05em; cursor:pointer; text-transform:uppercase; transition:all .12s; }}
+.strip-tab:hover {{ background:rgba(15,23,42,.5); color:var(--fg); }}
+.strip-tab.active {{ background:var(--gold); color:#000; border-color:var(--gold); }}
 .info-tip {{ display:inline-block; margin-left:6px; font-size:.7rem; color:var(--dim); cursor:pointer; border:1px solid var(--border); border-radius:50%; width:16px; height:16px; line-height:14px; text-align:center; vertical-align:middle; user-select:none; }}
 .info-tip:hover {{ color:var(--gold); border-color:var(--gold); background:rgba(251,191,36,.08); }}
 .info-pop {{ position:fixed; max-width:320px; background:#1e293b; border:1px solid var(--gold); color:var(--fg); padding:10px 12px; border-radius:6px; font-size:.75rem; line-height:1.45; z-index:9999; box-shadow:0 8px 24px rgba(0,0,0,.5); }}
@@ -363,7 +366,11 @@ button {{ font-family:inherit; cursor:pointer; }}
     <div class="hero" id="hero"></div>
     <div class="strip-section">
       <div class="strip-label">
-        All Races
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="margin-right:4px">View:</span>
+          <button class="strip-tab active" id="tab-race-order" onclick="setStripView('race')">Race order</button>
+          <button class="strip-tab" id="tab-top-bets" onclick="setStripView('bets')">Top bets</button>
+        </div>
         <button id="expand-all-btn" class="expand-all-btn">Expand all</button>
       </div>
       <div class="strip" id="strip">{strip_tiles_html}</div>
@@ -547,9 +554,52 @@ function copyWA(text, btn) {{
 // Multiple races can be expanded simultaneously (accordion behaviour).
 var _activeRaces = new Set();
 
+var _stripView = 'race';  // 'race' (race-order) or 'bets' (top-bets)
+
+function _stripTierWeight(tier) {{
+  // Higher = more conviction; used to sort under "Top bets" view.
+  if (tier === 'EDGE') return 5;
+  if (tier === 'HIGH') return 4;
+  if (tier === 'MED')  return 3;
+  if (tier === 'LOW')  return 2;
+  return 1;  // SKIP
+}}
+
+function _topPickEdge(r) {{
+  var h = (r.horses && r.horses[0]) ? r.horses[0] : {{}};
+  return h.edge_pp != null ? h.edge_pp : -100;
+}}
+
+function setStripView(view) {{
+  _stripView = view;
+  document.getElementById('tab-race-order').classList.toggle('active', view === 'race');
+  document.getElementById('tab-top-bets').classList.toggle('active', view === 'bets');
+  renderStrip();
+  // Re-apply .active classes on tiles for any currently-expanded races
+  if (typeof _renderActiveRaces === 'function') {{
+    document.querySelectorAll('.strip-tile').forEach(function(t) {{ t.classList.remove('active'); }});
+    Array.from(_activeRaces).forEach(function(rn) {{
+      var tile = document.getElementById('tile-' + rn);
+      if (tile) tile.classList.add('active');
+    }});
+  }}
+}}
+
 function renderStrip() {{
   var strip = document.getElementById('strip');
-  strip.innerHTML = RACES.map(function(r) {{
+  var ordered = RACES.slice();
+  if (_stripView === 'bets') {{
+    // Sort: tier weight DESC, then edge_pp DESC, then race_number ASC
+    ordered.sort(function(a, b) {{
+      var ta = _stripTierWeight(a.conviction_tier || 'SKIP');
+      var tb = _stripTierWeight(b.conviction_tier || 'SKIP');
+      if (ta !== tb) return tb - ta;
+      var ea = _topPickEdge(a), eb = _topPickEdge(b);
+      if (ea !== eb) return eb - ea;
+      return a.race_number - b.race_number;
+    }});
+  }}
+  strip.innerHTML = ordered.map(function(r) {{
     var tier = r.conviction_tier || 'SKIP';
     var label = tier === 'EDGE' ? 'R' + r.race_number + ' ★' : 'R' + r.race_number;
     var sub = tier === 'SKIP' ? 'skip' : (r.horses[0] ? (r.horses[0].bet_recommendation || '') : '');
@@ -756,6 +806,39 @@ function _buildRaceDetailPanel(race) {{
     '</div>';
   }}
 
+  // BET TICKET — synthesize the per-horse bet_recommendation values into
+  // a single race-level instruction (e.g. "BOX QIN with #5 + #11").
+  var bets = {{}};
+  race.horses.forEach(function(h) {{
+    var b = (h.bet_recommendation || '').trim();
+    if (b && b !== 'SKIP') {{ (bets[b] = bets[b] || []).push(h); }}
+  }});
+  var ticketLines = [];
+  Object.keys(bets).forEach(function(betType) {{
+    var picks = bets[betType];
+    var ids = picks.map(function(h) {{ return '#' + esc(h.number) + ' ' + esc(h.name); }}).join('  +  ');
+    var label = betType;
+    if ((betType === 'QIN' || betType === 'BOX QIN') && picks.length >= 2) {{
+      label = picks.length === 2 ? 'STRAIGHT QIN' : 'BOX QIN-' + picks.length;
+    }} else if (betType === 'TRIO' && picks.length >= 3) {{
+      label = picks.length === 3 ? 'STRAIGHT TRIO' : 'BOX TRIO-' + picks.length;
+    }}
+    ticketLines.push(
+      '<div style="margin:3px 0">' +
+        '<span style="display:inline-block;background:var(--gold);color:#000;font-weight:800;padding:2px 8px;border-radius:4px;font-size:.72rem;margin-right:8px">' + esc(label) + '</span>' +
+        '<span style="color:var(--fg);font-size:.85rem">' + ids + '</span>' +
+      '</div>'
+    );
+  }});
+  var betTicketHTML = ticketLines.length
+    ? '<div class="bet-ticket" style="background:rgba(251,191,36,.08);border-left:3px solid var(--gold);padding:8px 10px;margin:10px 0;border-radius:4px">' +
+        '<div style="font-size:.62rem;color:var(--gold);letter-spacing:.12em;font-weight:700;margin-bottom:4px">BET TICKET</div>' +
+        ticketLines.join('') +
+      '</div>'
+    : '<div class="bet-ticket" style="background:rgba(71,85,105,.18);border-left:3px solid var(--dim);padding:8px 10px;margin:10px 0;border-radius:4px;color:var(--dim);font-size:.78rem">' +
+        '<strong>SKIP</strong> · No bet recommended for this race' +
+      '</div>';
+
   return '<div class="detail-panel">' +
       '<div class="detail-header">' +
         '<div>' +
@@ -764,6 +847,7 @@ function _buildRaceDetailPanel(race) {{
         '</div>' +
         '<span style="font-size:.72rem;padding:2px 8px;border-radius:4px;background:' + (TIER_COLORS[race.conviction_tier]||'#64748b') + ';color:#000;font-weight:800">' + esc(race.conviction_tier||'SKIP') + '</span>' +
       '</div>' +
+      betTicketHTML +
       '<table class="horse-table">' +
         '<thead><tr>' +
           '<th>Rank</th>' +
@@ -803,12 +887,17 @@ function _renderActiveRaces(scrollTarget) {{
     .sort(function(a,b) {{ return a.race_number - b.race_number; }});
 
   det.innerHTML = sorted.map(function(r) {{
+    // Position × in the top-LEFT (the tier badge sits in the top-RIGHT of
+    // the detail panel and was previously stealing the click). z-index 5
+    // keeps it above any sibling content even if layout shifts.
     var closeBtn =
       '<button class="race-close-btn" onclick="closeRaceDetail(' + r.race_number + ')" ' +
       'title="Collapse this race" ' +
-      'style="position:absolute;top:8px;right:8px;background:transparent;border:1px solid var(--border);' +
-      'color:var(--dim);width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:.85rem;line-height:1">×</button>';
-    return '<div style="position:relative;margin-bottom:12px">' + closeBtn + _buildRaceDetailPanel(r) + '</div>';
+      'style="position:absolute;top:10px;left:10px;z-index:5;background:rgba(15,23,42,.85);' +
+      'border:1px solid var(--border);color:var(--fg);width:26px;height:26px;border-radius:4px;' +
+      'cursor:pointer;font-size:1rem;line-height:1;font-weight:700">×</button>';
+    // Pad the panel left so the × does not overlap the R1 title text.
+    return '<div style="position:relative;margin-bottom:12px;padding-left:36px">' + closeBtn + _buildRaceDetailPanel(r) + '</div>';
   }}).join('');
 
   sorted.forEach(function(r) {{
@@ -1057,6 +1146,22 @@ window.addEventListener('DOMContentLoaded', function() {{
     }});
   }}
 }});
+
+// ─────────────────────────────────────────────────────────────
+// Expose IIFE-local functions to global scope so inline onclick=""
+// attributes (e.g. onclick="showRaceDetail(1)") can call them.
+// Without this, the IIFE wraps everything and inline handlers throw
+// "X is not defined" — the bug that broke individual-tile expansion.
+// ─────────────────────────────────────────────────────────────
+window.showRaceDetail = showRaceDetail;
+window.closeRaceDetail = closeRaceDetail;
+window.toggleExpandAll = toggleExpandAll;
+window.hardReload = hardReload;
+window.refreshDashboard = refreshDashboard;
+window.copyWA = copyWA;
+window.showInfoPop = showInfoPop;
+window._closeInfoPop = _closeInfoPop;
+window.setStripView = setStripView;
 
 // ─────────────────────────────────────────────────────────────
 // Boot
