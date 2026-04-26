@@ -596,6 +596,13 @@ function renderBetCard(race) {{
     var box4Nums = top4wa.map(function(h) {{ return h.number; }}).join(', ');
     summaryLines.push('PROT: BOX QIN-4 → ' + box4Nums);
   }}
+  // FIRST 4 longshot saver — top 4 model picks in their model-rank order.
+  // 1 unit, exact order. Pays handsomely when it hits; meant as a low-cost
+  // protection layer alongside the QIN box.
+  if (top4wa.length === 4) {{
+    var f4Order = top4wa.map(function(h) {{ return h.number; }}).join('-');
+    summaryLines.push('F4 (exact): ' + f4Order + '  · 1 unit');
+  }}
   if (summaryLines.length) {{
     waLines.push('');
     summaryLines.forEach(function(l) {{ waLines.push(l); }});
@@ -1133,6 +1140,18 @@ function _buildRaceDetailPanel(race) {{
         '</div>'
       );
     }}
+    // FIRST 4 (exact order) — 1 unit, longshot saver. Top 4 model
+    // picks placed in 1st-2nd-3rd-4th. Pays big when it hits.
+    var f4Nums = top4.map(function(h) {{ return '#' + esc(h.number); }}).join('  →  ');
+    ticketLines.push(
+      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+        '<span style="display:inline-block;background:rgba(168,85,247,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+          'F4 SAVER · 1 unit' +
+        '</span>' +
+        '<span style="color:var(--fg);font-weight:600">' + f4Nums + '</span>' +
+        '<span style="color:var(--dim);font-size:.7rem;margin-left:8px">(exact order — 1st → 4th)</span>' +
+      '</div>'
+    );
   }}
 
   var betTicketHTML = ticketLines.length
