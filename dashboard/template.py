@@ -242,8 +242,12 @@ button {{ font-family:inherit; cursor:pointer; }}
 .strip-sub {{ font-size:.58rem; color:var(--dim); margin-top:1px; }}
 .strip-chevron {{ font-size:.6rem; color:var(--dim); margin-top:2px; transition:transform .15s; }}
 .strip-tile.active .strip-chevron {{ transform:rotate(180deg); color:var(--gold); }}
-.info-tip {{ display:inline-block; margin-left:4px; font-size:.7rem; color:var(--dim); cursor:help; border-bottom:1px dotted var(--dim); }}
-.info-tip:hover {{ color:var(--gold); border-bottom-color:var(--gold); }}
+.info-tip {{ display:inline-block; margin-left:6px; font-size:.7rem; color:var(--dim); cursor:pointer; border:1px solid var(--border); border-radius:50%; width:16px; height:16px; line-height:14px; text-align:center; vertical-align:middle; user-select:none; }}
+.info-tip:hover {{ color:var(--gold); border-color:var(--gold); background:rgba(251,191,36,.08); }}
+.info-pop {{ position:fixed; max-width:320px; background:#1e293b; border:1px solid var(--gold); color:var(--fg); padding:10px 12px; border-radius:6px; font-size:.75rem; line-height:1.45; z-index:9999; box-shadow:0 8px 24px rgba(0,0,0,.5); }}
+.info-pop-title {{ font-weight:700; color:var(--gold); margin-bottom:6px; font-size:.78rem; }}
+.info-pop-close {{ float:right; cursor:pointer; color:var(--dim); margin-left:8px; font-weight:700; }}
+.info-pop-close:hover {{ color:var(--fg); }}
 
 /* ── Race detail ── */
 #race-detail {{ margin-top:4px; }}
@@ -505,20 +509,12 @@ function renderBetCard(race) {{
     '<div class="trust-card">' +
       '<div class="trust-block"><div class="trust-label">Why Strong</div><div class="trust-body">' + whyHtml + '</div></div>' +
       '<div class="trust-block"><div class="trust-label">Our vs Market ' +
-        '<span class="info-tip" title="' +
-          'Our model = our win probability based on form, draw, jockey, etc. ' +
-          '· Market = bookmakers implied probability (1 / odds). ' +
-          '· Edge = our model minus market in percentage points. ' +
-          '· Positive edge = we think horse is undervalued (potential bet). ' +
-          '· Negative edge = market more confident than us (avoid).' +
-        '">ⓘ</span></div>' +
+        '<span class="info-tip" onclick="showInfoPop(event, &quot;Our vs Market&quot;, &quot;Our model = our win probability based on form, draw, jockey, etc. Market = bookmakers implied probability (1 / odds). Edge = our model minus market, in percentage points. Positive edge = we think the horse is undervalued (potential bet). Negative edge = market is more confident than us (avoid).&quot;)">ⓘ</span>' +
+      '</div>' +
         '<div class="trust-body" style="margin-top:4px">' +
-          '<span title="Our model win probability before any market input">' +
-            'Our model <strong style="color:var(--green)">' + purePct + '%</strong></span><br>' +
-          '<span title="Bookmakers implied probability from the win odds (1 / odds)">' +
-            'Market <strong style="color:var(--dim)">' + mktPct + '%</strong></span><br>' +
-          '<span title="Our model minus market in percentage points. Positive = we see value the market does not.">' +
-            'Edge <strong style="color:var(--gold)">' + edgePp + 'pp</strong></span>' +
+          'Our model <strong style="color:var(--green)">' + purePct + '%</strong><br>' +
+          'Market <strong style="color:var(--dim)">' + mktPct + '%</strong><br>' +
+          'Edge <strong style="color:var(--gold)">' + edgePp + 'pp</strong>' +
         '</div>' +
       '</div>' +
       '<div class="trust-block"><div class="trust-label">Tier Track Record</div><div class="trust-body" style="margin-top:4px">' + trackHtml + '</div></div>' +
@@ -744,7 +740,7 @@ function _buildRaceDetailPanel(race) {{
   if (formatHistRows) {{
     formatHistoryHTML = '<div class="detail-section">' +
       '<div class="section-label">SAME-FORMAT HISTORY ' +
-        '<span class="info-tip" title="Past runs by these horses at the SAME venue and SAME distance. Position colours: gold=win, green=top-3, grey=other.">ⓘ</span>' +
+        '<span class="info-tip" onclick="showInfoPop(event, &quot;Same-format history&quot;, &quot;Past runs by these horses at the SAME venue and SAME distance. Position colours: gold = win, green = top-3, grey = other. Use this to spot horses that consistently perform (or struggle) under todays exact conditions.&quot;)">ⓘ</span>' +
       '</div>' +
       '<table style="width:100%;border-collapse:collapse;font-size:.74rem">' +
         '<thead><tr style="border-bottom:1px solid var(--border);color:var(--dim)">' +
@@ -904,6 +900,46 @@ function renderAlertsRail() {{
 // Refresh banner + button (only active when served via scripts.serve)
 // ─────────────────────────────────────────────────────────────
 var EXPECTED_REFRESH_SECONDS = 60;
+
+function _closeInfoPop() {{
+  var existing = document.getElementById('info-pop');
+  if (existing) existing.remove();
+  document.removeEventListener('click', _outsideClickHandler, true);
+}}
+
+function _outsideClickHandler(e) {{
+  var pop = document.getElementById('info-pop');
+  if (!pop) return;
+  if (pop.contains(e.target) || (e.target.classList && e.target.classList.contains('info-tip'))) return;
+  _closeInfoPop();
+}}
+
+function showInfoPop(event, title, body) {{
+  event.stopPropagation();
+  _closeInfoPop();
+  var pop = document.createElement('div');
+  pop.id = 'info-pop';
+  pop.className = 'info-pop';
+  pop.innerHTML =
+    '<span class="info-pop-close" onclick="_closeInfoPop()">×</span>' +
+    '<div class="info-pop-title">' + esc(title) + '</div>' +
+    '<div>' + esc(body) + '</div>';
+  document.body.appendChild(pop);
+  // Position the popover near the icon, clamped to viewport
+  var rect = event.target.getBoundingClientRect();
+  var popRect = pop.getBoundingClientRect();
+  var left = Math.min(rect.left, window.innerWidth - popRect.width - 12);
+  var top = rect.bottom + 6;
+  if (top + popRect.height > window.innerHeight - 12) {{
+    top = Math.max(12, rect.top - popRect.height - 6);
+  }}
+  pop.style.left = Math.max(8, left) + 'px';
+  pop.style.top = top + 'px';
+  // Close on outside click (capture phase so it fires before re-renders)
+  setTimeout(function() {{
+    document.addEventListener('click', _outsideClickHandler, true);
+  }}, 0);
+}}
 
 function hardReload() {{
   // Force a fresh fetch by appending a timestamp query string. Works
