@@ -145,6 +145,7 @@ class HorseDatabase:
                 expected_return REAL,
                 bet_recommendation TEXT,
                 confidence TEXT,
+                conviction_tier TEXT DEFAULT NULL,
                 win_odds REAL,
                 model_version TEXT,
                 actual_position INTEGER DEFAULT 0,
@@ -158,6 +159,26 @@ class HorseDatabase:
                 UNIQUE(race_date, race_number, horse_name)
             )
         """)
+
+        # Add columns if upgrading prediction_log from older schema
+        try:
+            c.execute("ALTER TABLE prediction_log ADD COLUMN conviction_tier TEXT DEFAULT NULL")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+        # Race-level dividends (scraped from HKJC results pages)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS race_dividends (
+                race_date TEXT NOT NULL,
+                race_number INTEGER NOT NULL,
+                pool TEXT NOT NULL,
+                combination TEXT NOT NULL,
+                dividend REAL NOT NULL,
+                PRIMARY KEY (race_date, race_number, pool, combination)
+            )
+        """)
+        c.execute("CREATE INDEX IF NOT EXISTS idx_dividends_date ON race_dividends(race_date, race_number)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_dividends_pool ON race_dividends(pool)")
 
         # Indexes
         c.execute("CREATE INDEX IF NOT EXISTS idx_plog_date_filled ON prediction_log(race_date, results_filled)")
@@ -192,6 +213,10 @@ class HorseDatabase:
     def _ingest_race_day_inner(self, race_data: List[Dict]):
         c = self.conn.cursor()
         now = datetime.now().strftime('%Y-%m-%d %H:%M')
+
+        # Track the date range we are touching so the days_since_last_run
+        # backfill below can be scoped instead of scanning all 368K rows.
+        ingested_dates = sorted({r.get('date', '') for r in race_data if r.get('date')})
 
         for race in race_data:
             race_date = race.get('date', '')
@@ -235,10 +260,19 @@ class HorseDatabase:
                         is_winner=CASE WHEN excluded.finish_position > 0 THEN excluded.is_winner ELSE race_results.is_winner END,
                         is_top3=CASE WHEN excluded.finish_position > 0 THEN excluded.is_top3 ELSE race_results.is_top3 END,
                         win_odds=CASE WHEN excluded.win_odds > 0 THEN excluded.win_odds ELSE race_results.win_odds END,
-                        margin=CASE WHEN excluded.margin > 0 THEN excluded.margin ELSE race_results.margin END,
+                        margin=CASE WHEN excluded.finish_position > 0 THEN excluded.margin ELSE race_results.margin END,
                         horse_weight=CASE WHEN excluded.horse_weight > 0 THEN excluded.horse_weight ELSE race_results.horse_weight END,
                         last_6=CASE WHEN excluded.last_6 != '' THEN excluded.last_6 ELSE race_results.last_6 END,
                         age=CASE WHEN excluded.age != '' THEN excluded.age ELSE race_results.age END,
+                        rating=CASE WHEN excluded.rating > 0 THEN excluded.rating ELSE race_results.rating END,
+                        gear=CASE WHEN excluded.gear != '' THEN excluded.gear ELSE race_results.gear END,
+                        class_type=CASE WHEN excluded.class_type != '' THEN excluded.class_type ELSE race_results.class_type END,
+                        course=CASE WHEN excluded.course != '' THEN excluded.course ELSE race_results.course END,
+                        jockey=CASE WHEN excluded.jockey != '' THEN excluded.jockey ELSE race_results.jockey END,
+                        trainer=CASE WHEN excluded.trainer != '' THEN excluded.trainer ELSE race_results.trainer END,
+                        draw=CASE WHEN excluded.draw > 0 THEN excluded.draw ELSE race_results.draw END,
+                        weight=CASE WHEN excluded.weight != '' AND excluded.weight != '0' THEN excluded.weight ELSE race_results.weight END,
+                        horse_number=CASE WHEN excluded.horse_number > 0 THEN excluded.horse_number ELSE race_results.horse_number END,
                         running_position=CASE WHEN excluded.running_position != '' THEN excluded.running_position ELSE race_results.running_position END,
                         finish_time=CASE WHEN excluded.finish_time != '' THEN excluded.finish_time ELSE race_results.finish_time END,
                         days_since_last_run=CASE WHEN excluded.days_since_last_run > 0 THEN excluded.days_since_last_run ELSE race_results.days_since_last_run END,
@@ -254,10 +288,11 @@ class HorseDatabase:
                     days_since, rat_change,
                 ))
 
-                # Upsert horse master record — derive stats from race_results
-                # to avoid double-counting on re-ingestion
-                # Upsert horse master record — stats are recomputed by rebuild_stats()
-                # so no need for correlated subqueries here
+                # Upsert horse master record. total_starts/wins/places are
+                # recomputed from race_results below (see _refresh_horse_aggregates)
+                # so the values inserted here are placeholders that will be
+                # immediately overwritten — they only matter for the very
+                # first-ever insert of a brand-new horse before the refresh runs.
                 c.execute("""
                     INSERT INTO horses (name, trainer, rating, total_starts,
                         total_wins, total_places, last_seen_date)
@@ -271,36 +306,117 @@ class HorseDatabase:
                     is_winner, is_top3, race_date,
                 ))
 
-        # Backfill days_since_last_run from race_results where missing
-        # REPLACE converts YYYY/MM/DD to YYYY-MM-DD for julianday()
-        c.execute("""
-            UPDATE race_results SET days_since_last_run = (
-                SELECT CAST(julianday(REPLACE(race_results.race_date,'/','-'))
-                          - julianday(REPLACE(prev.race_date,'/','-')) AS INTEGER)
-                FROM race_results AS prev
-                WHERE prev.horse_name = race_results.horse_name
-                  AND prev.race_date < race_results.race_date
-                ORDER BY prev.race_date DESC LIMIT 1
-            )
-            WHERE (days_since_last_run IS NULL OR days_since_last_run = 0)
-              AND EXISTS (
-                SELECT 1 FROM race_results AS prev
-                WHERE prev.horse_name = race_results.horse_name
-                  AND prev.race_date < race_results.race_date
-              )
-        """)
+        # Ingest dividends if present on the race dict
+        for race in race_data:
+            race_date = race.get('date', '')
+            race_no = race.get('race_no', 0)
+            for d in race.get('dividends', []) or []:
+                pool = d.get('pool', '').strip()
+                combo = d.get('combination', '').strip()
+                div = d.get('dividend', 0)
+                if not pool or not combo or div <= 0:
+                    continue
+                c.execute("""
+                    INSERT INTO race_dividends (race_date, race_number, pool, combination, dividend)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(race_date, race_number, pool, combination)
+                    DO UPDATE SET dividend = excluded.dividend
+                """, (race_date, race_no, pool, combo, float(div)))
+
+        # Backfill days_since_last_run from race_results where missing.
+        # REPLACE converts YYYY/MM/DD to YYYY-MM-DD for julianday().
+        # Scope to the dates we just ingested — without this WHERE clause
+        # the correlated subquery scans all 368K rows on every ingestion
+        # (renavon-era DB) and holds a write lock for minutes.
+        if ingested_dates:
+            min_date = ingested_dates[0]
+            c.execute("""
+                UPDATE race_results SET days_since_last_run = (
+                    SELECT CAST(julianday(REPLACE(race_results.race_date,'/','-'))
+                              - julianday(REPLACE(prev.race_date,'/','-')) AS INTEGER)
+                    FROM race_results AS prev
+                    WHERE prev.horse_name = race_results.horse_name
+                      AND prev.race_date < race_results.race_date
+                    ORDER BY prev.race_date DESC LIMIT 1
+                )
+                WHERE race_date >= ?
+                  AND (days_since_last_run IS NULL OR days_since_last_run = 0)
+                  AND EXISTS (
+                    SELECT 1 FROM race_results AS prev
+                    WHERE prev.horse_name = race_results.horse_name
+                      AND prev.race_date < race_results.race_date
+                  )
+            """, (min_date,))
+
+        # Refresh horses.total_* aggregates from race_results so the
+        # master-table counters don't permanently lag (the columns existed
+        # but were only set on first insert before this fix). Scoped to the
+        # horses we just touched.
+        touched_horses = sorted({
+            entry.get('name', '')
+            for r in race_data
+            for entry in r.get('entries', [])
+            if entry.get('name')
+        })
+        if touched_horses:
+            placeholders = ','.join('?' for _ in touched_horses)
+            c.execute(f"""
+                UPDATE horses SET
+                    total_starts = COALESCE((SELECT COUNT(*) FROM race_results r
+                                             WHERE r.horse_name = horses.name), 0),
+                    total_wins   = COALESCE((SELECT SUM(is_winner) FROM race_results r
+                                             WHERE r.horse_name = horses.name), 0),
+                    total_places = COALESCE((SELECT SUM(is_top3) FROM race_results r
+                                             WHERE r.horse_name = horses.name), 0)
+                WHERE name IN ({placeholders})
+            """, touched_horses)
 
         # Single commit for atomicity — upserts + backfill are all-or-nothing
         self.conn.commit()
 
         logger.info(f"Ingested {len(race_data)} races into horse database")
 
-        # Rebuild stats from source of truth to avoid double-counting on re-ingestion
-        self.rebuild_stats()
+        # Rebuild stats from source of truth to avoid double-counting on
+        # re-ingestion. Wrap in its own try so a stats-table failure (e.g.
+        # missing renavon ranking tables) doesn't appear to roll back the
+        # already-committed ingestion above.
+        try:
+            self.rebuild_stats()
+        except Exception:
+            logger.error("rebuild_stats failed after ingest — race_results "
+                         "already committed; jockey/trainer stats may be stale",
+                         exc_info=True)
+            raise
 
     # ------------------------------------------------------------------
     # Query methods — used by analyzer at prediction time
     # ------------------------------------------------------------------
+
+    def get_quinella_dividend(self, race_date: str, race_number: int,
+                              horse_a: int, horse_b: int) -> Optional[float]:
+        """Look up actual HKJC quinella dividend for an unordered pair.
+
+        Returns dividend per $1 stake, or None if not in DB (date not backfilled
+        or pair didn't win). Caller can fall back to Harville estimate.
+        """
+        lo, hi = sorted([int(horse_a), int(horse_b)])
+        combo = f"{lo},{hi}"
+        row = self.conn.execute(
+            "SELECT dividend FROM race_dividends "
+            "WHERE race_date = ? AND race_number = ? AND pool = 'QUINELLA' AND combination = ?",
+            (race_date, race_number, combo)
+        ).fetchone()
+        return float(row['dividend']) if row else None
+
+    def get_race_dividends(self, race_date: str, race_number: int) -> List[Dict]:
+        """All dividend pools for a race (WIN, PLACE, QIN, QPL, TRIO, etc.)."""
+        c = self.conn.cursor()
+        c.execute(
+            "SELECT pool, combination, dividend FROM race_dividends "
+            "WHERE race_date = ? AND race_number = ? ORDER BY pool, combination",
+            (race_date, race_number)
+        )
+        return [dict(r) for r in c.fetchall()]
 
     def get_horse_record(self, horse_name: str) -> Optional[Dict]:
         """Get horse's complete racing record (computed from race_results)."""
@@ -361,6 +477,52 @@ class HorseDatabase:
         """, (horse_name, venue_norm, distance, tolerance))
         row = c.fetchone()
         return dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
+
+    def get_horse_format_history(self, horse_name: str, venue: str,
+                                  distance: int, going: str = '',
+                                  before_date: str = '',
+                                  limit: int = 6) -> list:
+        """v6.6 dashboard: per-horse history at the SAME race format.
+
+        "Same format" = same venue + same distance (exact). Optionally
+        filter by going if `going` is provided (loose: returns all when
+        empty). Returns the most-recent `limit` runs with finish position,
+        odds, margin, jockey, race_date — used by the per-horse detail
+        panel so users can see "this horse's last 5 runs at Sha Tin 1200m
+        on Good".
+        """
+        c = self.conn.cursor()
+        venue_norm = self._normalize_venue(venue)
+        if going and before_date:
+            c.execute("""
+                SELECT race_date, venue, distance, going, class_type,
+                       finish_position, win_odds, margin, jockey, draw
+                FROM race_results
+                WHERE horse_name = ?
+                  AND venue = ? AND distance = ? AND going = ?
+                  AND race_date < ?
+                ORDER BY race_date DESC LIMIT ?
+            """, (horse_name, venue_norm, int(distance), going, before_date, limit))
+        elif before_date:
+            c.execute("""
+                SELECT race_date, venue, distance, going, class_type,
+                       finish_position, win_odds, margin, jockey, draw
+                FROM race_results
+                WHERE horse_name = ?
+                  AND venue = ? AND distance = ?
+                  AND race_date < ?
+                ORDER BY race_date DESC LIMIT ?
+            """, (horse_name, venue_norm, int(distance), before_date, limit))
+        else:
+            c.execute("""
+                SELECT race_date, venue, distance, going, class_type,
+                       finish_position, win_odds, margin, jockey, draw
+                FROM race_results
+                WHERE horse_name = ?
+                  AND venue = ? AND distance = ?
+                ORDER BY race_date DESC LIMIT ?
+            """, (horse_name, venue_norm, int(distance), limit))
+        return [dict(r) for r in c.fetchall()]
 
     def get_horse_cd_history(self, horse_name: str, venue: str,
                               distance: int, tolerance: int = 100) -> list:
@@ -783,52 +945,141 @@ class HorseDatabase:
             return f"{now.year - 1}-{str(now.year)[-2:]}"
 
     def rebuild_stats(self):
-        """Rebuild jockey_stats and trainer_stats from race_results.
+        """Rebuild jockey_stats and trainer_stats.
 
-        Fixes drift caused by re-ingestion double-counting.  Safe to call
-        at any time — it replaces the stats tables entirely.
+        Prefers the latest snapshot from `renavon_jockey_rankings` /
+        `renavon_trainer_rankings` (authoritative full-season HKJC data
+        including visiting riders). Falls back to computing from
+        `race_results` if Renavon tables aren't populated.
+
+        Safe to call at any time — replaces both tables entirely.
         """
         c = self.conn.cursor()
         season = self._current_season()
 
-        # Rebuild jockey_stats
+        # Source preference: Renavon if present, else local race_results
+        renavon_present = c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name='renavon_jockey_rankings'"
+        ).fetchone() is not None
+
+        if renavon_present:
+            # JOCKEYS — latest snapshot per jockey, current-season figures
+            c.execute("DELETE FROM jockey_stats")
+            c.execute("""
+                INSERT INTO jockey_stats (name, season, rides, wins, places, win_rate, place_rate, last_updated)
+                SELECT
+                    jockey_name_en, season_year,
+                    current_season_starts, current_season_wins, current_season_places,
+                    current_season_win_rate,
+                    CAST(current_season_places AS REAL) / NULLIF(current_season_starts, 0),
+                    snapshot_date
+                FROM renavon_jockey_rankings r1
+                WHERE snapshot_date = (
+                    SELECT MAX(snapshot_date) FROM renavon_jockey_rankings r2
+                    WHERE r2.jockey_code = r1.jockey_code
+                )
+                AND current_season_starts > 0
+            """)
+
+            # TRAINERS
+            c.execute("DELETE FROM trainer_stats")
+            c.execute("""
+                INSERT INTO trainer_stats (name, season, runners, wins, places, win_rate, place_rate, last_updated)
+                SELECT
+                    trainer_name_en, season_year,
+                    current_season_starts, current_season_wins, current_season_places,
+                    current_season_win_rate,
+                    CAST(current_season_places AS REAL) / NULLIF(current_season_starts, 0),
+                    snapshot_date
+                FROM renavon_trainer_rankings r1
+                WHERE snapshot_date = (
+                    SELECT MAX(snapshot_date) FROM renavon_trainer_rankings r2
+                    WHERE r2.trainer_code = r1.trainer_code
+                )
+                AND current_season_starts > 0
+            """)
+            self.conn.commit()
+            logger.info("Rebuilt jockey_stats and trainer_stats from Renavon rankings")
+            return
+
+        # Fallback: local-only computation from race_results
         c.execute("DELETE FROM jockey_stats")
         c.execute("""
             INSERT INTO jockey_stats (name, season, rides, wins, places, win_rate, place_rate, last_updated)
-            SELECT
-                jockey,
-                ?,
-                COUNT(*) as rides,
-                SUM(is_winner) as wins,
-                SUM(is_top3) as places,
-                CAST(SUM(is_winner) AS REAL) / COUNT(*) as win_rate,
-                CAST(SUM(is_top3) AS REAL) / COUNT(*) as place_rate,
-                MAX(race_date) as last_updated
-            FROM race_results
-            WHERE jockey != ''
-            GROUP BY jockey
+            SELECT jockey, ?, COUNT(*), SUM(is_winner), SUM(is_top3),
+                   CAST(SUM(is_winner) AS REAL) / COUNT(*),
+                   CAST(SUM(is_top3) AS REAL) / COUNT(*),
+                   MAX(race_date)
+            FROM race_results WHERE jockey != '' GROUP BY jockey
         """, (season,))
 
-        # Rebuild trainer_stats
         c.execute("DELETE FROM trainer_stats")
         c.execute("""
             INSERT INTO trainer_stats (name, season, runners, wins, places, win_rate, place_rate, last_updated)
-            SELECT
-                trainer,
-                ?,
-                COUNT(*) as runners,
-                SUM(is_winner) as wins,
-                SUM(is_top3) as places,
-                CAST(SUM(is_winner) AS REAL) / COUNT(*) as win_rate,
-                CAST(SUM(is_top3) AS REAL) / COUNT(*) as place_rate,
-                MAX(race_date) as last_updated
-            FROM race_results
-            WHERE trainer != ''
-            GROUP BY trainer
+            SELECT trainer, ?, COUNT(*), SUM(is_winner), SUM(is_top3),
+                   CAST(SUM(is_winner) AS REAL) / COUNT(*),
+                   CAST(SUM(is_top3) AS REAL) / COUNT(*),
+                   MAX(race_date)
+            FROM race_results WHERE trainer != '' GROUP BY trainer
         """, (season,))
 
         self.conn.commit()
-        logger.info("Rebuilt jockey_stats and trainer_stats from race_results")
+        logger.info("Rebuilt jockey_stats and trainer_stats from race_results (local fallback)")
+
+    # ------------------------------------------------------------------
+    # Card-field backfill (rating, last_6, gear, age, rating_change)
+    # ------------------------------------------------------------------
+
+    def backfill_card_fields(self, race_date: str, race_data: list) -> int:
+        """Fill rating / last_6 / gear / age / rating_change into race_results
+        from a saved race_data prediction JSON.
+
+        Card-only fields aren't on HKJC results pages, so the scrape pipeline
+        leaves them sparse. The prediction JSON (results/race_data_*.json)
+        captures them at race-card scrape time. This walks the saved races
+        and updates matching race_results rows by (race_date, race_number,
+        horse_name), only writing when the new value is non-empty AND the
+        existing row's value is missing/zero (preserves manually corrected data).
+
+        Returns the count of rows actually updated.
+        """
+        c = self.conn.cursor()
+        n_updated = 0
+        for race in race_data:
+            race_no = race.get('race_number') or race.get('race_no') or 0
+            for h in race.get('horses', []):
+                horse_name = h.get('name', '')
+                if not horse_name:
+                    continue
+                rating = h.get('rating') or 0
+                last_6 = h.get('last_6') or ''
+                gear = h.get('gear') or ''
+                age = str(h.get('age') or '') or ''
+                rating_change = h.get('rating_change') or 0
+
+                # Only update fields where new value is meaningful AND
+                # existing row's value is missing — preserves manual edits.
+                c.execute("""
+                    UPDATE race_results SET
+                        rating = CASE WHEN ? > 0 AND (rating IS NULL OR rating = 0) THEN ? ELSE rating END,
+                        last_6 = CASE WHEN ? != '' AND (last_6 IS NULL OR last_6 = '') THEN ? ELSE last_6 END,
+                        gear = CASE WHEN ? != '' AND (gear IS NULL OR gear = '') THEN ? ELSE gear END,
+                        age = CASE WHEN ? != '' AND (age IS NULL OR age = '') THEN ? ELSE age END,
+                        rating_change = CASE WHEN ? != 0 AND (rating_change IS NULL OR rating_change = 0) THEN ? ELSE rating_change END
+                    WHERE race_date = ? AND race_number = ? AND horse_name = ?
+                """, (
+                    rating, rating,
+                    last_6, last_6,
+                    gear, gear,
+                    age, age,
+                    rating_change, rating_change,
+                    race_date, race_no, horse_name,
+                ))
+                if c.rowcount > 0:
+                    n_updated += c.rowcount
+        self.conn.commit()
+        return n_updated
 
     # ------------------------------------------------------------------
     # Prediction tracking
@@ -859,8 +1110,8 @@ class HorseDatabase:
                         field_size, horse_name, horse_number, predicted_rank,
                         rule_score, ml_prob, calibrated_prob, expected_return,
                         bet_recommendation, confidence, win_odds, model_version,
-                        predicted_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        conviction_tier, predicted_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(race_date, race_number, horse_name)
                     DO UPDATE SET
                         predicted_rank=excluded.predicted_rank,
@@ -872,6 +1123,7 @@ class HorseDatabase:
                         confidence=excluded.confidence,
                         win_odds=excluded.win_odds,
                         model_version=excluded.model_version,
+                        conviction_tier=excluded.conviction_tier,
                         predicted_at=excluded.predicted_at
                 """, (
                     race_date, race_no, venue, distance, class_type, going,
@@ -880,7 +1132,9 @@ class HorseDatabase:
                     h.get('ml_prob', 0), h.get('calibrated_prob', 0),
                     h.get('expected_return', 0), h.get('bet_recommendation', 'SKIP'),
                     h.get('confidence', ''), h.get('win_odds', 0),
-                    model_version, now,
+                    model_version,
+                    race.get('conviction_tier'),  # per-race, same for every horse
+                    now,
                 ))
 
         self.conn.commit()

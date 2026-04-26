@@ -193,23 +193,34 @@ def find_value_exotics(model_probs: List[float], market_probs: List[float],
         ('trifecta', 20),
         ('first4', 10),
     ]:
+        # Market lookup must cover EVERY model combo we want to flag as
+        # a value bet, not just the market's own top-N. Otherwise a
+        # model-favored long-shot pair gets market_prob=0 and is silently
+        # skipped — under-reporting genuine edges. For quinella the full
+        # combo space is C(N,2) ≤ 105 for typical fields; for exacta
+        # N*(N-1) ≤ 210. Safe to enumerate exhaustively.
+        n_horses = len(numbers)
         if bet_type == 'quinella':
             model_combos = price_quinellas(model_probs, numbers, top_n=top_n,
                                            place_probs=place_probs,
                                            draws=draws, styles=styles)
             # Apply same boosts to market for fair edge comparison
-            market_combos = price_quinellas(market_probs, numbers, top_n=top_n * 2,
+            full_quinella = (n_horses * (n_horses - 1)) // 2
+            market_combos = price_quinellas(market_probs, numbers, top_n=full_quinella,
                                             place_probs=place_probs,
                                             draws=draws, styles=styles)
         elif bet_type == 'exacta':
             model_combos = price_exactas(model_probs, numbers, top_n=top_n)
-            market_combos = price_exactas(market_probs, numbers, top_n=top_n * 2)
+            full_exacta = n_horses * (n_horses - 1)
+            market_combos = price_exactas(market_probs, numbers, top_n=full_exacta)
         elif bet_type == 'trifecta':
+            # Trifecta combo space (N*(N-1)*(N-2)) gets large; keep a 5x cap
+            # so we cover any realistic edge zone without exhaustive pricing.
             model_combos = price_trifectas(model_probs, numbers, top_n=top_n)
-            market_combos = price_trifectas(market_probs, numbers, top_n=top_n * 2)
+            market_combos = price_trifectas(market_probs, numbers, top_n=top_n * 5)
         else:
             model_combos = price_first4s(model_probs, numbers, top_n=top_n)
-            market_combos = price_first4s(market_probs, numbers, top_n=top_n * 2)
+            market_combos = price_first4s(market_probs, numbers, top_n=top_n * 5)
 
         # Build market lookup
         market_lookup = {}
@@ -228,6 +239,14 @@ def find_value_exotics(model_probs: List[float], market_probs: List[float],
                     combo['market_odds'] = 1.0 / market_prob
                     combo['edge'] = edge
                     value_bets.append(combo)
+            elif bet_type in ('trifecta', 'first4'):
+                # Combo not in expanded market top-N — only possible for
+                # trifecta/first4 where exhaustive pricing is too expensive.
+                # Flag rather than drop so callers can see we lacked market data.
+                combo['market_prob'] = None
+                combo['no_market_data'] = True
+                # Don't include in value_bets — without market_prob we can't
+                # measure edge, but the flag preserves observability via logs.
 
         value_bets.sort(key=lambda x: x['edge'], reverse=True)
         result[bet_type] = value_bets[:5]

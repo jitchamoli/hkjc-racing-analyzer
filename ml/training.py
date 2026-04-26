@@ -10,7 +10,7 @@ Three sources in priority order:
 import re
 import sqlite3
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
 from pathlib import Path
 
@@ -18,17 +18,29 @@ import numpy as np
 
 import config
 from ml.feature_schema import FEATURE_SCHEMA, NUM_FEATURES
-from ml.features import FeatureEngineering
-from analytics.speed_figures import (
-    compute_par_times, adjusted_speed_figure,
-    normalize_speed_figure, normalize_consistency,
-)
+from ml.features import FeatureEngineering, extract_class_rank
 
 logger = logging.getLogger(__name__)
 
 
-def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
+def _date_30d_before(race_date: str) -> str:
+    """Return YYYY/MM/DD 30 days before race_date. Used by Feature 19."""
+    try:
+        dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
+        return (dt - timedelta(days=30)).strftime('%Y/%m/%d')
+    except (ValueError, TypeError):
+        return '0000/00/00'
+
+
+def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
     """Build training data from real race results in horse_database.
+
+    Args:
+        years_back: if set, only include races within this many years of the
+            most-recent race. Older races stay in race_results for inference-
+            time history lookups but are excluded from training. Empirically
+            (2026-04-25) training on 49 years gave ROI +927% vs +1359% for
+            the recent-only window — older eras dilute current-market signal.
 
     Returns (features, win_labels, sample_weights, place_labels) or (None, None, None, None).
     """
@@ -41,12 +53,27 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
         conn = sqlite3.connect(str(db_path))
         conn.row_factory = sqlite3.Row
 
-        rows = conn.execute("""
+        # Optional recency cutoff
+        cutoff_clause = ""
+        cutoff_args: tuple = ()
+        if years_back:
+            from datetime import datetime, timedelta
+            max_date = conn.execute("SELECT MAX(race_date) FROM race_results").fetchone()[0]
+            if max_date:
+                # Dates are YYYY/MM/DD; parse, subtract years, format back
+                mx = datetime.strptime(max_date.replace('/', '-'), '%Y-%m-%d')
+                cutoff_dt = mx - timedelta(days=365 * years_back)
+                cutoff_str = cutoff_dt.strftime('%Y/%m/%d')
+                cutoff_clause = " AND r.race_date >= ?"
+                cutoff_args = (cutoff_str,)
+                logger.info(f"Training data recency cutoff: race_date >= {cutoff_str} ({years_back}y back from {max_date})")
+
+        rows = conn.execute(f"""
             SELECT r.*
             FROM race_results r
-            WHERE r.finish_position > 0
+            WHERE r.finish_position > 0{cutoff_clause}
             ORDER BY r.race_date, r.race_number
-        """).fetchall()
+        """, cutoff_args).fetchall()
 
         if len(rows) < config.MIN_REAL_SAMPLES:
             logger.info(f"Only {len(rows)} results in DB — not enough for real training")
@@ -115,7 +142,8 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 best = cum_best
             return best
 
-        # Precompute all finish times per race (for field-relative speed)
+        # field_rel_speed was precomputed here (race_finish_times lookup).
+        # Dropped Wave 2c: r=0.718 with recent_form, r=0.710 with last_start_margin.
         def _parse_secs(ft_str):
             try:
                 parts = str(ft_str).split(':')
@@ -124,32 +152,8 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             except (ValueError, IndexError):
                 return None
 
-        race_finish_times = {}  # race_key → list of seconds
-        for row in rows:
-            r = dict(row)
-            rk = f"{r.get('race_date', '')}-{r.get('race_number', 0)}"
-            ft = r.get('finish_time', '') or ''
-            if ft and ':' in ft:
-                s = _parse_secs(ft)
-                if s is not None:
-                    race_finish_times.setdefault(rk, []).append(s)
-
-        # Compute recency weights: newest race = 1.0, oldest decays to 0.3
-        all_dates = sorted(set(dict(row).get('race_date', '') for row in rows))
-        if len(all_dates) > 1:
-            date_rank = {d: i for i, d in enumerate(all_dates)}
-            max_rank = len(all_dates) - 1
-        else:
-            date_rank = {all_dates[0]: 0} if all_dates else {}
-            max_rank = 1
-
-        # Precompute par times per date bucket to prevent leakage.
-        # Group training dates into monthly buckets — each bucket uses only data before that month.
-        par_times_by_month = {}
-        for d in all_dates:
-            month_key = d[:7]  # 'YYYY/MM'
-            if month_key not in par_times_by_month:
-                par_times_by_month[month_key] = compute_par_times(conn, before_date=d)
+        # v6.4: per-row exponential recency weights computed post-loop with np.exp.
+        # par_times precompute removed v6.4 — only adjusted_speed used it.
 
         # Build per-horse chronological race history for PRIOR-only lookups
         horse_history = {}
@@ -238,45 +242,19 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             t_wins = sum(w for _, w in trainer_prior)
             feat_trainer = min(0.4, (t_wins + 0.08 * 15) / (t_rides + 15))
 
-            # Feature 6: field size
-            feat_field_size = field_size / 14.0
+            # Feature 6: field size — clipped to [0,1]; legacy data has stray
+            # rows with field_size > 14 (oversize fields pre-2000s).
+            feat_field_size = min(1.0, field_size / 14.0)
 
-            # Feature 7: field-relative draw
-            feat_field_draw = draw / max(1, field_size) if draw > 0 else 0.5
+            # Feature 7: field-relative draw — clipped to [0,1]; old DB rows
+            # had draw values up to 28 from oversize legacy fields, which
+            # pushed feat_field_draw to 15.0 in training (matches F-16 fix
+            # already applied at inference in features.py).
+            feat_field_draw = min(1.0, draw / max(1, field_size)) if draw > 0 else 0.5
 
-            # Feature 8: prior pace
-            pace_vals = []
-            for p in prior[-5:]:
-                rp = p.get('running_position', '') or ''
-                fs = field_sizes.get(f"{p.get('race_date','')}-{p.get('race_number',0)}", 12)
-                if rp:
-                    if ' ' in rp:
-                        positions = [int(x) for x in rp.split() if x.isdigit()]
-                    else:
-                        positions = [int(c) for c in rp if c.isdigit()]
-                    if positions and fs > 1:
-                        early = min(positions[0], fs)
-                        pace_vals.append(1.0 - (early - 1) / max(1, fs - 1))
-            feat_pace = sum(pace_vals) / len(pace_vals) if pace_vals else 0.5
+            # prior_pace, adjusted_speed dropped v6.4 — see feature_schema.py.
 
-            # Feature 9: adjusted speed (Beyer-style par-adjusted, weight-corrected)
-            adj_speed_vals = []
-            race_month = race_date[:7]  # 'YYYY/MM'
-            row_par_times = par_times_by_month.get(race_month, {})
-            for p in prior[-5:]:
-                ft = p.get('finish_time', '') or ''
-                d = p.get('distance', 0) or 0
-                g = p.get('going', '') or ''
-                ct = p.get('class_type', '') or ''
-                w = p.get('weight', 0) or 0
-                fig = adjusted_speed_figure(ft, d, g, ct, w, row_par_times)
-                if fig is not None:
-                    adj_speed_vals.append(fig)
-            feat_adj_speed = normalize_speed_figure(
-                sum(adj_speed_vals) / len(adj_speed_vals)
-            ) if adj_speed_vals else 0.5
-
-            # Feature 10: C&D form (winning trip replication boost)
+            # Feature 8: C&D form (winning trip replication boost)
             prior_at_dist = [p for p in prior if p.get('distance') == distance]
             if prior_at_dist:
                 cd_wins = sum(1 for p in prior_at_dist if p.get('is_winner', 0))
@@ -299,20 +277,35 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             else:
                 feat_cd = 0.5
 
-            # Feature 11: class level (INVERTED: Class 1=0.8, Class 5=0.0)
+            # Feature 9: class level (INVERTED: Group 1/2=1.0, Class 1=0.8, Class 5=0.0)
+            # Uses extract_class_rank to handle G1/G2/G3/GRIFFIN/4YO correctly.
             class_type = r.get('class_type', '') or ''
-            cm = re.search(r'(\d)', class_type)
-            class_rank = int(cm.group(1)) if cm else 3
+            class_rank_or_none = extract_class_rank(class_type)
+            class_rank = class_rank_or_none if class_rank_or_none is not None else 3
             feat_class = max(0.0, min(1.0, 1.0 - class_rank / 5.0))
 
-            # Feature 12: freshness
+            # Feature 10: freshness
+            # 87.7% of race_results rows have days_since_last_run = 0/null (it's
+            # only populated for races where predictions were generated). Falling
+            # back to 0.5 there made freshness a near-constant feature (0.0
+            # importance in v6.3). Compute from prior race date when the DB
+            # column is missing — same fallback as features.py at inference.
             dslr = r.get('days_since_last_run', 0) or 0
+            if not dslr and prior:
+                last_date = prior[-1].get('race_date', '') or ''
+                if last_date and race_date:
+                    try:
+                        last_dt = datetime.strptime(last_date.replace('/', '-'), '%Y-%m-%d')
+                        curr_dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
+                        dslr = (curr_dt - last_dt).days
+                    except Exception:
+                        dslr = 0
             if dslr > 0:
                 feat_freshness = max(0.0, min(1.0, 1.0 - abs(dslr - 21) / 60))
             else:
                 feat_freshness = 0.5
 
-            # Feature 13: going performance (merged — win rate + place rate on this going)
+            # Feature 11: going performance (merged — win rate + place rate on this going)
             going_perf = 0.5
             if prior and going:
                 prior_same_going = [p for p in prior if p.get('going', '') == going]
@@ -322,7 +315,7 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                     n = len(prior_same_going)
                     going_perf = min(1.0, (g_wins / n) * 0.6 * 5 + (g_top3 / n) * 0.4 * 2)
 
-            # Feature 14: weight vs field (carried weight relative to field median)
+            # Feature 12: weight vs field (carried weight relative to field median)
             weight_vs_field = 0.5
             weight_val = r.get('weight', 0) or 0
             try:
@@ -337,7 +330,7 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 else:
                     weight_vs_field = max(0.0, min(1.0, 1.0 - (weight_val - 108) / 27.0))
 
-            # Feature 15: jockey-horse cooperation
+            # Feature 13: jockey-horse cooperation
             jockey_name = r.get('jockey', '') or ''
             if prior and jockey_name:
                 prior_same_jh = [p for p in prior if p.get('jockey', '') == jockey_name]
@@ -350,47 +343,9 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
             else:
                 feat_jh_coop = 0.5
 
-            # Feature 16: distance PB ratio (uses precomputed track records)
-            feat_dist_pb = 0.5
-            prior_dist_times = [p for p in prior
-                                if p.get('distance') == distance
-                                and p.get('finish_time', '')
-                                and ':' in str(p.get('finish_time', ''))]
-            if prior_dist_times:
-                def _pt(t):
-                    try:
-                        parts = str(t).split(':')
-                        return float(parts[0]) * 60 + float(parts[1])
-                    except (ValueError, IndexError):
-                        return 999.0
-                horse_times = [_pt(p['finish_time']) for p in prior_dist_times]
-                valid_ht = [t for t in horse_times if t < 999]
-                if valid_ht:
-                    horse_pb_t = min(valid_ht)
-                    best_tr = _get_track_record(distance, race_date)
-                    if best_tr is not None and horse_pb_t < 999:
-                        feat_dist_pb = min(1.0, best_tr / horse_pb_t)
+            # distance_pb_ratio dropped v6.4 — see feature_schema.py.
 
-            # Feature 17: field-relative speed (avg percentile within prior race fields)
-            feat_frs = 0.5
-            if prior:
-                percentiles = []
-                for p in prior[-5:]:
-                    p_ft = p.get('finish_time', '') or ''
-                    if not (p_ft and ':' in p_ft):
-                        continue
-                    horse_s = _parse_secs(p_ft)
-                    if horse_s is None:
-                        continue
-                    p_rk = f"{p.get('race_date','')}-{p.get('race_number',0)}"
-                    all_secs = race_finish_times.get(p_rk, [])
-                    if len(all_secs) >= 3:
-                        rank = sum(1 for s in all_secs if s > horse_s)
-                        percentiles.append(rank / (len(all_secs) - 1) if len(all_secs) > 1 else 0.5)
-                if percentiles:
-                    feat_frs = sum(percentiles) / len(percentiles)
-
-            # Feature 18: last start margin (NEW)
+            # Feature 14: last start margin (top importance ~16% in v6.4)
             feat_last_margin = 0.5
             if prior:
                 last_race = prior[-1]
@@ -400,39 +355,30 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                 elif m > 0:
                     feat_last_margin = max(0.1, min(0.9, 1.0 - m / 12.0))
 
-            # Feature 19: class change (drop = positive signal)
+            # Feature 15: class change — ternary {dropping=1.0, same=0.5, rising=0.0}
+            # Uses extract_class_rank — Group races (G1/G2/G3) properly placed
+            # above the digit ladder, GRIFFIN/MAIDEN/4YO handled. M15: when
+            # EITHER side is unknown (current race or prior had unparseable
+            # class_type), fall back to 0.5 — don't compare against the
+            # default-3 placeholder, which would silently encode wrong
+            # direction for Group races (G1 → unparseable → falls back to
+            # rank=3 → "dropping" vs Class 1).
             feat_class_change = 0.5
-            if prior:
+            if prior and class_rank_or_none is not None:
                 last_class_str = prior[-1].get('class_type', '') or ''
-                last_cm = re.search(r'(\d)', last_class_str)
-                last_class_rank = int(last_cm.group(1)) if last_cm else 3
-                diff = class_rank - last_class_rank  # positive = dropped in class
-                feat_class_change = max(0.0, min(1.0, 0.5 + diff * 0.125))
-
-            # Feature 20: days since last win (recency of winning)
-            feat_days_last_win = 0.5
-            if prior:
-                for p in reversed(prior):
-                    if p.get('is_winner', 0):
-                        win_date = p.get('race_date', '')
-                        if win_date and race_date:
-                            try:
-                                w_dt = datetime.strptime(win_date.replace('/', '-'), '%Y-%m-%d')
-                                r_dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
-                                days = (r_dt - w_dt).days
-                                feat_days_last_win = max(0.1, min(0.95, 1.0 - days / 350.0))
-                            except Exception:
-                                pass
-                        break
+                last_class_rank = extract_class_rank(last_class_str)
+                if last_class_rank is None:
+                    feat_class_change = 0.5
+                elif last_class_rank > class_rank_or_none:
+                    feat_class_change = 0.0  # rising (harder race) — negative signal
+                elif last_class_rank < class_rank_or_none:
+                    feat_class_change = 1.0  # dropping (easier race) — positive signal
                 else:
-                    feat_days_last_win = 0.15
+                    feat_class_change = 0.5  # same class
 
-            # Feature 21: jockey × trainer combo (interaction, ×2.5 avoids saturation)
-            feat_jt_combo = 0.5
-            if feat_jockey > 0 and feat_trainer > 0:
-                feat_jt_combo = min(1.0, (feat_jockey * feat_trainer) ** 0.5 * 2.5)
+            # days_since_last_win (was Feature 19) dropped Wave 2c — see feature_schema.py.
 
-            # Feature 22: horse body weight change (fitness signal)
+            # Feature 16: horse body weight change (fitness signal)
             feat_hw_change = 0.5
             hw_current = r.get('horse_weight', 0) or 0
             if prior and hw_current > 0:
@@ -443,28 +389,71 @@ def build_training_data_from_db() -> Tuple[Optional[np.ndarray], Optional[np.nda
                         pct_change = (hw_current - avg_prior_hw) / avg_prior_hw
                         feat_hw_change = max(0.0, min(1.0, 0.5 - pct_change * 10))
 
-            # Feature 23: speed consistency (low std = reliable horse)
-            feat_speed_con = 0.5
-            if len(adj_speed_vals) >= 3:
-                feat_speed_con = normalize_consistency(float(np.std(adj_speed_vals)))
+            # speed_consistency dropped v6.4.
+
+            # Feature 17 (v6.5): horse age. 3yo→1.0, 9yo+→0.0. Default 0.5.
+            age_raw = r.get('age', 0) or 0
+            try:
+                age_int = int(str(age_raw).strip()[:2]) if age_raw else 0
+            except (ValueError, TypeError):
+                age_int = 0
+            if age_int and 2 <= age_int <= 15:
+                feat_age = max(0.0, min(1.0, (9 - age_int) / 6.0))
+            else:
+                feat_age = 0.5
+
+            # Feature 18 (v6.5): rating change from previous race. +10pts→1.0,
+            # 0→0.5, -10→0.0. Default 0.5 when missing.
+            rc_raw = r.get('rating_change', 0) or 0
+            try:
+                rc_int = int(rc_raw)
+            except (ValueError, TypeError):
+                rc_int = 0
+            feat_rating_change = max(0.0, min(1.0, 0.5 + rc_int / 20.0))
+
+            # Feature 19 (v6.5): jockey 30-day form (Bayesian-smoothed).
+            # Filter jockey_history (already chronological per name) to the
+            # 30 days BEFORE race_date. Default 0.08 (HK league avg) when
+            # the jockey has no rides in that window.
+            j_30d = [(d, w) for d, w in jockey_history.get(jockey_name, [])
+                     if d < race_date and d >= _date_30d_before(race_date)]
+            j30_rides = len(j_30d)
+            j30_wins = sum(w for _, w in j_30d)
+            feat_jockey_30d = min(0.6, (j30_wins + 0.08 * 15) / (j30_rides + 15))
 
             features = [
                 feat_form_proxy, feat_form, feat_draw,
                 feat_jockey, feat_trainer, feat_field_size,
-                feat_field_draw, feat_pace, feat_adj_speed, feat_cd,
+                feat_field_draw, feat_cd,
                 feat_class, feat_freshness, going_perf,
-                weight_vs_field, feat_jh_coop, feat_dist_pb, feat_frs,
-                feat_last_margin, feat_class_change, feat_days_last_win,
-                feat_jt_combo, feat_hw_change,
-                feat_speed_con,
+                weight_vs_field, feat_jh_coop,
+                feat_last_margin, feat_class_change,
+                feat_hw_change,
+                feat_age, feat_rating_change, feat_jockey_30d,
             ]
             assert len(features) == NUM_FEATURES, f"Expected {NUM_FEATURES} features, got {len(features)}"
             X.append(features)
             y.append(1 if r.get('is_winner', 0) else 0)
             y_place.append(1 if r.get('is_top3', 0) else 0)
-            # Recency weighting: newest races = 1.0, oldest decay to 0.3
-            rank = date_rank.get(race_date, 0)
-            weights.append(0.3 + 0.7 * (rank / max(1, max_rank)))
+            weights.append(0.0)  # placeholder; overwritten below
+
+        # Recency weights — exponential decay so recent races dominate.
+        # Diagnostic 2026-04-25: linear 0.3→1.0 over 5y window made the most
+        # recent quarter only ~14% of effective training weight. With 94% horse
+        # turnover and 50% jockey turnover since 2021, older rows describe a
+        # different field than the one we're predicting on. Switched to
+        # exponential half-life of n/3 so the newest third weighs ~2× the
+        # oldest third (was 1.5× under linear 0.3→1.0).
+        n = len(weights)
+        if n > 1:
+            # Exponential: w(i) = 0.25 + 0.75 * exp((i - (n-1)) / (n/3))
+            # Newest row (i=n-1) weight = 1.0; oldest (i=0) ≈ 0.29 (≈ exp(-3))
+            idx = np.arange(n, dtype=np.float32)
+            decay = np.exp((idx - (n - 1)) / (n / 3.0))
+            row_weights = (0.25 + 0.75 * decay).astype(np.float32)
+        else:
+            row_weights = np.ones(n, dtype=np.float32)
+        weights = list(row_weights)
 
         conn.close()
 
@@ -507,43 +496,30 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         field_size = np.random.choice([6, 8, 10, 12, 14], p=[0.05, 0.15, 0.25, 0.35, 0.20])
         feat_field_size = field_size / 14.0
         feat_field_draw = draw_adv * np.random.uniform(0.3, 1.0)
-        prior_pace = np.random.uniform(0.3, 0.9)
-        prior_speed = np.random.uniform(0.2, 0.9)
         cd_form = np.random.uniform(0.2, 1.0)
-        odds_implied = np.random.uniform(0.03, 0.50)
         class_level = np.random.choice([1, 2, 3, 4, 5], p=[0.05, 0.15, 0.40, 0.25, 0.15]) / 5.0
         dslr = np.random.choice([7, 14, 21, 28, 45, 90], p=[0.10, 0.25, 0.30, 0.20, 0.10, 0.05])
         freshness = max(0.0, min(1.0, 1.0 - abs(dslr - 21) / 60))
-        going_perf = np.random.uniform(0.2, 0.8)  # merged going performance
-        weight_vs_field = np.random.normal(0.5, 0.15)  # relative to field median
+        going_perf = np.random.uniform(0.2, 0.8)
+        weight_vs_field = np.random.normal(0.5, 0.15)
         weight_vs_field = np.clip(weight_vs_field, 0.0, 1.0)
         jockey_horse_coop = np.random.uniform(0.0, 0.5)
-        distance_pb_ratio = np.random.uniform(0.7, 1.0)
-        field_rel_speed = np.random.beta(3, 3)  # centered, most horses mid-pack
 
-        # Feature 1 must be prior_win_rate (not rating/100) to match DB training
-        prior_win_rate = np.random.beta(2, 8)  # right-skewed, most values 0.05-0.30
-        last_margin = np.random.beta(3, 3)  # 0-1, centered around 0.5
-        class_change = np.random.choice([-2, -1, 0, 1, 2], p=[0.05, 0.15, 0.60, 0.15, 0.05])
-        class_change_feat = max(0.0, min(1.0, 0.5 + class_change * 0.125))
-        days_last_win = np.random.beta(2, 4)  # right-skewed, most haven't won recently
-        days_last_win = np.clip(days_last_win * 0.85 + 0.1, 0.1, 0.95)
-        jt_combo = min(1.0, (jockey_rate * trainer_rate) ** 0.5 * 2.5)
-        hw_change = np.random.normal(0.5, 0.1)  # body weight change
+        prior_win_rate = np.random.beta(2, 8)
+        last_margin = np.random.beta(3, 3)
+        class_change_feat = np.random.choice([0.0, 0.5, 1.0], p=[0.15, 0.60, 0.25])
+        hw_change = np.random.normal(0.5, 0.1)
         hw_change = np.clip(hw_change, 0.0, 1.0)
-        adjusted_speed = np.random.beta(3, 3)  # par-adjusted speed figure
-        speed_con = np.random.beta(4, 2)  # most horses somewhat consistent
 
         features = [
             prior_win_rate, form_score / 100, draw_adv,
             jockey_rate, trainer_rate, feat_field_size,
-            feat_field_draw, prior_pace, adjusted_speed, cd_form,
-            1.0 - class_level,  # inverted: Class 1=high, Class 5=low
+            feat_field_draw, cd_form,
+            1.0 - class_level,
             freshness, going_perf,
-            weight_vs_field, jockey_horse_coop, distance_pb_ratio, field_rel_speed,
-            last_margin, class_change_feat, days_last_win,
-            jt_combo, hw_change,
-            speed_con,
+            weight_vs_field, jockey_horse_coop,
+            last_margin, class_change_feat,
+            hw_change,
         ]
         assert len(features) == NUM_FEATURES
         X.append(features)
@@ -556,23 +532,15 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 2.0 * (trainer_rate - 0.08)
             + 0.3 * (feat_field_size - 0.8)
             + 0.4 * (feat_field_draw - 0.5)
-            + 0.5 * (prior_pace - 0.5)
-            + 0.6 * (adjusted_speed - 0.5)
             + 0.5 * (cd_form - 0.5)
-            # odds_implied removed — no longer a feature
             + 0.3 * ((1.0 - class_level) - 0.5)
             + 0.2 * (freshness - 0.5)
             + 0.5 * (going_perf - 0.5)
-            + 0.6 * (weight_vs_field - 0.5)  # lighter than field = edge
+            + 0.6 * (weight_vs_field - 0.5)
             + 0.3 * (jockey_horse_coop - 0.25)
-            + 0.2 * (distance_pb_ratio - 0.85)
-            + 0.8 * (field_rel_speed - 0.5)  # faster than field = strong
-            + 1.5 * (last_margin - 0.5)  # strong signal
-            + 1.2 * (class_change_feat - 0.5)  # class drop = strong edge
-            + 0.8 * (days_last_win - 0.4)  # recent winners
-            + 1.0 * (jt_combo - 0.3)  # strong jockey+trainer combos
-            + 0.3 * (hw_change - 0.5)  # body weight fitness
-            + 0.4 * (speed_con - 0.6)  # consistent runners
+            + 1.5 * (last_margin - 0.5)
+            + 1.2 * (class_change_feat - 0.5)
+            + 0.3 * (hw_change - 0.5)
             - 2.8
         )
         win_prob = 1.0 / (1.0 + np.exp(-win_logit))

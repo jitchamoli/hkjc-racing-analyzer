@@ -1,0 +1,80 @@
+2026-04-24 02:19:19,676 INFO === HKJC ML Model Training Pipeline ===
+2026-04-24 02:19:19,676 INFO Loaded 12 cached races from /Users/jitendrachamoli/Documents/Project_Hub/hkjc_racing_analyzer/training_data/historical_races.json
+2026-04-24 02:19:19,676 INFO Finding recent meeting dates...
+2026-04-24 02:19:23,477 INFO Found meeting: 2026/04/22 (9 races)
+2026-04-24 02:19:28,222 INFO Found meeting: 2026/04/19 (11 races)
+2026-04-24 02:19:32,421 INFO Found meeting: 2026/04/15 (9 races)
+2026-04-24 02:19:35,764 INFO Found meeting: 2026/04/12 (11 races)
+2026-04-24 02:19:39,983 INFO Found meeting: 2026/04/08 (9 races)
+2026-04-24 02:19:42,439 INFO Found meeting: 2026/04/06 (11 races)
+2026-04-24 02:19:48,009 INFO Found meeting: 2026/04/01 (9 races)
+2026-04-24 02:19:51,660 INFO Found meeting: 2026/03/29 (11 races)
+2026-04-24 02:19:56,102 INFO Found meeting: 2026/03/25 (9 races)
+2026-04-24 02:19:59,484 INFO Found meeting: 2026/03/22 (10 races)
+2026-04-24 02:20:03,662 INFO Found meeting: 2026/03/18 (9 races)
+2026-04-24 02:20:07,034 INFO Found meeting: 2026/03/15 (11 races)
+2026-04-24 02:20:11,020 INFO Found meeting: 2026/03/11 (9 races)
+2026-04-24 02:20:14,363 INFO Found meeting: 2026/03/08 (11 races)
+2026-04-24 02:20:18,832 INFO Found meeting: 2026/03/04 (9 races)
+2026-04-24 02:20:18,833 INFO Found 15 meetings
+2026-04-24 02:20:18,833 INFO Fetching 2026/04/22 (9 races)...
+2026-04-24 02:20:30,834 INFO   2026/04/19: already cached, skipping
+2026-04-24 02:20:30,834 INFO Fetching 2026/04/15 (9 races)...
+2026-04-24 02:20:41,852 INFO   2026/04/12: already cached, skipping
+2026-04-24 02:20:41,852 INFO Fetching 2026/04/08 (9 races)...
+2026-04-24 02:20:54,419 INFO Fetching 2026/04/06 (11 races)...
+2026-04-24 02:21:07,634 INFO Fetching 2026/04/01 (9 races)...
+2026-04-24 02:21:19,168 INFO Fetching 2026/03/29 (11 races)...
+2026-04-24 02:21:33,096 INFO Fetching 2026/03/25 (9 races)...
+2026-04-24 02:21:44,350 INFO Fetching 2026/03/22 (10 races)...
+2026-04-24 02:21:57,110 INFO Fetching 2026/03/18 (9 races)...
+2026-04-24 02:22:08,600 INFO Fetching 2026/03/15 (11 races)...
+2026-04-24 02:22:42,828 INFO Fetching 2026/03/11 (9 races)...
+2026-04-24 02:22:54,351 INFO Fetching 2026/03/08 (11 races)...
+2026-04-24 02:23:14,992 INFO Fetching 2026/03/04 (9 races)...
+2026-04-24 02:40:27,825 INFO Building training data from 4551 real race results
+2026-04-24 02:40:27,869 INFO Computed 0 par time buckets from 0 results
+2026-04-24 02:40:27,869 INFO Computed 15 par time buckets from 107 results
+2026-04-24 02:40:27,869 INFO Computed 37 par time buckets from 622 results
+2026-04-24 02:40:27,871 INFO Computed 83 par time buckets from 1622 results
+2026-04-24 02:40:27,873 INFO Computed 96 par time buckets from 2625 results
+2026-04-24 02:40:27,875 INFO Computed 116 par time buckets from 3720 results
+2026-04-24 02:40:28,037 INFO Using DB training data: 4551 samples, 370 winners (8.1%)
+2026-04-24 02:40:28,041 INFO Loaded model version 20260423-232844
+2026-04-24 02:40:28,042 INFO Backed up old model
+2026-04-24 02:40:28,042 INFO Training with 4551 samples (370 winners, 8.1% win rate)
+2026-04-24 02:40:28,042 INFO Temporal split: train=2730, val=910, test=911
+2026-04-24 02:40:28,511 INFO Platt calibrator fitted on 910 validation samples (logit-input) (recency-weighted)
+2026-04-24 02:40:28,862 INFO Place model: accuracy=70.14% (654 top3 in train, 223 in test)
+2026-04-24 02:40:28,864 INFO Saved model version 20260424-024028 (n_samples=4551)
+2026-04-24 02:40:28,864 WARNING High correlation: recent_form × field_rel_speed = 0.721
+2026-04-24 02:40:28,864 WARNING High correlation: recent_form × days_since_last_win = 0.741
+2026-04-24 02:40:28,865 WARNING High correlation: field_rel_speed × last_start_margin = 0.711
+2026-04-24 02:40:28,869 INFO Logged experiment: accuracy=0.8760, n_samples=4551, version=20260424-024028
+2026-04-24 02:40:28,870 INFO Model trained: accuracy=87.60%, precision=19.05%, recall=16.22%
+2026-04-24 02:40:28,870 INFO 
+Feature Importance:
+2026-04-24 02:40:28,870 INFO   field_rel_speed        0.098 #########
+2026-04-24 02:40:28,870 INFO   recent_form            0.068 ######
+2026-04-24 02:40:28,870 INFO   prior_win_rate         0.052 #####
+2026-04-24 02:40:28,870 INFO   freshness              0.050 ####
+2026-04-24 02:40:28,870 INFO   jockey_win_rate        0.050 ####
+2026-04-24 02:40:28,870 INFO   horse_weight_change    0.047 ####
+2026-04-24 02:40:28,870 INFO   jockey_horse_coop      0.046 ####
+2026-04-24 02:40:28,870 INFO   field_size             0.046 ####
+2026-04-24 02:40:28,870 INFO   field_rel_draw         0.045 ####
+2026-04-24 02:40:28,870 INFO   cd_form_prior          0.045 ####
+2026-04-24 02:40:28,870 INFO   last_start_margin      0.045 ####
+2026-04-24 02:40:28,870 INFO   days_since_last_win    0.041 ####
+2026-04-24 02:40:28,870 INFO   adjusted_speed         0.041 ####
+2026-04-24 02:40:28,870 INFO   speed_consistency      0.041 ####
+2026-04-24 02:40:28,870 INFO   trainer_win_rate       0.040 ###
+2026-04-24 02:40:28,870 INFO   prior_pace             0.039 ###
+2026-04-24 02:40:28,870 INFO   distance_pb_ratio      0.039 ###
+2026-04-24 02:40:28,870 INFO   weight_vs_field        0.037 ###
+2026-04-24 02:40:28,870 INFO   going_performance      0.036 ###
+2026-04-24 02:40:28,870 INFO   draw_advantage         0.035 ###
+2026-04-24 02:40:28,870 INFO   class_level            0.031 ###
+2026-04-24 02:40:28,870 INFO   class_change           0.028 ##
+2026-04-24 02:40:28,870 INFO 
+=== Training complete ===

@@ -26,6 +26,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _atomic_write(path: str, content: str) -> None:
+    # Write to a sibling temp file then os.replace so concurrent readers
+    # (the dashboard server, a browser polling the file) never see a
+    # half-written file. os.replace is atomic on POSIX and Windows ≥ Vista.
+    tmp = f"{path}.tmp.{os.getpid()}"
+    with open(tmp, 'w') as f:
+        f.write(content)
+    os.replace(tmp, path)
+
+
 # Result fields set by results_fetcher that should survive prediction re-runs
 _RESULT_KEYS_RACE = {'results_available', 'actual_results', 'actual_winner', 'actual_top3', 'actual_win_odds', 'accuracy'}
 _RESULT_KEYS_HORSE = {'actual_position'}
@@ -94,12 +104,55 @@ def _merge_with_existing(json_file: str, new_races: list) -> list:
     return new_races
 
 
-def build_race_data(race, analyses, race_date, db, odds_db):
+def _load_previous_race_data(json_file: str) -> list:
+    """Return race list from the most recent prior JSON at this path, or []."""
+    if not os.path.exists(json_file):
+        return []
+    try:
+        with open(json_file) as f:
+            data = json.load(f)
+        return data.get('races', data) if isinstance(data, dict) else data
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def _compute_odds_age_minutes(odds_db, race_date: str, race_number: int):
+    """Return minutes elapsed since the most recent odds snapshot for this race.
+
+    Returns None when no snapshot exists OR on any error — caller treats
+    None as 'no fresh odds' and FAILS G5. Previously this returned 0, which
+    passed the `< 30` gate even when there were zero snapshots in the DB,
+    inverting the gate's stated purpose ('stale odds invalidate EV').
+    """
+    try:
+        conn = odds_db._get_conn()
+        try:
+            row = conn.execute(
+                "SELECT MAX(timestamp) FROM odds_snapshots "
+                "WHERE race_date = ? AND race_number = ?",
+                (race_date, race_number),
+            ).fetchone()
+            if row and row[0]:
+                last_ts = datetime.strptime(row[0], '%Y-%m-%d %H:%M:%S')
+                return max(0, int((datetime.now() - last_ts).total_seconds() / 60))
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    return None
+
+
+def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     """Build the JSON-serializable race data dict from analyses.
 
     Shared between generator and monitor to avoid duplication.
     Returns race_data dict with horses, speed_map, and exotic_value.
+    analyzer: optional CombinedRaceAnalyzer instance — used for ML integrity check (G6).
     """
+    # Reset per-run caches so backtests across multiple race dates don't
+    # bleed stale jockey/trainer rates between dates.
+    from ml.features import clear_feature_caches
+    clear_feature_caches()
     race_going = race.going or ''
     race_distance = int(race.distance) if race.distance and str(race.distance).isdigit() else 1200
 
@@ -138,6 +191,22 @@ def build_race_data(race, analyses, race_date, db, odds_db):
         going_form = db.get_horse_going_form(h.name, race_going, race_date)
         jh_stats = db.get_jockey_horse_stats(h.jockey, h.name, race_date)
         dist_pb = db.get_distance_best_time(h.name, race_distance, race_date)
+        # Same-format history: prior runs at this exact venue+distance
+        # so the dashboard can show "this horse has run here before, here is what happened"
+        format_history = db.get_horse_format_history(
+            h.name, race.venue or '', race_distance,
+            going='',  # going is variable; loose match for now
+            before_date=race_date, limit=5,
+        )
+        # Jockey strike rate (Bayesian-smoothed, prior-only). Reuse the same
+        # cached helper the ML feature pipeline uses so we don't re-query.
+        from ml.features import FeatureEngineering
+        jockey_strike_rate = FeatureEngineering.calculate_jockey_win_rate(
+            h.jockey or '', [], conn=db.conn, before_date=race_date,
+        )
+        jockey_form_30d = FeatureEngineering.calculate_jockey_form_window(
+            h.jockey or '', conn=db.conn, before_date=race_date, window_days=30,
+        )
 
         horse_odds_move = odds_summary.get(h.number, {})
         is_steam, steam_severity, steam_label = OddsMovementAnalyzer.detect_steam_move(
@@ -167,7 +236,6 @@ def build_race_data(race, analyses, race_date, db, odds_db):
             "rule_score": a.rule_score,
             "ml_prob": ml_prob,
             "place_prob": place_prob,
-            "combined_score": a.value_score,
             "calibrated_prob": calibrated_prob,
             "expected_return": a.expected_return,
             "bet_recommendation": a.bet_recommendation,
@@ -177,6 +245,9 @@ def build_race_data(race, analyses, race_date, db, odds_db):
             "jockey_horse_stats": jh_stats,
             "distance_pb": dist_pb,
             "distance_record": dist_record,
+            "format_history": format_history,
+            "jockey_strike_rate": round(jockey_strike_rate, 4),
+            "jockey_form_30d": round(jockey_form_30d, 4),
             "odds_movement": horse_odds_move,
             "steam_move": {"is_steam": is_steam, "severity": steam_severity, "label": steam_label},
             "cold_horse": {"is_cold": is_cold, "label": cold_label},
@@ -184,7 +255,69 @@ def build_race_data(race, analyses, race_date, db, odds_db):
 
     race_data["speed_map"] = speed_map
 
-    # === Post-bet analytics: Harville dividend + strategy confidence + EV ===
+    # === Edge math (pure_prob, market_prob, edge fields, edge_fires) ===
+    from betting.edge_calculator import (
+        compute_pure_probs, compute_market_probs, compute_edge_fields,
+        apply_edge_gates, EdgeGates,
+    )
+    try:
+        from ml.integrity import check_model_integrity
+    except ImportError:
+        check_model_integrity = None
+
+    horses_for_edge = [{
+        'rule_score': h['rule_score'], 'ml_prob': h['ml_prob'],
+        'win_odds': h['win_odds'] or 0,
+    } for h in race_data['horses']]
+
+    pure_probs_list = compute_pure_probs(horses_for_edge, field_size=len(horses_for_edge))
+    market_probs_list = compute_market_probs(horses_for_edge)
+
+    # Model integrity — used by G6.
+    integrity_ok = False
+    try:
+        if check_model_integrity is not None:
+            ml_model = getattr(analyzer, 'ml_analyzer', None)
+            ml_model = getattr(ml_model, 'ml_model', None) if ml_model else None
+            metadata = getattr(ml_model, '_metadata', {}) if ml_model else {}
+            check_model_integrity(metadata)
+            integrity_ok = True
+    except Exception:
+        integrity_ok = False
+
+    # G5 odds freshness — compute once for the race, reuse per-horse
+    odds_age_min = _compute_odds_age_minutes(odds_db, race_date, race.race_number)
+
+    gates = EdgeGates()
+    has_edge_race = False
+    for i, h in enumerate(race_data['horses']):
+        pure = pure_probs_list[i]
+        market = market_probs_list[i]
+        odds = h['win_odds'] or 0
+        fields = compute_edge_fields(pure, market, odds)
+
+        model_rank = h['rank']  # already 1-indexed in the horses loop
+
+        ok, _failed = apply_edge_gates(
+            ev_win=fields['ev_win'], pure_prob=pure, edge_pp=fields['edge_pp'],
+            model_rank=model_rank, odds_age_min=odds_age_min,
+            integrity_ok=integrity_ok, gates=gates,
+        )
+
+        h['pure_prob'] = round(pure, 4)
+        h['market_prob'] = round(market, 4)
+        h['edge_pp'] = round(fields['edge_pp'], 2)
+        h['ev_win'] = round(fields['ev_win'], 3)
+        h['overlay'] = round(fields['overlay'], 3)
+        h['edge_fires'] = ok
+        h['model_rank'] = model_rank
+        if ok:
+            has_edge_race = True
+
+    race_data['has_edge'] = has_edge_race
+    race_data['odds_age_minutes'] = odds_age_min
+
+    # === Post-bet analytics: Harville dividend + conviction tier + EV ===
     from betting.dividends import (
         estimate_quinella_dividend, quinella_bet_ev, normalize_market_probs
     )
@@ -194,19 +327,16 @@ def build_race_data(race, analyses, race_date, db, odds_db):
     model_probs = [h.get('calibrated_prob') or 0 for h in horses_json]
     market_probs = normalize_market_probs(win_odds_list)
 
-    # Confidence tier from model conviction on top-2/top-3
+    # Conviction tier (replaces strategy_confidence — spec §4)
+    from betting.conviction import assign_conviction_tier
     sorted_probs = sorted(model_probs, reverse=True)
     top_2_share = sum(sorted_probs[:2]) if len(sorted_probs) >= 2 else 0
     top_3_share = sum(sorted_probs[:3]) if len(sorted_probs) >= 3 else 0
-    if top_2_share >= 0.33 or top_3_share >= 0.42:
-        confidence = 'HIGH'
-    elif top_2_share >= 0.27 or top_3_share >= 0.35:
-        confidence = 'MEDIUM'
-    elif top_2_share >= 0.22:
-        confidence = 'LOW'
-    else:
-        confidence = 'NONE'
-    race_data['strategy_confidence'] = confidence
+    race_data['conviction_tier'] = assign_conviction_tier(
+        has_edge=race_data['has_edge'],
+        top_2_share=top_2_share,
+        top_3_share=top_3_share,
+    )
     race_data['top_2_share'] = round(top_2_share, 4)
     race_data['top_3_share'] = round(top_3_share, 4)
 
@@ -222,10 +352,29 @@ def build_race_data(race, analyses, race_date, db, odds_db):
             'hit_prob': round(ev_result['hit_prob'], 4),
             'avg_dividend': round(ev_result['avg_dividend'], 2),
         }
-        # Top pair dividend (rank 1+2) for at-a-glance display
-        if len(qin_indices) >= 2:
+        # Top pair dividend — prefer real HKJC payout if race has results
+        top_div = None
+        top_div_source = 'harville'
+        if db and race.date and race.race_number:
+            # If results already in, actual_winner + 2nd give us the real pair
+            try:
+                finishers = db.conn.execute(
+                    "SELECT horse_number, finish_position FROM race_results "
+                    "WHERE race_date = ? AND race_number = ? AND finish_position IN (1, 2)",
+                    (race.date, race.race_number)
+                ).fetchall()
+                if len(finishers) == 2:
+                    h1, h2 = finishers[0][0], finishers[1][0]
+                    real_div = db.get_quinella_dividend(race.date, race.race_number, h1, h2)
+                    if real_div:
+                        top_div = real_div
+                        top_div_source = 'real'
+            except Exception:
+                pass
+        if top_div is None:
             top_div = estimate_quinella_dividend(market_probs, qin_indices[0], qin_indices[1])
-            race_data['qin_top_pair_dividend'] = round(top_div, 2) if top_div else None
+        race_data['qin_top_pair_dividend'] = round(top_div, 2) if top_div else None
+        race_data['qin_dividend_source'] = top_div_source
 
     # Exotic bet value detection
     if len(analyses) >= 4:
@@ -282,7 +431,7 @@ async def main():
             break
 
         analyses = analyzer.analyze_race(race)
-        race_data = build_race_data(race, analyses, race_date, db, odds_db)
+        race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)
         all_races.append(race_data)
         logger.info(f"  Race {race_no}: {len(race.horses)} horses, bet: {analyses[0].bet_recommendation if analyses else 'N/A'}")
 
@@ -292,23 +441,22 @@ async def main():
     # Merge: preserve result fields from prior run (e.g. actual_position, accuracy)
     all_races = _merge_with_existing(json_file, all_races)
 
-    # Cross-race EV ranking — flag relative best/worst among active bets.
-    # Most races show negative EV because model ≈ market for QIN pairs (takeout
-    # drag). The ranking is still informative: highest EV = smallest drag =
-    # best value of the day, even when absolute EV is negative.
-    races_with_ev = [r for r in all_races if r.get('qin_bet_ev')]
-    if len(races_with_ev) >= 2:
-        best = max(races_with_ev, key=lambda r: r['qin_bet_ev']['ev_pct'])
-        worst = min(races_with_ev, key=lambda r: r['qin_bet_ev']['ev_pct'])
-        # Only flag if there's a meaningful spread between best and worst
-        ev_spread = best['qin_bet_ev']['ev_pct'] - worst['qin_bet_ev']['ev_pct']
-        if ev_spread >= 5.0:  # at least 5 percentage points apart
-            for r in all_races:
-                r['is_best_ev'] = (r['race_number'] == best['race_number'])
-                r['is_worst_ev'] = (r['race_number'] == worst['race_number'])
+    # Tier stats — load from cache (refreshed on results ingestion, Task 8)
+    from betting.tier_stats import load_cached_stats
+    tier_stats = load_cached_stats()
+    for r in all_races:
+        r['tier_stats'] = tier_stats
 
-    with open(json_file, 'w') as f:
-        json.dump(all_races, f, indent=2)
+    # Alerts — diff current vs previous race_data file
+    from betting.alerts import compute_alerts, AlertState, load_alert_state, save_alert_state
+    prev_json = _load_previous_race_data(json_file)
+    state = load_alert_state(race_date)
+    alerts = compute_alerts(all_races, prev_json, state)
+    save_alert_state(race_date, state)
+    for r in all_races:
+        r['alerts'] = [a for a in alerts if a['race'] == r['race_number']]
+
+    _atomic_write(json_file, json.dumps(all_races, indent=2))
 
     # Log predictions to DB for longitudinal accuracy tracking
     model_ver = analyzer.ml_analyzer.ml_model.model_version if hasattr(analyzer, 'ml_analyzer') else ''
@@ -330,13 +478,9 @@ async def main():
     html = generate_html(json_data, now, race_date, venue)
 
     html_file = os.path.join(results_dir, f"racing_dashboard_{date_str}.html")
-    with open(html_file, 'w') as f:
-        f.write(html)
-
-    # Always write to a fixed URL so you can bookmark one path
     latest_file = os.path.join(results_dir, "racing_dashboard.html")
-    with open(latest_file, 'w') as f:
-        f.write(html)
+    _atomic_write(html_file, html)
+    _atomic_write(latest_file, html)
 
     logger.info(f"Saved dashboard to {html_file}")
     logger.info(f"Saved latest dashboard to {latest_file}")

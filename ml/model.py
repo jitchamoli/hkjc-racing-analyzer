@@ -2,6 +2,7 @@
 """XGBoost model for HKJC race prediction — train, predict, save, load."""
 
 import hashlib
+import math
 import pickle
 import logging
 from datetime import datetime
@@ -10,6 +11,7 @@ from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 
 import numpy as np
+from scipy.special import logit
 
 import config
 from ml.feature_schema import FEATURE_NAMES, NUM_FEATURES
@@ -18,7 +20,7 @@ try:
     import xgboost as xgb
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, log_loss, precision_score, recall_score
-    from sklearn.linear_model import LogisticRegression
+    from sklearn.isotonic import IsotonicRegression
     ML_AVAILABLE = True
 except ImportError:
     ML_AVAILABLE = False
@@ -81,14 +83,16 @@ class MLPrediction:
 class HKJCRacingMLModel:
     MODEL_DIR = config.MODEL_DIR
     MODEL_FILE = config.MODEL_PATH
+    MIN_SAVE_SAMPLES = 1000  # _save_model() refuses below this — prevents synthetic pickle overwrite
 
     def __init__(self):
         self.model = None
         self.place_model = None
-        self.calibrator = None  # Platt scaling (LogisticRegression)
+        self.calibrator = None  # Isotonic calibrator (Wave 2c: replaced Platt/LogisticRegression)
         self.is_trained = False
         self.model_version = "1.0"
         self.feature_importance = {}
+        self._metadata = None
 
         if ML_AVAILABLE:
             self._load_model()
@@ -128,12 +132,31 @@ class HKJCRacingMLModel:
                 self.calibrator = data.get('calibrator')
                 self.model_version = data.get('version', '1.0')
                 self.feature_importance = data.get('feature_importance', {})
+                self._last_train_n_samples = data.get('n_samples', None)
+                self._metadata = {
+                    'n_samples': data.get('n_samples'),
+                    'trained_date': data.get('trained_date'),
+                    'n_features': data.get('n_features'),
+                    'version': data.get('version'),
+                }
                 self.is_trained = self.model is not None
                 logger.info(f"Loaded model version {self.model_version}")
             except Exception as e:
                 logger.warning(f"Could not load model: {e}")
 
     def _save_model(self):
+        # F-04 belt-and-suspenders: refuse to overwrite production pickle
+        # if this training run used fewer than MIN_SAVE_SAMPLES. Prevents
+        # synthetic/test data from silently clobbering the real-data pickle.
+        n_samples = getattr(self, '_last_train_n_samples', None)
+        if n_samples is not None and n_samples < self.MIN_SAVE_SAMPLES:
+            logger.warning(
+                f"_save_model() refusing to write: n_samples={n_samples} "
+                f"< MIN_SAVE_SAMPLES={self.MIN_SAVE_SAMPLES}. "
+                f"This looks like synthetic/test data. Pickle NOT overwritten."
+            )
+            return
+
         self.MODEL_DIR.mkdir(exist_ok=True)
 
         data = {
@@ -142,6 +165,7 @@ class HKJCRacingMLModel:
             'calibrator': self.calibrator,
             'version': self.model_version,
             'n_features': NUM_FEATURES,
+            'n_samples': n_samples,  # NEW: persisted for F-05 integrity check
             'feature_importance': self.feature_importance,
             'trained_date': datetime.now().isoformat()
         }
@@ -150,14 +174,18 @@ class HKJCRacingMLModel:
         self.MODEL_FILE.write_bytes(model_bytes)
         self._checksum_path().write_text(hashlib.sha256(model_bytes).hexdigest())
 
-        logger.info(f"Saved model version {self.model_version}")
+        logger.info(f"Saved model version {self.model_version} (n_samples={n_samples})")
 
     def train(self, features: np.ndarray, labels: np.ndarray,
               sample_weight: np.ndarray = None,
               temporal: bool = True,
-              place_labels: np.ndarray = None) -> Dict:
+              place_labels: np.ndarray = None,
+              save: bool = True) -> Dict:
         if not ML_AVAILABLE:
             return {'error': 'ML libraries not available'}
+
+        # Record sample count on self so _save_model() can enforce MIN_SAVE_SAMPLES
+        self._last_train_n_samples = len(features)
 
         logger.info(f"Training with {len(features)} samples "
                     f"({labels.sum():.0f} winners, {labels.mean()*100:.1f}% win rate)")
@@ -226,19 +254,27 @@ class HKJCRacingMLModel:
             self.model.feature_importances_.tolist()
         ))
 
-        # Platt scaling: fit on VALIDATION predictions with the same recency
+        # Isotonic calibrator: fit on VALIDATION predictions with the same recency
         # weights used for XGBoost training — otherwise the calibrator learns
         # a different prior than the model it's calibrating.
+        # Wave 2c: switched from Platt (LogisticRegression on logits) to
+        # IsotonicRegression to handle the non-linear mid-range miscalibration
+        # seen in the [18-25%] bin (33 races, ~3% actual vs ~20% predicted).
+        # Isotonic is non-parametric and can reshape the calibration curve freely.
+        # Input: logit(val_proba) — isotonic operates on the raw logit domain
+        # to spread inputs over a useful range (same as Platt pre-Wave-2c).
         val_proba = self.model.predict_proba(X_val)[:, 1]
+        val_logit = logit(np.clip(val_proba, 1e-6, 1 - 1e-6))
         sw_val = sample_weight[cut_train:cut_val] if (sample_weight is not None and temporal) else None
-        self.calibrator = LogisticRegression(C=1.0, solver='lbfgs', max_iter=1000)
-        self.calibrator.fit(val_proba.reshape(-1, 1), y_val, sample_weight=sw_val)
-        logger.info(f"Platt calibrator fitted on {len(y_val)} validation samples"
+        self.calibrator = IsotonicRegression(out_of_bounds='clip')
+        self.calibrator.fit(val_logit.ravel(), y_val, sample_weight=sw_val)
+        logger.info(f"Isotonic calibrator fitted on {len(y_val)} validation samples (logit-input)"
                     + (" (recency-weighted)" if sw_val is not None else ""))
 
         # Re-evaluate test metrics with calibrated probabilities (test is truly held-out)
-        y_pred_proba = self.calibrator.predict_proba(
-            self.model.predict_proba(X_test)[:, 1].reshape(-1, 1))[:, 1]
+        test_raw = self.model.predict_proba(X_test)[:, 1]
+        test_logit = logit(np.clip(test_raw, 1e-6, 1 - 1e-6))
+        y_pred_proba = self.calibrator.predict(test_logit.ravel())
         logloss = log_loss(y_test, y_pred_proba)
         brier = float(np.mean((y_pred_proba - y_test) ** 2))
 
@@ -264,10 +300,11 @@ class HKJCRacingMLModel:
 
         self.is_trained = True
         self.model_version = datetime.now().strftime('%Y%m%d-%H%M%S')
-        self._save_model()
+        if save:
+            self._save_model()
+        else:
+            logger.info(f"train(save=False) — skipping pickle write (n_samples={len(features)})")
 
-        # Log experiment
-        from ml.experiments import log_experiment
         result = {
             'accuracy': accuracy,
             'logloss': logloss,
@@ -291,23 +328,49 @@ class HKJCRacingMLModel:
                     high_corrs[pair] = round(float(r), 3)
                     logger.warning(f"High correlation: {pair} = {r:.3f}")
 
-        log_experiment(result, FEATURE_NAMES, n_samples=len(features),
-                       feature_correlations=high_corrs if high_corrs else None)
+        # Only log to the production experiment ledger when this is a real
+        # training run that actually persisted (save=True AND samples are
+        # above MIN_SAVE_SAMPLES). Tests with save=True but tiny samples
+        # also tripped the ledger — the F-04 save-guard rejects the pickle
+        # but log_experiment fired anyway. Mirror the same check here.
+        if save and len(features) >= self.MIN_SAVE_SAMPLES:
+            from ml.experiments import log_experiment
+            log_experiment(result, FEATURE_NAMES, n_samples=len(features),
+                           feature_correlations=high_corrs if high_corrs else None)
 
         return result
 
     def predict(self, features: np.ndarray, field_size: int = 12) -> Tuple[float, str]:
         if not self.is_trained or self.model is None:
-            base_prob = 1.0 / max(field_size, 1)
-            return base_prob, "MODEL_NOT_TRAINED"
+            # F-17: never silently return 1/field_size — surface the failure loudly
+            # so load errors aren't masked by plausible-looking probabilities.
+            raise RuntimeError(
+                "Model not trained — refuse to predict. "
+                "Retrain via `python3 -m scripts.train`."
+            )
+
+        # F-05: integrity check — fail loudly if pickle is compromised.
+        # This runs on every predict() call; cheap enough (dict lookups).
+        if self._metadata is not None:
+            from ml.integrity import check_model_integrity
+            check_model_integrity(self._metadata)
 
         proba = self.model.predict_proba(features.reshape(1, -1))[0]
         win_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])
 
-        # Apply Platt scaling if calibrator is available
+        # Apply calibration if calibrator is available.
+        # Calibrator was fit on logit(val_proba), so transform input the same way.
+        # Supports both IsotonicRegression (Wave 2c+, uses .predict(1D)) and
+        # legacy LogisticRegression pickles (uses .predict_proba(2D)).
         if self.calibrator is not None:
-            win_prob = float(self.calibrator.predict_proba(
-                np.array([[win_prob]]))[0, 1])
+            win_logit = float(logit(np.clip(win_prob, 1e-6, 1 - 1e-6)))
+            try:
+                # IsotonicRegression: predict(1D array) → values directly
+                win_prob = float(self.calibrator.predict(np.array([win_logit]))[0])
+            except (ValueError, TypeError):
+                # Legacy LogisticRegression: predict_proba(2D array) → proba
+                win_prob = float(self.calibrator.predict_proba(
+                    np.array([[win_logit]]))[0, 1])
 
         if win_prob > 0.30:
             confidence = "HIGH"
@@ -323,9 +386,13 @@ class HKJCRacingMLModel:
     def predict_place(self, features: np.ndarray, field_size: int = 12) -> float:
         """Predict place (top-3) probability using dedicated place model."""
         if self.place_model is not None:
+            # F-05: integrity check mirrors predict() — place is also a prediction entry point.
+            if self._metadata is not None:
+                from ml.integrity import check_model_integrity
+                check_model_integrity(self._metadata)
             proba = self.place_model.predict_proba(features.reshape(1, -1))[0]
             return float(proba[1]) if len(proba) > 1 else float(proba[0])
-        # Fallback: estimate from win probability
+        # Fallback: predict() runs its own integrity check, so don't double-fire.
         win_prob, _ = self.predict(features, field_size)
         return min(0.85, win_prob * 2.5)
 
@@ -347,7 +414,6 @@ def create_combined_prediction(
     # Anchor sigmoid to the field-size base rate so an "average" horse
     # (rule_score=50) outputs ~1/field_size win probability instead of 50%.
     # Without this anchor the rule engine was grossly uncalibrated.
-    import math
     base_prob = 1.0 / max(field_size, 2)
     logit_base = math.log(base_prob / (1.0 - base_prob))
     rule_prob_raw = 1.0 / (1.0 + math.exp(-(0.06 * (rule_score - 50) + logit_base)))
@@ -400,17 +466,27 @@ class CombinedRacingAnalyzer:
             self._conn.row_factory = sqlite3.Row
 
         if ML_AVAILABLE and not self.ml_model.is_trained:
-            X_real, y_real, sw_real, y_place = build_training_data_from_db()
+            # Auto-train fallback: use the same 5y window the production trainer
+            # uses by default (TRAINING_YEARS_BACK env var, default 5). v6.2 was
+            # the regression where training on the full 49y dropped ROI ~30%; we
+            # don't want this fallback path to silently reproduce that.
+            import os
+            yrs_str = os.environ.get('TRAINING_YEARS_BACK', '5')
+            yrs = None if yrs_str.strip() == '0' else int(yrs_str)
+            X_real, y_real, sw_real, y_place = build_training_data_from_db(years_back=yrs)
             if X_real is not None and len(X_real) >= config.MIN_REAL_SAMPLES:
-                logger.info(f"Training ML model with {len(X_real)} REAL race results...")
+                logger.info(f"Training ML model with {len(X_real)} REAL race results "
+                            f"({'no cutoff' if yrs is None else f'{yrs}y window'})...")
                 result = self.ml_model.train(X_real, y_real, sample_weight=sw_real,
                                             place_labels=y_place)
                 logger.info(f"Model trained on REAL data: accuracy={result['accuracy']:.2%}")
             else:
                 logger.info("Insufficient real data — training ML model with synthetic data...")
                 X, y = generate_synthetic_training_data()
-                result = self.ml_model.train(X, y)
-                logger.info(f"Model trained on synthetic data: accuracy={result['accuracy']:.2%}")
+                # F-04: never save a synthetic-trained pickle to disk.
+                result = self.ml_model.train(X, y, save=False)
+                logger.info(f"Model trained on synthetic data (in-memory only, not persisted): "
+                            f"accuracy={result['accuracy']:.2%}")
 
     def predict(self, horse_data: dict, all_results, venue: str) -> MLPrediction:
         features = self.feature_eng.extract_features(horse_data, all_results, venue,
