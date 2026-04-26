@@ -250,6 +250,14 @@ button {{ font-family:inherit; cursor:pointer; }}
 .strip-tab {{ background:transparent; border:1px solid var(--border); color:var(--dim); padding:3px 10px; border-radius:4px; font-size:.66rem; font-weight:600; letter-spacing:.05em; cursor:pointer; text-transform:uppercase; transition:all .12s; }}
 .strip-tab:hover {{ background:rgba(15,23,42,.5); color:var(--fg); }}
 .strip-tab.active {{ background:var(--gold); color:#000; border-color:var(--gold); }}
+.topbets-sub-tab {{ background:transparent; border:1px solid var(--border); color:var(--dim); padding:2px 10px; border-radius:4px; font-size:.65rem; font-weight:700; letter-spacing:.04em; cursor:pointer; text-transform:uppercase; margin-left:6px; }}
+.topbets-sub-tab:hover {{ background:rgba(15,23,42,.5); color:var(--fg); }}
+.topbets-sub-tab.active {{ background:var(--gold); color:#000; border-color:var(--gold); }}
+.strike-badge {{ display:inline-block; padding:2px 8px; border-radius:4px; font-size:.62rem; font-weight:800; letter-spacing:.06em; margin-left:8px; vertical-align:middle; }}
+.strike-badge.win {{ background:var(--gold); color:#000; }}
+.strike-badge.qin {{ background:var(--green); color:#000; }}
+.strike-badge.box4 {{ background:rgba(16,185,129,.7); color:#000; }}
+.strike-badge.miss {{ background:rgba(239,68,68,.6); color:#fff; }}
 
 /* View tabs — by default boxed (legacy below-strip placement).
    In the .view-tabs-topbar variant they live inline in the topbar
@@ -458,25 +466,68 @@ setInterval(function() {{
 // ─────────────────────────────────────────────────────────────
 // Hero: 0-5 bet cards from EDGE/HIGH/MED races
 // ─────────────────────────────────────────────────────────────
+// Top Bets sub-filter: 'next' (default — unfinished races) or 'past'
+// (races with results, with STRIKE/MISS badges).
+var _topBetsFilter = 'next';
+
+function _didBetHit(race) {{
+  // Determine whether ANY of our recommended bets hit for a finished race.
+  // Returns one of: 'STRIKE-WIN' (rank-1 won), 'STRIKE-QIN' (top-2 quinella),
+  // 'STRIKE-BOX4' (winning quinella pair was in top-4 picks), 'MISS' (none),
+  // or null if the race is not finished.
+  if (!race.results_available) return null;
+  var horsesByPos = race.horses
+    .filter(function(h) {{ return h.actual_position; }})
+    .sort(function(a, b) {{ return a.actual_position - b.actual_position; }});
+  if (horsesByPos.length < 2) return null;
+  var p1 = horsesByPos[0].number, p2 = horsesByPos[1].number;
+  var top4Nums = race.horses.slice(0, 4).map(function(h) {{ return h.number; }});
+  var top2Nums = race.horses.slice(0, 2).map(function(h) {{ return h.number; }});
+  var rank1 = race.horses[0];
+  if (rank1 && rank1.number === p1) return 'STRIKE-WIN';
+  if (top2Nums.indexOf(p1) >= 0 && top2Nums.indexOf(p2) >= 0) return 'STRIKE-QIN';
+  if (top4Nums.indexOf(p1) >= 0 && top4Nums.indexOf(p2) >= 0) return 'STRIKE-BOX4';
+  return 'MISS';
+}}
+
+function setTopBetsFilter(f) {{
+  _topBetsFilter = f;
+  var nb = document.getElementById('tb-next');
+  var pb = document.getElementById('tb-past');
+  if (nb) nb.classList.toggle('active', f === 'next');
+  if (pb) pb.classList.toggle('active', f === 'past');
+  renderHero();
+}}
+
 function renderHero() {{
   // Behaviour driven by _stripView:
   //   'race' (default) → all 11 races as cards in race order (R1, R2, ...)
-  //   'bets'           → curated stack of HIGH/MED/EDGE picks, tier-sorted
+  //   'bets'           → curated stack of HIGH/MED/EDGE picks, tier-sorted,
+  //                      filtered by _topBetsFilter (next vs past).
   var hero = document.getElementById('hero');
   var label, races;
   if (_stripView === 'bets') {{
     var tierOrder = {{EDGE:0, HIGH:1, MED:2}};
-    races = RACES
-      .filter(function(r) {{ return ['EDGE','HIGH','MED'].indexOf(r.conviction_tier) >= 0; }})
-      .sort(function(a, b) {{
-        if (tierOrder[a.conviction_tier] !== tierOrder[b.conviction_tier])
-          return tierOrder[a.conviction_tier] - tierOrder[b.conviction_tier];
-        var aPp = Math.max.apply(null, a.horses.map(function(h) {{ return h.edge_pp || 0; }}));
-        var bPp = Math.max.apply(null, b.horses.map(function(h) {{ return h.edge_pp || 0; }}));
-        if (aPp !== bPp) return bPp - aPp;
-        return (b.top_3_share || 0) - (a.top_3_share || 0);
-      }});
-    label = 'TOP BETS — ' + races.length + ' OF ' + RACES.length + ' RACES';
+    var pool = RACES
+      .filter(function(r) {{ return ['EDGE','HIGH','MED'].indexOf(r.conviction_tier) >= 0; }});
+    if (_topBetsFilter === 'past') {{
+      pool = pool.filter(function(r) {{ return r.results_available; }});
+    }} else {{
+      pool = pool.filter(function(r) {{ return !r.results_available; }});
+    }}
+    races = pool.sort(function(a, b) {{
+      if (tierOrder[a.conviction_tier] !== tierOrder[b.conviction_tier])
+        return tierOrder[a.conviction_tier] - tierOrder[b.conviction_tier];
+      var aPp = Math.max.apply(null, a.horses.map(function(h) {{ return h.edge_pp || 0; }}));
+      var bPp = Math.max.apply(null, b.horses.map(function(h) {{ return h.edge_pp || 0; }}));
+      if (aPp !== bPp) return bPp - aPp;
+      return (b.top_3_share || 0) - (a.top_3_share || 0);
+    }});
+    var lbl = _topBetsFilter === 'past' ? 'PAST RESULTS' : 'NEXT BETS';
+    label = 'TOP BETS · ' + lbl + ' — ' + races.length + ' RACES' +
+      // Inline Next/Past toggle right after the label
+      ' &nbsp;<button class="topbets-sub-tab' + (_topBetsFilter === 'next' ? ' active' : '') + '" id="tb-next" onclick="setTopBetsFilter(&quot;next&quot;)">Next</button>' +
+      '<button class="topbets-sub-tab' + (_topBetsFilter === 'past' ? ' active' : '') + '" id="tb-past" onclick="setTopBetsFilter(&quot;past&quot;)">Past</button>';
   }} else {{
     races = RACES.slice().sort(function(a, b) {{ return a.race_number - b.race_number; }});
     label = 'ALL RACES — ' + races.length + ' RACES IN CHRONOLOGICAL ORDER';
@@ -542,6 +593,26 @@ function renderBetCard(race) {{
   // Bet type sub-label
   var betRec = topH.bet_recommendation || 'QIN';
   var raceLabel = 'R' + race.race_number + ' · ' + esc(race.time || '') + ' · ' + esc(race.class_type || '') + ' ' + race.distance + 'm';
+
+  // STRIKE / MISS badge for past races (resolved on the fly from
+  // _didBetHit). Surfaces the bet outcome at the card header so the
+  // user can scan past races for what hit without expanding each card.
+  var strikeStatus = _didBetHit(race);
+  var strikeBadge = '';
+  if (strikeStatus === 'STRIKE-WIN') {{
+    strikeBadge = '<span class="strike-badge win" title="Top pick won the race">★ STRIKE · WIN</span>';
+  }} else if (strikeStatus === 'STRIKE-QIN') {{
+    strikeBadge = '<span class="strike-badge qin" title="Winning quinella pair was inside top-2 model picks">★ STRIKE · QIN</span>';
+  }} else if (strikeStatus === 'STRIKE-BOX4') {{
+    strikeBadge = '<span class="strike-badge box4" title="Winning quinella pair was inside top-4 model picks (Box-4 hit)">★ STRIKE · BOX-4</span>';
+  }} else if (strikeStatus === 'MISS') {{
+    var horsesByPos = race.horses.filter(function(h) {{ return h.actual_position; }})
+      .sort(function(a, b) {{ return a.actual_position - b.actual_position; }});
+    var winnerInfo = horsesByPos.length
+      ? ' (winner #' + horsesByPos[0].number + ' was rank ' + horsesByPos[0].rank + ')'
+      : '';
+    strikeBadge = '<span class="strike-badge miss" title="Winning pair fell outside our top-4 picks">✗ MISS' + winnerInfo + '</span>';
+  }}
   var edgeDetail = isEdge
     ? ('+' + edgePp + 'pp gap · ev +' + (topH.ev_win != null ? topH.ev_win.toFixed(2) : '0.00'))
     : ('top_3 ' + Math.round((race.top_3_share||0)*100) + '%');
@@ -648,7 +719,7 @@ function renderBetCard(race) {{
     '<div class="bet-card-top">' +
       '<div>' +
         '<span class="tier-badge" style="background:' + tierColor + '">' + (isEdge ? '★ EDGE' : esc(tier)) + '</span>' +
-        '<strong style="margin-left:8px">' + raceLabel + '</strong>' +
+        '<strong style="margin-left:8px">' + raceLabel + '</strong>' + strikeBadge +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
         '<span style="font-size:.7rem;color:var(--dim)">' + esc(edgeDetail) + '</span>' +
@@ -1488,6 +1559,7 @@ window.showInfoPop = showInfoPop;
 window._closeInfoPop = _closeInfoPop;
 window.setStripView = setStripView;
 window.toggleCardDetail = toggleCardDetail;
+window.setTopBetsFilter = setTopBetsFilter;
 
 // ─────────────────────────────────────────────────────────────
 // Boot — Race Order is the default view (all 11 races as cards).
