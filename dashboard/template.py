@@ -566,6 +566,42 @@ function renderBetCard(race) {{
     var b = (h.bet_recommendation || '').trim();
     if (b && b !== 'SKIP') {{ (waBets[b] = waBets[b] || []).push(h); }}
   }});
+
+  // ONE-LINE SUMMARY — at the top so you can scan/punch at the terminal
+  // without parsing the full breakdown. Eg: "BET: BOX QIN-4 → 1, 9, 2, 13".
+  var summaryLines = [];
+  Object.keys(waBets).forEach(function(bt) {{
+    var picks = waBets[bt];
+    var nums = picks.map(function(h) {{ return h.number; }}).join(', ');
+    var lbl;
+    if (bt === 'BANKER WIN' || bt === 'WIN') {{
+      lbl = 'WIN';
+    }} else if ((bt === 'QIN' || bt === 'BOX QIN') && picks.length >= 2) {{
+      lbl = picks.length === 2 ? 'QIN' : 'BOX QIN-' + picks.length;
+    }} else if (bt === 'TRIO' && picks.length >= 3) {{
+      lbl = picks.length === 3 ? 'TRIO' : 'BOX TRIO-' + picks.length;
+    }} else {{
+      lbl = bt;
+    }}
+    summaryLines.push('BET: ' + lbl + ' → ' + nums);
+  }});
+  // Always include the box-4 protection numbers in the summary too, when applicable
+  var top4wa = race.horses.slice(0, 4);
+  var primNumsWa = {{}};
+  Object.keys(waBets).forEach(function(bt) {{
+    waBets[bt].forEach(function(h) {{ primNumsWa[h.number] = true; }});
+  }});
+  var hasNonPrimWa = top4wa.length === 4 && top4wa.some(function(h) {{ return !primNumsWa[h.number]; }});
+  if (top4wa.length === 4 && (hasNonPrimWa || summaryLines.length === 0)) {{
+    var box4Nums = top4wa.map(function(h) {{ return h.number; }}).join(', ');
+    summaryLines.push('PROT: BOX QIN-4 → ' + box4Nums);
+  }}
+  if (summaryLines.length) {{
+    waLines.push('');
+    summaryLines.forEach(function(l) {{ waLines.push(l); }});
+  }}
+
+  // Detailed breakdown of primary bet
   Object.keys(waBets).forEach(function(bt) {{
     var picks = waBets[bt];
     var lbl = bt;
@@ -579,18 +615,12 @@ function renderBetCard(race) {{
     picks.forEach(function(h) {{ waLines.push('  ' + _waPick(h)); }});
   }});
   // Box Q4 protection — same gating rules as the on-screen ticket
-  var top4wa = race.horses.slice(0, 4);
-  if (top4wa.length === 4) {{
-    var primNumsWa = {{}};
-    Object.keys(waBets).forEach(function(bt) {{ waBets[bt].forEach(function(h) {{ primNumsWa[h.number] = true; }}); }});
-    var hasNonPrimWa = top4wa.some(function(h) {{ return !primNumsWa[h.number]; }});
-    if (hasNonPrimWa || waLines.length === 1) {{
-      waLines.push('');
-      waLines.push('+ PROTECTION: BOX QIN-4 (6 combos)');
-      top4wa.forEach(function(h) {{ waLines.push('  ' + _waPick(h)); }});
-    }}
+  if (top4wa.length === 4 && (hasNonPrimWa || Object.keys(waBets).length === 0)) {{
+    waLines.push('');
+    waLines.push('+ PROTECTION: BOX QIN-4 (6 combos)');
+    top4wa.forEach(function(h) {{ waLines.push('  ' + _waPick(h)); }});
   }}
-  if (waBets && Object.keys(waBets).length === 0 && top4wa.length < 4) {{
+  if (Object.keys(waBets).length === 0 && top4wa.length < 4) {{
     waLines.push('');
     waLines.push('SKIP — no bet recommended');
   }}
