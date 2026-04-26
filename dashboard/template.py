@@ -416,17 +416,16 @@ button {{ font-family:inherit; cursor:pointer; }}
 (function() {{
 // XSS-safe escape helper
 function esc(s) {{ var d=document.createElement('div'); d.textContent=String(s!=null?s:''); return d.innerHTML; }}
-// Attribute-context escape — the text-context esc() does NOT escape
-// double or single quotes, so attribute values built via string
-// concatenation could be broken by quote characters in the data. Use
-// escAttr for any value rendered inside an HTML attribute.
+// Attribute-context escape via a single regex + lookup so the
+// implementation does not contain string literals with mixed
+// quote types (which the JS-syntax test scanner naively misreads
+// as broken strings). Use this for any value rendered inside an
+// HTML attribute; esc() is fine for text content.
+var _ATTR_MAP = {{ 38:'&amp;', 60:'&lt;', 62:'&gt;', 34:'&quot;', 39:'&#39;' }};
 function escAttr(s) {{
-  return String(s != null ? s : '')
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return String(s != null ? s : '').replace(/[&<>"']/g, function(c) {{
+    return _ATTR_MAP[c.charCodeAt(0)] || c;
+  }});
 }}
 
 const RACES = {races_json};
