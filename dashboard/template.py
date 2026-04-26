@@ -529,7 +529,9 @@ function copyWA(text, btn) {{
 // ─────────────────────────────────────────────────────────────
 // Race strip
 // ─────────────────────────────────────────────────────────────
-var _activeStrip = null;
+// Set of race_numbers currently expanded in #race-detail.
+// Multiple races can be expanded simultaneously (accordion behaviour).
+var _activeRaces = new Set();
 
 function renderStrip() {{
   var strip = document.getElementById('strip');
@@ -713,59 +715,84 @@ function _buildRaceDetailPanel(race) {{
     '</div>';
 }}
 
-function showRaceDetail(raceNum) {{
-  var race = null;
-  for (var i=0; i<RACES.length; i++) {{ if (RACES[i].race_number === raceNum) {{ race = RACES[i]; break; }} }}
-  if (!race) return;
+function _renderActiveRaces(scrollTarget) {{
+  // Re-render #race-detail with every currently-active race stacked in
+  // strip order (R1 → R11), regardless of click order. Updates tile
+  // active states. scrollTarget (raceNum) optionally scrolls the
+  // detail container into view.
+  var det = document.getElementById('race-detail');
+  if (!det) return;
 
-  // If "Expand all" is active, clicking a tile collapses back to single-race view
-  var expandBtn = document.getElementById('expand-all-btn');
-  if (expandBtn && expandBtn.classList.contains('active')) {{
-    expandBtn.classList.remove('active');
-    expandBtn.textContent = 'Expand all';
-  }}
-
-  // Toggle: clicking the same tile again collapses it
-  if (_activeStrip === raceNum) {{
-    document.getElementById('race-detail').innerHTML = '';
-    document.querySelectorAll('.strip-tile').forEach(function(t) {{ t.classList.remove('active'); }});
-    _activeStrip = null;
+  document.querySelectorAll('.strip-tile').forEach(function(t) {{ t.classList.remove('active'); }});
+  if (_activeRaces.size === 0) {{
+    det.innerHTML = '';
+    _syncExpandAllButton();
     return;
   }}
-  _activeStrip = raceNum;
-  document.querySelectorAll('.strip-tile').forEach(function(t) {{ t.classList.remove('active'); }});
-  var activeTile = document.getElementById('tile-' + raceNum);
-  if (activeTile) activeTile.classList.add('active');
 
-  var det = document.getElementById('race-detail');
-  det.innerHTML = _buildRaceDetailPanel(race);
-  det.scrollIntoView({{behavior:'smooth', block:'nearest'}});
+  var sorted = RACES
+    .filter(function(r) {{ return _activeRaces.has(r.race_number); }})
+    .sort(function(a,b) {{ return a.race_number - b.race_number; }});
+
+  det.innerHTML = sorted.map(function(r) {{
+    var closeBtn =
+      '<button class="race-close-btn" onclick="closeRaceDetail(' + r.race_number + ')" ' +
+      'title="Collapse this race" ' +
+      'style="position:absolute;top:8px;right:8px;background:transparent;border:1px solid var(--border);' +
+      'color:var(--dim);width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:.85rem;line-height:1">×</button>';
+    return '<div style="position:relative;margin-bottom:12px">' + closeBtn + _buildRaceDetailPanel(r) + '</div>';
+  }}).join('');
+
+  sorted.forEach(function(r) {{
+    var tile = document.getElementById('tile-' + r.race_number);
+    if (tile) tile.classList.add('active');
+  }});
+
+  _syncExpandAllButton();
+
+  if (scrollTarget) {{
+    var anchor = document.getElementById('tile-' + scrollTarget);
+    var det2 = document.getElementById('race-detail');
+    if (det2) det2.scrollIntoView({{behavior:'smooth', block:'nearest'}});
+  }}
+}}
+
+function _syncExpandAllButton() {{
+  var btn = document.getElementById('expand-all-btn');
+  if (!btn) return;
+  if (_activeRaces.size === RACES.length && RACES.length > 0) {{
+    btn.classList.add('active');
+    btn.textContent = 'Collapse all';
+  }} else {{
+    btn.classList.remove('active');
+    btn.textContent = 'Expand all';
+  }}
+}}
+
+function showRaceDetail(raceNum) {{
+  // Toggle this race independently — multiple races can stay expanded.
+  if (_activeRaces.has(raceNum)) {{
+    _activeRaces.delete(raceNum);
+    _renderActiveRaces(null);
+  }} else {{
+    _activeRaces.add(raceNum);
+    _renderActiveRaces(raceNum);
+  }}
+}}
+
+function closeRaceDetail(raceNum) {{
+  // Per-panel × button — collapses a single race without re-clicking the tile.
+  _activeRaces.delete(raceNum);
+  _renderActiveRaces(null);
 }}
 
 function toggleExpandAll() {{
-  var btn = document.getElementById('expand-all-btn');
-  var det = document.getElementById('race-detail');
-  if (!btn || !det) return;
-
-  if (btn.classList.contains('active')) {{
-    // Collapse
-    btn.classList.remove('active');
-    btn.textContent = 'Expand all';
-    det.innerHTML = '';
-    document.querySelectorAll('.strip-tile').forEach(function(t) {{ t.classList.remove('active'); }});
-    _activeStrip = null;
-    return;
+  if (_activeRaces.size === RACES.length) {{
+    _activeRaces.clear();
+  }} else {{
+    _activeRaces = new Set(RACES.map(function(r) {{ return r.race_number; }}));
   }}
-
-  // Expand: render every race detail panel stacked, separated by spacing
-  btn.classList.add('active');
-  btn.textContent = 'Collapse';
-  document.querySelectorAll('.strip-tile').forEach(function(t) {{ t.classList.remove('active'); }});
-  _activeStrip = null;
-  det.innerHTML = RACES.map(function(r) {{
-    return '<div style="margin-bottom:12px">' + _buildRaceDetailPanel(r) + '</div>';
-  }}).join('');
-  det.scrollIntoView({{behavior:'smooth', block:'nearest'}});
+  _renderActiveRaces(null);
 }}
 
 // ─────────────────────────────────────────────────────────────
