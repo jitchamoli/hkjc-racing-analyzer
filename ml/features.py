@@ -464,18 +464,17 @@ class FeatureEngineering:
         # Feature 10: freshness (closer to ideal 21d spacing → higher score)
         # When days_since_last_run is missing, fall back to (race_date - prior race_date)
         # — NOT (datetime.now() - prior race_date), which would give wrong values when
-        # back-testing past races or predicting future-dated cards. This matches the
-        # training-side fallback added in v6.4.
+        # back-testing past races or predicting future-dated cards. If race_date itself
+        # is missing/malformed, fall through to dslr=0 (matches training fallback in
+        # ml/training.py:293-302) instead of using wall-clock — that's a parity gap
+        # the multi-expert review flagged.
         dslr = horse_data.get('days_since_last_run', 0) or 0
-        if not dslr and prior:
+        if not dslr and prior and race_date:
             last_date = prior[-1].get('race_date', '')
             if last_date:
                 try:
                     last_dt = datetime.strptime(last_date.replace('/', '-'), '%Y-%m-%d')
-                    if race_date:
-                        curr_dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
-                    else:
-                        curr_dt = datetime.now()
+                    curr_dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
                     dslr = (curr_dt - last_dt).days
                 except Exception:
                     pass

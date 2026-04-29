@@ -364,6 +364,17 @@ class HKJCRacingMLModel:
                     high_corrs[pair] = round(float(r), 3)
                     logger.warning(f"High correlation: {pair} = {r:.3f}")
 
+        # Constant-feature audit (CLAUDE.md ML Critical Rule #3): any feature
+        # with std < 0.01 is a wasted slot — usually a column that's mostly
+        # null and falls back to the same default value.
+        feature_stds = features.std(axis=0)
+        for i, name in enumerate(FEATURE_NAMES):
+            if feature_stds[i] < 0.01:
+                logger.warning(
+                    f"Near-constant feature: {name} std={feature_stds[i]:.4f} "
+                    f"— likely mostly null/default; check feature extraction"
+                )
+
         # Only log to the production experiment ledger when this is a real
         # training run that actually persisted (save=True AND samples are
         # above MIN_SAVE_SAMPLES). Tests with save=True but tiny samples
