@@ -128,14 +128,15 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 
 **Card-stack layout (v6.5)** — topbar with **📋 Race Order / ⭐ Top Bets** view tabs → hero stack of full bet cards → sticky alerts rail on ≥1024px. Cards are click-to-expand with per-race detail panels (per-horse table, history, speed map, reasoning).
 
-**5-layer BET TICKET** per card:
+**6-layer BET TICKET** per card:
 1. **PRIMARY** (gold) — recommender's choice with jockey + 30-day strike rate
 2. **+ BOX QIN-4** (green) — top-4 model picks, always-on protection (catches rank-3/4 placing-pair upsets)
 3. **+ F4 SAVER** (purple) — top-4 in 1-2-3-4 exact order, single unit
 4. **+ QIN PLACE BANKER** (blue) — only when top pick odds ≤ 1.8 (favorite + 3 bankers, 3 combos)
 5. **+ BOX TRIO-5** (pink) — top-5 in 10-combo TRIO box (catches rank-5/6 spoilers)
+6. **+ BOX TRIO-6** (rose) — top-6 in 20-combo TRIO box. Apr 29 evidence: 6/9 strikes vs 2/9 for TRIO-5 on the same meeting because rank-6 horses systematically hit the podium in races we missed. 2× cost, 3× strike rate.
 
-**Top Bets sub-toggle**: `Next` / `Past` filter — `Next` is default, auto-flips to `Past` at end-of-meeting. Past races render outcome badges: 🟡 STRIKE·WIN, 🟢 STRIKE·QIN, 🟢 STRIKE·BOX-4, 🔴 MISS.
+**Top Bets sub-toggle**: `Next` / `Past` filter — `Next` is default, auto-flips to `Past` at end-of-meeting. Past races render outcome badges: 🟡 STRIKE·WIN, 🟢 STRIKE·QIN, 🟢 STRIKE·BOX-4, 🔴 STRIKE·TRIO-5, 🌹 STRIKE·TRIO-6, 🔴 MISS.
 
 **Race-day live workflow** uses two persistent monitors:
 - **Pre-race refresh + results merge** at **T-6 min** (chains `generate_predictions.py` → `results_fetcher.py` so dashboard has fresh win/place odds AND past STRIKE/MISS badges persist).
