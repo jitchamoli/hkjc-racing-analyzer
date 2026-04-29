@@ -257,6 +257,8 @@ button {{ font-family:inherit; cursor:pointer; }}
 .strike-badge.win {{ background:var(--gold); color:#000; }}
 .strike-badge.qin {{ background:var(--green); color:#000; }}
 .strike-badge.box4 {{ background:rgba(16,185,129,.7); color:#000; }}
+.strike-badge.trio {{ background:rgba(236,72,153,.85); color:#000; }}
+.strike-badge.trio6 {{ background:rgba(244,63,94,.85); color:#fff; }}
 .strike-badge.miss {{ background:rgba(239,68,68,.6); color:#fff; }}
 
 /* View tabs — by default boxed (legacy below-strip placement).
@@ -473,20 +475,29 @@ var _topBetsFilter = 'next';
 function _didBetHit(race) {{
   // Determine whether ANY of our recommended bets hit for a finished race.
   // Returns one of: 'STRIKE-WIN' (rank-1 won), 'STRIKE-QIN' (top-2 quinella),
-  // 'STRIKE-BOX4' (winning quinella pair was in top-4 picks), 'MISS' (none),
-  // or null if the race is not finished.
+  // 'STRIKE-BOX4' (winning quinella pair was in top-4 picks),
+  // 'STRIKE-TRIO5' (full podium in top-5), 'STRIKE-TRIO6' (full podium in top-6),
+  // 'MISS' (none), or null if the race is not finished.
   if (!race.results_available) return null;
   var horsesByPos = race.horses
     .filter(function(h) {{ return h.actual_position; }})
     .sort(function(a, b) {{ return a.actual_position - b.actual_position; }});
   if (horsesByPos.length < 2) return null;
   var p1 = horsesByPos[0].number, p2 = horsesByPos[1].number;
-  var top4Nums = race.horses.slice(0, 4).map(function(h) {{ return h.number; }});
+  var p3 = horsesByPos.length >= 3 ? horsesByPos[2].number : null;
   var top2Nums = race.horses.slice(0, 2).map(function(h) {{ return h.number; }});
+  var top4Nums = race.horses.slice(0, 4).map(function(h) {{ return h.number; }});
+  var top5Nums = race.horses.slice(0, 5).map(function(h) {{ return h.number; }});
+  var top6Nums = race.horses.slice(0, 6).map(function(h) {{ return h.number; }});
   var rank1 = race.horses[0];
   if (rank1 && rank1.number === p1) return 'STRIKE-WIN';
   if (top2Nums.indexOf(p1) >= 0 && top2Nums.indexOf(p2) >= 0) return 'STRIKE-QIN';
   if (top4Nums.indexOf(p1) >= 0 && top4Nums.indexOf(p2) >= 0) return 'STRIKE-BOX4';
+  // TRIO box checks require all 3 podium horses inside the box.
+  if (p3 != null) {{
+    if (top5Nums.indexOf(p1)>=0 && top5Nums.indexOf(p2)>=0 && top5Nums.indexOf(p3)>=0) return 'STRIKE-TRIO5';
+    if (top6Nums.indexOf(p1)>=0 && top6Nums.indexOf(p2)>=0 && top6Nums.indexOf(p3)>=0) return 'STRIKE-TRIO6';
+  }}
   return 'MISS';
 }}
 
@@ -623,6 +634,10 @@ function renderBetCard(race) {{
     strikeBadge = '<span class="strike-badge qin" title="Winning quinella pair was inside top-2 model picks">★ STRIKE · QIN</span>';
   }} else if (strikeStatus === 'STRIKE-BOX4') {{
     strikeBadge = '<span class="strike-badge box4" title="Winning quinella pair was inside top-4 model picks (Box-4 hit)">★ STRIKE · BOX-4</span>';
+  }} else if (strikeStatus === 'STRIKE-TRIO5') {{
+    strikeBadge = '<span class="strike-badge trio" title="Full podium inside top-5 model picks (BOX TRIO-5 hit)">★ STRIKE · TRIO-5</span>';
+  }} else if (strikeStatus === 'STRIKE-TRIO6') {{
+    strikeBadge = '<span class="strike-badge trio6" title="Full podium inside top-6 model picks (BOX TRIO-6 hit — TRIO-5 missed)">★ STRIKE · TRIO-6</span>';
   }} else if (strikeStatus === 'MISS') {{
     var horsesByPos = race.horses.filter(function(h) {{ return h.actual_position; }})
       .sort(function(a, b) {{ return a.actual_position - b.actual_position; }});
@@ -706,6 +721,14 @@ function renderBetCard(race) {{
   if (top5wa.length === 5) {{
     var t5Nums = top5wa.map(function(h) {{ return h.number; }}).join(', ');
     summaryLines.push('BOX TRIO-5: ' + t5Nums + '  · 10 combos');
+  }}
+  // BOX TRIO-6 — Apr 29 evidence: 6/9 strikes vs 2/9 for TRIO-5 on the
+  // same meeting. The rank-6 horse hit the podium in 4 of 7 missed races.
+  // 20 combos at 1 unit = 20-unit stake (2x BOX TRIO-5).
+  var top6wa = race.horses.slice(0, 6);
+  if (top6wa.length === 6) {{
+    var t6Nums = top6wa.map(function(h) {{ return h.number; }}).join(', ');
+    summaryLines.push('BOX TRIO-6: ' + t6Nums + '  · 20 combos');
   }}
   if (summaryLines.length) {{
     waLines.push('');
@@ -1303,6 +1326,25 @@ function _buildRaceDetailPanel(race) {{
         '</span>' +
         top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
         '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
+      '</div>'
+    );
+  }}
+
+  // BOX TRIO-6 protection — top 6 model picks in a 20-combo box.
+  // Apr 29 evidence: 6/9 strikes vs 2/9 for TRIO-5 on the same meeting.
+  // Across that day, the rank-6 horse hit the podium in 4 of the 7
+  // races we missed (R1, R4, R5, R8 had a rank-6 placer; R9 had the
+  // rank-6 winner). Doubles the cost (20 vs 10 combos) but tripled
+  // the strike rate. 20 combos at 1 unit = 20-unit stake.
+  var top6 = race.horses.slice(0, 6);
+  if (top6.length === 6) {{
+    ticketLines.push(
+      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+        '<span style="display:inline-block;background:rgba(244,63,94,.85);color:#fff;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+          '+ BOX TRIO-6 · 20 combos' +
+        '</span>' +
+        top6.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
+        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 6 finish top-3 in any order. Apr 29 evidence: caught 6/9 vs TRIO-5\\'s 2/9 — rank-6 horses were systematically on the podium in races we missed. 2x cost for 3x strike rate.</div>' +
       '</div>'
     );
   }}
