@@ -1,6 +1,6 @@
 {
   "race_date": "2026/04/29",
-  "updated_at": "2026-04-29 23:03:43",
+  "updated_at": "2026-04-30 00:55:42",
   "day_summary": {
     "total_races": 9,
     "wins_correct": 2,
@@ -1433,90 +1433,6 @@
           "name": "DILBAGH(K055)",
           "finish_time": "D J Whyte",
           "win_odds": 19.0
-        },
-        {
-          "position": 1,
-          "number": 4,
-          "name": "DASHING MAURISON(K374)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 2,
-          "number": 3,
-          "name": "SPLENDID FORCE(K120)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 3,
-          "number": 5,
-          "name": "FAMILY FORTUNE(H447)",
-          "finish_time": "",
-          "win_odds": 500.0
-        },
-        {
-          "position": 4,
-          "number": 7,
-          "name": "PERFECT PAIRING(J331)",
-          "finish_time": "",
-          "win_odds": 250.0
-        },
-        {
-          "position": 5,
-          "number": 6,
-          "name": "KASA PAPA(G312)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 6,
-          "number": 11,
-          "name": "ISLAND GOLDEN(H018)",
-          "finish_time": "",
-          "win_odds": 500.0
-        },
-        {
-          "position": 7,
-          "number": 10,
-          "name": "HAPPY BUDDIES(K344)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 8,
-          "number": 1,
-          "name": "CELESTIAL HARMONY(K059)",
-          "finish_time": "",
-          "win_odds": 1800.0
-        },
-        {
-          "position": 9,
-          "number": 12,
-          "name": "MR ALADDIN(H386)",
-          "finish_time": "",
-          "win_odds": 1000.0
-        },
-        {
-          "position": 10,
-          "number": 9,
-          "name": "GOLDEN FAIRY(E448)",
-          "finish_time": "",
-          "win_odds": 150.0
-        },
-        {
-          "position": 11,
-          "number": 8,
-          "name": "PERFECT PEACH(E488)",
-          "finish_time": "",
-          "win_odds": 250.0
-        },
-        {
-          "position": 12,
-          "number": 2,
-          "name": "DILBAGH(K055)",
-          "finish_time": "",
-          "win_odds": 1100.0
         }
       ],
       "actual_winner": 4,
@@ -3223,90 +3139,6 @@
           "name": "SEA DIAMOND(L072)",
           "finish_time": "D Eustace",
           "win_odds": 36.0
-        },
-        {
-          "position": 1,
-          "number": 4,
-          "name": "HONEST WITNESS(K283)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 2,
-          "number": 12,
-          "name": "GOLDEN FRIENDSHIP(K106)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 3,
-          "number": 6,
-          "name": "THE PERFECT MATCH(J253)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 4,
-          "number": 1,
-          "name": "CHEAHA(K567)",
-          "finish_time": "",
-          "win_odds": 150.0
-        },
-        {
-          "position": 5,
-          "number": 2,
-          "name": "VERY GRATEFUL(K396)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 6,
-          "number": 11,
-          "name": "LEAN MASTER(H134)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 7,
-          "number": 3,
-          "name": "EVERSTAR(K264)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 8,
-          "number": 9,
-          "name": "KING GLORIOSO(J247)",
-          "finish_time": "",
-          "win_odds": 900.0
-        },
-        {
-          "position": 9,
-          "number": 7,
-          "name": "AMO ERGO SUM(K394)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 10,
-          "number": 10,
-          "name": "GLACIATED(K272)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 11,
-          "number": 5,
-          "name": "SOO KOO(L008)",
-          "finish_time": "",
-          "win_odds": 0.0
-        },
-        {
-          "position": 12,
-          "number": 8,
-          "name": "SEA DIAMOND(L072)",
-          "finish_time": "",
-          "win_odds": 0.0
         }
       ],
       "actual_winner": 4,
@@ -12946,7 +12778,7 @@
           "overlay": 0.959,
           "edge_fires": false,
           "model_rank": 2,
-          "actual_position": null
+          "actual_position": 9
         },
         {
           "rank": 3,
@@ -13029,7 +12861,7 @@
           "overlay": 0.631,
           "edge_fires": false,
           "model_rank": 3,
-          "actual_position": null
+          "actual_position": 11
         },
         {
           "rank": 4,
@@ -13262,7 +13094,7 @@
           "overlay": 1.268,
           "edge_fires": false,
           "model_rank": 5,
-          "actual_position": null
+          "actual_position": 5
         },
         {
           "rank": 6,
@@ -13491,7 +13323,7 @@
           "overlay": 1.748,
           "edge_fires": false,
           "model_rank": 7,
-          "actual_position": null
+          "actual_position": 8
         },
         {
           "rank": 8,
@@ -13782,7 +13614,7 @@
           "overlay": 0.893,
           "edge_fires": false,
           "model_rank": 9,
-          "actual_position": null
+          "actual_position": 6
         },
         {
           "rank": 10,
@@ -13866,7 +13698,7 @@
           "overlay": 1.355,
           "edge_fires": false,
           "model_rank": 10,
-          "actual_position": null
+          "actual_position": 7
         },
         {
           "rank": 11,
@@ -13949,7 +13781,7 @@
           "overlay": 2.743,
           "edge_fires": false,
           "model_rank": 11,
-          "actual_position": null
+          "actual_position": 12
         },
         {
           "rank": 12,
@@ -14095,7 +13927,7 @@
           "overlay": 3.047,
           "edge_fires": false,
           "model_rank": 12,
-          "actual_position": null
+          "actual_position": 10
         }
       ],
       "speed_map": [
@@ -14273,29 +14105,85 @@
           "position": 1,
           "number": 6,
           "name": "ARMOR GOLDEN EAGLE(K566)",
-          "finish_time": "",
-          "win_odds": 0.0
+          "finish_time": "M Newnham",
+          "win_odds": 2.8
         },
         {
           "position": 2,
           "number": 12,
           "name": "WITHALLMYFAITH(K428)",
-          "finish_time": "",
-          "win_odds": 0.0
+          "finish_time": "D A Hayes",
+          "win_odds": 5.6
         },
         {
           "position": 3,
           "number": 5,
           "name": "FANTASTIC FUN(J364)",
-          "finish_time": "",
-          "win_odds": 0.0
+          "finish_time": "C S Shum",
+          "win_odds": 12.0
         },
         {
           "position": 4,
           "number": 7,
           "name": "CALIFORNIA MOXIE(J131)",
-          "finish_time": "",
-          "win_odds": 0.0
+          "finish_time": "A S Cruz",
+          "win_odds": 12.0
+        },
+        {
+          "position": 5,
+          "number": 2,
+          "name": "KEEFY(G306)",
+          "finish_time": "F C Lor",
+          "win_odds": 19.0
+        },
+        {
+          "position": 6,
+          "number": 10,
+          "name": "VIVA GRACIOUSNESS(J079)",
+          "finish_time": "A S Cruz",
+          "win_odds": 15.0
+        },
+        {
+          "position": 7,
+          "number": 11,
+          "name": "LUCKY TWIN STARS(K126)",
+          "finish_time": "K W Lui",
+          "win_odds": 11.0
+        },
+        {
+          "position": 8,
+          "number": 9,
+          "name": "STORMI(K084)",
+          "finish_time": "W K Mo",
+          "win_odds": 27.0
+        },
+        {
+          "position": 9,
+          "number": 3,
+          "name": "CORLEONE(J426)",
+          "finish_time": "C Fownes",
+          "win_odds": 10.0
+        },
+        {
+          "position": 10,
+          "number": 4,
+          "name": "I CAN(H381)",
+          "finish_time": "P C Ng",
+          "win_odds": 72.0
+        },
+        {
+          "position": 11,
+          "number": 1,
+          "name": "SOLID WIN(J225)",
+          "finish_time": "P F Yiu",
+          "win_odds": 6.9
+        },
+        {
+          "position": 12,
+          "number": 8,
+          "name": "SPICY GOLD(H440)",
+          "finish_time": "J Richards",
+          "win_odds": 77.0
         }
       ],
       "results_available": true,
@@ -14305,7 +14193,7 @@
         5,
         6
       ],
-      "actual_win_odds": 0.0,
+      "actual_win_odds": 2.8,
       "accuracy": {
         "win_correct": false,
         "top3_overlap": 1,
