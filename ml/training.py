@@ -445,12 +445,12 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
         # recent quarter only ~14% of effective training weight. With 94% horse
         # turnover and 50% jockey turnover since 2021, older rows describe a
         # different field than the one we're predicting on. Switched to
-        # exponential half-life of n/3 so the newest third weighs ~2× the
-        # oldest third (was 1.5× under linear 0.3→1.0).
+        # exponential decay: newest third averages ~3-4× the oldest third's
+        # weight (newest row 1.0 vs oldest ~0.29). Was 1.5× under linear 0.3→1.0.
         n = len(weights)
         if n > 1:
             # Exponential: w(i) = 0.25 + 0.75 * exp((i - (n-1)) / (n/3))
-            # Newest row (i=n-1) weight = 1.0; oldest (i=0) ≈ 0.29 (≈ exp(-3))
+            # Newest row (i=n-1) weight = 1.0; oldest (i=0) ≈ 0.29 (≈ 0.25 + 0.75*exp(-3))
             idx = np.arange(n, dtype=np.float32)
             decay = np.exp((idx - (n - 1)) / (n / 3.0))
             row_weights = (0.25 + 0.75 * decay).astype(np.float32)

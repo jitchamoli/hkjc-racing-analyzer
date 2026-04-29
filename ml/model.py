@@ -128,6 +128,21 @@ class HKJCRacingMLModel:
                                  f"Retrain with: python3 -m scripts.train")
                     return
 
+                # Verify feature NAMES match — count alone misses renames
+                # (e.g. prior_win_rate → prior_winrate while count stays at 19).
+                # Without this guard the model loads silently and predicts on
+                # misaligned features. Backwards-compat: pickles without
+                # 'feature_names' (pre-Fix #19) skip the check.
+                saved_names = data.get('feature_names')
+                if saved_names is not None and list(saved_names) != list(FEATURE_NAMES):
+                    diff = [(s, c) for s, c in zip(saved_names, FEATURE_NAMES) if s != c]
+                    logger.error(
+                        f"Feature name mismatch — model trained on different schema. "
+                        f"First mismatched pair: {diff[0] if diff else 'order/length differs'}. "
+                        f"Retrain with: python3 -m scripts.train"
+                    )
+                    return
+
                 self.model = data.get('model')
                 self.place_model = data.get('place_model')
                 self.calibrator = data.get('calibrator')
@@ -168,6 +183,7 @@ class HKJCRacingMLModel:
             'place_calibrator': self.place_calibrator,
             'version': self.model_version,
             'n_features': NUM_FEATURES,
+            'feature_names': list(FEATURE_NAMES),  # Fix #19: catch renames
             'n_samples': n_samples,  # NEW: persisted for F-05 integrity check
             'feature_importance': self.feature_importance,
             'trained_date': datetime.now().isoformat()
