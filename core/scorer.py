@@ -182,13 +182,15 @@ def calibrate_probabilities(analyses, field_size: int = 12,
     if not analyses:
         return []
 
-    # Mild softmax — just enough to normalize, not distort
-    temp = config.SOFTMAX_TEMPERATURE
+    # combined_probability is already a probability in [0,1]
+    # (rule_prob × 0.6 + ml_prob × 0.4 from create_combined_prediction).
+    # Just normalize so they sum to 1.0 — softmax with temp here would
+    # collapse model separation: e.g. raw 0.50 vs 0.05 horses become
+    # 0.13 vs 0.066 after softmax(temp=1.5), destroying signal before
+    # the market blend.
     raw_scores = [a.combined_probability for a in analyses]
-    max_score = max(raw_scores) if raw_scores else 0.5
-    exp_scores = [math.exp((s - max_score) * temp) for s in raw_scores]
-    exp_total = sum(exp_scores) or 1.0
-    cal_probs = [e / exp_total for e in exp_scores]
+    raw_total = sum(raw_scores) or 1.0
+    cal_probs = [s / raw_total for s in raw_scores]
 
     # Blend with market-implied probabilities
     market_probs = []
