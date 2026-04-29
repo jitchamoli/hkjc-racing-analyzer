@@ -45,13 +45,17 @@ def _rule_score_to_prob(rule_score: float, field_size: int) -> float:
 
 
 def compute_pure_probs(horses: List[Dict], field_size: int = None) -> List[float]:
+    # raw[i] = 0.6 * sigmoid_anchored(rule_score) + 0.4 * ml_prob is already
+    # a probability in [0,1]. Softmax here would flatten the model's signal
+    # (top horse 0.50 vs bottom 0.05 → 0.18 vs 0.07 after exp normalization),
+    # making edge_pp = pure - market mechanically negative across the board
+    # (mean -14pp on 124-race holdout, G3 gate fired 0 times by design but
+    # actually because pure_prob was compressed). Just normalize.
     n = field_size if field_size is not None else len(horses)
     raw = [0.6 * _rule_score_to_prob(h['rule_score'], n) + 0.4 * h['ml_prob']
            for h in horses]
-    max_raw = max(raw) if raw else 0
-    exp = [math.exp(r - max_raw) for r in raw]
-    total = sum(exp) or 1.0
-    return [e / total for e in exp]
+    total = sum(raw) or 1.0
+    return [r / total for r in raw]
 
 
 def compute_market_probs(horses: List[Dict]) -> List[float]:

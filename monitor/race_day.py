@@ -151,10 +151,19 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
         latest_file = results_dir / "racing_dashboard.html"
         # Atomic write so a browser polling the file never sees a half-written
         # HTML during regeneration. os.replace is atomic on POSIX/Windows.
+        # try/finally cleans up tmp on write failure so stale .tmp.{pid} files
+        # don't accumulate in the results directory.
         for path in (html_file, latest_file):
             tmp = path.with_suffix(path.suffix + f'.tmp.{os.getpid()}')
-            tmp.write_text(html)
-            os.replace(tmp, path)
+            try:
+                tmp.write_text(html)
+                os.replace(tmp, path)
+            except Exception:
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+                raise
 
         logger.info(f"Dashboard regenerated with {len(all_races)} races")
 
