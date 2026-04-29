@@ -1,10 +1,10 @@
 {
   "HIGH": {
     "hit": 2,
-    "total": 9,
-    "rate": 0.2222,
-    "ci_low": 0.0632,
-    "ci_high": 0.5474
+    "total": 10,
+    "rate": 0.2,
+    "ci_low": 0.0567,
+    "ci_high": 0.5098
   },
   "LOW": {
     "hit": 0,
