@@ -107,18 +107,31 @@ def _dynamic_blend_weights(field_size: int, distance: int) -> Tuple[float, float
 
     Returns (model_weight, market_weight) summing to 1.0.
     """
-    # F-09 empirically chosen: base 45/55 model/market, sprint threshold 1200m
-    model_w = 0.45
-    market_w = 0.55
+    # F-09 empirically chosen base 45/55 model/market, sprint threshold 1200m,
+    # field threshold 10. Replaced hard cutoffs (40pp swing on field_size
+    # differing by 1 horse, e.g. 10 vs 9 at 1200m) with logistic ramps so
+    # the weight changes smoothly across boundaries — no noise amplification
+    # at exactly threshold values.
+    base_model_w = 0.45
 
-    # Large field (10+) + sprint (≤1200m): market is sharpest → shift +15% toward market
-    if field_size >= 10 and distance <= 1200:
-        market_w = min(0.70, market_w + 0.15)
-        model_w = 1.0 - market_w
-    # Small field (<10) or long distance (≥1800m): thinner pool → shift +15% toward model
-    elif field_size < 10 or distance >= 1800:
-        model_w = min(0.70, model_w + 0.15)
-        market_w = 1.0 - model_w
+    # Sigmoid ramps: σ(x/τ) is 0 far below threshold, 1 far above, ~0.5 at threshold.
+    # τ = scale (smoothness): larger = smoother transition.
+    sprint_factor = 1.0 / (1.0 + math.exp(-(1200 - distance) / 100.0))   # high for sprints
+    big_field_factor = 1.0 / (1.0 + math.exp(-(field_size - 10) / 1.5))  # high for ≥10 horses
+    long_distance_factor = 1.0 / (1.0 + math.exp(-(distance - 1800) / 100.0))  # high for ≥1800m
+    small_field_factor = 1.0 / (1.0 + math.exp(-(10 - field_size) / 1.5))   # high for <10 horses
+
+    # Large field + sprint → market sharper → shift toward market (max +0.15)
+    market_shift = 0.15 * sprint_factor * big_field_factor
+    # Small field OR long distance → thinner pool → shift toward model (max +0.15)
+    # Use OR via algebraic combination: 1 - (1-small)(1-long)
+    pool_thinness = 1.0 - (1.0 - small_field_factor) * (1.0 - long_distance_factor)
+    model_shift = 0.15 * pool_thinness
+
+    # Apply both shifts (they can partially offset on edge cases)
+    model_w = base_model_w + model_shift - market_shift
+    model_w = max(0.30, min(0.70, model_w))
+    market_w = 1.0 - model_w
 
     return model_w, market_w
 
