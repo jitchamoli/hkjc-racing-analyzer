@@ -157,6 +157,22 @@ class HKJCRacingMLModel:
                     'version': data.get('version'),
                 }
                 self.is_trained = self.model is not None
+
+                # Fix #21: integrity check at load time (was per-predict before).
+                # Avoids re-running ISO date parse + dict lookups on every horse
+                # (132× per dashboard generation). Also fails loudly at load
+                # rather than mid-race if the pickle is stale or synthetic.
+                if self.is_trained:
+                    try:
+                        from ml.integrity import check_model_integrity
+                        check_model_integrity(self._metadata)
+                    except Exception as e:
+                        logger.error(f"Model integrity check failed at load: {e}")
+                        self.model = None
+                        self.place_model = None
+                        self.is_trained = False
+                        return
+
                 logger.info(f"Loaded model version {self.model_version}")
             except Exception as e:
                 logger.warning(f"Could not load model: {e}")
@@ -420,11 +436,9 @@ class HKJCRacingMLModel:
                 "Retrain via `python3 -m scripts.train`."
             )
 
-        # F-05: integrity check — fail loudly if pickle is compromised.
-        # This runs on every predict() call; cheap enough (dict lookups).
-        if self._metadata is not None:
-            from ml.integrity import check_model_integrity
-            check_model_integrity(self._metadata)
+        # F-05 / Fix #21: integrity check now runs at model load time, not
+        # per-predict. self.is_trained is False if integrity failed, so the
+        # guard above (raise RuntimeError) catches it.
 
         proba = self.model.predict_proba(features.reshape(1, -1))[0]
         win_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])
@@ -457,10 +471,7 @@ class HKJCRacingMLModel:
     def predict_place(self, features: np.ndarray, field_size: int = 12) -> float:
         """Predict place (top-3) probability using dedicated place model + calibrator."""
         if self.place_model is not None:
-            # F-05: integrity check mirrors predict() — place is also a prediction entry point.
-            if self._metadata is not None:
-                from ml.integrity import check_model_integrity
-                check_model_integrity(self._metadata)
+            # F-05 / Fix #21: integrity check moved to load time.
             proba = self.place_model.predict_proba(features.reshape(1, -1))[0]
             place_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])
 
