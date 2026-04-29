@@ -245,12 +245,15 @@ class HKJCRacingMLModel:
                 )
             X_calib, y_calib = X_val, y_val  # degraded — calib leaks earlystop set
 
-        n_pos = max(1, y_train.sum())
-        n_neg = max(1, len(y_train) - n_pos)
-        scale = n_neg / n_pos
-
+        # scale_pos_weight = 1 (no rebalancing). With ~8% positive rate,
+        # scale_pos_weight = n_neg/n_pos ≈ 11 was double-correcting alongside
+        # the post-hoc isotonic calibrator: XGBoost shifted predictions
+        # upward toward 50%, then isotonic re-shrunk them. Net was fine for
+        # ranking but distorted feature_importance and made cross-version
+        # Brier comparisons misleading. Standard XGB+isotonic best practice
+        # is to let calibration handle class imbalance.
         params = dict(config.XGBOOST_PARAMS)
-        params['scale_pos_weight'] = scale
+        params['scale_pos_weight'] = 1
 
         # Early stopping on VALIDATION set (not test set)
         params['early_stopping_rounds'] = 20
@@ -309,10 +312,9 @@ class HKJCRacingMLModel:
                 pl_calib = pl_val  # degraded path
                 pl_test = place_labels[-len(y_test):]
 
-            pl_pos = max(1, pl_train.sum())
-            pl_neg = max(1, len(pl_train) - pl_pos)
+            # scale_pos_weight=1 — calibrator handles imbalance (mirror of win model).
             pl_params = dict(config.XGBOOST_PARAMS)
-            pl_params['scale_pos_weight'] = pl_neg / pl_pos
+            pl_params['scale_pos_weight'] = 1
             pl_params['early_stopping_rounds'] = 20
             self.place_model = xgb.XGBClassifier(**pl_params)
             self.place_model.fit(X_train, pl_train, sample_weight=sw_train,

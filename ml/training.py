@@ -254,12 +254,12 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
 
             # prior_pace, adjusted_speed dropped v6.4 — see feature_schema.py.
 
-            # Feature 8: C&D form (winning trip replication boost)
+            # Feature 8: C&D form — removed +0.2 floor (matches features.py).
+            # Unraced=0.5; 0-for-N=0.0; recent winning trip (≤180d) +0.15.
             prior_at_dist = [p for p in prior if p.get('distance') == distance]
             if prior_at_dist:
                 cd_wins = sum(1 for p in prior_at_dist if p.get('is_winner', 0))
-                feat_cd = cd_wins / len(prior_at_dist) + 0.2
-                # Boost if won at this distance recently (within 180 days)
+                feat_cd = cd_wins / len(prior_at_dist)
                 if cd_wins > 0 and race_date:
                     for p in reversed(prior_at_dist):
                         if p.get('is_winner', 0):
@@ -305,7 +305,8 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             else:
                 feat_freshness = 0.5
 
-            # Feature 11: going performance (merged — win rate + place rate on this going)
+            # Feature 11: going performance — Bayesian-smoothed (matches features.py).
+            # Beta(0.08, 5) prior on win rate, Beta(0.25, 5) on top3 rate.
             going_perf = 0.5
             if prior and going:
                 prior_same_going = [p for p in prior if p.get('going', '') == going]
@@ -313,7 +314,9 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                     g_wins = sum(1 for p in prior_same_going if p.get('is_winner', 0))
                     g_top3 = sum(1 for p in prior_same_going if p.get('is_top3', 0))
                     n = len(prior_same_going)
-                    going_perf = min(1.0, (g_wins / n) * 0.6 * 5 + (g_top3 / n) * 0.4 * 2)
+                    win_rate_smooth = (g_wins + 0.08 * 5) / (n + 5)
+                    top3_rate_smooth = (g_top3 + 0.25 * 5) / (n + 5)
+                    going_perf = min(1.0, win_rate_smooth * 0.6 * 5 + top3_rate_smooth * 0.4 * 2)
 
             # Feature 12: weight vs field (carried weight relative to field median)
             weight_vs_field = 0.5

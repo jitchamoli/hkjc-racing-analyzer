@@ -433,12 +433,15 @@ class FeatureEngineering:
         # prior_pace, adjusted_speed dropped v6.4 — both had 0.0 importance
         # in v6.3 because last_start_margin (16.9%) carried the form signal.
 
-        # Feature 8: C&D form from prior races (winning trip = strong signal)
+        # Feature 8: C&D form from prior races (winning trip = strong signal).
+        # Removed the +0.2 floor that previously made a 0-for-5 horse (cd_score=0.2)
+        # rank as "more C&D ability" than an unraced horse (default 0.5). Now:
+        # unraced = 0.5 (high uncertainty); 0-for-N = 0.0 (clear failure); higher
+        # win rate scales smoothly. Recent winning trip (≤180d) adds +0.15.
         prior_at_dist = [p for p in prior if p.get('distance') == distance]
         if prior_at_dist:
             cd_wins = sum(1 for p in prior_at_dist if p.get('is_winner', 0))
-            cd_score = cd_wins / len(prior_at_dist) + 0.2
-            # Boost if won at this distance recently (within 180 days)
+            cd_score = cd_wins / len(prior_at_dist)
             if cd_wins > 0 and race_date:
                 for p in reversed(prior_at_dist):
                     if p.get('is_winner', 0):
@@ -484,6 +487,10 @@ class FeatureEngineering:
             features.append(0.5)
 
         # Feature 11: going performance (merged — combines win rate + place rate on this going)
+        # Bayesian-smoothed with HK base rates (~8% win, ~25% top3). Without
+        # smoothing, 1 win on the going saturates to 1.0 — same as a 4/8
+        # battle-tested horse. Beta(0.08, 5) prior on win rate, Beta(0.25, 5)
+        # on place rate (strength=5: posterior is half-prior at n=5 prior runs).
         going_perf = 0.5
         if prior and going:
             prior_same_going = [p for p in prior if p.get('going', '') == going]
@@ -491,8 +498,10 @@ class FeatureEngineering:
                 g_wins = sum(1 for p in prior_same_going if p.get('is_winner', 0))
                 g_top3 = sum(1 for p in prior_same_going if p.get('is_top3', 0))
                 n = len(prior_same_going)
-                # Weighted blend: 60% win-rate signal, 40% place-rate signal
-                going_perf = min(1.0, (g_wins / n) * 0.6 * 5 + (g_top3 / n) * 0.4 * 2)
+                # Bayesian smoothing — small samples shrink toward HK base rates
+                win_rate_smooth = (g_wins + 0.08 * 5) / (n + 5)
+                top3_rate_smooth = (g_top3 + 0.25 * 5) / (n + 5)
+                going_perf = min(1.0, win_rate_smooth * 0.6 * 5 + top3_rate_smooth * 0.4 * 2)
         features.append(going_perf)
 
         # Feature 12: weight vs field (carried weight relative to field median)
