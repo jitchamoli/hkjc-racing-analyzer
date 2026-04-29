@@ -231,7 +231,19 @@ def calibrate_probabilities(analyses, field_size: int = 12,
             b = cal_probs[i]
         blended.append(b)
 
-    # Optional post-blend isotonic recalibration.
+    # Renormalize the blended values BEFORE isotonic so the isotonic
+    # input distribution matches what the calibrator was fit on (per-horse
+    # probabilities that already sum to 1.0 within the race). Renormalizing
+    # AFTER isotonic — which we used to do — broke the calibration claim
+    # because dividing every prob by sum(blended) shifts them by a constant
+    # factor, so "0.30 prob = 30% win rate" only held when sum=1.0 already
+    # (almost never true post-isotonic). Now isotonic outputs ARE the
+    # calibrated probs; they may not sum to exactly 1, which is informative
+    # (model + calibrator's overall confidence vs the implicit "exactly one
+    # winner" constraint).
+    blend_total = sum(blended) or 1.0
+    blended = [p / blend_total for p in blended]
+
     iso = _load_blend_calibrator()
     if iso is not None:
         try:
@@ -240,8 +252,7 @@ def calibrate_probabilities(analyses, field_size: int = 12,
         except Exception:
             pass  # fall through to raw blended values on any sklearn error
 
-    blend_total = sum(blended) or 1.0
-    return [p / blend_total for p in blended]
+    return blended
 
 
 def apply_calibrated_probs(analyses, calibrated_probs: List[float]) -> None:
