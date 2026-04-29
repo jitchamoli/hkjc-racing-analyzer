@@ -235,12 +235,16 @@ def apply_calibrated_probs(analyses, calibrated_probs: List[float]) -> None:
     """Write calibrated probabilities, value_score, and expected returns onto analyses.
 
     F-19: On the first call (model_probability is still None), snapshot the
-    calibrated prob into model_probability so accuracy.py can measure the model
-    without contamination from subsequent BANKER/market-fav rank swaps.
+    PRE-blend pure model probability into model_probability so accuracy.py
+    can measure the model itself, not the model+market blend. At call time
+    a.combined_probability still holds the pre-blend value (set by analyzer);
+    we capture it BEFORE overwriting with the post-blend calibrated value.
+    Without this, accuracy reports systematically credit the market for the
+    model's perceived performance.
     """
     for i, a in enumerate(analyses):
         if a.model_probability is None:
-            a.model_probability = calibrated_probs[i]
+            a.model_probability = a.combined_probability  # pre-blend snapshot
         a.combined_probability = calibrated_probs[i]
         a.value_score = calibrated_probs[i] * 100
         if a.horse.win_odds and a.horse.win_odds > 0:
