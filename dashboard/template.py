@@ -257,6 +257,8 @@ button {{ font-family:inherit; cursor:pointer; }}
 .strike-badge.win {{ background:var(--gold); color:#000; }}
 .strike-badge.qin {{ background:var(--green); color:#000; }}
 .strike-badge.box4 {{ background:rgba(16,185,129,.7); color:#000; }}
+.strike-badge.trio {{ background:rgba(236,72,153,.85); color:#000; }}
+.strike-badge.trio6 {{ background:rgba(244,63,94,.85); color:#fff; }}
 .strike-badge.miss {{ background:rgba(239,68,68,.6); color:#fff; }}
 
 /* View tabs — by default boxed (legacy below-strip placement).
@@ -473,20 +475,29 @@ var _topBetsFilter = 'next';
 function _didBetHit(race) {{
   // Determine whether ANY of our recommended bets hit for a finished race.
   // Returns one of: 'STRIKE-WIN' (rank-1 won), 'STRIKE-QIN' (top-2 quinella),
-  // 'STRIKE-BOX4' (winning quinella pair was in top-4 picks), 'MISS' (none),
-  // or null if the race is not finished.
+  // 'STRIKE-BOX4' (winning quinella pair was in top-4 picks),
+  // 'STRIKE-TRIO5' (full podium in top-5), 'STRIKE-TRIO6' (full podium in top-6),
+  // 'MISS' (none), or null if the race is not finished.
   if (!race.results_available) return null;
   var horsesByPos = race.horses
     .filter(function(h) {{ return h.actual_position; }})
     .sort(function(a, b) {{ return a.actual_position - b.actual_position; }});
   if (horsesByPos.length < 2) return null;
   var p1 = horsesByPos[0].number, p2 = horsesByPos[1].number;
-  var top4Nums = race.horses.slice(0, 4).map(function(h) {{ return h.number; }});
+  var p3 = horsesByPos.length >= 3 ? horsesByPos[2].number : null;
   var top2Nums = race.horses.slice(0, 2).map(function(h) {{ return h.number; }});
+  var top4Nums = race.horses.slice(0, 4).map(function(h) {{ return h.number; }});
+  var top5Nums = race.horses.slice(0, 5).map(function(h) {{ return h.number; }});
+  var top6Nums = race.horses.slice(0, 6).map(function(h) {{ return h.number; }});
   var rank1 = race.horses[0];
   if (rank1 && rank1.number === p1) return 'STRIKE-WIN';
   if (top2Nums.indexOf(p1) >= 0 && top2Nums.indexOf(p2) >= 0) return 'STRIKE-QIN';
   if (top4Nums.indexOf(p1) >= 0 && top4Nums.indexOf(p2) >= 0) return 'STRIKE-BOX4';
+  // TRIO box checks require all 3 podium horses inside the box.
+  if (p3 != null) {{
+    if (top5Nums.indexOf(p1)>=0 && top5Nums.indexOf(p2)>=0 && top5Nums.indexOf(p3)>=0) return 'STRIKE-TRIO5';
+    if (top6Nums.indexOf(p1)>=0 && top6Nums.indexOf(p2)>=0 && top6Nums.indexOf(p3)>=0) return 'STRIKE-TRIO6';
+  }}
   return 'MISS';
 }}
 
@@ -623,6 +634,10 @@ function renderBetCard(race) {{
     strikeBadge = '<span class="strike-badge qin" title="Winning quinella pair was inside top-2 model picks">★ STRIKE · QIN</span>';
   }} else if (strikeStatus === 'STRIKE-BOX4') {{
     strikeBadge = '<span class="strike-badge box4" title="Winning quinella pair was inside top-4 model picks (Box-4 hit)">★ STRIKE · BOX-4</span>';
+  }} else if (strikeStatus === 'STRIKE-TRIO5') {{
+    strikeBadge = '<span class="strike-badge trio" title="Full podium inside top-5 model picks (BOX TRIO-5 hit)">★ STRIKE · TRIO-5</span>';
+  }} else if (strikeStatus === 'STRIKE-TRIO6') {{
+    strikeBadge = '<span class="strike-badge trio6" title="Full podium inside top-6 model picks (BOX TRIO-6 hit — TRIO-5 missed)">★ STRIKE · TRIO-6</span>';
   }} else if (strikeStatus === 'MISS') {{
     var horsesByPos = race.horses.filter(function(h) {{ return h.actual_position; }})
       .sort(function(a, b) {{ return a.actual_position - b.actual_position; }});
@@ -706,6 +721,13 @@ function renderBetCard(race) {{
   if (top5wa.length === 5) {{
     var t5Nums = top5wa.map(function(h) {{ return h.number; }}).join(', ');
     summaryLines.push('BOX TRIO-5: ' + t5Nums + '  · 10 combos');
+  }}
+  // BOX TRIO-6 — OPTIONAL high-cost layer (+10pp lift, 2× cost, needs
+  // avg dividend ≥$111 to break even). Take on chaos/longshot races.
+  var top6wa = race.horses.slice(0, 6);
+  if (top6wa.length === 6) {{
+    var t6Nums = top6wa.map(function(h) {{ return h.number; }}).join(', ');
+    summaryLines.push('BOX TRIO-6 (optional): ' + t6Nums + '  · 20 combos');
   }}
   if (summaryLines.length) {{
     waLines.push('');
@@ -1303,6 +1325,77 @@ function _buildRaceDetailPanel(race) {{
         '</span>' +
         top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
         '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
+      '</div>'
+    );
+  }}
+
+  // BOX TRIO-6 — OPTIONAL high-cost protection layer.
+  // Empirical evidence across 6 meetings (Apr 12-29, 60 races):
+  //   ST (42 races): TRIO-5 48% → TRIO-6 57% (+10pp, +4 strikes)
+  //   HV (18 races): TRIO-5 22% → TRIO-6 33% (+11pp, +2 strikes)
+  // ~10pp lift at both venues, but 2× stake. Break-even vs TRIO-5
+  // requires avg TRIO dividend ≥ $111. Odds clustering does NOT predict
+  // which races will be chaos (tested across 6 meetings — no signal).
+  // Real chaos signals: field size ≥11, no clear favorite (rank-1 odds
+  // > $3), multiple morning-steam horses, going changed mid-day.
+  var top6 = race.horses.slice(0, 6);
+  if (top6.length === 6) {{
+    // Practical decision rule (validated across 6 meetings, 60 races):
+    //   SKIP if heavy favorite (top1 odds < $2.5) — model+market aligned
+    //   TAKE if ≥2 morning-steam horses (smart money disagrees → spoilers)
+    //   TAKE if HIGH tier + field ≥11 + top1 odds $2.5-$5 (competitive race)
+    //   USER CALL otherwise (coin-flip economically; +10pp lift, 2× cost)
+    var top1Odds = (race.horses[0] && race.horses[0].win_odds) || 0;
+    var fieldSize = race.horses.length;
+    var tier = race.conviction_tier || '';
+    var steamCount = race.horses.slice(0, 12).filter(function(h) {{
+      return h.steam_move && h.steam_move.is_steam;
+    }}).length;
+
+    // Chaos score 0-4: each signal that suggests rank-6 spoiler likely
+    var chaosScore = 0;
+    var chaosFactors = [];
+    if (fieldSize >= 11) {{ chaosScore++; chaosFactors.push('big field ' + fieldSize); }}
+    if (top1Odds >= 2.5 && top1Odds <= 5.0) {{ chaosScore++; chaosFactors.push('competitive fav $' + top1Odds.toFixed(1)); }}
+    if (steamCount >= 2) {{ chaosScore++; chaosFactors.push(steamCount + ' steam horses'); }}
+    if (tier === 'HIGH' || tier === 'MED') {{ chaosScore++; chaosFactors.push(tier + ' conviction'); }}
+    var chaosColor = chaosScore >= 3 ? 'rgba(244,63,94,.85)' :
+                     chaosScore >= 2 ? 'rgba(251,191,36,.7)' :
+                     'rgba(148,163,184,.3)';
+    var chaosTextColor = chaosScore >= 3 ? '#fff' : (chaosScore >= 2 ? '#000' : 'var(--dim)');
+    var chaosBadge = '<span style="background:' + chaosColor + ';color:' + chaosTextColor + ';padding:1px 6px;border-radius:3px;font-size:.62rem;font-weight:700;margin-left:6px" title="' + chaosFactors.join(' · ') + '">CHAOS ' + chaosScore + '/4</span>';
+
+    var rec = '';
+    var recBadge = '';
+    var recReason = '';
+    if (top1Odds > 0 && top1Odds < 2.5) {{
+      rec = 'SKIP';
+      recBadge = '<span style="background:rgba(148,163,184,.3);color:var(--dim);padding:2px 8px;border-radius:3px;font-size:.65rem;font-weight:700">SKIP — heavy fav ($' + top1Odds.toFixed(1) + ')</span>';
+      recReason = 'Top pick is heavy favorite — podium concentrates in TOP-3, TRIO-6 wastes 2× cost.';
+    }} else if (steamCount >= 2) {{
+      rec = 'TAKE';
+      recBadge = '<span style="background:rgba(34,197,94,.85);color:#000;padding:2px 8px;border-radius:3px;font-size:.65rem;font-weight:800">★ TAKE — ' + steamCount + ' steam horses</span>';
+      recReason = 'Multiple morning-steam horses — smart money disagrees with model, rank-6 spoiler likely.';
+    }} else if (tier === 'HIGH' && fieldSize >= 11 && top1Odds >= 2.5 && top1Odds <= 5.0) {{
+      rec = 'TAKE';
+      recBadge = '<span style="background:rgba(34,197,94,.85);color:#000;padding:2px 8px;border-radius:3px;font-size:.65rem;font-weight:800">★ TAKE — HIGH+big field+$' + top1Odds.toFixed(1) + ' fav</span>';
+      recReason = 'HIGH conviction + field ≥11 + competitive favorite — chaos likely, hedge worth it.';
+    }} else {{
+      rec = 'USER';
+      recBadge = '<span style="background:rgba(148,163,184,.4);color:#fff;padding:2px 8px;border-radius:3px;font-size:.65rem;font-weight:700">YOUR CALL</span>';
+      recReason = 'Coin-flip economically. +10pp strike lift but 2× cost. Take if you sense chaos; skip for ROI.';
+    }}
+
+    ticketLines.push(
+      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem;opacity:.92">' +
+        '<span style="display:inline-block;background:rgba(244,63,94,.6);color:#fff;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+          '+ BOX TRIO-6 · 20 combos · OPTIONAL' +
+        '</span>' +
+        top6.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
+        ' · ' + recBadge + chaosBadge +
+        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">' + recReason +
+          ' Signals: ' + (chaosFactors.length ? chaosFactors.join(', ') : 'none') + '.' +
+        '</div>' +
       '</div>'
     );
   }}

@@ -37,20 +37,28 @@ logger = logging.getLogger(__name__)
 
 
 def collect_calibration_pairs(last_n=None):
-    """Iterate held-out races and collect (calibrated_prob, is_winner) per horse.
+    """Iterate the 70-85% calib fold and collect (calibrated_prob, is_winner) per horse.
+
+    Uses load_calibration_window (NOT load_held_out_races) so the blend
+    calibrator is fit on data DISJOINT from both the model's training
+    folds AND backtest's test fold. This was a leakage source — calibrator
+    fit on the same slice backtest later evaluated on, producing optimistic
+    metrics that didn't generalize to live race day.
 
     Reuses scripts.backtest helpers so the production pipeline is exercised
     identically to the live race-day path.
     """
     from scripts.backtest import (
-        load_held_out_races, group_by_race, predict_race_production,
+        load_calibration_window, group_by_race, predict_race_production,
     )
 
     conn = sqlite3.connect(str(config.DB_PATH))
     conn.row_factory = sqlite3.Row
-    rows = load_held_out_races(conn, last_n=last_n)
+    rows = load_calibration_window(conn)
+    if last_n is not None and last_n < len(rows):
+        rows = rows[-last_n:]
     races = group_by_race(rows)
-    logger.info(f"Held-out: {len(rows)} horses across {len(races)} races")
+    logger.info(f"Calib window (70-85%): {len(rows)} horses across {len(races)} races")
 
     probs, labels = [], []
     skipped = 0

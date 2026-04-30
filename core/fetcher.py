@@ -584,11 +584,21 @@ class HKJCParser:
 
     @staticmethod
     def parse_results(html: str) -> List[Dict]:
-        """Parse results page → list of finishing positions."""
+        """Parse results page → list of finishing positions.
+
+        Dedupes by (position, horse_number). The table selector
+        "table.tableBorderBlue, table.table_bd, table" overlaps — bare `table`
+        matches everything including the first two. Post-meeting HTML also
+        contains summary tables that repeat the same race data. Without
+        dedup, re-running results_fetcher appends duplicate actual_results
+        rows to race_data_*_with_results.json (some with win_odds=2000
+        sentinel from "no longer accepting bets" rows).
+        """
         if not html:
             return []
         soup = BeautifulSoup(html, "html.parser")
         results = []
+        seen = set()
 
         tables = soup.select("table.tableBorderBlue, table.table_bd, table")
         for table in tables:
@@ -603,14 +613,19 @@ class HKJCParser:
                     continue
                 horse_no = HKJCParser._safe_int(texts[1])
                 name = texts[2] if len(texts) > 2 else ""
-                if horse_no > 0 and name:
-                    results.append({
-                        "position": pos,
-                        "number": horse_no,
-                        "name": name,
-                        "finish_time": texts[4] if len(texts) > 4 else "",
-                        "win_odds": HKJCParser._safe_float(texts[-1]) if texts[-1] else 0,
-                    })
+                if horse_no <= 0 or not name:
+                    continue
+                key = (pos, horse_no)
+                if key in seen:
+                    continue
+                seen.add(key)
+                results.append({
+                    "position": pos,
+                    "number": horse_no,
+                    "name": name,
+                    "finish_time": texts[4] if len(texts) > 4 else "",
+                    "win_odds": HKJCParser._safe_float(texts[-1]) if texts[-1] else 0,
+                })
 
         return results
 

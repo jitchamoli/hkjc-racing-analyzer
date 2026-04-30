@@ -317,9 +317,11 @@ class ResultsFetcher:
         """Fill prediction_log table with actual results for accuracy tracking."""
         try:
             db = HorseDatabase()
-            for race_no, results in actual_results.items():
-                db.fill_prediction_results(race_date, race_no, results)
-            db.close()
+            try:
+                for race_no, results in actual_results.items():
+                    db.fill_prediction_results(race_date, race_no, results)
+            finally:
+                db.close()
             logger.info(f"Filled prediction_log with results for {len(actual_results)} races")
         except Exception as e:
             logger.warning(f"Could not fill prediction_log: {e}")
@@ -330,8 +332,10 @@ class ResultsFetcher:
         try:
             from betting.tier_stats import refresh_cache
             db = HorseDatabase()
-            refresh_cache(db.conn, window=73)
-            db.close()
+            try:
+                refresh_cache(db.conn, window=73)
+            finally:
+                db.close()
             logger.info("Refreshed tier_stats.json cache")
         except Exception as e:
             logger.warning(f"tier_stats refresh failed: {e}")
@@ -365,12 +369,22 @@ class ResultsFetcher:
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         html = generate_html(json_data, now, race_date, venue)
 
-        # Atomic write — same pattern the generator uses
+        # Atomic write — same pattern the generator uses.
+        # try/finally ensures tmp is unlinked on write failure (disk full,
+        # SIGKILL between truncate and write) so stale .tmp.{pid} files don't
+        # accumulate.
         for path in (archive_path, latest_path):
             tmp = f"{path}.tmp.{os.getpid()}"
-            with open(tmp, 'w') as f:
-                f.write(html)
-            os.replace(tmp, path)
+            try:
+                with open(tmp, 'w') as f:
+                    f.write(html)
+                os.replace(tmp, path)
+            except Exception:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
 
         logger.info(f"Dashboard re-rendered with results: {archive_path}")
         logger.info(f"Dashboard re-rendered with results: {latest_path}")
@@ -652,6 +666,65 @@ async def main():
         await auto_learn(race_date)
 
 
+def _build_races_from_json(json_races: list, race_date: str) -> list:
+    """Convert race dicts from race_data_*_with_results.json into the
+    scraper's race-result shape so HorseDatabase.ingest_race_day() can
+    consume them. Used as a fallback when the scraper misses races (e.g.
+    end-of-card timing) but the JSON has actual_results.
+    """
+    out = []
+    for r in json_races:
+        results = r.get('actual_results') or []
+        if not results:
+            continue
+        horses_pred = {h.get('number'): h for h in r.get('horses', []) if h.get('number')}
+        entries = []
+        for res in results:
+            num = res.get('number')
+            name = (res.get('name') or '').split('(')[0].strip()
+            if not name or not num:
+                # database.py:232 silently skips entries with empty horse_name,
+                # which would lose the horse from training data with no signal.
+                # Drop here with a warning instead.
+                logger.warning(
+                    f"_build_races_from_json: dropping result with missing name/number "
+                    f"in race {r.get('race_number')}: {res}"
+                )
+                continue
+            pred = horses_pred.get(num, {})
+            entries.append({
+                'number': num,
+                'name': name,
+                'jockey': pred.get('jockey', ''),
+                'trainer': pred.get('trainer', ''),
+                'draw': pred.get('draw', 0),
+                'weight': pred.get('weight', 0),
+                'horse_weight': pred.get('horse_weight', 0),
+                'rating': pred.get('rating', 0),
+                'rating_change': pred.get('rating_change', 0),
+                'age': pred.get('age', ''),
+                'gear': pred.get('gear', ''),
+                'last_6': pred.get('last_6', ''),
+                'actual_position': res.get('position'),
+                'win_odds': res.get('win_odds') or pred.get('win_odds', 0),
+                'finish_time': '',
+                'running_position': '',
+                'margin': 0,
+            })
+        out.append({
+            'date': race_date,
+            'race_no': r.get('race_number'),
+            'venue': r.get('venue', ''),
+            'distance': r.get('distance', 0),
+            'class_type': r.get('class_type', ''),
+            'going': r.get('going', ''),
+            'course': r.get('course', ''),
+            'entries': entries,
+            'dividends': [],
+        })
+    return out
+
+
 async def auto_learn(race_date: str = None):
     """Automatically ingest results into horse DB and retrain ML model."""
     from data.database import HorseDatabase
@@ -666,31 +739,49 @@ async def auto_learn(race_date: str = None):
 
     if today_races:
         db = HorseDatabase()
-        db.ingest_race_day(today_races)
+        try:
+            db.ingest_race_day(today_races)
 
-        # Card-field backfill: pull rating/last_6/gear/age/rating_change from
-        # the prediction JSON (which has card data the results page lacks).
-        date_str = race_date.replace('/', '')
-        results_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'results')
-        for variant in (f'race_data_{date_str}_with_results.json',
-                        f'race_data_{date_str}.json'):
-            pred_path = os.path.join(results_dir, variant)
-            if os.path.exists(pred_path):
-                try:
-                    with open(pred_path) as f:
-                        pred_data = json.load(f)
-                    pred_races = pred_data if isinstance(pred_data, list) else pred_data.get('races', [])
-                    n_back = db.backfill_card_fields(race_date, pred_races)
-                    if n_back > 0:
-                        logger.info(f"Backfilled card fields on {n_back} race_results rows from {variant}")
-                except Exception as e:
-                    logger.warning(f"Card-field backfill from {variant} failed: {e}")
-                break
+            date_str = race_date.replace('/', '')
+            results_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'results')
+            pred_races = None
+            for variant in (f'race_data_{date_str}_with_results.json',
+                            f'race_data_{date_str}.json'):
+                pred_path = os.path.join(results_dir, variant)
+                if os.path.exists(pred_path):
+                    try:
+                        with open(pred_path) as f:
+                            pred_data = json.load(f)
+                        pred_races = pred_data if isinstance(pred_data, list) else pred_data.get('races', [])
+                    except Exception as e:
+                        logger.warning(f"Could not read {variant}: {e}")
+                    break
 
-        summary = db.get_summary()
-        logger.info(f"Horse DB updated: {summary['horses']} horses, "
-                    f"{summary['race_results']} results, {summary['race_days']} days")
-        db.close()
+            if pred_races:
+                scraped_race_nos = {r.get('race_no') or r.get('race_number') for r in today_races}
+                missing = [r for r in pred_races
+                           if r.get('race_number') not in scraped_race_nos
+                           and r.get('actual_results')]
+                if missing:
+                    missing_nos = [r['race_number'] for r in missing]
+                    logger.warning(
+                        f"Scraper missed race(s) {missing_nos} that have results in JSON "
+                        f"— ingesting partial (top finishers only) from JSON. "
+                        f"Re-run --auto-learn after HKJC publishes full result pages to capture remaining horses."
+                    )
+                    fallback = _build_races_from_json(missing, race_date)
+                    if fallback:
+                        db.ingest_race_day(fallback)
+
+                n_back = db.backfill_card_fields(race_date, pred_races)
+                if n_back > 0:
+                    logger.info(f"Backfilled card fields on {n_back} race_results rows from JSON")
+
+            summary = db.get_summary()
+            logger.info(f"Horse DB updated: {summary['horses']} horses, "
+                        f"{summary['race_results']} results, {summary['race_days']} days")
+        finally:
+            db.close()
     else:
         logger.warning(f"No results scraped for {race_date} — DB not updated")
 
