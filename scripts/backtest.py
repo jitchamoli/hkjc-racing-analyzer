@@ -212,6 +212,13 @@ def predict_race_production(horse_rows, conn):
 # ---------------------------------------------------------------------------
 
 def load_held_out_races(conn, last_n=None):
+    """Load truly-held-out test set: 85-100% of chronologically-sorted rows.
+
+    Matches the new 4-fold split in ml/model.py.train(): 0-60% train,
+    60-70% earlystop_val, 70-85% calib, 85-100% test. Backtest reads
+    the test fold; the calib fold is reserved for fitting the blend
+    calibrator (load_calibration_window below).
+    """
     rows = conn.execute(
         "SELECT * FROM race_results WHERE finish_position > 0 "
         "ORDER BY race_date, race_number"
@@ -219,8 +226,28 @@ def load_held_out_races(conn, last_n=None):
     rows = [dict(r) for r in rows]
     if last_n is not None:
         return rows[-last_n:]
-    cut_val = int(len(rows) * 0.8)
-    return rows[cut_val:]
+    cut_calib = int(len(rows) * 0.85)
+    return rows[cut_calib:]
+
+
+def load_calibration_window(conn):
+    """Load the 70-85% slice — disjoint from both model train and backtest test.
+
+    The blend calibrator (scripts/calibrate_blend.py) was previously fit on
+    the same 80-100% the model treated as test. With the new 4-fold split,
+    the calibrator now fits on the dedicated 70-85% calib fold so the
+    blended-prob → actual-win mapping is learned on data that the upstream
+    isotonic calibrator (in ml/model.py) ALSO fit on, but that backtest
+    never sees. Backtest then evaluates on the truly-virgin 85-100% test.
+    """
+    rows = conn.execute(
+        "SELECT * FROM race_results WHERE finish_position > 0 "
+        "ORDER BY race_date, race_number"
+    ).fetchall()
+    rows = [dict(r) for r in rows]
+    cut_val = int(len(rows) * 0.70)
+    cut_calib = int(len(rows) * 0.85)
+    return rows[cut_val:cut_calib]
 
 
 def group_by_race(rows):

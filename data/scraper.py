@@ -46,6 +46,8 @@ async def scrape_meeting_results(race_date: str, max_races: int = 12) -> List[Di
     })
 
     races = []
+    consecutive_empty = 0
+    EMPTY_TOLERANCE = 2  # tolerate up to 2 consecutive missing races (handles "race just ran, results not yet posted")
     for race_no in range(1, max_races + 1):
         url = f"{RESULTS_BASE}?RaceDate={race_date}&RaceNo={race_no}"
         try:
@@ -54,11 +56,15 @@ async def scrape_meeting_results(race_date: str, max_races: int = 12) -> List[Di
                 if race_no == 1:
                     logger.warning(f"  Race 1: unexpected response (status={resp.status_code}, "
                                    f"len={len(resp.text)}) — no results or network issue, skipping meeting")
-                else:
-                    logger.info(f"  Race {race_no}: no results (end of card)")
-                break
+                    break
+                consecutive_empty += 1
+                if consecutive_empty >= EMPTY_TOLERANCE:
+                    logger.info(f"  Race {race_no}: no results ({consecutive_empty} consecutive empty — end of card)")
+                    break
+                logger.info(f"  Race {race_no}: empty response (transient or end of card), trying next…")
+                time.sleep(0.5)
+                continue
 
-            # Parse HTML tables into same format as Playwright JS extraction
             soup = BeautifulSoup(resp.text, "html.parser")
             table_data = []
             for table in soup.find_all("table"):
@@ -72,20 +78,29 @@ async def scrape_meeting_results(race_date: str, max_races: int = 12) -> List[Di
 
         except Exception as e:
             logger.warning(f"  Race {race_no}: failed to load ({e})")
-            break
+            consecutive_empty += 1
+            if consecutive_empty >= EMPTY_TOLERANCE:
+                break
+            continue
 
         race_data = _parse_tables(table_data, race_date, race_no)
         if not race_data or not race_data.get('entries'):
-            logger.info(f"  Race {race_no}: no results (end of card)")
-            break
+            consecutive_empty += 1
+            if consecutive_empty >= EMPTY_TOLERANCE:
+                logger.info(f"  Race {race_no}: no results ({consecutive_empty} consecutive empty — end of card)")
+                break
+            logger.info(f"  Race {race_no}: no entries parsed (transient or end of card), trying next…")
+            time.sleep(0.5)
+            continue
 
+        consecutive_empty = 0  # reset on successful parse
         races.append(race_data)
         winner = next((e['name'] for e in race_data['entries'] if e.get('actual_position') == 1), '?')
         logger.info(
             f"  Race {race_no}: {len(race_data['entries'])} runners, "
             f"winner = {winner}"
         )
-        time.sleep(0.5)  # Be polite between race pages
+        time.sleep(0.5)
 
     return races
 

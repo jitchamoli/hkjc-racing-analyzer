@@ -89,6 +89,7 @@ class HKJCRacingMLModel:
         self.model = None
         self.place_model = None
         self.calibrator = None  # Isotonic calibrator (Wave 2c: replaced Platt/LogisticRegression)
+        self.place_calibrator = None  # Isotonic calibrator for place model
         self.is_trained = False
         self.model_version = "1.0"
         self.feature_importance = {}
@@ -127,9 +128,25 @@ class HKJCRacingMLModel:
                                  f"Retrain with: python3 -m scripts.train")
                     return
 
+                # Verify feature NAMES match — count alone misses renames
+                # (e.g. prior_win_rate → prior_winrate while count stays at 19).
+                # Without this guard the model loads silently and predicts on
+                # misaligned features. Backwards-compat: pickles without
+                # 'feature_names' (pre-Fix #19) skip the check.
+                saved_names = data.get('feature_names')
+                if saved_names is not None and list(saved_names) != list(FEATURE_NAMES):
+                    diff = [(s, c) for s, c in zip(saved_names, FEATURE_NAMES) if s != c]
+                    logger.error(
+                        f"Feature name mismatch — model trained on different schema. "
+                        f"First mismatched pair: {diff[0] if diff else 'order/length differs'}. "
+                        f"Retrain with: python3 -m scripts.train"
+                    )
+                    return
+
                 self.model = data.get('model')
                 self.place_model = data.get('place_model')
                 self.calibrator = data.get('calibrator')
+                self.place_calibrator = data.get('place_calibrator')
                 self.model_version = data.get('version', '1.0')
                 self.feature_importance = data.get('feature_importance', {})
                 self._last_train_n_samples = data.get('n_samples', None)
@@ -140,6 +157,22 @@ class HKJCRacingMLModel:
                     'version': data.get('version'),
                 }
                 self.is_trained = self.model is not None
+
+                # Fix #21: integrity check at load time (was per-predict before).
+                # Avoids re-running ISO date parse + dict lookups on every horse
+                # (132× per dashboard generation). Also fails loudly at load
+                # rather than mid-race if the pickle is stale or synthetic.
+                if self.is_trained:
+                    try:
+                        from ml.integrity import check_model_integrity
+                        check_model_integrity(self._metadata)
+                    except Exception as e:
+                        logger.error(f"Model integrity check failed at load: {e}")
+                        self.model = None
+                        self.place_model = None
+                        self.is_trained = False
+                        return
+
                 logger.info(f"Loaded model version {self.model_version}")
             except Exception as e:
                 logger.warning(f"Could not load model: {e}")
@@ -163,8 +196,10 @@ class HKJCRacingMLModel:
             'model': self.model,
             'place_model': self.place_model,
             'calibrator': self.calibrator,
+            'place_calibrator': self.place_calibrator,
             'version': self.model_version,
             'n_features': NUM_FEATURES,
+            'feature_names': list(FEATURE_NAMES),  # Fix #19: catch renames
             'n_samples': n_samples,  # NEW: persisted for F-05 integrity check
             'feature_importance': self.feature_importance,
             'trained_date': datetime.now().isoformat()
@@ -190,19 +225,34 @@ class HKJCRacingMLModel:
         logger.info(f"Training with {len(features)} samples "
                     f"({labels.sum():.0f} winners, {labels.mean()*100:.1f}% win rate)")
 
-        # Temporal split: 60% train, 20% validation (early stopping), 20% test (final metrics)
+        # Temporal 4-fold split: 60% train | 10% earlystop_val | 15% calib | 15% test.
+        # Separate calibrator fold prevents the isotonic from learning a too-shallow
+        # correction on the same set XGBoost early-stopped on (which is over-optimistic
+        # since early-stopping picks the iteration minimizing val loss).
         if temporal:
-            cut_train = int(len(features) * 0.6)
-            cut_val = int(len(features) * 0.8)
+            cut_train = int(len(features) * 0.60)
+            cut_val = int(len(features) * 0.70)
+            cut_calib = int(len(features) * 0.85)
             X_train = features[:cut_train]
             X_val = features[cut_train:cut_val]
-            X_test = features[cut_val:]
+            X_calib = features[cut_val:cut_calib]
+            X_test = features[cut_calib:]
             y_train = labels[:cut_train]
             y_val = labels[cut_train:cut_val]
-            y_test = labels[cut_val:]
+            y_calib = labels[cut_val:cut_calib]
+            y_test = labels[cut_calib:]
             sw_train = sample_weight[:cut_train] if sample_weight is not None else None
-            logger.info(f"Temporal split: train={cut_train}, val={cut_val-cut_train}, test={len(features)-cut_val}")
+            logger.info(
+                f"Temporal 4-fold split: train={cut_train}, "
+                f"earlystop_val={cut_val-cut_train}, "
+                f"calib={cut_calib-cut_val}, "
+                f"test={len(features)-cut_calib}"
+            )
         else:
+            # Non-temporal path (synthetic / small-sample fallback). No
+            # separate calib fold — falls back to using val for calibration
+            # (the leak the temporal path now avoids, accepted here since
+            # this branch is only used when DB is empty).
             stratify_arg = labels if labels.sum() >= 10 else None
             sw_train = None
             if sample_weight is not None:
@@ -225,7 +275,15 @@ class HKJCRacingMLModel:
                     X_trainval, y_trainval,
                     test_size=0.25, random_state=42, stratify=stratify_tv
                 )
+            X_calib, y_calib = X_val, y_val  # degraded — calib leaks earlystop set
 
+        # scale_pos_weight = n_neg/n_pos ≈ 11. Theoretically the calibrator
+        # alone should handle class imbalance, but in our pipeline the
+        # downstream blend + post-hoc isotonic depend on upstream magnitudes
+        # that scale_pos_weight produces — dropping it caused a measurable
+        # ROI regression on backtest (185% → 164%) and top-bin under-
+        # prediction (predicted 37%, actual 52%). Reverted to the standard
+        # XGBoost class-rebalance weight.
         n_pos = max(1, y_train.sum())
         n_neg = max(1, len(y_train) - n_pos)
         scale = n_neg / n_pos
@@ -254,22 +312,20 @@ class HKJCRacingMLModel:
             self.model.feature_importances_.tolist()
         ))
 
-        # Isotonic calibrator: fit on VALIDATION predictions with the same recency
-        # weights used for XGBoost training — otherwise the calibrator learns
-        # a different prior than the model it's calibrating.
-        # Wave 2c: switched from Platt (LogisticRegression on logits) to
-        # IsotonicRegression to handle the non-linear mid-range miscalibration
-        # seen in the [18-25%] bin (33 races, ~3% actual vs ~20% predicted).
-        # Isotonic is non-parametric and can reshape the calibration curve freely.
-        # Input: logit(val_proba) — isotonic operates on the raw logit domain
-        # to spread inputs over a useful range (same as Platt pre-Wave-2c).
-        val_proba = self.model.predict_proba(X_val)[:, 1]
-        val_logit = logit(np.clip(val_proba, 1e-6, 1 - 1e-6))
-        sw_val = sample_weight[cut_train:cut_val] if (sample_weight is not None and temporal) else None
-        self.calibrator = IsotonicRegression(out_of_bounds='clip')
-        self.calibrator.fit(val_logit.ravel(), y_val, sample_weight=sw_val)
-        logger.info(f"Isotonic calibrator fitted on {len(y_val)} validation samples (logit-input)"
-                    + (" (recency-weighted)" if sw_val is not None else ""))
+        # Isotonic calibrator: fit on the dedicated CALIB fold (60-70% is
+        # earlystop_val, 70-85% is calib, 85-100% is test). Calib is
+        # disjoint from earlystop_val so the isotonic doesn't learn a
+        # too-shallow correction from the same set XGBoost early-stopped on.
+        # Wave 2c: switched from Platt to IsotonicRegression to handle
+        # non-linear mid-range miscalibration in the [18-25%] bin.
+        # Input: logit(calib_proba) — isotonic operates on raw logit domain.
+        calib_proba = self.model.predict_proba(X_calib)[:, 1]
+        calib_logit = logit(np.clip(calib_proba, 1e-6, 1 - 1e-6))
+        sw_calib = sample_weight[cut_val:cut_calib] if (sample_weight is not None and temporal) else None
+        self.calibrator = IsotonicRegression(out_of_bounds='clip', y_min=0.0, y_max=1.0)
+        self.calibrator.fit(calib_logit.ravel(), y_calib, sample_weight=sw_calib)
+        logger.info(f"Isotonic calibrator fitted on {len(y_calib)} calib samples (logit-input)"
+                    + (" (recency-weighted)" if sw_calib is not None else ""))
 
         # Re-evaluate test metrics with calibrated probabilities (test is truly held-out)
         test_raw = self.model.predict_proba(X_test)[:, 1]
@@ -281,10 +337,18 @@ class HKJCRacingMLModel:
         # Train place model (is_top3) if labels provided
         place_accuracy = None
         if place_labels is not None:
-            pl_train = place_labels[:cut_train] if temporal else place_labels[:len(y_train)]
-            pl_val = place_labels[cut_train:cut_val] if temporal else place_labels[len(y_train):len(y_train)+len(y_val)]
-            pl_test = place_labels[cut_val:] if temporal else place_labels[-len(y_test):]
+            if temporal:
+                pl_train = place_labels[:cut_train]
+                pl_val = place_labels[cut_train:cut_val]
+                pl_calib = place_labels[cut_val:cut_calib]
+                pl_test = place_labels[cut_calib:]
+            else:
+                pl_train = place_labels[:len(y_train)]
+                pl_val = place_labels[len(y_train):len(y_train)+len(y_val)]
+                pl_calib = pl_val  # degraded path
+                pl_test = place_labels[-len(y_test):]
 
+            # scale_pos_weight = n_neg/n_pos for class imbalance (mirror of win model).
             pl_pos = max(1, pl_train.sum())
             pl_neg = max(1, len(pl_train) - pl_pos)
             pl_params = dict(config.XGBOOST_PARAMS)
@@ -293,6 +357,18 @@ class HKJCRacingMLModel:
             self.place_model = xgb.XGBClassifier(**pl_params)
             self.place_model.fit(X_train, pl_train, sample_weight=sw_train,
                                 eval_set=[(X_val, pl_val)], verbose=False)
+
+            # Fit place calibrator on calib fold (mirror of win calibrator).
+            # Without this, predict_place returned raw XGBoost output —
+            # combined with scale_pos_weight≈3 correction, reads ~2-3×
+            # over-stated.
+            pl_calib_proba = self.place_model.predict_proba(X_calib)[:, 1]
+            pl_calib_logit = logit(np.clip(pl_calib_proba, 1e-6, 1 - 1e-6))
+            sw_calib_pl = sample_weight[cut_val:cut_calib] if (sample_weight is not None and temporal) else None
+            self.place_calibrator = IsotonicRegression(out_of_bounds='clip', y_min=0.0, y_max=1.0)
+            self.place_calibrator.fit(pl_calib_logit.ravel(), pl_calib, sample_weight=sw_calib_pl)
+            logger.info(f"Isotonic place calibrator fitted on {len(pl_calib)} calib samples")
+
             pl_pred = self.place_model.predict(X_test)
             place_accuracy = accuracy_score(pl_test, pl_pred)
             logger.info(f"Place model: accuracy={place_accuracy:.2%} "
@@ -328,6 +404,17 @@ class HKJCRacingMLModel:
                     high_corrs[pair] = round(float(r), 3)
                     logger.warning(f"High correlation: {pair} = {r:.3f}")
 
+        # Constant-feature audit (CLAUDE.md ML Critical Rule #3): any feature
+        # with std < 0.01 is a wasted slot — usually a column that's mostly
+        # null and falls back to the same default value.
+        feature_stds = features.std(axis=0)
+        for i, name in enumerate(FEATURE_NAMES):
+            if feature_stds[i] < 0.01:
+                logger.warning(
+                    f"Near-constant feature: {name} std={feature_stds[i]:.4f} "
+                    f"— likely mostly null/default; check feature extraction"
+                )
+
         # Only log to the production experiment ledger when this is a real
         # training run that actually persisted (save=True AND samples are
         # above MIN_SAVE_SAMPLES). Tests with save=True but tiny samples
@@ -349,11 +436,9 @@ class HKJCRacingMLModel:
                 "Retrain via `python3 -m scripts.train`."
             )
 
-        # F-05: integrity check — fail loudly if pickle is compromised.
-        # This runs on every predict() call; cheap enough (dict lookups).
-        if self._metadata is not None:
-            from ml.integrity import check_model_integrity
-            check_model_integrity(self._metadata)
+        # F-05 / Fix #21: integrity check now runs at model load time, not
+        # per-predict. self.is_trained is False if integrity failed, so the
+        # guard above (raise RuntimeError) catches it.
 
         proba = self.model.predict_proba(features.reshape(1, -1))[0]
         win_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])
@@ -384,14 +469,22 @@ class HKJCRacingMLModel:
         return win_prob, confidence
 
     def predict_place(self, features: np.ndarray, field_size: int = 12) -> float:
-        """Predict place (top-3) probability using dedicated place model."""
+        """Predict place (top-3) probability using dedicated place model + calibrator."""
         if self.place_model is not None:
-            # F-05: integrity check mirrors predict() — place is also a prediction entry point.
-            if self._metadata is not None:
-                from ml.integrity import check_model_integrity
-                check_model_integrity(self._metadata)
+            # F-05 / Fix #21: integrity check moved to load time.
             proba = self.place_model.predict_proba(features.reshape(1, -1))[0]
-            return float(proba[1]) if len(proba) > 1 else float(proba[0])
+            place_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])
+
+            # Apply calibration if calibrator is available (mirrors predict()).
+            # Without this, raw XGBoost output combined with scale_pos_weight≈3
+            # correction reads ~2-3× over-stated.
+            if self.place_calibrator is not None:
+                pl_logit = float(logit(np.clip(place_prob, 1e-6, 1 - 1e-6)))
+                try:
+                    place_prob = float(self.place_calibrator.predict(np.array([pl_logit]))[0])
+                except (ValueError, TypeError):
+                    pass  # fall through to uncalibrated value
+            return place_prob
         # Fallback: predict() runs its own integrity check, so don't double-fire.
         win_prob, _ = self.predict(features, field_size)
         return min(0.85, win_prob * 2.5)
@@ -494,12 +587,18 @@ class CombinedRacingAnalyzer:
 
         field_size = horse_data.get('field_size', 12)
         ml_prob, ml_confidence = self.ml_model.predict(features, field_size=field_size)
+        place_prob = self.ml_model.predict_place(features, field_size=field_size)
+        # Enforce P(top-3) >= P(win) — independent calibrators on win/place can
+        # otherwise produce mathematically impossible place < win, which corrupts
+        # quinella pricing in betting/exotic_calculator.py (place/win ratio gate).
+        if place_prob < ml_prob:
+            place_prob = ml_prob
 
         return MLPrediction(
             horse_number=horse_data.get('number', 0),
             horse_name=horse_data.get('name', ''),
             win_probability=ml_prob,
-            place_probability=self.ml_model.predict_place(features, field_size=field_size),
+            place_probability=place_prob,
             ml_confidence=ml_confidence,
             feature_importance={
                 name: float(features[i]) * self.ml_model.feature_importance.get(name, 0.0)

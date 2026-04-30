@@ -33,14 +33,22 @@ POLL_INTERVAL = 300  # seconds
 PRE_RACE_WINDOW = 360  # seconds
 
 # ML hyperparameters
+# colsample_bytree=1.0: with only 19 features, column subsampling saves
+# nothing and made the jockey_win_rate × jockey_form_30d (r=0.75) pair
+# double-count in any tree they both landed in. With all features per
+# tree, XGBoost picks the better-correlating one per split.
+# tree_method="hist": ~3-5× faster on 50k samples than the default exact.
+# reg_lambda explicit: was implicit at 1.0 from xgboost defaults.
 XGBOOST_PARAMS = {
     "n_estimators": 200,
     "max_depth": 5,
     "learning_rate": 0.05,
     "subsample": 0.8,
-    "colsample_bytree": 0.8,
+    "colsample_bytree": 1.0,
     "min_child_weight": 3,
     "gamma": 0.1,
+    "reg_lambda": 1.0,
+    "tree_method": "hist",
     "random_state": 42,
     "eval_metric": "logloss",
 }

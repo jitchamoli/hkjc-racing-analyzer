@@ -107,18 +107,31 @@ def _dynamic_blend_weights(field_size: int, distance: int) -> Tuple[float, float
 
     Returns (model_weight, market_weight) summing to 1.0.
     """
-    # F-09 empirically chosen: base 45/55 model/market, sprint threshold 1200m
-    model_w = 0.45
-    market_w = 0.55
+    # F-09 empirically chosen base 45/55 model/market, sprint threshold 1200m,
+    # field threshold 10. Replaced hard cutoffs (40pp swing on field_size
+    # differing by 1 horse, e.g. 10 vs 9 at 1200m) with logistic ramps so
+    # the weight changes smoothly across boundaries — no noise amplification
+    # at exactly threshold values.
+    base_model_w = 0.45
 
-    # Large field (10+) + sprint (≤1200m): market is sharpest → shift +15% toward market
-    if field_size >= 10 and distance <= 1200:
-        market_w = min(0.70, market_w + 0.15)
-        model_w = 1.0 - market_w
-    # Small field (<10) or long distance (≥1800m): thinner pool → shift +15% toward model
-    elif field_size < 10 or distance >= 1800:
-        model_w = min(0.70, model_w + 0.15)
-        market_w = 1.0 - model_w
+    # Sigmoid ramps: σ(x/τ) is 0 far below threshold, 1 far above, ~0.5 at threshold.
+    # τ = scale (smoothness): larger = smoother transition.
+    sprint_factor = 1.0 / (1.0 + math.exp(-(1200 - distance) / 100.0))   # high for sprints
+    big_field_factor = 1.0 / (1.0 + math.exp(-(field_size - 10) / 1.5))  # high for ≥10 horses
+    long_distance_factor = 1.0 / (1.0 + math.exp(-(distance - 1800) / 100.0))  # high for ≥1800m
+    small_field_factor = 1.0 / (1.0 + math.exp(-(10 - field_size) / 1.5))   # high for <10 horses
+
+    # Large field + sprint → market sharper → shift toward market (max +0.15)
+    market_shift = 0.15 * sprint_factor * big_field_factor
+    # Small field OR long distance → thinner pool → shift toward model (max +0.15)
+    # Use OR via algebraic combination: 1 - (1-small)(1-long)
+    pool_thinness = 1.0 - (1.0 - small_field_factor) * (1.0 - long_distance_factor)
+    model_shift = 0.15 * pool_thinness
+
+    # Apply both shifts (they can partially offset on edge cases)
+    model_w = base_model_w + model_shift - market_shift
+    model_w = max(0.30, min(0.70, model_w))
+    market_w = 1.0 - model_w
 
     return model_w, market_w
 
@@ -182,13 +195,15 @@ def calibrate_probabilities(analyses, field_size: int = 12,
     if not analyses:
         return []
 
-    # Mild softmax — just enough to normalize, not distort
-    temp = config.SOFTMAX_TEMPERATURE
+    # combined_probability is already a probability in [0,1]
+    # (rule_prob × 0.6 + ml_prob × 0.4 from create_combined_prediction).
+    # Just normalize so they sum to 1.0 — softmax with temp here would
+    # collapse model separation: e.g. raw 0.50 vs 0.05 horses become
+    # 0.13 vs 0.066 after softmax(temp=1.5), destroying signal before
+    # the market blend.
     raw_scores = [a.combined_probability for a in analyses]
-    max_score = max(raw_scores) if raw_scores else 0.5
-    exp_scores = [math.exp((s - max_score) * temp) for s in raw_scores]
-    exp_total = sum(exp_scores) or 1.0
-    cal_probs = [e / exp_total for e in exp_scores]
+    raw_total = sum(raw_scores) or 1.0
+    cal_probs = [s / raw_total for s in raw_scores]
 
     # Blend with market-implied probabilities
     market_probs = []
@@ -216,7 +231,20 @@ def calibrate_probabilities(analyses, field_size: int = 12,
             b = cal_probs[i]
         blended.append(b)
 
-    # Optional post-blend isotonic recalibration.
+    # Pre-isotonic renorm: input to isotonic should sum to 1 within the race.
+    # Post-isotonic renorm (Fix A): the calibrator was fit per-horse so its
+    # output is monotonic but does NOT sum to 1 across a race — empirically
+    # the post-iso sum landed at 1.16-1.28 on in-distribution inputs, which
+    # then inflated:
+    #   - expected_return = win_odds × prob - 1 (each horse looked +25% richer)
+    #   - value_score = prob × 100 (top picks displayed 50%+ when truly ~40%)
+    #   - recommender top_2/3/4_share thresholds (gates fired ~16-28% more)
+    # Restore sum=1 after isotonic so downstream EV/threshold consumers see
+    # a proper probability distribution. Per-horse calibration shape (rank
+    # ordering, ratios over short ranges) is preserved by the renorm.
+    blend_total = sum(blended) or 1.0
+    blended = [p / blend_total for p in blended]
+
     iso = _load_blend_calibrator()
     if iso is not None:
         try:
@@ -225,20 +253,24 @@ def calibrate_probabilities(analyses, field_size: int = 12,
         except Exception:
             pass  # fall through to raw blended values on any sklearn error
 
-    blend_total = sum(blended) or 1.0
-    return [p / blend_total for p in blended]
+    iso_total = sum(blended) or 1.0
+    return [p / iso_total for p in blended]
 
 
 def apply_calibrated_probs(analyses, calibrated_probs: List[float]) -> None:
     """Write calibrated probabilities, value_score, and expected returns onto analyses.
 
     F-19: On the first call (model_probability is still None), snapshot the
-    calibrated prob into model_probability so accuracy.py can measure the model
-    without contamination from subsequent BANKER/market-fav rank swaps.
+    PRE-blend pure model probability into model_probability so accuracy.py
+    can measure the model itself, not the model+market blend. At call time
+    a.combined_probability still holds the pre-blend value (set by analyzer);
+    we capture it BEFORE overwriting with the post-blend calibrated value.
+    Without this, accuracy reports systematically credit the market for the
+    model's perceived performance.
     """
     for i, a in enumerate(analyses):
         if a.model_probability is None:
-            a.model_probability = calibrated_probs[i]
+            a.model_probability = a.combined_probability  # pre-blend snapshot
         a.combined_probability = calibrated_probs[i]
         a.value_score = calibrated_probs[i] * 100
         if a.horse.win_odds and a.horse.win_odds > 0:
