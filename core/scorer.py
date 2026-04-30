@@ -231,16 +231,17 @@ def calibrate_probabilities(analyses, field_size: int = 12,
             b = cal_probs[i]
         blended.append(b)
 
-    # Renormalize the blended values BEFORE isotonic so the isotonic
-    # input distribution matches what the calibrator was fit on (per-horse
-    # probabilities that already sum to 1.0 within the race). Renormalizing
-    # AFTER isotonic — which we used to do — broke the calibration claim
-    # because dividing every prob by sum(blended) shifts them by a constant
-    # factor, so "0.30 prob = 30% win rate" only held when sum=1.0 already
-    # (almost never true post-isotonic). Now isotonic outputs ARE the
-    # calibrated probs; they may not sum to exactly 1, which is informative
-    # (model + calibrator's overall confidence vs the implicit "exactly one
-    # winner" constraint).
+    # Pre-isotonic renorm: input to isotonic should sum to 1 within the race.
+    # Post-isotonic renorm (Fix A): the calibrator was fit per-horse so its
+    # output is monotonic but does NOT sum to 1 across a race — empirically
+    # the post-iso sum landed at 1.16-1.28 on in-distribution inputs, which
+    # then inflated:
+    #   - expected_return = win_odds × prob - 1 (each horse looked +25% richer)
+    #   - value_score = prob × 100 (top picks displayed 50%+ when truly ~40%)
+    #   - recommender top_2/3/4_share thresholds (gates fired ~16-28% more)
+    # Restore sum=1 after isotonic so downstream EV/threshold consumers see
+    # a proper probability distribution. Per-horse calibration shape (rank
+    # ordering, ratios over short ranges) is preserved by the renorm.
     blend_total = sum(blended) or 1.0
     blended = [p / blend_total for p in blended]
 
@@ -252,7 +253,8 @@ def calibrate_probabilities(analyses, field_size: int = 12,
         except Exception:
             pass  # fall through to raw blended values on any sklearn error
 
-    return blended
+    iso_total = sum(blended) or 1.0
+    return [p / iso_total for p in blended]
 
 
 def apply_calibrated_probs(analyses, calibrated_probs: List[float]) -> None:
