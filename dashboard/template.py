@@ -1330,23 +1330,72 @@ function _buildRaceDetailPanel(race) {{
   }}
 
   // BOX TRIO-6 — OPTIONAL high-cost protection layer.
-  // Empirical evidence across 6 meetings (Apr 12, 15, 19, 22, 26, 29):
-  //   ST (42 races): TRIO-5 20/42 (48%), TRIO-6 24/42 (57%) — +4 strikes (+10pp)
-  //   HV (18 races): TRIO-5 4/18 (22%), TRIO-6 6/18 (33%) — +2 strikes (+11pp)
-  // TRIO-6 lifts strike rate ~10pp at BOTH venues, but doubles stake.
-  // Economic break-even vs TRIO-5: avg TRIO dividend must exceed ~$111
-  // for the +9pp lift to overcome the 2× cost. Take it on races where
-  // you expect a long-priced placer (large field, weak favorite, or
-  // morning steam on a rank-6+ horse). Otherwise stick with TRIO-5.
+  // Empirical evidence across 6 meetings (Apr 12-29, 60 races):
+  //   ST (42 races): TRIO-5 48% → TRIO-6 57% (+10pp, +4 strikes)
+  //   HV (18 races): TRIO-5 22% → TRIO-6 33% (+11pp, +2 strikes)
+  // ~10pp lift at both venues, but 2× stake. Break-even vs TRIO-5
+  // requires avg TRIO dividend ≥ $111. Odds clustering does NOT predict
+  // which races will be chaos (tested across 6 meetings — no signal).
+  // Real chaos signals: field size ≥11, no clear favorite (rank-1 odds
+  // > $3), multiple morning-steam horses, going changed mid-day.
   var top6 = race.horses.slice(0, 6);
   if (top6.length === 6) {{
+    // Practical decision rule (validated across 6 meetings, 60 races):
+    //   SKIP if heavy favorite (top1 odds < $2.5) — model+market aligned
+    //   TAKE if ≥2 morning-steam horses (smart money disagrees → spoilers)
+    //   TAKE if HIGH tier + field ≥11 + top1 odds $2.5-$5 (competitive race)
+    //   USER CALL otherwise (coin-flip economically; +10pp lift, 2× cost)
+    var top1Odds = (race.horses[0] && race.horses[0].win_odds) || 0;
+    var fieldSize = race.horses.length;
+    var tier = race.conviction_tier || '';
+    var steamCount = race.horses.slice(0, 12).filter(function(h) {{
+      return h.steam_move && h.steam_move.is_steam;
+    }}).length;
+
+    // Chaos score 0-4: each signal that suggests rank-6 spoiler likely
+    var chaosScore = 0;
+    var chaosFactors = [];
+    if (fieldSize >= 11) {{ chaosScore++; chaosFactors.push('big field ' + fieldSize); }}
+    if (top1Odds >= 2.5 && top1Odds <= 5.0) {{ chaosScore++; chaosFactors.push('competitive fav $' + top1Odds.toFixed(1)); }}
+    if (steamCount >= 2) {{ chaosScore++; chaosFactors.push(steamCount + ' steam horses'); }}
+    if (tier === 'HIGH' || tier === 'MED') {{ chaosScore++; chaosFactors.push(tier + ' conviction'); }}
+    var chaosColor = chaosScore >= 3 ? 'rgba(244,63,94,.85)' :
+                     chaosScore >= 2 ? 'rgba(251,191,36,.7)' :
+                     'rgba(148,163,184,.3)';
+    var chaosTextColor = chaosScore >= 3 ? '#fff' : (chaosScore >= 2 ? '#000' : 'var(--dim)');
+    var chaosBadge = '<span style="background:' + chaosColor + ';color:' + chaosTextColor + ';padding:1px 6px;border-radius:3px;font-size:.62rem;font-weight:700;margin-left:6px" title="' + chaosFactors.join(' · ') + '">CHAOS ' + chaosScore + '/4</span>';
+
+    var rec = '';
+    var recBadge = '';
+    var recReason = '';
+    if (top1Odds > 0 && top1Odds < 2.5) {{
+      rec = 'SKIP';
+      recBadge = '<span style="background:rgba(148,163,184,.3);color:var(--dim);padding:2px 8px;border-radius:3px;font-size:.65rem;font-weight:700">SKIP — heavy fav ($' + top1Odds.toFixed(1) + ')</span>';
+      recReason = 'Top pick is heavy favorite — podium concentrates in TOP-3, TRIO-6 wastes 2× cost.';
+    }} else if (steamCount >= 2) {{
+      rec = 'TAKE';
+      recBadge = '<span style="background:rgba(34,197,94,.85);color:#000;padding:2px 8px;border-radius:3px;font-size:.65rem;font-weight:800">★ TAKE — ' + steamCount + ' steam horses</span>';
+      recReason = 'Multiple morning-steam horses — smart money disagrees with model, rank-6 spoiler likely.';
+    }} else if (tier === 'HIGH' && fieldSize >= 11 && top1Odds >= 2.5 && top1Odds <= 5.0) {{
+      rec = 'TAKE';
+      recBadge = '<span style="background:rgba(34,197,94,.85);color:#000;padding:2px 8px;border-radius:3px;font-size:.65rem;font-weight:800">★ TAKE — HIGH+big field+$' + top1Odds.toFixed(1) + ' fav</span>';
+      recReason = 'HIGH conviction + field ≥11 + competitive favorite — chaos likely, hedge worth it.';
+    }} else {{
+      rec = 'USER';
+      recBadge = '<span style="background:rgba(148,163,184,.4);color:#fff;padding:2px 8px;border-radius:3px;font-size:.65rem;font-weight:700">YOUR CALL</span>';
+      recReason = 'Coin-flip economically. +10pp strike lift but 2× cost. Take if you sense chaos; skip for ROI.';
+    }}
+
     ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem;opacity:.85">' +
+      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem;opacity:.92">' +
         '<span style="display:inline-block;background:rgba(244,63,94,.6);color:#fff;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
           '+ BOX TRIO-6 · 20 combos · OPTIONAL' +
         '</span>' +
         top6.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
-        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Optional — adds the rank-6 horse for chaos/longshot-podium races. +10pp lift over TRIO-5 across 6-meeting sample but 2× cost; needs avg dividend ≥ $111 to break even. Skip on heavy-favorite or short-field races.</div>' +
+        ' · ' + recBadge + chaosBadge +
+        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">' + recReason +
+          ' Signals: ' + (chaosFactors.length ? chaosFactors.join(', ') : 'none') + '.' +
+        '</div>' +
       '</div>'
     );
   }}
