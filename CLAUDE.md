@@ -134,7 +134,7 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 3. **+ F4 SAVER** (purple) — top-4 in 1-2-3-4 exact order, single unit
 4. **+ QIN PLACE BANKER** (blue) — only when top pick odds ≤ 1.8 (favorite + 3 bankers, 3 combos)
 5. **+ BOX TRIO-5** (pink) — top-5 in 10-combo TRIO box (catches rank-5/6 spoilers)
-6. **+ BOX TRIO-6** (rose) — top-6 in 20-combo TRIO box. Apr 29 evidence: 6/9 strikes vs 2/9 for TRIO-5 on the same meeting because rank-6 horses systematically hit the podium in races we missed. 2× cost, 3× strike rate.
+6. **+ BOX TRIO-6** (rose, OPTIONAL) — top-6 in 20-combo TRIO box. 6-meeting evidence (Apr 12-29, 60 races): TRIO-6 lifts strike rate +10pp at both venues (HV +2/18, ST +4/42) but doubles stake. Economic break-even vs TRIO-5: avg TRIO dividend must exceed ~$111 to overcome 2× cost. Take on chaos/longshot-podium races; skip on heavy-favorite/short-field races. Marked OPTIONAL in the bet ticket.
 
 **Top Bets sub-toggle**: `Next` / `Past` filter — `Next` is default, auto-flips to `Past` at end-of-meeting. Past races render outcome badges: 🟡 STRIKE·WIN, 🟢 STRIKE·QIN, 🟢 STRIKE·BOX-4, 🔴 STRIKE·TRIO-5, 🌹 STRIKE·TRIO-6, 🔴 MISS.
 

@@ -722,13 +722,12 @@ function renderBetCard(race) {{
     var t5Nums = top5wa.map(function(h) {{ return h.number; }}).join(', ');
     summaryLines.push('BOX TRIO-5: ' + t5Nums + '  · 10 combos');
   }}
-  // BOX TRIO-6 — Apr 29 evidence: 6/9 strikes vs 2/9 for TRIO-5 on the
-  // same meeting. The rank-6 horse hit the podium in 4 of 7 missed races.
-  // 20 combos at 1 unit = 20-unit stake (2x BOX TRIO-5).
+  // BOX TRIO-6 — OPTIONAL high-cost layer (+10pp lift, 2× cost, needs
+  // avg dividend ≥$111 to break even). Take on chaos/longshot races.
   var top6wa = race.horses.slice(0, 6);
   if (top6wa.length === 6) {{
     var t6Nums = top6wa.map(function(h) {{ return h.number; }}).join(', ');
-    summaryLines.push('BOX TRIO-6: ' + t6Nums + '  · 20 combos');
+    summaryLines.push('BOX TRIO-6 (optional): ' + t6Nums + '  · 20 combos');
   }}
   if (summaryLines.length) {{
     waLines.push('');
@@ -1330,21 +1329,24 @@ function _buildRaceDetailPanel(race) {{
     );
   }}
 
-  // BOX TRIO-6 protection — top 6 model picks in a 20-combo box.
-  // Apr 29 evidence: 6/9 strikes vs 2/9 for TRIO-5 on the same meeting.
-  // Across that day, the rank-6 horse hit the podium in 4 of the 7
-  // races we missed (R1, R4, R5, R8 had a rank-6 placer; R9 had the
-  // rank-6 winner). Doubles the cost (20 vs 10 combos) but tripled
-  // the strike rate. 20 combos at 1 unit = 20-unit stake.
+  // BOX TRIO-6 — OPTIONAL high-cost protection layer.
+  // Empirical evidence across 6 meetings (Apr 12, 15, 19, 22, 26, 29):
+  //   ST (42 races): TRIO-5 20/42 (48%), TRIO-6 24/42 (57%) — +4 strikes (+10pp)
+  //   HV (18 races): TRIO-5 4/18 (22%), TRIO-6 6/18 (33%) — +2 strikes (+11pp)
+  // TRIO-6 lifts strike rate ~10pp at BOTH venues, but doubles stake.
+  // Economic break-even vs TRIO-5: avg TRIO dividend must exceed ~$111
+  // for the +9pp lift to overcome the 2× cost. Take it on races where
+  // you expect a long-priced placer (large field, weak favorite, or
+  // morning steam on a rank-6+ horse). Otherwise stick with TRIO-5.
   var top6 = race.horses.slice(0, 6);
   if (top6.length === 6) {{
     ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
-        '<span style="display:inline-block;background:rgba(244,63,94,.85);color:#fff;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
-          '+ BOX TRIO-6 · 20 combos' +
+      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem;opacity:.85">' +
+        '<span style="display:inline-block;background:rgba(244,63,94,.6);color:#fff;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+          '+ BOX TRIO-6 · 20 combos · OPTIONAL' +
         '</span>' +
         top6.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
-        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 6 finish top-3 in any order. Apr 29 evidence: caught 6/9 vs TRIO-5\\'s 2/9 — rank-6 horses were systematically on the podium in races we missed. 2x cost for 3x strike rate.</div>' +
+        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Optional — adds the rank-6 horse for chaos/longshot-podium races. +10pp lift over TRIO-5 across 6-meeting sample but 2× cost; needs avg dividend ≥ $111 to break even. Skip on heavy-favorite or short-field races.</div>' +
       '</div>'
     );
   }}
