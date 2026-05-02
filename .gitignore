@@ -43,5 +43,7 @@ tracking_data/horse_history.db-wal
 tracking_data/odds_history.db-shm
 tracking_data/odds_history.db-wal
 
-# Renavon one-time export CSVs (user-purchased, ~80MB gzipped)
-renavon_Hongkong_Jockey_Club_races_and_horses/
+# Renavon one-time export CSVs (~76MB gzipped, frozen 2026-04-26).
+# Tracked in git so the DB can be rebuilt via `python3 -m scripts.load_renavon_csvs`
+# after any local DB loss. Never updated (one-time HKJC export, no subscription).
+# See docs/renavon.md.
