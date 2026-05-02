@@ -34,8 +34,10 @@ tracking_data/alerts_state_*.json
 # Playwright MCP session artifacts
 .playwright-mcp/
 
-# Large local databases — regenerate via scripts/scrape.py +
-# scripts/load_renavon_csvs.py + scripts/backfill_from_renavon.py
+# Large local DB binaries — too big for git (704MB; GitHub blocks files >100MB).
+# The recoverable subset is committed as tracking_data/backup/db_core_dump.sql.gz
+# (~2.6MB, refreshed via `python3 -m scripts.dump_db`); restore with
+# `python3 -m scripts.restore_db`.
 tracking_data/horse_history.db
 tracking_data/odds_history.db
 tracking_data/horse_history.db-shm
