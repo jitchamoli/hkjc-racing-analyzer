@@ -47,7 +47,10 @@ def main():
     proc = subprocess.run(cmd, input=script, capture_output=True, text=True, check=True)
 
     raw = proc.stdout.encode('utf-8')
-    with gzip.open(DUMP_PATH, 'wb', compresslevel=9) as f:
+    # mtime=0 makes the gzip output byte-identical when content is identical,
+    # so `git diff --quiet` correctly reports no-op when DB hasn't changed.
+    with gzip.GzipFile(filename=str(DUMP_PATH), mode='wb',
+                       compresslevel=9, mtime=0) as f:
         f.write(raw)
 
     sz = DUMP_PATH.stat().st_size / (1024 ** 2)
