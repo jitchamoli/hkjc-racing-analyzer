@@ -109,7 +109,12 @@ SQLite at `tracking_data/horse_history.db`. Five tables:
 
 **Data integrity**: `ingest_race_day()` calls `rebuild_stats()` after every ingestion, which overwrites jockey/trainer stats with local-only data. If full-season HKJC rankings were previously imported, re-run `python3 scrape_history.py --rankings` after ingestion to restore them. The `horses` table upsert derives `total_starts`/`total_wins`/`total_places` from `race_results` via subquery — safe for re-ingestion (idempotent, no double-counting).
 
-**Auto-computed fields**: `days_since_last_run` is backfilled from race_results on ingestion (uses `julianday(REPLACE(date,'/','-'))` since dates are YYYY/MM/DD). `rating_change` and `age` come from race cards (not results pages) so are only populated for races where predictions were generated.
+**Auto-computed fields**: `days_since_last_run` is backfilled from race_results on ingestion (uses `julianday(REPLACE(date,'/','-'))` since dates are YYYY/MM/DD). `rating_change` and `age` come from race cards (not results pages) so are only populated for races where predictions were generated. **`rating_change` post-Renavon backfill caveat**: the Renavon CSV `renavon_race_results` lacks the column directly — it lives in `renavon_race_catalog`. After any DB rebuild from Renavon, re-run `python3 -m scripts.backfill_from_renavon` to restore non-zero `rating_change` (otherwise it defaults to 0 in 99.7% of rows and `test_no_constant_training_features` fails).
+
+**Recovery workflow** (DB binary >100MB, can't be committed directly to GitHub):
+- **Dump**: `python3 -m scripts.dump_db` → writes `tracking_data/backup/db_core_dump.sql.gz` (~3 MB, deterministic gzip with mtime=0 so byte-stable for git diff). Covers race_results, horses, jockey_stats, trainer_stats, race_dividends, prediction_log.
+- **Restore**: `python3 -m scripts.restore_db` → moves existing DB aside, replays SQL dump, then re-loads Renavon CSVs via `scripts.load_renavon_csvs`. Idempotent.
+- **Auto-dump**: launchd job `com.hkjc.dbdump` (`scripts/launchd/com.hkjc.dbdump.plist`) runs `scripts/auto_dump.sh` Mon + Thu 02:00 HKT (after Sun ST + Wed HV race days). Logs to `logs/auto_dump.log`. Commits + pushes only if dump bytes changed.
 
 ### Data Fetching (`hkjc_data_fetcher.py`)
 
@@ -131,10 +136,10 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 **6-layer BET TICKET** per card:
 1. **PRIMARY** (gold) — recommender's choice with jockey + 30-day strike rate
 2. **+ BOX QIN-4** (green) — top-4 model picks, always-on protection (catches rank-3/4 placing-pair upsets)
-3. **+ F4 SAVER** (purple) — top-4 in 1-2-3-4 exact order, single unit
+3. **+ F4 SAVER** (purple) — top-4 in 1-2-3-4 exact order, single unit. **Gated** to skip low-EV setups: heavy fav (top1 odds <$2.5) collapses the dividend pool; LOW conviction means top-4 ordering is unreliable; field <8 shrinks combos. Renders "F4 SAVER · SKIPPED · <reason>" badge when gated. Saves ~$20/day on guaranteed-loss F4 plays.
 4. **+ QIN PLACE BANKER** (blue) — only when top pick odds ≤ 1.8 (favorite + 3 bankers, 3 combos)
-5. **+ BOX TRIO-5** (pink) — top-5 in 10-combo TRIO box (catches rank-5/6 spoilers)
-6. **+ BOX TRIO-6** (rose, OPTIONAL) — top-6 in 20-combo TRIO box. 6-meeting evidence (Apr 12-29, 60 races): TRIO-6 lifts strike rate +10pp at both venues (HV +2/18, ST +4/42) but doubles stake. Economic break-even vs TRIO-5: avg TRIO dividend must exceed ~$111. Per-race **TAKE/SKIP/YOUR CALL** recommendation rendered with a **CHAOS 0-4 score** (big field ≥11, competitive favorite $2.5-$5, ≥2 morning-steam horses, HIGH/MED conviction). Rules: SKIP if heavy favorite ($<2.5); TAKE if ≥2 steam OR (HIGH+field≥11+competitive fav); YOUR CALL otherwise. Odds clustering does NOT predict chaos races (tested across 6 meetings, no signal).
+5. **+ BOX TRIO-5** (pink) — top-5 in 10-combo TRIO box (catches rank-5/6 spoilers). Treated as a MAIN bet alongside PRIMARY in the WhatsApp message (per 2026-05-03 user feedback after R3 hit when default-recommended PRIMARY missed).
+6. **+ BOX TRIO-6** (rose, OPTIONAL) — top-6 in 20-combo TRIO box. 6-meeting evidence (Apr 12-29, 60 races): TRIO-6 lifts strike rate +10pp at both venues (HV +2/18, ST +4/42) but doubles stake. Economic break-even vs TRIO-5: avg TRIO dividend must exceed ~$111. Per-race **TAKE/SKIP/YOUR CALL** recommendation rendered with a **CHAOS 0-4 score** (big field ≥11, competitive favorite $2.5-$5, ≥2 morning-steam horses, HIGH/MED conviction). Rules: SKIP if heavy favorite ($<2.5); TAKE if ≥2 steam OR (HIGH+field≥11+competitive fav); YOUR CALL otherwise. **Spoiler-swap (2026-05-03)**: when a horse ranked 7-12 has gear visible (B/TT/CP/etc) AND market odds ≥20% shorter than rank-6, it auto-swaps into rank-6 slot with a 🔁 SWAP badge. Validated retro on 2026-05-03 R4 (#14 SUNNY Q, 3rd) and R5 (#8 FLYING KNIGHT, won) — both would have hit TRIO-6 with the swap. Needs N≥6 meetings of forward validation per project rule.
 
 **Top Bets sub-toggle**: `Next` / `Past` filter — `Next` is default, auto-flips to `Past` at end-of-meeting. Past races render outcome badges: 🟡 STRIKE·WIN, 🟢 STRIKE·QIN, 🟢 STRIKE·BOX-4, 🔴 STRIKE·TRIO-5, 🌹 STRIKE·TRIO-6, 🔴 MISS.
 
