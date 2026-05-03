@@ -56,26 +56,27 @@ def _make_analysis(combined_probability: float, win_odds: float) -> HorseAnalysi
 
 class TestModelProbabilityPreservation:
     def test_apply_calibrated_probs_sets_model_probability_on_first_call(self):
-        """F-19: first call to apply_calibrated_probs must snapshot model_probability."""
+        """F-19: first call to apply_calibrated_probs must snapshot the PRE-blend
+        combined_probability into model_probability (before overwriting with calibrated)."""
         a = _make_analysis(combined_probability=0.30, win_odds=4.0)
         assert a.model_probability is None
 
         apply_calibrated_probs([a], [0.25])
 
-        assert a.model_probability == pytest.approx(0.25), (
-            "model_probability should equal the first-applied calibrated prob"
+        assert a.model_probability == pytest.approx(0.30), (
+            "model_probability should equal the pre-blend combined_probability snapshot"
         )
         assert a.combined_probability == pytest.approx(0.25)
 
     def test_model_probability_not_overwritten_on_subsequent_calls(self):
         """F-19: once model_probability is set, repeated apply_calibrated_probs must not change it."""
         a = _make_analysis(combined_probability=0.30, win_odds=4.0)
-        apply_calibrated_probs([a], [0.25])  # first call — sets model_probability=0.25
+        apply_calibrated_probs([a], [0.25])  # first call — snapshots model_probability=0.30 (pre-blend)
 
         # Simulate rank swap: apply again with swapped probs
         apply_calibrated_probs([a], [0.18])
 
-        assert a.model_probability == pytest.approx(0.25), (
+        assert a.model_probability == pytest.approx(0.30), (
             "model_probability must not be overwritten after the initial snapshot"
         )
         assert a.combined_probability == pytest.approx(0.18), (

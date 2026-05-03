@@ -652,116 +652,167 @@ function renderBetCard(race) {{
 
   // WA copy payload — mirrors the BET TICKET so the copied message has
   // the same primary + protection bets the user sees on screen, plus
-  // jockey strike rates and the top "why strong" bullets.
+  // jockey strike rates and the top "why strong" bullets. Uses
+  // WhatsApp markdown (*bold*, _italic_) for visual hierarchy on mobile.
   function _waPick(h) {{
     var p30 = h.jockey_form_30d != null ? Math.round(h.jockey_form_30d * 100) : null;
     var jk = h.jockey
-      ? ' (' + h.jockey + (p30 != null && p30 > 0 ? ' ' + p30 + '%' : '') + ')'
+      ? ' · ' + h.jockey + (p30 != null && p30 > 0 ? ' ' + p30 + '%' : '')
       : '';
-    return '#' + h.number + ' ' + (h.name||'') + ' @' + (h.win_odds||'?') + jk;
+    return '#' + h.number + ' ' + (h.name||'') + ' @$' + (h.win_odds||'?') + jk;
   }}
   var waLines = [];
-  // Race header
-  waLines.push(tier + ' · R' + race.race_number + ' ' + (race.time||'') +
-               ' · ' + (race.class_type||'') + ' ' + (race.distance||'') + 'm');
-  // Group horses by primary bet type for the WA payload
+  // Race header — bold race id + meta on a second line for scannability
+  var venueWa = race.venue || '';
+  waLines.push('*R' + race.race_number + ' · ' + (race.time||'') + (venueWa ? ' · ' + venueWa : '') + '*');
+  waLines.push((race.distance||'') + 'm · ' + (race.class_type||'') + ' · ' +
+               race.horses.length + ' horses · Tier: ' + tier);
+
+  // Group horses by primary bet type
   var waBets = {{}};
   race.horses.forEach(function(h) {{
     var b = (h.bet_recommendation || '').trim();
     if (b && b !== 'SKIP') {{ (waBets[b] = waBets[b] || []).push(h); }}
   }});
 
-  // ONE-LINE SUMMARY — at the top so you can scan/punch at the terminal
-  // without parsing the full breakdown. Eg: "BET: BOX QIN-4 → 1, 9, 2, 13".
-  var summaryLines = [];
-  Object.keys(waBets).forEach(function(bt) {{
-    var picks = waBets[bt];
-    var nums = picks.map(function(h) {{ return h.number; }}).join(', ');
-    var lbl;
-    if (bt === 'BANKER WIN' || bt === 'WIN') {{
-      lbl = 'WIN';
-    }} else if ((bt === 'QIN' || bt === 'BOX QIN') && picks.length >= 2) {{
-      lbl = picks.length === 2 ? 'QIN' : 'BOX QIN-' + picks.length;
-    }} else if (bt === 'TRIO' && picks.length >= 3) {{
-      lbl = picks.length === 3 ? 'TRIO' : 'BOX TRIO-' + picks.length;
-    }} else {{
-      lbl = bt;
-    }}
-    summaryLines.push('BET: ' + lbl + ' → ' + nums);
-  }});
-  // Always include the box-4 protection numbers in the summary too, when applicable
+  // MAIN BET — one focused block (not a duplicate summary + detail).
+  var mainBetTypes = Object.keys(waBets);
+  if (mainBetTypes.length > 0) {{
+    mainBetTypes.forEach(function(bt) {{
+      var picks = waBets[bt];
+      var lbl = bt;
+      if (bt === 'BANKER WIN' || bt === 'WIN') {{
+        lbl = bt === 'BANKER WIN' ? 'BANKER WIN' : 'WIN';
+      }} else if ((bt === 'QIN' || bt === 'BOX QIN') && picks.length >= 2) {{
+        lbl = picks.length === 2 ? 'STRAIGHT QIN' : 'BOX QIN-' + picks.length;
+      }} else if (bt === 'TRIO' && picks.length >= 3) {{
+        lbl = picks.length === 3 ? 'STRAIGHT TRIO' : 'BOX TRIO-' + picks.length;
+      }}
+      waLines.push('');
+      waLines.push('*MAIN: ' + lbl + '*');
+      picks.forEach(function(h) {{ waLines.push(_waPick(h)); }});
+    }});
+  }} else {{
+    waLines.push('');
+    waLines.push('*SKIP* — no bet recommended');
+  }}
+
+  // Optional add-on layers (BOX QIN-4, F4, TRIO-5, TRIO-6, QPL BANKER)
+  // collected as bullets so the reader sees them as discretionary.
+  var addOns = [];
   var top4wa = race.horses.slice(0, 4);
-  var primNumsWa = {{}};
-  Object.keys(waBets).forEach(function(bt) {{
-    waBets[bt].forEach(function(h) {{ primNumsWa[h.number] = true; }});
-  }});
-  var hasNonPrimWa = top4wa.length === 4 && top4wa.some(function(h) {{ return !primNumsWa[h.number]; }});
-  if (top4wa.length === 4 && (hasNonPrimWa || summaryLines.length === 0)) {{
-    var box4Nums = top4wa.map(function(h) {{ return h.number; }}).join(', ');
-    summaryLines.push('PROT: BOX QIN-4 → ' + box4Nums);
-  }}
-  // QIN PLACE BANKER summary for short-favorite races — same gating as
-  // the visual ticket. Way better ROI than straight WIN at sub-2.0 odds.
-  var top1Wa = race.horses[0];
-  if (top1Wa && top1Wa.win_odds && top1Wa.win_odds <= 1.8 && race.horses.length >= 4) {{
-    var bnkNums = race.horses.slice(1, 4).map(function(h) {{ return h.number; }}).join(', ');
-    summaryLines.push('QPL BANKER: ' + top1Wa.number + ' with ' + bnkNums + '  · 3 combos');
-  }}
-
-  // FIRST 4 longshot saver — top 4 model picks in their model-rank order.
-  // 1 unit, exact order. Pays handsomely when it hits; meant as a low-cost
-  // protection layer alongside the QIN box.
-  if (top4wa.length === 4) {{
-    var f4Order = top4wa.map(function(h) {{ return h.number; }}).join('-');
-    summaryLines.push('F4 (exact): ' + f4Order + '  · 1 unit');
-  }}
-
-  // BOX TRIO-5 summary line — same gating as the visual ticket
   var top5wa = race.horses.slice(0, 5);
-  if (top5wa.length === 5) {{
-    var t5Nums = top5wa.map(function(h) {{ return h.number; }}).join(', ');
-    summaryLines.push('BOX TRIO-5: ' + t5Nums + '  · 10 combos');
-  }}
-  // BOX TRIO-6 — OPTIONAL high-cost layer (+10pp lift, 2× cost, needs
-  // avg dividend ≥$111 to break even). Take on chaos/longshot races.
   var top6wa = race.horses.slice(0, 6);
-  if (top6wa.length === 6) {{
-    var t6Nums = top6wa.map(function(h) {{ return h.number; }}).join(', ');
-    summaryLines.push('BOX TRIO-6 (optional): ' + t6Nums + '  · 20 combos');
-  }}
-  if (summaryLines.length) {{
-    waLines.push('');
-    summaryLines.forEach(function(l) {{ waLines.push(l); }});
+  var top1Wa = race.horses[0];
+  var primNumsWa = {{}};
+  mainBetTypes.forEach(function(bt) {{ waBets[bt].forEach(function(h) {{ primNumsWa[h.number] = true; }}); }});
+
+  // QIN PLACE BANKER for short-favorite races
+  if (top1Wa && top1Wa.win_odds && top1Wa.win_odds <= 1.8 && race.horses.length >= 4) {{
+    var bnkNums = race.horses.slice(1, 4).map(function(h) {{ return '#' + h.number; }}).join(' + ');
+    addOns.push('QPL BANKER (3 combos): #' + top1Wa.number + ' with ' + bnkNums);
   }}
 
-  // Detailed breakdown of primary bet
-  Object.keys(waBets).forEach(function(bt) {{
-    var picks = waBets[bt];
-    var lbl = bt;
-    if ((bt === 'QIN' || bt === 'BOX QIN') && picks.length >= 2) {{
-      lbl = picks.length === 2 ? 'STRAIGHT QIN' : 'BOX QIN-' + picks.length;
-    }} else if (bt === 'TRIO' && picks.length >= 3) {{
-      lbl = picks.length === 3 ? 'STRAIGHT TRIO' : 'BOX TRIO-' + picks.length;
+  // BOX QIN-4 protection
+  if (top4wa.length === 4) {{
+    var hasNonPrimWa = top4wa.some(function(h) {{ return !primNumsWa[h.number]; }});
+    if (hasNonPrimWa || mainBetTypes.length === 0) {{
+      var box4Nums = top4wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+      addOns.push('BOX QIN-4 (6 combos): ' + box4Nums);
     }}
-    waLines.push('');
-    waLines.push('PRIMARY: ' + lbl);
-    picks.forEach(function(h) {{ waLines.push('  ' + _waPick(h)); }});
-  }});
-  // Box Q4 protection — same gating rules as the on-screen ticket
-  if (top4wa.length === 4 && (hasNonPrimWa || Object.keys(waBets).length === 0)) {{
-    waLines.push('');
-    waLines.push('+ PROTECTION: BOX QIN-4 (6 combos)');
-    top4wa.forEach(function(h) {{ waLines.push('  ' + _waPick(h)); }});
   }}
-  if (Object.keys(waBets).length === 0 && top4wa.length < 4) {{
-    waLines.push('');
-    waLines.push('SKIP — no bet recommended');
+
+  // F4 SAVER — gated to skip low-EV setups (same rule as visual ticket)
+  if (top4wa.length === 4) {{
+    var f4Top1Odds = (race.horses[0] && race.horses[0].win_odds) || 0;
+    var f4Field = race.horses.length;
+    var f4Skip = (f4Top1Odds > 0 && f4Top1Odds < 2.5) ||
+                 (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+                 (f4Field < 8);
+    if (!f4Skip) {{
+      var f4Order = top4wa.map(function(h) {{ return '#' + h.number; }}).join(' → ');
+      addOns.push('F4 SAVER (1 unit · exact 1→4): ' + f4Order);
+    }}
   }}
+
+  // BOX TRIO-5 — promoted to MAIN bet block (between PRIMARY and Optional
+  // adds) per user feedback after R3 2026-05-03: TRIO-5 caught the podium
+  // when the model's top-1/top-2 ordering was unreliable. It's the floor
+  // for trio coverage and should never be buried as an "optional add".
+  // Inserted into the lines array directly above the addOns block below.
+  var t5MainBlock = null;
+  if (top5wa.length === 5) {{
+    var t5Nums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+    t5MainBlock = ['', '*MAIN: BOX TRIO-5* (10 combos)', t5Nums];
+  }}
+
+  // BOX TRIO-6 — annotate with TAKE/SKIP/YOUR CALL + chaos so user sees
+  // the gate decision in the WA message (matches dashboard visual).
+  // Mirror the spoiler-swap logic from the visual ticket so WA picks
+  // match what the dashboard recommends.
+  var top6waSwap = null;
+  var top6waSwapOut = null;
+  if (top6wa.length === 6) {{
+    var rank6wa = top6wa[5];
+    var rank6OddsWa = (rank6wa && rank6wa.win_odds) || 0;
+    if (rank6OddsWa > 0) {{
+      for (var swiW = 6; swiW < Math.min(12, race.horses.length); swiW++) {{
+        var candW = race.horses[swiW];
+        var candOddsW = candW.win_odds || 0;
+        var candGearW = (candW.gear || '').trim();
+        if (candOddsW > 0 && candGearW && candOddsW <= rank6OddsWa * 0.8) {{
+          if (!top6waSwap || candOddsW < top6waSwap.win_odds) {{
+            top6waSwap = candW;
+          }}
+        }}
+      }}
+    }}
+    if (top6waSwap) {{
+      top6waSwapOut = top6wa[5];
+      top6wa = race.horses.slice(0, 5).concat([top6waSwap]);
+    }}
+  }}
+  if (top6wa.length === 6) {{
+    var t6Nums = top6wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+    var t6Top1 = (race.horses[0] && race.horses[0].win_odds) || 0;
+    var t6Field = race.horses.length;
+    var t6Steam = race.horses.slice(0, 12).filter(function(h) {{
+      return h.steam_move && h.steam_move.is_steam;
+    }}).length;
+    var chaosScore = 0;
+    if (t6Field >= 11) chaosScore++;
+    if (t6Top1 >= 2.5 && t6Top1 <= 5.0) chaosScore++;
+    if (t6Steam >= 2) chaosScore++;
+    if (tier === 'HIGH' || tier === 'MED') chaosScore++;
+    var t6Verdict;
+    if (t6Top1 > 0 && t6Top1 < 2.5) t6Verdict = 'SKIP heavy fav';
+    else if (t6Steam >= 2) t6Verdict = '★ TAKE (' + t6Steam + ' steam)';
+    else if (tier === 'HIGH' && t6Field >= 11 && t6Top1 >= 2.5 && t6Top1 <= 5.0) t6Verdict = '★ TAKE';
+    else t6Verdict = 'YOUR CALL';
+    var swapAnno = top6waSwap
+      ? ' · 🔁 swapped #' + top6waSwapOut.number + '→#' + top6waSwap.number + ' (gear ' + (top6waSwap.gear||'') + ')'
+      : '';
+    addOns.push('BOX TRIO-6 (20 combos · ' + t6Verdict + ' · CHAOS ' + chaosScore + '/4): ' + t6Nums + swapAnno);
+  }}
+
+  // Insert the TRIO-5 MAIN block before the optional adds so it reads
+  // as a primary bet alongside PRIMARY, not buried under "optional".
+  if (t5MainBlock) {{
+    t5MainBlock.forEach(function(l) {{ waLines.push(l); }});
+  }}
+
+  if (addOns.length) {{
+    waLines.push('');
+    waLines.push('*Optional adds:*');
+    addOns.forEach(function(a) {{ waLines.push('• ' + a); }});
+  }}
+
+  // Why-strong block, italicised
   if (whyItems.length) {{
     waLines.push('');
-    waLines.push('Why strong:');
-    whyItems.slice(0, 3).forEach(function(w) {{ waLines.push('- ' + w); }});
+    waLines.push('_Why: ' + whyItems.slice(0, 3).join(' · ') + '_');
   }}
+
   var waPayload = waLines.join('\\n');
 
   // Whole card is clickable → toggles the per-race detail panel below it.
@@ -1299,16 +1350,43 @@ function _buildRaceDetailPanel(race) {{
     }}
     // FIRST 4 (exact order) — 1 unit, longshot saver. Top 4 model
     // picks placed in 1st-2nd-3rd-4th. Pays big when it hits.
-    var f4Nums = top4.map(function(h) {{ return '#' + esc(h.number); }}).join('  →  ');
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
-        '<span style="display:inline-block;background:rgba(168,85,247,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
-          'F4 SAVER · 1 unit' +
-        '</span>' +
-        '<span style="color:var(--fg);font-weight:600">' + f4Nums + '</span>' +
-        '<span style="color:var(--dim);font-size:.7rem;margin-left:8px">(exact order — 1st → 4th)</span>' +
-      '</div>'
-    );
+    // Gated to skip low-EV setups: heavy favs collapse the F4 dividend
+    // pool; LOW conviction means the rank-1→4 ordering is unreliable;
+    // small fields shrink combos and dividends. Only fires when the
+    // model has real conviction in the order AND the field is wide
+    // enough for a meaningful payout.
+    var f4Top1Odds = (race.horses[0] && race.horses[0].win_odds) || 0;
+    var f4Tier = race.conviction_tier || '';
+    var f4Field = race.horses.length;
+    var f4SkipReason = '';
+    if (f4Top1Odds > 0 && f4Top1Odds < 2.5) {{
+      f4SkipReason = 'heavy fav $' + f4Top1Odds.toFixed(1) + ' — F4 dividends collapse';
+    }} else if (f4Tier !== 'EDGE' && f4Tier !== 'HIGH' && f4Tier !== 'MED') {{
+      f4SkipReason = f4Tier + ' conviction — top-4 ordering unreliable';
+    }} else if (f4Field < 8) {{
+      f4SkipReason = 'small field ' + f4Field + ' — F4 pool too thin';
+    }}
+    if (!f4SkipReason) {{
+      var f4Nums = top4.map(function(h) {{ return '#' + esc(h.number); }}).join('  →  ');
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+          '<span style="display:inline-block;background:rgba(168,85,247,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+            'F4 SAVER · 1 unit' +
+          '</span>' +
+          '<span style="color:var(--fg);font-weight:600">' + f4Nums + '</span>' +
+          '<span style="color:var(--dim);font-size:.7rem;margin-left:8px">(exact order — 1st → 4th)</span>' +
+        '</div>'
+      );
+    }} else {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.72rem;color:var(--dim)">' +
+          '<span style="display:inline-block;background:rgba(71,85,105,.4);color:var(--dim);font-weight:700;padding:2px 8px;border-radius:3px;font-size:.65rem;margin-right:8px">' +
+            'F4 SAVER · SKIPPED' +
+          '</span>' +
+          esc(f4SkipReason) +
+        '</div>'
+      );
+    }}
   }}
 
   // BOX TRIO-5 protection — top 5 model picks in a 10-combo box.
@@ -1338,7 +1416,35 @@ function _buildRaceDetailPanel(race) {{
   // which races will be chaos (tested across 6 meetings — no signal).
   // Real chaos signals: field size ≥11, no clear favorite (rank-1 odds
   // > $3), multiple morning-steam horses, going changed mid-day.
+  // Spoiler-swap detection: scan horses ranked 7-12 for a candidate with
+  // BOTH (a) market odds materially shorter than rank-6 (≥20% shorter) AND
+  // (b) gear visible (B/TT/CP/etc — gear-change signal). If found, swap
+  // it into the rank-6 slot in the displayed TRIO-6 box. Validated by
+  // R5 2026-05-03 #8 FLYING KNIGHT (rank 9, $7.4 vs rank-6 $11, gear
+  // B/TT) which won at $8 — would have hit TRIO-6 with the swap.
   var top6 = race.horses.slice(0, 6);
+  var swapCandidate = null;
+  var swappedOut = null;
+  if (top6.length === 6) {{
+    var rank6 = top6[5];
+    var rank6Odds = (rank6 && rank6.win_odds) || 0;
+    if (rank6Odds > 0) {{
+      for (var swi = 6; swi < Math.min(12, race.horses.length); swi++) {{
+        var cand = race.horses[swi];
+        var candOdds = cand.win_odds || 0;
+        var candGear = (cand.gear || '').trim();
+        if (candOdds > 0 && candGear && candOdds <= rank6Odds * 0.8) {{
+          if (!swapCandidate || candOdds < swapCandidate.win_odds) {{
+            swapCandidate = cand;
+          }}
+        }}
+      }}
+    }}
+    if (swapCandidate) {{
+      swappedOut = top6[5];
+      top6 = race.horses.slice(0, 5).concat([swapCandidate]);
+    }}
+  }}
   if (top6.length === 6) {{
     // Practical decision rule (validated across 6 meetings, 60 races):
     //   SKIP if heavy favorite (top1 odds < $2.5) — model+market aligned
@@ -1386,15 +1492,21 @@ function _buildRaceDetailPanel(race) {{
       recReason = 'Coin-flip economically. +10pp strike lift but 2× cost. Take if you sense chaos; skip for ROI.';
     }}
 
+    var swapBadge = '';
+    var swapNote = '';
+    if (swapCandidate && swappedOut) {{
+      swapBadge = '<span style="background:rgba(168,85,247,.85);color:#fff;font-weight:800;padding:1px 6px;border-radius:3px;font-size:.62rem;margin-left:6px" title="Spoiler swap: rank-' + (swapCandidate.rank) + ' #' + swapCandidate.number + ' has shorter market odds + gear change vs default rank-6 #' + swappedOut.number + '">🔁 SWAP #' + swappedOut.number + '→#' + swapCandidate.number + '</span>';
+      swapNote = ' · <span style="color:#a855f7">Swapped #' + swappedOut.number + ' (rank 6, $' + (swappedOut.win_odds||0).toFixed(1) + ') for #' + swapCandidate.number + ' (rank ' + swapCandidate.rank + ', $' + (swapCandidate.win_odds||0).toFixed(1) + ', gear ' + esc(swapCandidate.gear||'') + ') — market support + gear change</span>';
+    }}
     ticketLines.push(
       '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem;opacity:.92">' +
         '<span style="display:inline-block;background:rgba(244,63,94,.6);color:#fff;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
           '+ BOX TRIO-6 · 20 combos · OPTIONAL' +
         '</span>' +
         top6.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
-        ' · ' + recBadge + chaosBadge +
+        ' · ' + recBadge + chaosBadge + swapBadge +
         '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">' + recReason +
-          ' Signals: ' + (chaosFactors.length ? chaosFactors.join(', ') : 'none') + '.' +
+          ' Signals: ' + (chaosFactors.length ? chaosFactors.join(', ') : 'none') + '.' + swapNote +
         '</div>' +
       '</div>'
     );
