@@ -513,6 +513,10 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         class_change_feat = np.random.choice([0.0, 0.5, 1.0], p=[0.15, 0.60, 0.25])
         hw_change = np.random.normal(0.5, 0.1)
         hw_change = np.clip(hw_change, 0.0, 1.0)
+        horse_age_feat = np.random.choice([3, 4, 5, 6, 7, 8], p=[0.10, 0.25, 0.30, 0.20, 0.10, 0.05]) / 10.0
+        rating_change_feat = np.random.normal(0.5, 0.08)
+        rating_change_feat = float(np.clip(rating_change_feat, 0.0, 1.0))
+        jockey_form_30d_feat = np.random.beta(2, 8)
 
         features = [
             prior_win_rate, form_score / 100, draw_adv,
@@ -523,6 +527,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             weight_vs_field, jockey_horse_coop,
             last_margin, class_change_feat,
             hw_change,
+            horse_age_feat, rating_change_feat, jockey_form_30d_feat,
         ]
         assert len(features) == NUM_FEATURES
         X.append(features)

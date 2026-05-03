@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.hkjc.dbdump</string>
+
+    <!-- Wrapper handles cd, dump, diff, commit, push, logging -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/jitendrachamoli/Documents/Project_Hub/hkjc_racing_analyzer/scripts/auto_dump.sh</string>
+    </array>
+
+    <!-- HK race days: Wed (HV) + Sun (ST). Run twice weekly the morning AFTER
+         each race day so post-race auto_learn ingests have already run.
+         Times use the Mac's local zone, which for the user is HKT. -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <!-- Thursday 02:00 HKT — picks up Wed HV results -->
+        <dict>
+            <key>Weekday</key><integer>4</integer>
+            <key>Hour</key><integer>2</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+        <!-- Monday 02:00 HKT — picks up Sun ST results -->
+        <dict>
+            <key>Weekday</key><integer>1</integer>
+            <key>Hour</key><integer>2</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+    </array>
+
+    <!-- If the Mac was asleep at the scheduled time, run as soon as it wakes -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- Inherit a usable PATH so python3, git, sqlite3 resolve -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- Stderr/stdout from python/git go here in case the wrapper itself
+         can't open its own log (permissions, path issues, etc.) -->
+    <key>StandardOutPath</key>
+    <string>/Users/jitendrachamoli/Documents/Project_Hub/hkjc_racing_analyzer/logs/launchd.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/jitendrachamoli/Documents/Project_Hub/hkjc_racing_analyzer/logs/launchd.err.log</string>
+</dict>
+</plist>
