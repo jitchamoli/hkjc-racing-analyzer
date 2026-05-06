@@ -25,14 +25,16 @@ The XGBoost-side isotonic calibrator only sees raw model probs; it doesn't see t
 - **Two prominent View tabs** above the card stack: **📋 Race Order** (default — all 11 races as full cards in chronological order) and **⭐ Top Bets** (curated HIGH/MED/EDGE subset, tier-sorted then by edge_pp).
 - **Click anywhere on a race card** to expand its detail panel inline (per-horse table, same-format history, speed map, reasoning). Click again to collapse. Top-right chevron flips ▼ → ▲.
 - **Same-format history per horse** — for every horse with prior runs at this exact venue + distance, the expanded panel lists their last 5 attempts (date, going, class, finish position colour-coded, odds, margin, jockey).
-- **BET TICKET** with FIVE layers per race:
+- **BET TICKET** with SEVEN layers per race:
   1. 🟡 **PRIMARY** — recommender's choice (QIN / TRIO / BOX QIN-4 / BANKER WIN), each pick tagged with jockey + 30-day strike rate (gold) + all-time strike rate.
   2. 🟢 **+ PROTECTION · BOX QIN-4 (6 combos)** — always-on top-4 quinella box. Catches placing-pair upsets where the winner sits in model ranks 3-4.
-  3. 🟣 **+ F4 SAVER · 1 unit** — top-4 in exact 1-2-3-4 finishing order. Cheap longshot saver.
-  4. 🔵 **+ QIN PLACE BANKER · 3 combos** — only when top pick odds ≤ 1.8. For short-favorite races a WIN bet pays barely above stake; QPL on (favorite + 3 banker picks) hits when fav places (very likely) AND any banker also places. Validated Apr 26 R9: ROMANTIC WARRIOR 1.4 — 2 of 3 QPL combos hit alongside the WIN.
-  5. 🩷 **+ BOX TRIO-5 · 10 combos** — top-5 model picks in a TRIO box. Hits when any 3 of 5 finish top-3 in any order. Catches the rank-5/6 spoilers that QIN-4 misses; validated by a user-driven 4-horse trio on Apr 26 R10 paying 12x, then again automatically on R11.
-- **Top Bets · Next / Past sub-toggle** — Next surfaces upcoming bets, Past shows finished races with outcome badges (🟡 `★ STRIKE · WIN`, 🟢 `★ STRIKE · QIN`, 🟢 `★ STRIKE · BOX-4`, 🔴 `✗ MISS`). Auto-flips to Past at end-of-meeting so a click after the last race lands on the day's record. Badges render in both views.
-- **WhatsApp Copy** mirrors the BET TICKET — first line is a scannable summary like `BET: BOX QIN-4 → 1, 9, 2, 13` for terminal entry; followed by `F4 (exact)`, `BOX TRIO-5`, full per-horse breakdown with jockey strike rates, then "Why strong" bullets.
+  3. 🟣 **+ F4 SAVER · 1 unit** — top-4 in exact 1-2-3-4 finishing order. Gated to skip heavy favs (<$2.5), LOW conviction, or fields <8 — cheap longshot saver only when the model has real conviction.
+  4. 🔵 **+ QIN PLACE BANKER · 3 combos** — only when top pick odds ≤ 1.8. For short-favorite races a WIN bet pays barely above stake; QPL on (favorite + 3 banker picks) hits when fav places (very likely) AND any banker also places.
+  5. 💜 **★ MAIN · F4 BOX-5 · 5 combos** — top-5 picks in a 5-combo F4 box (any order, top-4 finishers). Shipped 2026-05-06 after 60-race backtest: **+54% ROI vs TRIO-5's +8% at half the stake**. Same gates as F4 SAVER. Median F4 dividend $1,227 — per-hit return ~9× stake.
+  6. 🩷 **+ BOX TRIO-5 · 10 combos** — top-5 model picks in a TRIO box. Hits when any 3 of 5 finish top-3 in any order. Catches rank-5/6 spoilers that QIN-4 misses. Kept alongside F4 BOX-5 because TRIO-5 still hits when the 4th finisher is outside top-5 (different miss profile).
+  7. 🌹 **+ BOX TRIO-6 · 20 combos (OPTIONAL)** — top-6 in TRIO box with **CHAOS 0-4 score** + per-race TAKE/SKIP/YOUR CALL recommendation. Spoiler-swap detection: a horse ranked 7-12 with gear visible (B/TT/CP) AND market odds ≥20% shorter than rank-6 auto-swaps in with a 🔁 SWAP badge.
+- **Top Bets · Next / Past sub-toggle** — Next surfaces upcoming bets, Past shows finished races with outcome badges (🟡 `★ STRIKE · WIN`, 🟢 `★ STRIKE · QIN`, 🟢 `★ STRIKE · BOX-4`, 💜 `★ STRIKE · F4-5`, 🩷 `★ STRIKE · TRIO-5`, 🌹 `★ STRIKE · TRIO-6`, 🔴 `✗ MISS`). Auto-flips to Past at end-of-meeting so a click after the last race lands on the day's record. Badges render in both views.
+- **WhatsApp Copy** mirrors the BET TICKET — first line is a scannable summary like `BET: BOX QIN-4 → 1, 9, 2, 13` for terminal entry; followed by parallel MAIN blocks (`F4 BOX-5`, `BOX TRIO-5`), `F4 SAVER (exact)`, full per-horse breakdown with jockey strike rates, then "Why strong" bullets.
 - **Race-day workflow** — two persistent monitors keep the dashboard fresh: pre-race refresh + results merge at **T-6 min** before each race, and a 15-min `--auto-learn` poll that ingests each new race result into `tracking_data/horse_history.db` so the model improves day-over-day.
 - **Same-format history per horse** — for every horse with prior runs at this exact venue + distance, the expanded panel lists their last 5 attempts (date, going, class, finish position colour-coded, odds, margin, jockey).
 - **Plain-English labels** with click-to-toggle ⓘ popovers on Pure / Market / Edge ("Pure" → "Our model").
@@ -132,7 +134,7 @@ hkjc_racing_analyzer/
     recommender.py           #   Bet recommendation engine
     predictor.py             #   ML predictor shim
   ml/                        # ML pipeline
-    feature_schema.py        #   16-feature schema (v6.4)
+    feature_schema.py        #   19-feature schema
     features.py              #   Feature extraction + extract_class_rank helper
     model.py                 #   XGBoost — isotonic-calibrated, integrity-checked
     training.py              #   Training data builders (5y default, exp recency)
@@ -146,7 +148,7 @@ hkjc_racing_analyzer/
     dividends.py             #   Quinella EV pricing (Harville + place boost)
     exotic_calculator.py     #   Trifecta/First4/Quinella value detection
     optimizer.py             #   Kelly Criterion sizing
-  analytics/                 # 12 specialized analyzers (draw bias, pace, sectionals,
+  analytics/                 # 13 specialized analyzers (draw bias, pace, sectionals,
                              #   barrier trial, C&D, class, gear, weight, going,
                              #   rolling form, beaten margins, jockey change, speed)
   data/                      # Data layer
@@ -164,7 +166,7 @@ hkjc_racing_analyzer/
   scripts/                   # CLI entry points
     generate.py · scrape.py · train.py · monitor.py · backtest.py
     backfill_dividends.py · accuracy.py · serve.py · fetch_results.py
-  tests/                     # pytest suite — 170 tests
+  tests/                     # pytest suite — 171 tests
   config.py                  # Centralized constants
   models/                    # Trained ML models (pickle + .sha256 sidecar)
   results/                   # HTML dashboards and prediction JSON
@@ -231,7 +233,7 @@ python3 -m scripts.backtest --sweep      # grid over softmax temp × model weigh
 
 ```bash
 pytest tests/ -v
-# 170 tests covering edge math, gates, tier assignment, alerts dedup,
+# 171 tests covering edge math, gates, tier assignment, alerts dedup,
 # Wilson CI, template rendering, JS-syntax validation, end-to-end integration
 ```
 

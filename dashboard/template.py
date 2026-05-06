@@ -258,6 +258,7 @@ button {{ font-family:inherit; cursor:pointer; }}
 .strike-badge.qin {{ background:var(--green); color:#000; }}
 .strike-badge.box4 {{ background:rgba(16,185,129,.7); color:#000; }}
 .strike-badge.trio {{ background:rgba(236,72,153,.85); color:#000; }}
+.strike-badge.f4 {{ background:linear-gradient(135deg,rgba(168,85,247,.95),rgba(236,72,153,.85)); color:#000; box-shadow:0 0 6px rgba(168,85,247,.45); }}
 .strike-badge.trio6 {{ background:rgba(244,63,94,.85); color:#fff; }}
 .strike-badge.miss {{ background:rgba(239,68,68,.6); color:#fff; }}
 
@@ -485,6 +486,7 @@ function _didBetHit(race) {{
   if (horsesByPos.length < 2) return null;
   var p1 = horsesByPos[0].number, p2 = horsesByPos[1].number;
   var p3 = horsesByPos.length >= 3 ? horsesByPos[2].number : null;
+  var p4 = horsesByPos.length >= 4 ? horsesByPos[3].number : null;
   var top2Nums = race.horses.slice(0, 2).map(function(h) {{ return h.number; }});
   var top4Nums = race.horses.slice(0, 4).map(function(h) {{ return h.number; }});
   var top5Nums = race.horses.slice(0, 5).map(function(h) {{ return h.number; }});
@@ -493,6 +495,12 @@ function _didBetHit(race) {{
   if (rank1 && rank1.number === p1) return 'STRIKE-WIN';
   if (top2Nums.indexOf(p1) >= 0 && top2Nums.indexOf(p2) >= 0) return 'STRIKE-QIN';
   if (top4Nums.indexOf(p1) >= 0 && top4Nums.indexOf(p2) >= 0) return 'STRIKE-BOX4';
+  // F4 BOX-5 strike: all 4 podium horses inside top-5 picks (rarer than TRIO-5,
+  // pays bigger — shipped 2026-05-06 after 60-race backtest showed +54% ROI).
+  // Checked before TRIO-5 because F4-5 hit always implies TRIO-5 hit; we want
+  // the badge to reflect the stronger result.
+  if (p4 != null && top5Nums.indexOf(p1)>=0 && top5Nums.indexOf(p2)>=0 &&
+      top5Nums.indexOf(p3)>=0 && top5Nums.indexOf(p4)>=0) return 'STRIKE-F4-5';
   // TRIO box checks require all 3 podium horses inside the box.
   if (p3 != null) {{
     if (top5Nums.indexOf(p1)>=0 && top5Nums.indexOf(p2)>=0 && top5Nums.indexOf(p3)>=0) return 'STRIKE-TRIO5';
@@ -634,6 +642,8 @@ function renderBetCard(race) {{
     strikeBadge = '<span class="strike-badge qin" title="Winning quinella pair was inside top-2 model picks">★ STRIKE · QIN</span>';
   }} else if (strikeStatus === 'STRIKE-BOX4') {{
     strikeBadge = '<span class="strike-badge box4" title="Winning quinella pair was inside top-4 model picks (Box-4 hit)">★ STRIKE · BOX-4</span>';
+  }} else if (strikeStatus === 'STRIKE-F4-5') {{
+    strikeBadge = '<span class="strike-badge f4" title="Top-4 finishers all inside top-5 model picks (F4 BOX-5 hit — bigger dividend than TRIO-5)">★ STRIKE · F4-5</span>';
   }} else if (strikeStatus === 'STRIKE-TRIO5') {{
     strikeBadge = '<span class="strike-badge trio" title="Full podium inside top-5 model picks (BOX TRIO-5 hit)">★ STRIKE · TRIO-5</span>';
   }} else if (strikeStatus === 'STRIKE-TRIO6') {{
@@ -749,6 +759,24 @@ function renderBetCard(race) {{
     t5MainBlock = ['', '*MAIN: BOX TRIO-5* (10 combos)', t5Nums];
   }}
 
+  // F4 BOX-5 — second MAIN bet block (shipped 2026-05-06, +54% ROI on 60-race
+  // backtest, strictly better economics than TRIO-5). Same horses as TRIO-5
+  // but only 5 combos x $10 = $50 vs the TRIO-5 box at 10 combos x $10 = $100.
+  // Same gates as F4 SAVER apply. Kept TRIO-5 as parallel MAIN since they
+  // cover different misses (TRIO-5 hits when 4th finisher is outside top-5).
+  var f4bMainBlock = null;
+  if (top5wa.length === 5) {{
+    var f4bTop1OddsWa = (race.horses[0] && race.horses[0].win_odds) || 0;
+    var f4bFieldWa = race.horses.length;
+    var f4bSkipWa = (f4bTop1OddsWa > 0 && f4bTop1OddsWa < 2.5) ||
+                    (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+                    (f4bFieldWa < 8);
+    if (!f4bSkipWa) {{
+      var f4bNums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+      f4bMainBlock = ['', '*MAIN: F4 BOX-5* (5 combos · top-4 any order)', f4bNums];
+    }}
+  }}
+
   // BOX TRIO-6 — annotate with TAKE/SKIP/YOUR CALL + chaos so user sees
   // the gate decision in the WA message (matches dashboard visual).
   // Mirror the spoiler-swap logic from the visual ticket so WA picks
@@ -803,6 +831,9 @@ function renderBetCard(race) {{
   if (t5MainBlock) {{
     t5MainBlock.forEach(function(l) {{ waLines.push(l); }});
   }}
+  if (f4bMainBlock) {{
+    f4bMainBlock.forEach(function(l) {{ waLines.push(l); }});
+  }}
 
   if (addOns.length) {{
     waLines.push('');
@@ -825,7 +856,7 @@ function renderBetCard(race) {{
   // EDGE alert banner — fires <1× per meeting on average (0 in 124-race
   // backtest holdout, +5pp threshold). When it does fire, treat it as a
   // genuine value bet, not a routine HIGH-tier pick. Render a prominent
-  // notice above the bet ticket so the user can't miss it.
+  // notice above the bet ticket so the user cannot miss it.
   var edgeAlertHTML = isEdge
     ? '<div style="background:linear-gradient(135deg,rgba(251,191,36,.25),rgba(251,191,36,.08));border:2px solid var(--gold);border-radius:6px;padding:8px 12px;margin:6px 0 10px 0;font-size:.78rem">' +
         '<span style="color:var(--gold);font-weight:800;letter-spacing:.06em">★ RARE EDGE — TAKE SERIOUSLY</span>' +
@@ -1405,6 +1436,46 @@ function _buildRaceDetailPanel(race) {{
             'F4 SAVER · SKIPPED' +
           '</span>' +
           esc(f4SkipReason) +
+        '</div>'
+      );
+    }}
+  }}
+
+  // F4 BOX-5 — top 5 model picks in a 5-combo F4 box (any-order).
+  // Shipped 2026-05-06 after 60-race backtest: 17% hit rate, +54% ROI
+  // ($50 stake, median $461 dividend per hit) — strictly better economics
+  // than BOX TRIO-5 (+8% ROI). Same gates as F4 SAVER apply: heavy fav,
+  // LOW conv, or small field collapse the F4 dividend pool.
+  var top5_f4 = race.horses.slice(0, 5);
+  if (top5_f4.length === 5) {{
+    var f4bTop1Odds = (race.horses[0] && race.horses[0].win_odds) || 0;
+    var f4bTier = race.conviction_tier || '';
+    var f4bField = race.horses.length;
+    var f4bSkipReason = '';
+    if (f4bTop1Odds > 0 && f4bTop1Odds < 2.5) {{
+      f4bSkipReason = 'heavy fav $' + f4bTop1Odds.toFixed(1) + ' — F4 dividends collapse';
+    }} else if (f4bTier !== 'EDGE' && f4bTier !== 'HIGH' && f4bTier !== 'MED') {{
+      f4bSkipReason = f4bTier + ' conviction — top-5 coverage unreliable';
+    }} else if (f4bField < 8) {{
+      f4bSkipReason = 'small field ' + f4bField + ' — F4 pool too thin';
+    }}
+    if (!f4bSkipReason) {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+          '<span style="display:inline-block;background:linear-gradient(135deg,rgba(168,85,247,.95),rgba(236,72,153,.85));color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+            '★ MAIN · F4 BOX-5 · 5 combos' +
+          '</span>' +
+          top5_f4.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
+          '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when the top-4 finishers are all inside these 5. Backtest: 17% hit, +54% ROI on 60 races (median dividend ~$461 per hit, 9× the $50 stake).</div>' +
+        '</div>'
+      );
+    }} else {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.72rem;color:var(--dim)">' +
+          '<span style="display:inline-block;background:rgba(71,85,105,.4);color:var(--dim);font-weight:700;padding:2px 8px;border-radius:3px;font-size:.65rem;margin-right:8px">' +
+            'F4 BOX-5 · SKIPPED' +
+          '</span>' +
+          esc(f4bSkipReason) +
         '</div>'
       );
     }}
