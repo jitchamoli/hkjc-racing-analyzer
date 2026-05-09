@@ -944,20 +944,31 @@ class HorseDatabase:
         else:
             return f"{now.year - 1}-{str(now.year)[-2:]}"
 
+    @staticmethod
+    def _current_season_start() -> str:
+        """First day of the current HK racing season as 'YYYY/MM/DD'.
+        Seasons run Jul 1 – Jun 30, so July 2025 starts the 2025-26 season.
+        """
+        now = datetime.now()
+        year = now.year if now.month >= 7 else now.year - 1
+        return f"{year}/07/01"
+
     def rebuild_stats(self):
         """Rebuild jockey_stats and trainer_stats from race_results.
 
-        Renavon snapshots are frozen at 2026/04/22 and no longer ingested,
-        so race_results is now the freshest local source. The HKJC seasonal
-        scrape (`scripts/scrape_history.py --rankings`) overwrites these
-        rows afterwards with authoritative current-season figures.
+        Computes CURRENT-SEASON only (race_date >= season start) so visiting
+        or retired jockeys/trainers from prior seasons don't show inflated
+        lifetime totals. Renavon snapshots are frozen at 2026/04/22 and no
+        longer ingested, so race_results is the freshest local source. The
+        HKJC seasonal scrape (`scripts/scrape_history.py --rankings`)
+        overwrites these rows afterwards with authoritative figures.
 
         Safe to call at any time — replaces both tables entirely.
         """
         c = self.conn.cursor()
         season = self._current_season()
+        season_start = self._current_season_start()
 
-        # Local computation from race_results
         c.execute("DELETE FROM jockey_stats")
         c.execute("""
             INSERT INTO jockey_stats (name, season, rides, wins, places, win_rate, place_rate, last_updated)
@@ -965,8 +976,10 @@ class HorseDatabase:
                    CAST(SUM(is_winner) AS REAL) / COUNT(*),
                    CAST(SUM(is_top3) AS REAL) / COUNT(*),
                    MAX(race_date)
-            FROM race_results WHERE jockey != '' GROUP BY jockey
-        """, (season,))
+            FROM race_results
+            WHERE jockey != '' AND race_date >= ?
+            GROUP BY jockey
+        """, (season, season_start))
 
         c.execute("DELETE FROM trainer_stats")
         c.execute("""
@@ -975,11 +988,15 @@ class HorseDatabase:
                    CAST(SUM(is_winner) AS REAL) / COUNT(*),
                    CAST(SUM(is_top3) AS REAL) / COUNT(*),
                    MAX(race_date)
-            FROM race_results WHERE trainer != '' GROUP BY trainer
-        """, (season,))
+            FROM race_results
+            WHERE trainer != '' AND race_date >= ?
+            GROUP BY trainer
+        """, (season, season_start))
 
         self.conn.commit()
-        logger.info("Rebuilt jockey_stats and trainer_stats from race_results (local fallback)")
+        logger.info(
+            f"Rebuilt jockey_stats and trainer_stats from current-season race_results (since {season_start})"
+        )
 
     # ------------------------------------------------------------------
     # Card-field backfill (rating, last_6, gear, age, rating_change)

@@ -786,11 +786,12 @@ async def auto_learn(race_date: str = None):
         logger.warning(f"No results scraped for {race_date} — DB not updated")
 
     # 2. Retrain ML model
+    # Timeout 600s — full retrain on 50K+ rows takes ~5min, was failing at 300s
     logger.info("Auto-retraining ML model...")
     try:
         result = subprocess.run(
             [sys.executable, str(Path(__file__).parent.parent / 'train_ml_model.py')],
-            capture_output=True, text=True, timeout=300
+            capture_output=True, text=True, timeout=600
         )
         if result.returncode == 0:
             # Extract accuracy from output
@@ -800,7 +801,7 @@ async def auto_learn(race_date: str = None):
         else:
             logger.warning(f"ML retrain failed: {result.stderr[:200]}")
     except subprocess.TimeoutExpired:
-        logger.warning("ML retrain timed out (300s) — run 'python3 train_ml_model.py' manually")
+        logger.warning("ML retrain timed out (600s) — run 'python3 train_ml_model.py' manually")
 
     # 3. Recalibrate gear scores from new race_results
     logger.info("Recalibrating gear scores...")
