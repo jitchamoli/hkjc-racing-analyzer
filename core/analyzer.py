@@ -503,10 +503,12 @@ class CombinedRaceAnalyzer:
             self._horse_db = HorseDatabase()
         except Exception as e:
             logger.warning(f"Could not connect to horse database: {e}")
-        # Lazy-computed par-time cache for speed figures (filled on first use).
-        # Recomputing on every horse would be O(N) per horse * N par buckets;
-        # caching once per analyzer instance avoids that.
-        self._par_times = None
+        # Lazy-computed par-time cache for speed figures, keyed by race date.
+        # Recomputing per horse would be O(N) per horse * N par buckets, so we
+        # cache. Keyed by date so that singleton analyzer instances (e.g. in
+        # backtest) don't reuse stale par_times across different race dates —
+        # a date-mismatched cache would leak future data into earlier races.
+        self._par_times_by_date = {}
 
     def close(self):
         """Close DB connections held by this analyzer."""
@@ -709,11 +711,14 @@ class CombinedRaceAnalyzer:
         # via normalize_speed_figure (0.0 → 0, 0.5 → 50, 1.0 → 100).
         if self._horse_db and horse.name:
             try:
-                if self._par_times is None:
-                    self._par_times = compute_par_times(
+                cache_key = race.date if race.date else ''
+                par_times = self._par_times_by_date.get(cache_key)
+                if par_times is None:
+                    par_times = compute_par_times(
                         self._horse_db.conn,
-                        before_date=race.race_date if race.race_date else None,
+                        before_date=race.date if race.date else None,
                     )
+                    self._par_times_by_date[cache_key] = par_times
                 last_race = self._horse_db.get_horse_history(horse.name, limit=1)
                 if last_race:
                     lr = last_race[0]
@@ -723,7 +728,7 @@ class CombinedRaceAnalyzer:
                         lr.get('going') or '',
                         lr.get('class_type') or '',
                         lr.get('weight') or 120,
-                        self._par_times,
+                        par_times,
                     )
                     if sf is not None:
                         # sf typically -5 to +5; normalize to 0-1 then scale to 0-100
