@@ -9,7 +9,8 @@ from ml.features import FeatureEngineering
 
 class TestFeatureSchema:
     def test_schema_has_correct_feature_count(self):
-        assert NUM_FEATURES == 19
+        # v6.6 (2026-05-09): added jt_pair_win_rate (#20) + speed_fig_norm (#21)
+        assert NUM_FEATURES == 21
 
     def test_feature_names_match_schema(self):
         assert len(FEATURE_NAMES) == NUM_FEATURES
@@ -29,7 +30,7 @@ class TestFeatureSchema:
 
     def test_validate_features_wrong_length(self):
         features = np.full(10, 0.5, dtype=np.float32)
-        with pytest.raises(AssertionError, match="Expected 19"):
+        with pytest.raises(AssertionError, match=f"Expected {NUM_FEATURES}"):
             validate_features(features)
 
     def test_validate_features_rejects_nan(self):

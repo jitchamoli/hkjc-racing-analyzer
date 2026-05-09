@@ -343,10 +343,21 @@ class HKJCRacingMLModel:
                 pl_calib = place_labels[cut_val:cut_calib]
                 pl_test = place_labels[cut_calib:]
             else:
-                pl_train = place_labels[:len(y_train)]
-                pl_val = place_labels[len(y_train):len(y_train)+len(y_val)]
-                pl_calib = pl_val  # degraded path
-                pl_test = place_labels[-len(y_test):]
+                # Re-split place_labels with same random_state and stratify to
+                # get partitions aligned with X/y. Previously we sliced by
+                # position (place_labels[:len(y_train)] etc.) but
+                # train_test_split shuffles, so positional slicing produced
+                # mismatched test labels — making place-model evaluation in
+                # this fallback path silently wrong.
+                pl_trainval, pl_test = train_test_split(
+                    place_labels, test_size=0.2, random_state=42,
+                    stratify=stratify_arg,
+                )
+                pl_train, pl_val = train_test_split(
+                    pl_trainval, test_size=0.25, random_state=42,
+                    stratify=stratify_tv,
+                )
+                pl_calib = pl_val  # degraded path: calib==val (same as win model here)
 
             # scale_pos_weight = n_neg/n_pos for class imbalance (mirror of win model).
             pl_pos = max(1, pl_train.sum())
@@ -405,11 +416,14 @@ class HKJCRacingMLModel:
                     logger.warning(f"High correlation: {pair} = {r:.3f}")
 
         # Constant-feature audit (CLAUDE.md ML Critical Rule #3): any feature
-        # with std < 0.01 is a wasted slot — usually a column that's mostly
-        # null and falls back to the same default value.
+        # with std < 0.05 is a wasted slot — usually a column that's mostly
+        # null and falls back to the same default value. Threshold raised
+        # from 0.01 → 0.05 so soft-constant features (e.g. rating_change with
+        # 37% nulls all collapsing to the 0.5 default) get flagged before
+        # they degrade model quality silently.
         feature_stds = features.std(axis=0)
         for i, name in enumerate(FEATURE_NAMES):
-            if feature_stds[i] < 0.01:
+            if feature_stds[i] < 0.05:
                 logger.warning(
                     f"Near-constant feature: {name} std={feature_stds[i]:.4f} "
                     f"— likely mostly null/default; check feature extraction"
