@@ -41,6 +41,9 @@ from analytics.going_pref import GoingPreferenceAnalyzer
 from analytics.rolling_form import RollingFormAnalyzer
 from analytics.beaten_margins import BeatenMarginAnalyzer
 from analytics.jockey_change import JockeyChangeAnalyzer
+from analytics.speed_figures import (
+    compute_par_times, adjusted_speed_figure, normalize_speed_figure,
+)
 from data.odds_tracker import OddsMovementAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -500,6 +503,10 @@ class CombinedRaceAnalyzer:
             self._horse_db = HorseDatabase()
         except Exception as e:
             logger.warning(f"Could not connect to horse database: {e}")
+        # Lazy-computed par-time cache for speed figures (filled on first use).
+        # Recomputing on every horse would be O(N) per horse * N par buckets;
+        # caching once per analyzer instance avoids that.
+        self._par_times = None
 
     def close(self):
         """Close DB connections held by this analyzer."""
@@ -550,21 +557,10 @@ class CombinedRaceAnalyzer:
         reasoning.append(rating_label)
 
         form_score, form_reason = self.strategy.analyze_form(horse.last_6)
-
-        # When form data is missing/empty, use market odds as proxy
-        # A horse at $5 with no form is still well-regarded by the market
-        if form_score == 0 and horse.win_odds > 0:
-            odds_implied = 1.0 / horse.win_odds
-            # Short-priced no-form horse = market sees something we don't
-            if odds_implied >= 0.15:  # $6.67 or shorter
-                form_score = 55.0
-                form_reason = f"No form — market backed (${horse.win_odds:.0f})"
-            elif odds_implied >= 0.08:  # $12.5 or shorter
-                form_score = 45.0
-                form_reason = f"No form — moderate market support (${horse.win_odds:.0f})"
-            else:
-                form_score = 30.0
-                form_reason = f"No form — outsider (${horse.win_odds:.0f})"
+        # No-form fallback intentionally leaves form_score=0 so the factor is
+        # excluded from the weighted average and the remaining factors
+        # renormalize. Market odds must NOT enter the rule engine — they
+        # come in only via the dynamic market blend (see CLAUDE.md).
 
         # Supplement form for debut/Griffin horses with trial data
         if self.trial_analyzer.is_debut_horse(horse.last_6, horse.rating, race.class_type):
@@ -705,6 +701,40 @@ class CombinedRaceAnalyzer:
         factors["gear"] = gear_score
         if gear_reason != "No gear changes":
             reasoning.append(f"Gear: {gear_reason}")
+
+        # --- NEW: Speed Figures (Beyer-style) ---
+        # Compute par-time-normalised speed figure from the horse's most
+        # recent race. Adjusts for carried weight (Benter +0.1s/lb above
+        # 120). Score: 0 = at par, +5 = elite, -5 = poor. Mapped to 0-100
+        # via normalize_speed_figure (0.0 → 0, 0.5 → 50, 1.0 → 100).
+        if self._horse_db and horse.name:
+            try:
+                if self._par_times is None:
+                    self._par_times = compute_par_times(
+                        self._horse_db.conn,
+                        before_date=race.race_date if race.race_date else None,
+                    )
+                last_race = self._horse_db.get_horse_history(horse.name, limit=1)
+                if last_race:
+                    lr = last_race[0]
+                    sf = adjusted_speed_figure(
+                        lr.get('finish_time') or '',
+                        lr.get('distance') or 0,
+                        lr.get('going') or '',
+                        lr.get('class_type') or '',
+                        lr.get('weight') or 120,
+                        self._par_times,
+                    )
+                    if sf is not None:
+                        # sf typically -5 to +5; normalize to 0-1 then scale to 0-100
+                        sf_score = normalize_speed_figure(sf) * 100
+                        factors["speed_fig"] = sf_score
+                        if sf >= 1.0:
+                            reasoning.append(f"Speed: +{sf:.1f} above par (last run)")
+                        elif sf <= -1.0:
+                            reasoning.append(f"Speed: {sf:.1f} below par (last run)")
+            except Exception as e:
+                logger.debug(f"Speed figure computation failed for {horse.name}: {e}")
 
         # --- NEW: Weight Analysis ---
         field_weights = [h.weight for h in (all_horses or []) if h.weight]
@@ -880,36 +910,22 @@ class CombinedRaceAnalyzer:
             reasoning.append(tf_reason)
 
         # --- NEW: Field Size Impact ---
-        # #1 predictor in gmalbert research (17.41% importance)
-        # Small fields = favourites dominate. Large fields = more upsets.
-        # Score: higher for horses with good odds in small fields,
-        #        higher for outsiders in large fields (more chance of chaos)
+        # Pure structural signal — small fields favour any in-form horse,
+        # large fields are noisier. Per-horse differentiation across the
+        # field comes from the market blend, NOT from win_odds in the rule
+        # engine (CLAUDE.md: market info enters via the dynamic market
+        # blend only — prevents triple-counting).
         field_n = len(all_horses) if all_horses else 0
-        if field_n > 0 and horse.win_odds > 0:
-            implied_prob = 1.0 / horse.win_odds
+        if field_n > 0:
             if field_n <= 8:
-                # Small field: favourites dominate, penalize outsiders
-                if implied_prob >= 0.15:
-                    fs_score = 75.0
-                    fs_reason = f"Small field ({field_n}) favours market leaders"
-                else:
-                    fs_score = 35.0
-                    fs_reason = f"Small field ({field_n}) — hard for outsiders"
+                fs_score = 65.0
+                fs_reason = f"Small field ({field_n}) — predictable shape"
             elif field_n <= 11:
-                # Medium field: balanced
                 fs_score = 55.0
                 fs_reason = f"Medium field ({field_n})"
             else:
-                # Large field: more chaos, outsiders have more chance
-                if implied_prob >= 0.12:
-                    fs_score = 60.0
-                    fs_reason = f"Large field ({field_n}) — still backed"
-                elif implied_prob >= 0.06:
-                    fs_score = 55.0
-                    fs_reason = f"Large field ({field_n}) — live chance"
-                else:
-                    fs_score = 45.0
-                    fs_reason = f"Large field ({field_n}) — longshot territory"
+                fs_score = 48.0
+                fs_reason = f"Large field ({field_n}) — chaos risk"
         else:
             fs_score = 0.0
             fs_reason = ""
@@ -1031,15 +1047,13 @@ class CombinedRaceAnalyzer:
             banker_signals += 1
             banker_reasons.append("Proven earner")
 
-        # 9. Market confidence (short odds)
-        if horse.win_odds > 0 and (1 / horse.win_odds) >= 0.10:
-            banker_signals += 1
-            banker_reasons.append("Market backed")
-
-        # BANKER = 7+ signals out of 9 (must be truly exceptional)
-        is_banker = banker_signals >= 7
+        # Market confidence intentionally NOT a BANKER signal — it would
+        # double-count market info already applied via the dynamic blend
+        # downstream. Threshold is 6/8 (was 7/9) so promotion frequency is
+        # roughly preserved.
+        is_banker = banker_signals >= 6
         if is_banker:
-            reasoning.insert(0, f"BANKER ({banker_signals}/9 signals: {', '.join(banker_reasons)})")
+            reasoning.insert(0, f"BANKER ({banker_signals}/8 signals: {', '.join(banker_reasons)})")
 
         horse_data = {
             "number": horse.number,
