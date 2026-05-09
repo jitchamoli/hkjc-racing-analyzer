@@ -41,6 +41,7 @@ class BettingWeights:
     FIELD_SIZE = 0.05
     CAREER_PLACE = 0.03
     AGE = 0.02
+    SPEED_FIG = 0.05  # class+going-normalised time rating (Beyer-style)
 
     # Mapping factor keys to weights
     WEIGHT_MAP = {
@@ -55,7 +56,7 @@ class BettingWeights:
         "margin": MARGIN, "jockey_change": JOCKEY_CHANGE,
         "jockey_form": JOCKEY_FORM, "trainer_form": TRAINER_FORM,
         "field_size": FIELD_SIZE, "career_place": CAREER_PLACE,
-        "age": AGE,
+        "age": AGE, "speed_fig": SPEED_FIG,
     }
 
 
