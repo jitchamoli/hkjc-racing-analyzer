@@ -1,6 +1,31 @@
-# HKJC Horse Racing Analyzer v6.5
+# HKJC Horse Racing Analyzer v6.6
 
-Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 24-factor rule-based engine with an XGBoost ML model (19 features, isotonic-calibrated, post-blend recalibrated) to surface bets the public may be underestimating. The dashboard renders every race as a clickable card stack with two views — **Race Order** (all 11 chronological) and **Top Bets** (curated tier-sorted) — plus a sticky live alerts rail.
+Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 25-factor rule-based engine with an XGBoost ML model (21 features, isotonic-calibrated, post-blend recalibrated) to surface bets the public may be underestimating. The dashboard renders every race as a clickable card stack with two views — **Race Order** (all 11 chronological) and **Top Bets** (curated tier-sorted) — plus a sticky live alerts rail.
+
+## What's New in v6.6 (2026-05-09)
+
+**Rule-engine market-leak purge** — three sites that re-injected market odds into the rule score (creating a triple-count with the dynamic blend) were removed: the `field_size` factor, the no-form fallback, and BANKER signal #9. All replaced with structural-only logic.
+
+**Critical speed-figures fix** — `analytics/speed_figures.py` was wired into the rule engine but had three layered bugs that silently disabled it:
+1. `race.race_date` AttributeError (correct field is `race.date`) — caught by silent try/except, factor never fired
+2. `par_times` cache wasn't keyed by date — leaked future data when the analyzer was reused across dates (caught by `test_backtest_production_parity`)
+3. `parse_finish_time` only handled `M:SS.ss` format but 85% of DB rows use `M.SS.ss` — 85% of rows returned None, feature went neutral, ML pruned it
+
+After all three fixes, the rule-engine `speed_fig` factor now fires for ~46% of horses with a real speed-vs-par signal.
+
+**Two new ML features (19 → 21)**
+- **`jt_pair_win_rate`** (Feature 20, **4.1% importance**) — Bayesian-smoothed jockey×trainer pairing strike rate. 305 pairs with ≥50 joint runs in DB; top pairs hit 22-28% wins vs 8.3% baseline.
+- **`speed_fig_norm`** (Feature 21, 0% importance — DEAD as ML, useful as rule factor) — par-time-normalised speed figure. XGB found it redundant with `last_start_margin` (16.3%, top feature). Kept in schema but contributes only via the rule engine's 5%-weight `speed_fig` factor.
+
+**ML inference leakage fix** — `_compute_jockey_win_rate` and `_compute_trainer_win_rate` had a fallback that read from `jockey_stats` / `trainer_stats` tables. These tables reflect current full-season state, so historical scoring (with `before_date` set) leaked future data. Fallback now skipped when date-filtering is active.
+
+**Stats-table current-season filter** — `rebuild_stats()` no longer prefers the frozen Renavon snapshot (Renavon stops at 2026/04/22). It computes from `race_results` filtered to the current HK season (`race_date >= YYYY/07/01`) so visiting/retired jockeys from prior seasons don't leak into top-jockey leaderboards with stale lifetime totals.
+
+**Self-calibrating gear scores** — `scripts/calibrate_gear.py` runs after each meeting in auto-learn. Computes per-gear win rate vs field baseline, applies shrinkage toward neutral (Bayesian smoothing), maps to score [20, 80]. Discovered most gear codes are essentially noise in HK racing (±1pp lift) — only Blinkers OFF (BO) shows real lift (+5.2pp).
+
+**Monitor auto-merges results** — every pre-race window now also runs `results_fetcher.py` so STRIKE/MISS badges on past races stay current on the live dashboard automatically.
+
+**Past-6-meeting smoke test (60 races)**: top-pick wins 13/60 (21.7%) → **17/60 (28.3%)** (+6.6pp), top-3-in-top-5 122/180 (67.8%) → **133/180 (73.9%)** (+6.1pp).
 
 ## What's New in v6.5
 
@@ -148,7 +173,7 @@ hkjc_racing_analyzer/
     dividends.py             #   Quinella EV pricing (Harville + place boost)
     exotic_calculator.py     #   Trifecta/First4/Quinella value detection
     optimizer.py             #   Kelly Criterion sizing
-  analytics/                 # 13 specialized analyzers (draw bias, pace, sectionals,
+  analytics/                 # 14 specialized analyzers (draw bias, pace, sectionals,
                              #   barrier trial, C&D, class, gear, weight, going,
                              #   rolling form, beaten margins, jockey change, speed)
   data/                      # Data layer
@@ -166,7 +191,7 @@ hkjc_racing_analyzer/
   scripts/                   # CLI entry points
     generate.py · scrape.py · train.py · monitor.py · backtest.py
     backfill_dividends.py · accuracy.py · serve.py · fetch_results.py
-  tests/                     # pytest suite — 171 tests
+  tests/                     # pytest suite — 194 tests
   config.py                  # Centralized constants
   models/                    # Trained ML models (pickle + .sha256 sidecar)
   results/                   # HTML dashboards and prediction JSON
@@ -233,7 +258,7 @@ python3 -m scripts.backtest --sweep      # grid over softmax temp × model weigh
 
 ```bash
 pytest tests/ -v
-# 171 tests covering edge math, gates, tier assignment, alerts dedup,
+# 194 tests covering edge math, gates, tier assignment, alerts dedup,
 # Wilson CI, template rendering, JS-syntax validation, end-to-end integration
 ```
 
