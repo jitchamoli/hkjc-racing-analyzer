@@ -1056,6 +1056,12 @@
       "trifecta": [],
       "first4": []
     },
+    "actual_winner": 5,
+    "actual_top3": [
+      2,
+      5,
+      6
+    ],
     "accuracy": {
       "win_correct": false,
       "top3_overlap": 1,
@@ -1063,6 +1069,8 @@
       "bet_hit": true,
       "profit": 0.0
     },
+    "actual_win_odds": 49.0,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -1135,14 +1143,6 @@
         "win_odds": 6.0
       }
     ],
-    "actual_win_odds": 49.0,
-    "actual_top3": [
-      2,
-      5,
-      6
-    ],
-    "results_available": true,
-    "actual_winner": 5,
     "tier_stats": {
       "HIGH": {
         "hit": 6,
@@ -2950,6 +2950,12 @@
         }
       ]
     },
+    "actual_winner": 1,
+    "actual_top3": [
+      1,
+      2,
+      5
+    ],
     "accuracy": {
       "win_correct": false,
       "top3_overlap": 1,
@@ -2957,6 +2963,8 @@
       "bet_hit": true,
       "profit": 0.0
     },
+    "actual_win_odds": 3.4,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -3043,14 +3051,6 @@
         "win_odds": 20.0
       }
     ],
-    "actual_win_odds": 3.4,
-    "actual_top3": [
-      1,
-      2,
-      5
-    ],
-    "results_available": true,
-    "actual_winner": 1,
     "tier_stats": {
       "HIGH": {
         "hit": 6,
@@ -5290,6 +5290,12 @@
         }
       ]
     },
+    "actual_winner": 12,
+    "actual_top3": [
+      8,
+      12,
+      13
+    ],
     "accuracy": {
       "win_correct": false,
       "top3_overlap": 1,
@@ -5297,6 +5303,8 @@
       "bet_hit": true,
       "profit": 0.0
     },
+    "actual_win_odds": 5.0,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -5390,14 +5398,6 @@
         "win_odds": 54.0
       }
     ],
-    "actual_win_odds": 5.0,
-    "actual_top3": [
-      8,
-      12,
-      13
-    ],
-    "results_available": true,
-    "actual_winner": 12,
     "tier_stats": {
       "HIGH": {
         "hit": 6,
@@ -7338,6 +7338,12 @@
         }
       ]
     },
+    "actual_winner": 10,
+    "actual_top3": [
+      10,
+      11,
+      4
+    ],
     "accuracy": {
       "win_correct": false,
       "top3_overlap": 1,
@@ -7345,6 +7351,8 @@
       "bet_hit": true,
       "profit": 0.0
     },
+    "actual_win_odds": 70.0,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -7445,14 +7453,6 @@
         "win_odds": 233.0
       }
     ],
-    "actual_win_odds": 70.0,
-    "actual_top3": [
-      10,
-      11,
-      4
-    ],
-    "results_available": true,
-    "actual_winner": 10,
     "tier_stats": {
       "HIGH": {
         "hit": 6,
@@ -9080,6 +9080,12 @@
         }
       ]
     },
+    "actual_winner": 4,
+    "actual_top3": [
+      2,
+      4,
+      6
+    ],
     "accuracy": {
       "win_correct": false,
       "top3_overlap": 1,
@@ -9087,6 +9093,8 @@
       "bet_hit": false,
       "profit": 0.0
     },
+    "actual_win_odds": 158.0,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -9173,14 +9181,6 @@
         "win_odds": 192.0
       }
     ],
-    "actual_win_odds": 158.0,
-    "actual_top3": [
-      2,
-      4,
-      6
-    ],
-    "results_available": true,
-    "actual_winner": 4,
     "tier_stats": {
       "HIGH": {
         "hit": 6,
@@ -11125,6 +11125,12 @@
         }
       ]
     },
+    "actual_winner": 6,
+    "actual_top3": [
+      3,
+      6,
+      7
+    ],
     "accuracy": {
       "win_correct": false,
       "top3_overlap": 1,
@@ -11132,6 +11138,8 @@
       "bet_hit": false,
       "profit": 0.0
     },
+    "actual_win_odds": 4.4,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -11232,14 +11240,6 @@
         "win_odds": 85.0
       }
     ],
-    "actual_win_odds": 4.4,
-    "actual_top3": [
-      3,
-      6,
-      7
-    ],
-    "results_available": true,
-    "actual_winner": 6,
     "tier_stats": {
       "HIGH": {
         "hit": 6,
@@ -13349,6 +13349,12 @@
         }
       ]
     },
+    "actual_winner": 13,
+    "actual_top3": [
+      8,
+      11,
+      13
+    ],
     "accuracy": {
       "win_correct": false,
       "top3_overlap": 1,
@@ -13356,6 +13362,8 @@
       "bet_hit": false,
       "profit": 0.0
     },
+    "actual_win_odds": 13.0,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -13456,14 +13464,6 @@
         "win_odds": 10.0
       }
     ],
-    "actual_win_odds": 13.0,
-    "actual_top3": [
-      8,
-      11,
-      13
-    ],
-    "results_available": true,
-    "actual_winner": 13,
     "tier_stats": {
       "HIGH": {
         "hit": 6,
@@ -15065,7 +15065,7 @@
       }
     ],
     "has_edge": false,
-    "odds_age_minutes": 201,
+    "odds_age_minutes": 253,
     "conviction_tier": "HIGH",
     "top_2_share": 0.5347,
     "top_3_share": 0.7015,
@@ -15293,6 +15293,12 @@
         }
       ]
     },
+    "actual_winner": 7,
+    "actual_top3": [
+      3,
+      11,
+      7
+    ],
     "accuracy": {
       "win_correct": false,
       "top3_overlap": 1,
@@ -15300,6 +15306,8 @@
       "bet_hit": true,
       "profit": 0.0
     },
+    "actual_win_odds": 12.0,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -15386,14 +15394,6 @@
         "win_odds": 116.0
       }
     ],
-    "actual_win_odds": 12.0,
-    "actual_top3": [
-      3,
-      11,
-      7
-    ],
-    "results_available": true,
-    "actual_winner": 7,
     "tier_stats": {
       "HIGH": {
         "hit": 6,
@@ -17210,7 +17210,7 @@
       }
     ],
     "has_edge": false,
-    "odds_age_minutes": 171,
+    "odds_age_minutes": 223,
     "conviction_tier": "HIGH",
     "top_2_share": 0.3083,
     "top_3_share": 0.4624,
@@ -17494,6 +17494,12 @@
         }
       ]
     },
+    "actual_winner": 7,
+    "actual_top3": [
+      13,
+      14,
+      7
+    ],
     "accuracy": {
       "win_correct": false,
       "top3_overlap": 0,
@@ -17501,6 +17507,8 @@
       "bet_hit": false,
       "profit": 0.0
     },
+    "actual_win_odds": 21.0,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -17601,14 +17609,6 @@
         "win_odds": 24.0
       }
     ],
-    "actual_win_odds": 21.0,
-    "actual_top3": [
-      13,
-      14,
-      7
-    ],
-    "results_available": true,
-    "actual_winner": 7,
     "tier_stats": {
       "HIGH": {
         "hit": 6,
@@ -19515,7 +19515,7 @@
       }
     ],
     "has_edge": false,
-    "odds_age_minutes": 136,
+    "odds_age_minutes": 189,
     "conviction_tier": "HIGH",
     "top_2_share": 0.4361,
     "top_3_share": 0.5689,
@@ -19786,6 +19786,12 @@
         }
       ]
     },
+    "actual_winner": 5,
+    "actual_top3": [
+      3,
+      4,
+      5
+    ],
     "accuracy": {
       "win_correct": true,
       "top3_overlap": 2,
@@ -19793,6 +19799,8 @@
       "bet_hit": true,
       "profit": 0.0
     },
+    "actual_win_odds": 2.9,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -19893,14 +19901,6 @@
         "win_odds": 53.0
       }
     ],
-    "actual_win_odds": 2.9,
-    "actual_top3": [
-      3,
-      4,
-      5
-    ],
-    "results_available": true,
-    "actual_winner": 5,
     "tier_stats": {
       "HIGH": {
         "hit": 6,
@@ -21751,7 +21751,7 @@
       }
     ],
     "has_edge": false,
-    "odds_age_minutes": 101,
+    "odds_age_minutes": 154,
     "conviction_tier": "HIGH",
     "top_2_share": 0.4953,
     "top_3_share": 0.6634,
@@ -21983,6 +21983,12 @@
         }
       ]
     },
+    "actual_winner": 4,
+    "actual_top3": [
+      2,
+      4,
+      12
+    ],
     "accuracy": {
       "win_correct": false,
       "top3_overlap": 1,
@@ -21990,6 +21996,8 @@
       "bet_hit": false,
       "profit": 0.0
     },
+    "actual_win_odds": 6.9,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -22076,14 +22084,6 @@
         "win_odds": 10.0
       }
     ],
-    "actual_win_odds": 6.9,
-    "actual_top3": [
-      2,
-      4,
-      12
-    ],
-    "results_available": true,
-    "actual_winner": 4,
     "tier_stats": {
       "HIGH": {
         "hit": 6,
