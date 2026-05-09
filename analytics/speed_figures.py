@@ -18,10 +18,26 @@ WEIGHT_ADJUSTMENT_PER_LB = 0.1
 
 
 def parse_finish_time(ft: str) -> Optional[float]:
-    """Parse 'M:SS.ss' finish time to seconds. Returns None on failure."""
+    """Parse finish time to seconds. Handles both 'M:SS.ss' (HKJC live tables)
+    and 'M.SS.ss' (HKJC LocalResults dump — used in 85% of race_results rows).
+    Returns None on failure.
+    """
+    s = str(ft).strip()
+    if not s:
+        return None
     try:
-        parts = str(ft).split(':')
-        secs = float(parts[0]) * 60 + float(parts[1])
+        if ':' in s:
+            # M:SS.ss format
+            parts = s.split(':')
+            secs = float(parts[0]) * 60 + float(parts[1])
+        else:
+            # M.SS.ss format — three dot-separated tokens
+            parts = s.split('.')
+            if len(parts) >= 3:
+                secs = float(parts[0]) * 60 + float(parts[1] + '.' + parts[2])
+            else:
+                # Single dotted number — already in seconds
+                secs = float(s)
         return secs if 0 < secs < 999 else None
     except (ValueError, IndexError):
         return None
