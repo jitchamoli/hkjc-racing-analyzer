@@ -424,6 +424,23 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             j30_wins = sum(w for _, w in j_30d)
             feat_jockey_30d = min(0.6, (j30_wins + 0.08 * 15) / (j30_rides + 15))
 
+            # Feature 20 (v6.6): jockey×trainer pairing strike rate.
+            # Bayesian-smoothed Beta(0.08, 15) so unknown pairs default to
+            # league avg. Uses FeatureEngineering.calculate_jt_pair_win_rate
+            # for train/predict parity (same date filter, same prior).
+            feat_jt_pair = FeatureEngineering.calculate_jt_pair_win_rate(
+                jockey_name, r.get('trainer', '') or '',
+                conn=conn, before_date=race_date,
+            )
+            feat_jt_pair = min(0.5, feat_jt_pair) if feat_jt_pair > 0 else 0.08
+
+            # Feature 21 (v6.6): par-time-normalised speed figure of last
+            # race. Same helper used at inference for consistency.
+            feat_speed_fig = FeatureEngineering.calculate_speed_fig_norm(
+                r.get('horse_name', '') or '',
+                conn=conn, before_date=race_date,
+            )
+
             features = [
                 feat_form_proxy, feat_form, feat_draw,
                 feat_jockey, feat_trainer, feat_field_size,
@@ -433,6 +450,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 feat_last_margin, feat_class_change,
                 feat_hw_change,
                 feat_age, feat_rating_change, feat_jockey_30d,
+                feat_jt_pair, feat_speed_fig,
             ]
             assert len(features) == NUM_FEATURES, f"Expected {NUM_FEATURES} features, got {len(features)}"
             X.append(features)
@@ -513,10 +531,20 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         class_change_feat = np.random.choice([0.0, 0.5, 1.0], p=[0.15, 0.60, 0.25])
         hw_change = np.random.normal(0.5, 0.1)
         hw_change = np.clip(hw_change, 0.0, 1.0)
-        horse_age_feat = np.random.choice([3, 4, 5, 6, 7, 8], p=[0.10, 0.25, 0.30, 0.20, 0.10, 0.05]) / 10.0
+        # Match production encoding: feat = (9 - age) / 6.0  → 3yo=1.0, 8yo=0.17.
+        # Previous version did `age / 10.0` (0.3-0.8 range, raw scale, INVERTED
+        # vs production). Synthetic-trained model would learn that older horses
+        # win more — opposite of reality. Production gate (X_db>=200) keeps this
+        # path dormant on full DB, but it fires on cold start / CI / failed restore.
+        age_int_s = np.random.choice([3, 4, 5, 6, 7, 8], p=[0.10, 0.25, 0.30, 0.20, 0.10, 0.05])
+        horse_age_feat = float(max(0.0, min(1.0, (9 - age_int_s) / 6.0)))
         rating_change_feat = np.random.normal(0.5, 0.08)
         rating_change_feat = float(np.clip(rating_change_feat, 0.0, 1.0))
         jockey_form_30d_feat = np.random.beta(2, 8)
+        # v6.6 features (synthetic priors mirror production distribution)
+        jt_pair_feat = float(np.random.beta(2, 8))   # similar shape to jockey_rate
+        speed_fig_feat = float(np.random.normal(0.5, 0.15))
+        speed_fig_feat = float(np.clip(speed_fig_feat, 0.0, 1.0))
 
         features = [
             prior_win_rate, form_score / 100, draw_adv,
@@ -528,6 +556,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             last_margin, class_change_feat,
             hw_change,
             horse_age_feat, rating_change_feat, jockey_form_30d_feat,
+            jt_pair_feat, speed_fig_feat,
         ]
         assert len(features) == NUM_FEATURES
         X.append(features)
@@ -549,6 +578,19 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 1.5 * (last_margin - 0.5)
             + 1.2 * (class_change_feat - 0.5)
             + 0.3 * (hw_change - 0.5)
+            # v6.5 features (17/18/19) — previously zero-coefficient in synthetic
+            # labels, which taught a synthetic-trained model to ignore them as
+            # pure noise. Coefficients chosen to match the directional priors
+            # reflected in real-data feature importance: younger horses win more
+            # in HK, positive rating delta is positive, hot 30-day jockey form
+            # is positive.
+            + 0.4 * (horse_age_feat - 0.5)
+            + 0.3 * (rating_change_feat - 0.5)
+            + 0.5 * (jockey_form_30d_feat - 0.08)
+            # v6.6: pairing strike rate ~ same shape as jockey rate, slightly lower
+            # weight; speed figure positive when faster than par.
+            + 1.5 * (jt_pair_feat - 0.08)
+            + 0.6 * (speed_fig_feat - 0.5)
             - 2.8
         )
         win_prob = 1.0 / (1.0 + np.exp(-win_logit))
