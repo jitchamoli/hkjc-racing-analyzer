@@ -261,6 +261,21 @@ async def run_monitor(race_date: str):
                 await regenerate_dashboard(race_date, fetcher=fetcher, analyzer=analyzer,
                                            db=db, odds_db=odds_db)
 
+            # After every pre-race window, pull results for any finished
+            # races so STRIKE/MISS badges on past races stay current. The
+            # results_fetcher is idempotent — only writes data for races
+            # that actually have results published.
+            from pathlib import Path
+            rf_script = Path(__file__).resolve().parent.parent / 'results_fetcher.py'
+            try:
+                subprocess.run(
+                    [sys.executable, str(rf_script), race_date],
+                    check=False, timeout=120,
+                )
+                logger.info(f"Results merge done after R{race_no} window")
+            except subprocess.TimeoutExpired:
+                logger.warning(f"Results merge timed out after R{race_no}")
+
         logger.info("All races processed. Monitor complete.")
     finally:
         db.conn.close()
