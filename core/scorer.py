@@ -224,12 +224,15 @@ def calibrate_probabilities(analyses, field_size: int = 12,
         if market_probs[i] > 0:
             b = model_w * cal_probs[i] + market_w * market_probs[i]
         else:
-            # F-20: no market signal (horse has no live odds).
-            # Math: model_w * cal + market_w * cal = (model_w + market_w) * cal = cal.
-            # Using cal_probs[i] directly is equivalent to treating cal_prob as its own
-            # market proxy. Post-normalization (line below) keeps this consistent with
-            # the blended horses — no systematic over/under-weighting.
-            b = cal_probs[i]
+            # No market signal (horse has no live odds). Multiply by model_w
+            # alone (NOT cal_probs[i] directly) so this horse's blended value
+            # is on the same scale as horses that DID get market blending.
+            # Previous implementation `b = cal_probs[i]` over-inflated
+            # no-odds horses in mixed fields (some with odds, some without)
+            # because cal_probs[i] is bigger than `model_w * cal_probs[i] +
+            # market_w * market_probs[i]` for non-favourites — after the
+            # post-blend renormalization the asymmetry persisted.
+            b = model_w * cal_probs[i]
         blended.append(b)
 
     # Pre-isotonic renorm: input to isotonic should sum to 1 within the race.
