@@ -169,8 +169,11 @@ class FeatureEngineering:
                 if rides > 0:
                     # Bayesian smoothing: Beta prior at HK league avg (0.08) with strength 15
                     return min(0.6, (wins + 0.08 * 15) / (rides + 15))
-                # Fall back to stats table only when caller-provided conn is open
-                if not owns:
+                # Fall back to stats table only when (a) caller passed a conn
+                # AND (b) we're not date-filtering. The jockey_stats table
+                # reflects current full-season state — using it during
+                # historical inference (before_date set) leaks future data.
+                if not owns and before_date is None:
                     stat = c.execute(
                         "SELECT win_rate FROM jockey_stats WHERE name = ?", (jockey,)
                     ).fetchone()
@@ -233,7 +236,10 @@ class FeatureEngineering:
                 if rides > 0:
                     # Bayesian smoothing: Beta prior at HK league avg (0.08) with strength 15
                     return min(0.5, (wins + 0.08 * 15) / (rides + 15))
-                if not owns:
+                # Same date-filter guard as jockey: stats table is current-
+                # season only and would leak future data when scoring a
+                # historical card (before_date set).
+                if not owns and before_date is None:
                     stat = c.execute(
                         "SELECT win_rate FROM trainer_stats WHERE name = ?", (trainer,)
                     ).fetchone()
