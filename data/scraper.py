@@ -605,20 +605,15 @@ async def _scrape_and_store_rankings(db):
     if jockeys:
         c = db.conn.cursor()
         for j in jockeys:
-            # Only update if HKJC has more rides than our local data
-            c.execute("SELECT rides FROM jockey_stats WHERE name = ?", (j['name'],))
-            row = c.fetchone()
-            local_rides = row[0] if row else 0
-            if j['rides'] >= local_rides:
-                c.execute("""
-                    INSERT INTO jockey_stats (name, season, rides, wins, places, win_rate, place_rate, last_updated)
-                    VALUES (?, '2025-26', ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(name) DO UPDATE SET
-                        rides=excluded.rides, wins=excluded.wins, places=excluded.places,
-                        win_rate=excluded.win_rate, place_rate=excluded.place_rate,
-                        last_updated=excluded.last_updated
-                """, (j['name'], j['rides'], j['wins'], j['places'],
-                      j['win_rate'], j['place_rate'], now))
+            c.execute("""
+                INSERT INTO jockey_stats (name, season, rides, wins, places, win_rate, place_rate, last_updated)
+                VALUES (?, '2025-26', ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    rides=excluded.rides, wins=excluded.wins, places=excluded.places,
+                    win_rate=excluded.win_rate, place_rate=excluded.place_rate,
+                    last_updated=excluded.last_updated
+            """, (j['name'], j['rides'], j['wins'], j['places'],
+                  j['win_rate'], j['place_rate'], now))
         db.conn.commit()
         logger.info(f"Updated {len(jockeys)} jockey rankings in DB")
     else:
@@ -628,19 +623,15 @@ async def _scrape_and_store_rankings(db):
     if trainers:
         c = db.conn.cursor()
         for t in trainers:
-            c.execute("SELECT runners FROM trainer_stats WHERE name = ?", (t['name'],))
-            row = c.fetchone()
-            local_runners = row[0] if row else 0
-            if t['runners'] >= local_runners:
-                c.execute("""
-                    INSERT INTO trainer_stats (name, season, runners, wins, places, win_rate, place_rate, last_updated)
-                    VALUES (?, '2025-26', ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(name) DO UPDATE SET
-                        runners=excluded.runners, wins=excluded.wins, places=excluded.places,
-                        win_rate=excluded.win_rate, place_rate=excluded.place_rate,
-                        last_updated=excluded.last_updated
-                """, (t['name'], t['runners'], t['wins'], t['places'],
-                      t['win_rate'], t['place_rate'], now))
+            c.execute("""
+                INSERT INTO trainer_stats (name, season, runners, wins, places, win_rate, place_rate, last_updated)
+                VALUES (?, '2025-26', ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    runners=excluded.runners, wins=excluded.wins, places=excluded.places,
+                    win_rate=excluded.win_rate, place_rate=excluded.place_rate,
+                    last_updated=excluded.last_updated
+            """, (t['name'], t['runners'], t['wins'], t['places'],
+                  t['win_rate'], t['place_rate'], now))
         db.conn.commit()
         logger.info(f"Updated {len(trainers)} trainer rankings in DB")
     else:
