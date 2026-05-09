@@ -31,6 +31,9 @@ logger = logging.getLogger(__name__)
 _jockey_rate_cache: dict = {}
 _trainer_rate_cache: dict = {}
 _jockey_window_cache: dict = {}  # keyed by (jockey, before_date, window_days)
+_jt_pair_cache: dict = {}        # keyed by (jockey, trainer, before_date)
+_speed_fig_cache: dict = {}      # keyed by (horse_name, before_date)
+_par_times_cache: dict = {}      # keyed by before_date — par_times is O(N) to compute
 
 
 def clear_feature_caches() -> None:
@@ -38,6 +41,9 @@ def clear_feature_caches() -> None:
     _jockey_rate_cache.clear()
     _trainer_rate_cache.clear()
     _jockey_window_cache.clear()
+    _jt_pair_cache.clear()
+    _speed_fig_cache.clear()
+    _par_times_cache.clear()
 
 
 def extract_class_rank(class_type: str) -> Optional[int]:
@@ -321,6 +327,144 @@ class FeatureEngineering:
         return 0.08
 
     @staticmethod
+    def calculate_jt_pair_win_rate(jockey: str, trainer: str, conn=None,
+                                   before_date: str = None) -> float:
+        """v6.6 Feature 20: Bayesian-smoothed jockey×trainer pairing strike rate.
+
+        Top HK pairings (Cruz×Purton, Size×Moreira) signal stable confidence —
+        when a stable's preferred jockey is on a given runner, the model
+        learns this is a "stable confidence" mount. Per round-2 audit, 305
+        pairs have ≥50 joint runs and top pairs hit 22-28% wins vs 8.3%
+        baseline — major signal.
+
+        Bayesian Beta(0.08, 15) prior so unknown/new pairings default to HK
+        league average. Cached per (jockey, trainer, before_date).
+        """
+        if not jockey or not trainer:
+            return 0.08
+        cache_key = (jockey, trainer, before_date)
+        if cache_key in _jt_pair_cache:
+            return _jt_pair_cache[cache_key]
+        rate = FeatureEngineering._compute_jt_pair_win_rate(
+            jockey, trainer, conn, before_date,
+        )
+        _jt_pair_cache[cache_key] = rate
+        return rate
+
+    @staticmethod
+    def _compute_jt_pair_win_rate(jockey, trainer, conn, before_date):
+        c = None
+        owns = conn is None
+        try:
+            if owns and config.DB_PATH.exists():
+                c = sqlite3.connect(str(config.DB_PATH))
+                c.row_factory = sqlite3.Row
+            else:
+                c = conn
+            if c is None:
+                return 0.08
+            if before_date:
+                row = c.execute(
+                    "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
+                    "FROM race_results WHERE jockey = ? AND trainer = ? "
+                    "AND race_date < ?",
+                    (jockey, trainer, before_date),
+                ).fetchone()
+            else:
+                row = c.execute(
+                    "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
+                    "FROM race_results WHERE jockey = ? AND trainer = ?",
+                    (jockey, trainer),
+                ).fetchone()
+            rides = (row['rides'] if row else 0) or 0
+            wins = (row['wins'] if row else 0) or 0
+            if rides > 0:
+                return min(0.5, (wins + 0.08 * 15) / (rides + 15))
+        except Exception as e:
+            logger.warning(f"DB lookup failed for jt-pair {jockey}/{trainer}: {e}")
+        finally:
+            if owns and c is not None:
+                c.close()
+        return 0.08
+
+    @staticmethod
+    def calculate_speed_fig_norm(horse_name: str, conn=None,
+                                 before_date: str = None) -> float:
+        """v6.6 Feature 21: par-time-normalised speed figure of last race.
+
+        Wraps analytics.speed_figures: looks up the horse's most recent run
+        before `before_date`, computes adjusted_speed_figure (weight + par
+        time normalised), then maps to [0,1] via normalize_speed_figure.
+
+        Cached per (horse_name, before_date). Returns 0.5 (neutral) when
+        no eligible prior run exists.
+        """
+        if not horse_name:
+            return 0.5
+        cache_key = (horse_name, before_date)
+        if cache_key in _speed_fig_cache:
+            return _speed_fig_cache[cache_key]
+        rate = FeatureEngineering._compute_speed_fig_norm(
+            horse_name, conn, before_date,
+        )
+        _speed_fig_cache[cache_key] = rate
+        return rate
+
+    @staticmethod
+    def _compute_speed_fig_norm(horse_name, conn, before_date):
+        from analytics.speed_figures import (
+            compute_par_times, adjusted_speed_figure, normalize_speed_figure,
+        )
+        c = None
+        owns = conn is None
+        try:
+            if owns and config.DB_PATH.exists():
+                c = sqlite3.connect(str(config.DB_PATH))
+                c.row_factory = sqlite3.Row
+            else:
+                c = conn
+            if c is None:
+                return 0.5
+            # Look up the horse's most recent prior race
+            if before_date:
+                row = c.execute(
+                    "SELECT finish_time, distance, going, class_type, weight "
+                    "FROM race_results WHERE horse_name = ? AND race_date < ? "
+                    "ORDER BY race_date DESC, race_number DESC LIMIT 1",
+                    (horse_name, before_date),
+                ).fetchone()
+            else:
+                row = c.execute(
+                    "SELECT finish_time, distance, going, class_type, weight "
+                    "FROM race_results WHERE horse_name = ? "
+                    "ORDER BY race_date DESC, race_number DESC LIMIT 1",
+                    (horse_name,),
+                ).fetchone()
+            if not row or not row['finish_time']:
+                return 0.5
+            # Cache par_times by before_date — computing it is O(N) over all
+            # historical rows. Without this cache we'd recompute per horse,
+            # making training O(N²) over the corpus.
+            par_times = _par_times_cache.get(before_date)
+            if par_times is None:
+                par_times = compute_par_times(c, before_date=before_date)
+                _par_times_cache[before_date] = par_times
+            sf = adjusted_speed_figure(
+                row['finish_time'], row['distance'] or 0,
+                row['going'] or '', row['class_type'] or '',
+                row['weight'] or 120, par_times,
+            )
+            if sf is None:
+                return 0.5
+            return float(normalize_speed_figure(sf))
+        except Exception as e:
+            logger.warning(f"Speed fig lookup failed for {horse_name}: {e}")
+        finally:
+            if owns and c is not None:
+                c.close()
+        return 0.5
+
+    @staticmethod
     def calculate_draw_advantage(draw: int, distance) -> float:
         try:
             distance = int(distance)
@@ -394,7 +538,14 @@ class FeatureEngineering:
             feat_form_proxy = 0.5
         features.append(feat_form_proxy)
 
-        # Feature 2: recent form from prior finishes
+        # Feature 2: recent form from prior finishes.
+        # Training (build_training_data_from_db) defaults to 0.5 when prior
+        # is empty; we mirror that here. Previously this fallback computed
+        # from the card's `last_6` string when prior was empty — but that
+        # uses a different point scale (calculate_form_score: 100/70/50/30/15/5)
+        # vs our DB-based scale (10/7/5/2), creating a different inference-
+        # time distribution for horses without DB history (rare: mid-season
+        # imports, restored DB rows). Removed for train/predict consistency.
         if prior:
             recent = prior[-6:]
             form_pts = 0
@@ -406,11 +557,7 @@ class FeatureEngineering:
                 elif pos <= 5: form_pts += 2
             features.append(form_pts / (len(recent) * 10))
         else:
-            last_6 = horse_data.get('last_6', '')
-            if last_6:
-                features.append(FeatureEngineering.calculate_form_score(last_6) / 100)
-            else:
-                features.append(0.5)
+            features.append(0.5)
 
         # Feature 3: draw advantage
         draw = horse_data.get('draw', 8)
@@ -625,6 +772,24 @@ class FeatureEngineering:
             jockey, conn=conn, before_date=race_date or None, window_days=30,
         )
         features.append(min(0.6, jockey_30d) if jockey_30d > 0 else 0.08)
+
+        # Feature 20: jockey×trainer pairing strike rate (v6.6). Stable-
+        # confidence signal — top HK pairings (Cruz×Purton, Size×Moreira)
+        # win at 22-28% vs 8.3% baseline.
+        jt_pair = FeatureEngineering.calculate_jt_pair_win_rate(
+            jockey, trainer, conn=conn, before_date=race_date or None,
+        )
+        features.append(min(0.5, jt_pair) if jt_pair > 0 else 0.08)
+
+        # Feature 21: speed figure of last race (v6.6). Par-time + weight
+        # normalised — independent ML signal from the 5%-weight rule
+        # engine speed_fig factor. Uses horse_name set earlier in the
+        # function (line 498) to avoid a latent shadowing trap if a caller
+        # passes a dict missing the 'name' key.
+        sf_norm = FeatureEngineering.calculate_speed_fig_norm(
+            horse_name, conn=conn, before_date=race_date or None,
+        )
+        features.append(sf_norm)
 
         if owns_conn and conn is not None:
             conn.close()

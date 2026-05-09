@@ -3,7 +3,7 @@
 Both extract_features() and build_training_data_from_db() MUST build
 feature vectors in FEATURE_SCHEMA order. This prevents train/predict mismatch.
 
-19 features — all use data available BEFORE the race (no leakage).
+21 features — all use data available BEFORE the race (no leakage).
 No direct market odds features — ML must provide independent signal.
 
 Wave 2c drops:
@@ -22,6 +22,14 @@ Renavon backfill that were previously only used by the rule engine:
 - rating_change: 62.6% DB coverage; rating delta from previous race signals trend
 - jockey_form_30d: short-window jockey strike rate captures hot streaks the
   all-time aggregate hides
+
+v6.6 adds (2026-05-09): two high-ROI features identified in the round-2 audit:
+- jt_pair_win_rate: jockey×trainer pairing strike rate. 305 pairs ≥50 joint
+  runs; top pairs hit 22-28% wins vs 8.3% baseline. Stable-jockey signal.
+- speed_fig_norm: par-time-normalised speed figure of the horse's last run,
+  weight-adjusted (Benter +0.1s/lb above 120). Already in rule engine via
+  analytics/speed_figures.py at 5% weight; promoted to ML schema for the
+  independent 40% blend channel.
 """
 
 import numpy as np
@@ -46,6 +54,8 @@ FEATURE_SCHEMA = [
     {"name": "horse_age", "default": 0.5, "range": (0.0, 1.0)},            # 17 (3yo→1.0, 9yo→0.0)
     {"name": "rating_change", "default": 0.5, "range": (0.0, 1.0)},        # 18 (+10pts→1.0, -10→0.0)
     {"name": "jockey_form_30d", "default": 0.08, "range": (0.0, 0.6)},     # 19 (last 30-day strike rate)
+    {"name": "jt_pair_win_rate", "default": 0.08, "range": (0.0, 0.5)},    # 20 (Bayesian-smoothed jockey×trainer)
+    {"name": "speed_fig_norm", "default": 0.5, "range": (0.0, 1.0)},       # 21 (par-time normalised, last run)
 ]
 
 FEATURE_NAMES = [f["name"] for f in FEATURE_SCHEMA]
