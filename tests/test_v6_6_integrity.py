@@ -182,3 +182,57 @@ class TestV66Schema:
     def test_speed_fig_position_21(self):
         from ml.feature_schema import FEATURE_NAMES
         assert FEATURE_NAMES[20] == "speed_fig_norm"
+
+
+# ---------------------------------------------------------------------------
+# 7. fetch_day_results short-circuits after finished races run out
+# ---------------------------------------------------------------------------
+
+class TestFetchDayResultsShortCircuit:
+    """Pre-v6.6, results_fetcher iterated 1→11 even when only races 1-4 had
+    finished, wasting 7 HTTP calls per pre-race monitor cycle. v6.6 stops
+    after 2 consecutive empties (allows 1 transient miss on a finished race
+    while still skipping all upcoming/future races)."""
+
+    def test_stops_after_two_consecutive_empties(self):
+        import asyncio
+        from dashboard.results_fetcher import ResultsFetcher
+        fetcher = ResultsFetcher()
+
+        # Mock fetch_race_results: races 1-4 finished, 5+ empty
+        finished = {1, 2, 3, 4}
+        call_count = 0
+        async def mock_fetch(date, rno):
+            nonlocal call_count
+            call_count += 1
+            return [{"position": 1, "number": 1}] if rno in finished else []
+
+        fetcher.fetch_race_results = mock_fetch
+        results = asyncio.run(fetcher.fetch_day_results("2026/05/09", num_races=11))
+
+        # Expected: fetch races 1, 2, 3, 4 (finished), 5 (1st empty), 6 (2nd
+        # empty triggers break). So 6 total calls instead of 11.
+        assert call_count == 6, f"Expected 6 calls, got {call_count}"
+        assert set(results.keys()) == finished
+        # Critically: no fetch was made for races 7-11 (the upcoming races
+        # the user flagged — fetching odds for them while ALSO querying
+        # their results was wasteful).
+
+    def test_does_not_short_circuit_before_first_finished(self):
+        """If we start fetching before ANY race has finished (e.g. pre-meeting
+        warmup), we should keep checking — not bail after the first empty."""
+        import asyncio
+        from dashboard.results_fetcher import ResultsFetcher
+        fetcher = ResultsFetcher()
+
+        call_count = 0
+        async def mock_fetch(date, rno):
+            nonlocal call_count
+            call_count += 1
+            return []  # no race has finished yet
+
+        fetcher.fetch_race_results = mock_fetch
+        asyncio.run(fetcher.fetch_day_results("2026/05/09", num_races=11))
+        # Fetched all 11 — never short-circuited because seen_any_results
+        # was False the whole time.
+        assert call_count == 11

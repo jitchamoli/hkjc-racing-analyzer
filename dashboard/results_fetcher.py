@@ -37,18 +37,41 @@ class ResultsFetcher:
         return results
 
     async def fetch_day_results(self, race_date: str, num_races: int = 11) -> Dict[int, List[Dict]]:
-        """Fetch results for all races on a given day."""
+        """Fetch results for all FINISHED races on a given day.
+
+        Races are run in chronological order, so results become available in
+        order. Once we hit a race with no results, all subsequent races are
+        guaranteed to be unfinished too — break to avoid wasted HTTP calls
+        on the current/upcoming race plus any future ones.
+
+        We allow a single empty between hits to tolerate transient scrape
+        failures on a finished race (rare but possible).
+        """
         logger.info(f"Fetching all results for {race_date}")
 
         day_results = {}
+        consecutive_empty = 0
+        seen_any_results = False
 
         for race_no in range(1, num_races + 1):
             results = await self.fetch_race_results(race_date, race_no)
             if results:
                 day_results[race_no] = results
                 logger.info(f"  Race {race_no}: {len(results)} finished")
+                consecutive_empty = 0
+                seen_any_results = True
             else:
                 logger.info(f"  Race {race_no}: No results yet")
+                consecutive_empty += 1
+                # Stop once we've seen 2 unfinished races in a row AFTER
+                # at least one finished race — those are the upcoming races
+                # and any further races are guaranteed unfinished.
+                if seen_any_results and consecutive_empty >= 2:
+                    logger.info(
+                        f"  Stopping at R{race_no}: races run in order, "
+                        f"R{race_no+1}..R{num_races} are not yet finished"
+                    )
+                    break
 
         return day_results
 
