@@ -64,7 +64,7 @@ python3 -m scripts.accuracy --all
 
 ```
 core/       — fetcher, analyzer, scorer, recommender, ML predictor
-ml/         — feature schema (19 features), feature extraction, model, training, integrity, experiments
+ml/         — feature schema (21 features, v6.6), feature extraction, model, training, integrity, experiments
 analytics/  — 13 specialized analyzers (draw bias, pace, sectionals, etc.)
 data/       — database, odds tracker, scraper, validation
 monitor/    — race day monitor (auto-rerun on sharp moves)
@@ -92,10 +92,10 @@ scripts/train.py → models/hkjc_racing_model.pkl
 ### Scoring System
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
-- **Rule engine (60%)**: 24 dynamically-weighted factors. Missing-data factors are excluded and remaining weights renormalize to 1.0. The rule_score (0-100) is converted to a probability via a base-rate-anchored sigmoid: `sigmoid(0.06 × (score - 50) + logit(1/field_size))`. `odds` and `odds_movement` are NOT in the rule engine — market info enters via the dynamic market blend only (prevents triple-counting).
-- **ML model (40%)**: XGBoost classifier with 19 features (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a separate place model (`is_top3`). Both use IsotonicRegression recency-weighted, trained on 50,692 real race results from a 5-year window. After the market blend, a second isotonic (`models/blend_calibrator.pkl`, fit by `scripts/calibrate_blend.py` on 71,360 production-pipeline pairs) recalibrates the post-blend distribution per-horse with renormalization.
+- **Rule engine (60%)**: 25 dynamically-weighted factors (added `speed_fig` v6.6). Missing-data factors are excluded and remaining weights renormalize to 1.0. The rule_score (0-100) is converted to a probability via a base-rate-anchored sigmoid: `sigmoid(0.06 × (score - 50) + logit(1/field_size))`. `odds` and `odds_movement` are NOT in the rule engine — market info enters via the dynamic market blend only (prevents triple-counting). v6.6 (2026-05-09) audit purged 3 sites that violated this: `field_size` factor (used `1/win_odds`), no-form fallback (used `1/win_odds`), and BANKER signal #9 (used `1/win_odds`). All replaced with structural-only logic.
+- **ML model (40%)**: XGBoost classifier with **21 features** (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a separate place model (`is_top3`). Both use IsotonicRegression recency-weighted, trained on 50,705 real race results from a 5-year window. After the market blend, a second isotonic (`models/blend_calibrator.pkl`, fit by `scripts/calibrate_blend.py` on 71,360 production-pipeline pairs) recalibrates the post-blend distribution per-horse with renormalization.
 
-The 13 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change, speed figures).
+The 14 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change, speed figures, jockey form). `analytics/speed_figures.py` was wired into the rule engine in v6.6 (was previously orphaned). `analytics/gear_change.py` scores are now data-calibrated by `scripts/calibrate_gear.py` (auto-runs after each meeting via auto-learn) — `models/gear_scores.json` overrides hand-tuned defaults.
 
 → Full feature list, importance table, removed-features history, training pipeline detail: `docs/ml-model.md`.
 

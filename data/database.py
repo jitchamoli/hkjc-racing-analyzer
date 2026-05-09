@@ -944,66 +944,31 @@ class HorseDatabase:
         else:
             return f"{now.year - 1}-{str(now.year)[-2:]}"
 
-    def rebuild_stats(self):
-        """Rebuild jockey_stats and trainer_stats.
+    @staticmethod
+    def _current_season_start() -> str:
+        """First day of the current HK racing season as 'YYYY/MM/DD'.
+        Seasons run Jul 1 – Jun 30, so July 2025 starts the 2025-26 season.
+        """
+        now = datetime.now()
+        year = now.year if now.month >= 7 else now.year - 1
+        return f"{year}/07/01"
 
-        Prefers the latest snapshot from `renavon_jockey_rankings` /
-        `renavon_trainer_rankings` (authoritative full-season HKJC data
-        including visiting riders). Falls back to computing from
-        `race_results` if Renavon tables aren't populated.
+    def rebuild_stats(self):
+        """Rebuild jockey_stats and trainer_stats from race_results.
+
+        Computes CURRENT-SEASON only (race_date >= season start) so visiting
+        or retired jockeys/trainers from prior seasons don't show inflated
+        lifetime totals. Renavon snapshots are frozen at 2026/04/22 and no
+        longer ingested, so race_results is the freshest local source. The
+        HKJC seasonal scrape (`scripts/scrape_history.py --rankings`)
+        overwrites these rows afterwards with authoritative figures.
 
         Safe to call at any time — replaces both tables entirely.
         """
         c = self.conn.cursor()
         season = self._current_season()
+        season_start = self._current_season_start()
 
-        # Source preference: Renavon if present, else local race_results
-        renavon_present = c.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' "
-            "AND name='renavon_jockey_rankings'"
-        ).fetchone() is not None
-
-        if renavon_present:
-            # JOCKEYS — latest snapshot per jockey, current-season figures
-            c.execute("DELETE FROM jockey_stats")
-            c.execute("""
-                INSERT INTO jockey_stats (name, season, rides, wins, places, win_rate, place_rate, last_updated)
-                SELECT
-                    jockey_name_en, season_year,
-                    current_season_starts, current_season_wins, current_season_places,
-                    current_season_win_rate,
-                    CAST(current_season_places AS REAL) / NULLIF(current_season_starts, 0),
-                    snapshot_date
-                FROM renavon_jockey_rankings r1
-                WHERE snapshot_date = (
-                    SELECT MAX(snapshot_date) FROM renavon_jockey_rankings r2
-                    WHERE r2.jockey_code = r1.jockey_code
-                )
-                AND current_season_starts > 0
-            """)
-
-            # TRAINERS
-            c.execute("DELETE FROM trainer_stats")
-            c.execute("""
-                INSERT INTO trainer_stats (name, season, runners, wins, places, win_rate, place_rate, last_updated)
-                SELECT
-                    trainer_name_en, season_year,
-                    current_season_starts, current_season_wins, current_season_places,
-                    current_season_win_rate,
-                    CAST(current_season_places AS REAL) / NULLIF(current_season_starts, 0),
-                    snapshot_date
-                FROM renavon_trainer_rankings r1
-                WHERE snapshot_date = (
-                    SELECT MAX(snapshot_date) FROM renavon_trainer_rankings r2
-                    WHERE r2.trainer_code = r1.trainer_code
-                )
-                AND current_season_starts > 0
-            """)
-            self.conn.commit()
-            logger.info("Rebuilt jockey_stats and trainer_stats from Renavon rankings")
-            return
-
-        # Fallback: local-only computation from race_results
         c.execute("DELETE FROM jockey_stats")
         c.execute("""
             INSERT INTO jockey_stats (name, season, rides, wins, places, win_rate, place_rate, last_updated)
@@ -1011,8 +976,10 @@ class HorseDatabase:
                    CAST(SUM(is_winner) AS REAL) / COUNT(*),
                    CAST(SUM(is_top3) AS REAL) / COUNT(*),
                    MAX(race_date)
-            FROM race_results WHERE jockey != '' GROUP BY jockey
-        """, (season,))
+            FROM race_results
+            WHERE jockey != '' AND race_date >= ?
+            GROUP BY jockey
+        """, (season, season_start))
 
         c.execute("DELETE FROM trainer_stats")
         c.execute("""
@@ -1021,11 +988,15 @@ class HorseDatabase:
                    CAST(SUM(is_winner) AS REAL) / COUNT(*),
                    CAST(SUM(is_top3) AS REAL) / COUNT(*),
                    MAX(race_date)
-            FROM race_results WHERE trainer != '' GROUP BY trainer
-        """, (season,))
+            FROM race_results
+            WHERE trainer != '' AND race_date >= ?
+            GROUP BY trainer
+        """, (season, season_start))
 
         self.conn.commit()
-        logger.info("Rebuilt jockey_stats and trainer_stats from race_results (local fallback)")
+        logger.info(
+            f"Rebuilt jockey_stats and trainer_stats from current-season race_results (since {season_start})"
+        )
 
     # ------------------------------------------------------------------
     # Card-field backfill (rating, last_6, gear, age, rating_change)
