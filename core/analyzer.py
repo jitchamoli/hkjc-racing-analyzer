@@ -690,9 +690,17 @@ class CombinedRaceAnalyzer:
         if class_score != 50.0:
             reasoning.append(f"Class: {class_reason}")
 
-        # --- NEW: Gear Changes ---
+        # --- NEW: Gear Changes (with debutant + last-run diff detection) ---
+        prior_gear = ""
+        is_debutant = False
+        if self._horse_db:
+            history = self._horse_db.get_horse_history(horse.name, limit=1)
+            if not history:
+                is_debutant = True
+            else:
+                prior_gear = history[0].get('gear', '') or ''
         gear_score, gear_reason = self.gear_analyzer.analyze_gear(
-            horse.gear
+            horse.gear, prior_gear=prior_gear, is_first_time=is_debutant
         )
         factors["gear"] = gear_score
         if gear_reason != "No gear changes":

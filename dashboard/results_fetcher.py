@@ -802,6 +802,22 @@ async def auto_learn(race_date: str = None):
     except subprocess.TimeoutExpired:
         logger.warning("ML retrain timed out (300s) — run 'python3 train_ml_model.py' manually")
 
+    # 3. Recalibrate gear scores from new race_results
+    logger.info("Recalibrating gear scores...")
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'scripts.calibrate_gear'],
+            capture_output=True, text=True, timeout=60,
+            cwd=str(Path(__file__).parent.parent),
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split('\n')[-3:]:
+                logger.info(f"Gear calibration: {line}")
+        else:
+            logger.warning(f"Gear calibration failed: {result.stderr[:200]}")
+    except subprocess.TimeoutExpired:
+        logger.warning("Gear calibration timed out — run 'python3 -m scripts.calibrate_gear' manually")
+
 
 if __name__ == '__main__':
     asyncio.run(main())
