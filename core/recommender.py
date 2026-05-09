@@ -39,14 +39,22 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
 
     market_prob_top = (1 / top.horse.win_odds) if top and top.horse.win_odds and top.horse.win_odds > 0 else 0
 
-    top_is_banker = any("BANKER" in r for r in analyses[0].reasoning) if analyses else False
+    # Skip market-fav promotion if ANY horse in the field qualifies as BANKER —
+    # BANKER takes precedence and will be promoted below. Without this, the
+    # market-fav swap fires first, then BANKER promotion swaps again,
+    # producing a rank-1 BANKER even when the market disagrees strongly with
+    # that horse — and the bet-type logic downstream then aggressively fires
+    # WIN on a market-disagreeing pick.
+    any_banker_in_field = any(
+        any("BANKER" in r for r in a.reasoning) for a in analyses
+    ) if analyses else False
 
-    # Market favourite promotion (skip if BANKER)
+    # Market favourite promotion (skip if any BANKER exists)
     market_fav = min(analyses, key=lambda a: a.horse.win_odds if a.horse.win_odds and a.horse.win_odds > 0 else 999)
     market_fav_prob = (1 / market_fav.horse.win_odds) if market_fav.horse.win_odds and market_fav.horse.win_odds > 0 else 0
     if (market_fav_prob >= 0.30 and market_fav.rank > 1
             and market_fav.horse.win_odds > 0
-            and not top_is_banker):
+            and not any_banker_in_field):
         old_idx = next(i for i, a in enumerate(analyses) if a is market_fav)
         analyses[0], analyses[old_idx] = analyses[old_idx], analyses[0]
         calibrated_probs[0], calibrated_probs[old_idx] = calibrated_probs[old_idx], calibrated_probs[0]
