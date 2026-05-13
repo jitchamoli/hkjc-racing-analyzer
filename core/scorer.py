@@ -164,12 +164,17 @@ def _load_blend_calibrator():
         raw = pkl.read_bytes()
         if sha.exists():
             expected = sha.read_text().strip()
-            if hashlib.sha256(raw).hexdigest() != expected:
-                # Don't silently load a tampered/stale file
+            actual = hashlib.sha256(raw).hexdigest()
+            if actual != expected:
+                logger.error(
+                    f"blend_calibrator checksum mismatch — pipeline running uncalibrated. "
+                    f"Expected {expected[:16]}..., got {actual[:16]}..."
+                )
                 return None
         payload = pickle.loads(raw)
         _BLEND_CALIBRATOR = payload.get('calibrator')
-    except Exception:
+    except Exception as e:
+        logger.error(f"blend_calibrator load failed — pipeline running uncalibrated: {e}")
         _BLEND_CALIBRATOR = None
     return _BLEND_CALIBRATOR
 

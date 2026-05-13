@@ -317,6 +317,18 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     race_data['has_edge'] = has_edge_race
     race_data['odds_age_minutes'] = odds_age_min
 
+    # Identify which horse fired EDGE — alert text was misleadingly hardcoded
+    # to "the top pick", but G4 allows max_model_rank=2 so rank-2 can fire EDGE
+    # while rank-1 doesn't. Surface the lowest-rank firing horse so the
+    # template can name it correctly.
+    edge_firers = [h for h in race_data['horses'] if h.get('edge_fires')]
+    if edge_firers:
+        edge_firers.sort(key=lambda h: h['rank'])
+        eh = edge_firers[0]
+        race_data['edge_horse_rank'] = eh['rank']
+        race_data['edge_horse_number'] = eh['number']
+        race_data['edge_horse_name'] = eh['name']
+
     # === Post-bet analytics: Harville dividend + conviction tier + EV ===
     from betting.dividends import (
         estimate_quinella_dividend, quinella_bet_ev, normalize_market_probs
