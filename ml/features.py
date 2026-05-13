@@ -564,16 +564,20 @@ class FeatureEngineering:
         features.append(FeatureEngineering.calculate_draw_advantage(draw, distance))
 
         # Feature 4: jockey win rate (prior-only to match training)
+        # Cap 0.6 + fallback 0.08 — matches FeatureEngineering.calculate_jockey_win_rate
+        # cap exactly. Old caps (0.5 / 0.06) created train/predict drift after the
+        # Task #51 fix routed both paths through the helper.
         jockey = horse_data.get('jockey', '')
         jockey_rate = FeatureEngineering.calculate_jockey_win_rate(
             jockey, all_results, conn=conn, before_date=race_date or None)
-        features.append(min(0.5, jockey_rate) if jockey_rate > 0 else 0.08)
+        features.append(jockey_rate if jockey_rate > 0 else 0.08)
 
         # Feature 5: trainer win rate (prior-only to match training)
+        # Cap 0.5 + fallback 0.08 — matches FeatureEngineering.calculate_trainer_win_rate.
         trainer = horse_data.get('trainer', '')
         trainer_rate = FeatureEngineering.calculate_trainer_win_rate(
             trainer, all_results, conn=conn, before_date=race_date or None)
-        features.append(min(0.4, trainer_rate) if trainer_rate > 0 else 0.06)
+        features.append(trainer_rate if trainer_rate > 0 else 0.08)
 
         # Feature 6: field size — clipped to [0,1] (parity with training fix v6.4).
         # Legacy oversize fields and bad-data rows could push field_size > 14.

@@ -23,15 +23,6 @@ from ml.features import FeatureEngineering, extract_class_rank
 logger = logging.getLogger(__name__)
 
 
-def _date_30d_before(race_date: str) -> str:
-    """Return YYYY/MM/DD 30 days before race_date. Used by Feature 19."""
-    try:
-        dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
-        return (dt - timedelta(days=30)).strftime('%Y/%m/%d')
-    except (ValueError, TypeError):
-        return '0000/00/00'
-
-
 def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
     """Build training data from real race results in horse_database.
 
