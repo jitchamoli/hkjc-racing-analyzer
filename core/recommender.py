@@ -134,7 +134,8 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
 
     MIN_TOP2_CONVICTION = 0.25  # 1.5× uniform
     MIN_TOP3_CONVICTION = 0.30  # 1.2× uniform
-    MIN_TOP4_CONVICTION = 0.38  # 1.14× uniform
+    MIN_TOP4_CONVICTION = 0.36  # v6.8 (was 0.38) — looser to catch more BOX Q4
+                                # races. User priority: QIN/TRIO/F4 over WIN.
 
     # Rank-3 and rank-4 inclusion gates — horse must have strong history
     rank3_strong = n >= 3 and _rank_has_strong_history(analyses[2])
@@ -142,9 +143,20 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
 
     if not has_live_odds or n < 2:
         race_bet_type = "SKIP"
-    elif top_is_banker_now and market_prob_top >= 0.35 and gap_1_2 > 0.08:
+    # WIN gate v6.8: tightened thresholds. Was market_prob_top ≥ 0.35 and
+    # gap_1_2 > 0.08, fired too liberally on $2.5-3 favorites that weren't
+    # truly dominant (HV 2026-05-13 R5 ACE WAR BANKER WIN at $2.5 lost).
+    # New: market_prob_top ≥ 0.45 (only $2.2 or shorter) AND gap_1_2 > 0.12.
+    # User priority: defer to BOX Q4 on borderline conviction; reserve WIN
+    # for truly dominant model+market agreement.
+    elif top_is_banker_now and market_prob_top >= 0.45 and gap_1_2 > 0.12:
         race_bet_type = "WIN"
-    elif gap_1_2 < 0.02 and gap_2_3 < 0.02 and top_3_share > 0.35 and n >= 3:
+    # TRIO gate v6.8: slightly loosened. Was both gap_1_2 < 0.02 AND
+    # gap_2_3 < 0.02 plus top_3_share > 0.35. Now top_3_share > 0.32 and
+    # both gaps < 0.025 — kept AND to avoid TRIO firing on most races.
+    # User priority TRIO-5 lives in the dashboard always-on layer; this gate
+    # is for the recommender's PRIMARY bet type only.
+    elif gap_1_2 < 0.025 and gap_2_3 < 0.025 and top_3_share > 0.32 and n >= 3:
         race_bet_type = "TRIO"
     elif rank4_strong and rank3_strong and top_4_share >= MIN_TOP4_CONVICTION:
         # DEFAULT: box-4 quinella when top-4 has conviction AND rank 3+4 qualify
