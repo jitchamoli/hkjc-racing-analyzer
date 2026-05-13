@@ -164,15 +164,19 @@ class TestRebuildStatsCurrentSeasonFilter:
 
 
 # ---------------------------------------------------------------------------
-# 6. v6.6 schema has 21 features, both new ones present
+# 6. v6.6 + v6.8 schema: 24 features, all named additions present
 # ---------------------------------------------------------------------------
 
 class TestV66Schema:
-    def test_has_21_features(self):
+    def test_has_24_features(self):
         from ml.feature_schema import NUM_FEATURES, FEATURE_NAMES
-        assert NUM_FEATURES == 21
+        assert NUM_FEATURES == 24
         assert "jt_pair_win_rate" in FEATURE_NAMES
         assert "speed_fig_norm" in FEATURE_NAMES
+        # v6.8 additions
+        assert "early_speed" in FEATURE_NAMES
+        assert "late_kick" in FEATURE_NAMES
+        assert "running_style" in FEATURE_NAMES
 
     def test_jt_pair_position_20(self):
         from ml.feature_schema import FEATURE_NAMES
@@ -182,6 +186,12 @@ class TestV66Schema:
     def test_speed_fig_position_21(self):
         from ml.feature_schema import FEATURE_NAMES
         assert FEATURE_NAMES[20] == "speed_fig_norm"
+
+    def test_running_position_features_22_24(self):
+        from ml.feature_schema import FEATURE_NAMES
+        assert FEATURE_NAMES[21] == "early_speed"
+        assert FEATURE_NAMES[22] == "late_kick"
+        assert FEATURE_NAMES[23] == "running_style"
 
 
 # ---------------------------------------------------------------------------
