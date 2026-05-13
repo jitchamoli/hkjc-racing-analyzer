@@ -496,8 +496,11 @@ class HKJCRacingMLModel:
                 pl_logit = float(logit(np.clip(place_prob, 1e-6, 1 - 1e-6)))
                 try:
                     place_prob = float(self.place_calibrator.predict(np.array([pl_logit]))[0])
-                except (ValueError, TypeError):
-                    pass  # fall through to uncalibrated value
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        f"place_calibrator failed — returning uncalibrated XGBoost output "
+                        f"(2-3x overstated): {e}"
+                    )
             return place_prob
         # Fallback: predict() runs its own integrity check, so don't double-fire.
         win_prob, _ = self.predict(features, field_size)
