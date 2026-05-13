@@ -185,6 +185,11 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     for i, a in enumerate(analyses):
         h = a.horse
         ml_prob = a.ml_prediction.win_probability if a.ml_prediction else 0
+        # Raw (pre-calibration) ML prob — feeds pure_prob per CLAUDE.md spec.
+        # Mixing calibrated ML into pure_prob biased edge_pp toward smaller
+        # magnitudes; isotonic calibration shifts toward base rate, attenuating
+        # strong ML signals on top picks.
+        raw_ml_prob = a.ml_prediction.raw_win_probability if a.ml_prediction else 0
         place_prob = a.ml_prediction.place_probability if a.ml_prediction else 0
         calibrated_prob = a.combined_probability if a.combined_probability else 0
 
@@ -235,6 +240,7 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
             "rating_change": h.rating_change,
             "rule_score": a.rule_score,
             "ml_prob": ml_prob,
+            "raw_ml_prob": raw_ml_prob,
             "place_prob": place_prob,
             "calibrated_prob": calibrated_prob,
             "expected_return": a.expected_return,
@@ -265,8 +271,11 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     except ImportError:
         check_model_integrity = None
 
+    # Use raw_ml_prob (pre-calibration) for pure_prob — CLAUDE.md spec compliance.
+    # Falls back to ml_prob if raw is missing (legacy JSON, model load failure).
     horses_for_edge = [{
-        'rule_score': h['rule_score'], 'ml_prob': h['ml_prob'],
+        'rule_score': h['rule_score'],
+        'ml_prob': h.get('raw_ml_prob') or h['ml_prob'],
         'win_odds': h['win_odds'] or 0,
     } for h in race_data['horses']]
 

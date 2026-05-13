@@ -58,6 +58,7 @@ def _mock_analysis(rank, horse):
     a.ml_prediction = MagicMock()
     a.ml_prediction.win_probability = 0.12
     a.ml_prediction.place_probability = 0.30
+    a.ml_prediction.raw_win_probability = 0.10  # pre-calibration output (Task #49)
     return a
 
 

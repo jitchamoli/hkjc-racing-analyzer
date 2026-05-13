@@ -76,8 +76,9 @@ class TestModelPickle:
 class TestTrainedModel:
     def test_predict_returns_probability(self, trained_model):
         features = np.full(NUM_FEATURES, 0.5, dtype=np.float32)
-        prob, confidence = trained_model.predict(features, field_size=12)
+        prob, confidence, raw_prob = trained_model.predict(features, field_size=12)
         assert 0.0 <= prob <= 1.0
+        assert 0.0 <= raw_prob <= 1.0  # Task #49: pre-calibration output
         assert isinstance(confidence, str)
 
     def test_predict_untrained_raises(self):

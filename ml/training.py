@@ -167,19 +167,12 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
         for name in horse_history:
             horse_history[name].sort(key=lambda x: x.get('race_date', ''))
 
-        # Build per-jockey/trainer chronological history for PRIOR-only win rate calc
-        jockey_history = {}
-        trainer_history = {}
-        for row in rows:
-            r = dict(row)
-            j = r.get('jockey', '') or ''
-            t = r.get('trainer', '') or ''
-            rd = r.get('race_date', '')
-            is_win = 1 if r.get('is_winner', 0) else 0
-            if j:
-                jockey_history.setdefault(j, []).append((rd, is_win))
-            if t:
-                trainer_history.setdefault(t, []).append((rd, is_win))
+        # NOTE: Removed in-memory jockey_history/trainer_history dicts (Task #51).
+        # They were scoped to `rows` (already filtered to the training window),
+        # which made pre-cutoff jockey/trainer rides invisible during training.
+        # Inference uses FeatureEngineering.calculate_*_win_rate which queries
+        # the full DB. The asymmetry under-trained Features 4 and 5.
+        # Now both training and inference use the same conn-based DB query.
 
         X, y, y_place, weights = [], [], [], []
         for row in rows:
@@ -227,20 +220,21 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             # Feature 3: draw advantage
             feat_draw = FeatureEngineering.calculate_draw_advantage(draw, distance)
 
-            # Feature 4: jockey win rate (prior-only, Bayesian-smoothed)
+            # Feature 4: jockey win rate (Task #51 fix — same call as inference)
+            # Queries full DB with race_date < before_date filter, no leakage.
+            # Caps at 0.6 (was capped at 0.5 in old in-memory training path —
+            # cap now matches features.py:_compute_jockey_win_rate).
             jockey_name = r.get('jockey', '') or ''
-            jockey_prior = [(d, w) for d, w in jockey_history.get(jockey_name, []) if d < race_date]
-            j_rides = len(jockey_prior)
-            j_wins = sum(w for _, w in jockey_prior)
-            # Beta prior at HK league avg (0.08) with strength 15 — matches features.py
-            feat_jockey = min(0.5, (j_wins + 0.08 * 15) / (j_rides + 15))
+            feat_jockey = FeatureEngineering.calculate_jockey_win_rate(
+                jockey_name, [], conn=conn, before_date=race_date,
+            )
 
-            # Feature 5: trainer win rate (prior-only, Bayesian-smoothed)
+            # Feature 5: trainer win rate (Task #51 fix — same call as inference)
+            # Caps at 0.5 (was capped at 0.4 in old in-memory path).
             trainer_name = r.get('trainer', '') or ''
-            trainer_prior = [(d, w) for d, w in trainer_history.get(trainer_name, []) if d < race_date]
-            t_rides = len(trainer_prior)
-            t_wins = sum(w for _, w in trainer_prior)
-            feat_trainer = min(0.4, (t_wins + 0.08 * 15) / (t_rides + 15))
+            feat_trainer = FeatureEngineering.calculate_trainer_win_rate(
+                trainer_name, [], conn=conn, before_date=race_date,
+            )
 
             # Feature 6: field size — clipped to [0,1]; legacy data has stray
             # rows with field_size > 14 (oversize fields pre-2000s).
@@ -415,14 +409,12 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             feat_rating_change = max(0.0, min(1.0, 0.5 + rc_int / 20.0))
 
             # Feature 19 (v6.5): jockey 30-day form (Bayesian-smoothed).
-            # Filter jockey_history (already chronological per name) to the
-            # 30 days BEFORE race_date. Default 0.08 (HK league avg) when
-            # the jockey has no rides in that window.
-            j_30d = [(d, w) for d, w in jockey_history.get(jockey_name, [])
-                     if d < race_date and d >= _date_30d_before(race_date)]
-            j30_rides = len(j_30d)
-            j30_wins = sum(w for _, w in j_30d)
-            feat_jockey_30d = min(0.6, (j30_wins + 0.08 * 15) / (j30_rides + 15))
+            # Task #51: use the same inference helper for train/predict parity.
+            # Was previously using window-scoped jockey_history which lost
+            # pre-cutoff rides for early-window training rows.
+            feat_jockey_30d = FeatureEngineering.calculate_jockey_form_window(
+                jockey_name, conn=conn, before_date=race_date, window_days=30,
+            )
 
             # Feature 20 (v6.6): jockey×trainer pairing strike rate.
             # Bayesian-smoothed Beta(0.08, 15) so unknown pairs default to

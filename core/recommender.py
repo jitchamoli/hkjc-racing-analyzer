@@ -69,11 +69,31 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
         market_prob_top = market_fav_prob
 
     # BANKER promotion
+    # Tiebreak on calibrated_prob (combined_probability after apply_calibrated_probs),
+    # NOT rule_score. Pre-blend rule_score can disagree with post-blend reality —
+    # picking the higher rule_score promoted SILVERY BREEZE (cal_prob 0.097) over
+    # LO RIDER (cal_prob 0.168) on HV 2026-05-13 R9.
     banker_horse = None
     for a in analyses:
         if any("BANKER" in r for r in a.reasoning):
-            if banker_horse is None or a.rule_score > banker_horse.rule_score:
+            if banker_horse is None or a.combined_probability > banker_horse.combined_probability:
                 banker_horse = a
+
+    # Cal-prob guard: refuse BANKER promotion if its calibrated_prob is materially
+    # below the market favourite's calibrated_prob. Prevents the rule-engine
+    # BANKER signals (rating surge, class rise, etc) from overriding a post-blend
+    # signal that says "market disagrees, you're picking a worse horse".
+    # Threshold 0.7 catches the SILVERY BREEZE prototype (0.097 / 0.168 = 0.577).
+    if banker_horse and market_fav and market_fav is not banker_horse:
+        market_fav_cal = market_fav.combined_probability or 0
+        banker_cal = banker_horse.combined_probability or 0
+        if market_fav_cal > 0 and banker_cal < 0.7 * market_fav_cal:
+            logger.info(
+                f"BANKER override declined: {banker_horse.horse.name} cal_prob "
+                f"{banker_cal:.3f} < 0.7 × market_fav {market_fav.horse.name} "
+                f"cal_prob {market_fav_cal:.3f}"
+            )
+            banker_horse = None
 
     if banker_horse and banker_horse.rank > 1:
         old_idx = next(i for i, a in enumerate(analyses) if a is banker_horse)
@@ -87,6 +107,10 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
         gap_1_2 = top_prob - second_prob
         gap_2_3 = second_prob - third_prob
         top_3_share = top_prob + second_prob + third_prob
+        # Refresh market_prob_top from the NEW top (BANKER) horse's odds.
+        # Was stale here — kept the original rank-1's odds, so the WIN gate
+        # at line ~121 evaluated the wrong horse's market signal.
+        market_prob_top = (1 / banker_horse.horse.win_odds) if banker_horse.horse.win_odds and banker_horse.horse.win_odds > 0 else 0
 
     # === QUINELLA-FIRST STRATEGY (revised Apr 23, box-4 default) ===
     # Backtest findings with REAL HKJC dividends (72 held-out races):
