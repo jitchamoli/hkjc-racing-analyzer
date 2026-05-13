@@ -82,8 +82,8 @@ def test_predict_span_exercises_production_path():
     feat_strong = winners[:50].mean(axis=0).astype(np.float32)
     feat_weak = losers[:200].mean(axis=0).astype(np.float32)
 
-    prob_strong, _ = model.predict(feat_strong, field_size=12)
-    prob_weak, _ = model.predict(feat_weak, field_size=12)
+    prob_strong, _, _ = model.predict(feat_strong, field_size=12)
+    prob_weak, _, _ = model.predict(feat_weak, field_size=12)
 
     # The model learned that high X[:,0] → higher win prob.
     # Winners have higher X[0] on average, so prob_strong >= prob_weak.

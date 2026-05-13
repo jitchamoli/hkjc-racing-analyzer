@@ -78,6 +78,7 @@ class MLPrediction:
     ml_confidence: str
     feature_importance: Dict[str, float]
     model_version: str
+    raw_win_probability: float = 0.0  # pre-calibration XGBoost output — used by edge math
 
 
 class HKJCRacingMLModel:
@@ -441,7 +442,15 @@ class HKJCRacingMLModel:
 
         return result
 
-    def predict(self, features: np.ndarray, field_size: int = 12) -> Tuple[float, str]:
+    def predict(self, features: np.ndarray, field_size: int = 12) -> Tuple[float, str, float]:
+        """Returns (calibrated_win_prob, confidence, raw_win_prob).
+
+        The raw probability (pre-isotonic) is used for the pre-blend edge math
+        per CLAUDE.md spec: pure_prob = softmax(rule × 0.6 + raw_ml × 0.4).
+        Mixing calibrated ML into pure_prob biased edge_pp toward smaller
+        magnitudes (calibration shifts toward base rate, attenuating strong
+        ML signals).
+        """
         if not self.is_trained or self.model is None:
             # F-17: never silently return 1/field_size — surface the failure loudly
             # so load errors aren't masked by plausible-looking probabilities.
@@ -455,7 +464,8 @@ class HKJCRacingMLModel:
         # guard above (raise RuntimeError) catches it.
 
         proba = self.model.predict_proba(features.reshape(1, -1))[0]
-        win_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])
+        raw_win_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])
+        win_prob = raw_win_prob
 
         # Apply calibration if calibrator is available.
         # Calibrator was fit on logit(val_proba), so transform input the same way.
@@ -480,7 +490,7 @@ class HKJCRacingMLModel:
         else:
             confidence = "VERY_LOW"
 
-        return win_prob, confidence
+        return win_prob, confidence, raw_win_prob
 
     def predict_place(self, features: np.ndarray, field_size: int = 12) -> float:
         """Predict place (top-3) probability using dedicated place model + calibrator."""
@@ -503,7 +513,7 @@ class HKJCRacingMLModel:
                     )
             return place_prob
         # Fallback: predict() runs its own integrity check, so don't double-fire.
-        win_prob, _ = self.predict(features, field_size)
+        win_prob, _, _ = self.predict(features, field_size)
         return min(0.85, win_prob * 2.5)
 
 
@@ -603,7 +613,7 @@ class CombinedRacingAnalyzer:
                                                      conn=self._conn)
 
         field_size = horse_data.get('field_size', 12)
-        ml_prob, ml_confidence = self.ml_model.predict(features, field_size=field_size)
+        ml_prob, ml_confidence, raw_ml_prob = self.ml_model.predict(features, field_size=field_size)
         place_prob = self.ml_model.predict_place(features, field_size=field_size)
         # Enforce P(top-3) >= P(win) — independent calibrators on win/place can
         # otherwise produce mathematically impossible place < win, which corrupts
@@ -621,5 +631,6 @@ class CombinedRacingAnalyzer:
                 name: float(features[i]) * self.ml_model.feature_importance.get(name, 0.0)
                 for i, name in enumerate(FEATURE_NAMES)
             },
-            model_version=self.ml_model.model_version
+            model_version=self.ml_model.model_version,
+            raw_win_probability=raw_ml_prob,
         )
