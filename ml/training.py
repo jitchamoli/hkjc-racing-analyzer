@@ -424,6 +424,15 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 conn=conn, before_date=race_date,
             )
 
+            # Features 22-24 (v6.8 Path A): running-position proxies.
+            # Same helper as inference for train/predict parity.
+            feat_early, feat_late, feat_style = (
+                FeatureEngineering.calculate_running_position_features(
+                    r.get('horse_name', '') or '',
+                    conn=conn, before_date=race_date,
+                )
+            )
+
             features = [
                 feat_form_proxy, feat_form, feat_draw,
                 feat_jockey, feat_trainer, feat_field_size,
@@ -434,6 +443,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 feat_hw_change,
                 feat_age, feat_rating_change, feat_jockey_30d,
                 feat_jt_pair, feat_speed_fig,
+                feat_early, feat_late, feat_style,
             ]
             assert len(features) == NUM_FEATURES, f"Expected {NUM_FEATURES} features, got {len(features)}"
             X.append(features)
@@ -528,6 +538,10 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         jt_pair_feat = float(np.random.beta(2, 8))   # similar shape to jockey_rate
         speed_fig_feat = float(np.random.normal(0.5, 0.15))
         speed_fig_feat = float(np.clip(speed_fig_feat, 0.0, 1.0))
+        # v6.8 features 22-24 (running-position proxies)
+        early_speed_feat = float(np.random.uniform(0.05, 0.95))
+        late_kick_feat = float(np.clip(np.random.normal(0.5, 0.15), 0.0, 1.0))
+        running_style_feat = float(np.random.choice([0.0, 0.5, 1.0]))
 
         features = [
             prior_win_rate, form_score / 100, draw_adv,
@@ -540,6 +554,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             hw_change,
             horse_age_feat, rating_change_feat, jockey_form_30d_feat,
             jt_pair_feat, speed_fig_feat,
+            early_speed_feat, late_kick_feat, running_style_feat,
         ]
         assert len(features) == NUM_FEATURES
         X.append(features)
@@ -574,6 +589,11 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             # weight; speed figure positive when faster than par.
             + 1.5 * (jt_pair_feat - 0.08)
             + 0.6 * (speed_fig_feat - 0.5)
+            # v6.8: closing horses (high late_kick) and front-runners (low early_speed)
+            # both correlate with winning in HK; running_style is roughly neutral
+            # so synthetic doesn't bias toward any style.
+            - 0.3 * (early_speed_feat - 0.5)  # lower position = better, so negative coef
+            + 0.5 * (late_kick_feat - 0.5)
             - 2.8
         )
         win_prob = 1.0 / (1.0 + np.exp(-win_logit))

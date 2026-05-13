@@ -34,6 +34,7 @@ _jockey_window_cache: dict = {}  # keyed by (jockey, before_date, window_days)
 _jt_pair_cache: dict = {}        # keyed by (jockey, trainer, before_date)
 _speed_fig_cache: dict = {}      # keyed by (horse_name, before_date)
 _par_times_cache: dict = {}      # keyed by before_date — par_times is O(N) to compute
+_running_pos_cache: dict = {}    # keyed by (horse_name, before_date) — v6.8 Features 22-24
 
 
 def clear_feature_caches() -> None:
@@ -44,6 +45,7 @@ def clear_feature_caches() -> None:
     _jt_pair_cache.clear()
     _speed_fig_cache.clear()
     _par_times_cache.clear()
+    _running_pos_cache.clear()
 
 
 def extract_class_rank(class_type: str) -> Optional[int]:
@@ -386,6 +388,143 @@ class FeatureEngineering:
             if owns and c is not None:
                 c.close()
         return 0.08
+
+    @staticmethod
+    def parse_running_position(rp: str):
+        """Parse race_results.running_position into a list of ints.
+
+        Modern data is space-separated ('7 6 2'). Legacy concatenated format
+        ('762') is also supported but rare in our DB (>99% modern). Returns
+        an empty list for unparseable input.
+        """
+        if not rp:
+            return []
+        s = str(rp).strip()
+        if not s:
+            return []
+        if ' ' in s:
+            try:
+                return [int(p) for p in s.split() if p.strip().isdigit()]
+            except (ValueError, TypeError):
+                return []
+        # Legacy concat format — single-digit per position. Ambiguous when
+        # any position > 9 but rare in our DB so accept the lossy parse.
+        try:
+            return [int(c) for c in s if c.isdigit()]
+        except (ValueError, TypeError):
+            return []
+
+    @staticmethod
+    def compute_running_position_features(rp: str, field_size: int):
+        """Returns (early_speed, late_kick, running_style) all in [0, 1].
+
+        early_speed: 1st-call position / max_pos. Front-runners ≈ 0.0,
+            closers ≈ 1.0 (numerically larger position). Rank-normalized so
+            it's distance-independent.
+        late_kick: closing rate from second-last call to finish.
+            >0.5 means improved (closed ground), <0.5 means faded.
+            Encoded as 0.5 + delta/(2*max_pos) and clipped.
+        running_style: avg position over all calls except finish, mapped to
+            front (≤1/3) → 0.0, stalker → 0.5, closer (≥2/3) → 1.0.
+        Returns (0.5, 0.5, 0.5) defaults when unparseable.
+        """
+        positions = FeatureEngineering.parse_running_position(rp)
+        if not positions or field_size <= 1:
+            return 0.5, 0.5, 0.5
+        max_pos = float(max(field_size, max(positions)))
+        # early_speed: 1st-call position normalized
+        early = positions[0] / max_pos
+        early = max(0.0, min(1.0, early))
+        # late_kick: change between 2nd-last position and finish (last value)
+        # Positive delta = improved (closed ground); negative = faded.
+        if len(positions) >= 2:
+            delta = positions[-2] - positions[-1]  # positive = closed
+            late = 0.5 + delta / (2.0 * max_pos)
+            late = max(0.0, min(1.0, late))
+        else:
+            late = 0.5
+        # running_style: avg of all calls except the finish (last)
+        non_finish = positions[:-1] if len(positions) > 1 else positions
+        avg_pos = sum(non_finish) / len(non_finish)
+        third = max_pos / 3.0
+        if avg_pos <= third:
+            style = 0.0  # front-runner
+        elif avg_pos >= 2 * third:
+            style = 1.0  # closer
+        else:
+            style = 0.5  # stalker
+        return early, late, style
+
+    @staticmethod
+    def calculate_running_position_features(horse_name: str, conn=None,
+                                            before_date: str = None):
+        """v6.8 Features 22-24: running-position proxies for sectional speed.
+
+        Looks up the horse's most recent prior run, parses running_position,
+        returns (early_speed, late_kick, running_style). All ∈ [0, 1].
+        Returns (0.5, 0.5, 0.5) when no prior run or parse fails.
+
+        Cached per (horse_name, before_date) — same pattern as speed_fig_norm
+        to avoid N+1 queries.
+        """
+        if not horse_name:
+            return 0.5, 0.5, 0.5
+        cache_key = (horse_name, before_date)
+        if cache_key in _running_pos_cache:
+            return _running_pos_cache[cache_key]
+        result = FeatureEngineering._compute_running_position_features(
+            horse_name, conn, before_date,
+        )
+        _running_pos_cache[cache_key] = result
+        return result
+
+    @staticmethod
+    def _compute_running_position_features(horse_name, conn, before_date):
+        c = None
+        owns = conn is None
+        try:
+            if owns and config.DB_PATH.exists():
+                c = sqlite3.connect(str(config.DB_PATH))
+                c.row_factory = sqlite3.Row
+            else:
+                c = conn
+            if c is None:
+                return 0.5, 0.5, 0.5
+            if before_date:
+                row = c.execute(
+                    "SELECT rr.running_position, "
+                    "  (SELECT COUNT(*) FROM race_results rr2 "
+                    "   WHERE rr2.race_date = rr.race_date "
+                    "     AND rr2.race_number = rr.race_number "
+                    "     AND rr2.finish_position > 0) as field_size "
+                    "FROM race_results rr WHERE rr.horse_name = ? "
+                    "  AND rr.race_date < ? AND rr.running_position != '' "
+                    "ORDER BY rr.race_date DESC, rr.race_number DESC LIMIT 1",
+                    (horse_name, before_date),
+                ).fetchone()
+            else:
+                row = c.execute(
+                    "SELECT rr.running_position, "
+                    "  (SELECT COUNT(*) FROM race_results rr2 "
+                    "   WHERE rr2.race_date = rr.race_date "
+                    "     AND rr2.race_number = rr.race_number "
+                    "     AND rr2.finish_position > 0) as field_size "
+                    "FROM race_results rr WHERE rr.horse_name = ? "
+                    "  AND rr.running_position != '' "
+                    "ORDER BY rr.race_date DESC, rr.race_number DESC LIMIT 1",
+                    (horse_name,),
+                ).fetchone()
+            if not row:
+                return 0.5, 0.5, 0.5
+            return FeatureEngineering.compute_running_position_features(
+                row['running_position'], row['field_size'] or 12,
+            )
+        except Exception as e:
+            logger.warning(f"running_position lookup failed for {horse_name}: {e}")
+            return 0.5, 0.5, 0.5
+        finally:
+            if owns and c is not None:
+                c.close()
 
     @staticmethod
     def calculate_speed_fig_norm(horse_name: str, conn=None,
@@ -794,6 +933,19 @@ class FeatureEngineering:
             horse_name, conn=conn, before_date=race_date or None,
         )
         features.append(sf_norm)
+
+        # Features 22-24 (v6.8 Path A): running-position proxies for sectional
+        # speed. Derived from race_results.running_position (99.4% DB coverage,
+        # space-separated positions at each call). Independent orthogonal channel
+        # — early/late position dynamics aren't captured by margin or speed_fig.
+        early_speed, late_kick, running_style = (
+            FeatureEngineering.calculate_running_position_features(
+                horse_name, conn=conn, before_date=race_date or None,
+            )
+        )
+        features.append(early_speed)
+        features.append(late_kick)
+        features.append(running_style)
 
         if owns_conn and conn is not None:
             conn.close()
