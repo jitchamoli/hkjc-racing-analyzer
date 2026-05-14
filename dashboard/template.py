@@ -494,13 +494,14 @@ function _didBetHit(race) {{
   var rank1 = race.horses[0];
   if (rank1 && rank1.number === p1) return 'STRIKE-WIN';
   if (top2Nums.indexOf(p1) >= 0 && top2Nums.indexOf(p2) >= 0) return 'STRIKE-QIN';
-  if (top4Nums.indexOf(p1) >= 0 && top4Nums.indexOf(p2) >= 0) return 'STRIKE-BOX4';
   // F4 BOX-5 strike: all 4 podium horses inside top-5 picks (rarer than TRIO-5,
   // pays bigger — shipped 2026-05-06 after 60-race backtest showed +54% ROI).
-  // Checked before TRIO-5 because F4-5 hit always implies TRIO-5 hit; we want
-  // the badge to reflect the stronger result.
+  // Checked BEFORE BOX-4 because F4-5 is the stronger, more specific result —
+  // when both are satisfied (common: QIN pair in top-4 AND all 4 in top-5),
+  // we want the badge to reflect F4-5 not BOX-4 (was undercounting F4-5 hits).
   if (p4 != null && top5Nums.indexOf(p1)>=0 && top5Nums.indexOf(p2)>=0 &&
       top5Nums.indexOf(p3)>=0 && top5Nums.indexOf(p4)>=0) return 'STRIKE-F4-5';
+  if (top4Nums.indexOf(p1) >= 0 && top4Nums.indexOf(p2) >= 0) return 'STRIKE-BOX4';
   // TRIO box checks require all 3 podium horses inside the box.
   if (p3 != null) {{
     if (top5Nums.indexOf(p1)>=0 && top5Nums.indexOf(p2)>=0 && top5Nums.indexOf(p3)>=0) return 'STRIKE-TRIO5';
@@ -615,8 +616,11 @@ function renderBetCard(race) {{
     ? '<ul class="why-list">' + whyItems.map(function(r) {{ return '<li>' + esc(r) + '</li>'; }}).join('') + '</ul>'
     : '<span style="color:var(--dim)">No reasoning captured</span>';
 
-  // Our vs Market
+  // Our vs Market — show BOTH pre-blend (drives edge) and post-blend (drives
+  // recommender). Was previously only "Our model" = pure_prob, which made
+  // "+6pp edge / SKIP" cards look contradictory. Both stages now visible.
   var purePct = topH.pure_prob != null ? (topH.pure_prob * 100).toFixed(0) : '?';
+  var calPct  = topH.calibrated_prob != null ? (topH.calibrated_prob * 100).toFixed(0) : '?';
   var mktPct  = topH.market_prob != null ? (topH.market_prob * 100).toFixed(0) : '?';
   var edgePp  = topH.edge_pp != null ? topH.edge_pp.toFixed(1) : '0.0';
 
@@ -857,13 +861,20 @@ function renderBetCard(race) {{
   // backtest holdout, +5pp threshold). When it does fire, treat it as a
   // genuine value bet, not a routine HIGH-tier pick. Render a prominent
   // notice above the bet ticket so the user cannot miss it.
+  // Name the horse that actually fired EDGE — G4 allows max_model_rank=2 so
+  // rank-2 can fire while rank-1 does not. Was hardcoded "top pick" → wrong
+  // when rank-2 is the edge horse.
+  var edgeRank = race.edge_horse_rank || 1;
+  var edgeWho = (edgeRank === 1)
+    ? 'top pick'
+    : 'rank-' + edgeRank + ' pick #' + esc(race.edge_horse_number) + ' ' + esc(race.edge_horse_name);
   var edgeAlertHTML = isEdge
     ? '<div style="background:linear-gradient(135deg,rgba(251,191,36,.25),rgba(251,191,36,.08));border:2px solid var(--gold);border-radius:6px;padding:8px 12px;margin:6px 0 10px 0;font-size:.78rem">' +
         '<span style="color:var(--gold);font-weight:800;letter-spacing:.06em">★ RARE EDGE — TAKE SERIOUSLY</span>' +
         '<div style="color:var(--fg);margin-top:3px;font-size:.72rem;line-height:1.4">' +
           'Pre-blend model probability ≥ +5pp above market — fires <1× per meeting on average ' +
           '(0 in 124-race backtest holdout). The model has found a real mispricing on the ' +
-          'top pick. First production EDGE hit was R9 2026-05-03 (TRIO-5 hit). ' +
+          edgeWho + '. First production EDGE hit was R9 2026-05-03 (TRIO-5 hit). ' +
           'Recommend: WIN or PRIMARY QIN at full unit, plus TRIO-5 protection.' +
         '</div>' +
       '</div>'
@@ -892,10 +903,13 @@ function renderBetCard(race) {{
     '<div class="trust-card">' +
       '<div class="trust-block"><div class="trust-label">Why Strong</div><div class="trust-body">' + whyHtml + '</div></div>' +
       '<div class="trust-block"><div class="trust-label">Our vs Market ' +
-        '<span class="info-tip" onclick="showInfoPop(event, &quot;Our vs Market&quot;, &quot;Our model = our win probability based on form, draw, jockey, etc. Market = bookmakers implied probability (1 / odds). Edge = our model minus market, in percentage points. Positive edge = we think the horse is undervalued (potential bet). Negative edge = market is more confident than us (avoid).&quot;)">ⓘ</span>' +
+        '<span class="info-tip" onclick="showInfoPop(event, &quot;Our vs Market&quot;, &quot;Pre-blend = pure model (form, draw, jockey, etc) — drives Edge. Post-blend = pre-blend mixed with market odds + isotonic calibrator — drives the bet recommendation (QIN/WIN/SKIP). Market = bookmakers implied probability (1 / odds). Edge = pre-blend minus market in percentage points. Positive edge with SKIP recommendation can happen when post-blend agrees with market.&quot;)">ⓘ</span>' +
       '</div>' +
-        '<div class="trust-body" style="margin-top:4px">' +
-          'Our model <strong style="color:var(--green)">' + purePct + '%</strong><br>' +
+        '<div class="trust-body" style="margin-top:4px;font-size:.72rem;line-height:1.5">' +
+          'Pre-blend <strong style="color:var(--green)">' + purePct + '%</strong> ' +
+            '<span style="color:var(--dim);font-size:.65rem">(drives Edge)</span><br>' +
+          'Post-blend <strong style="color:#60a5fa">' + calPct + '%</strong> ' +
+            '<span style="color:var(--dim);font-size:.65rem">(drives bet)</span><br>' +
           'Market <strong style="color:var(--dim)">' + mktPct + '%</strong><br>' +
           'Edge <strong style="color:var(--gold)">' + edgePp + 'pp</strong>' +
         '</div>' +

@@ -334,7 +334,7 @@ def predict_race_ml_only(horses, model, fe, conn, temperature=None,
     for h in horses:
         horse_data = build_horse_data(h, field_size)
         features = fe.extract_features(horse_data, [], '', conn=conn)
-        prob, _ = model.predict(features, field_size=field_size)
+        prob, _, _ = model.predict(features, field_size=field_size)
         ml_probs.append(prob)
     ml_arr = np.array(ml_probs, dtype=float)
 

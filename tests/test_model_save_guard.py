@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 from ml.model import HKJCRacingMLModel
+from ml.feature_schema import NUM_FEATURES
 
 
 def test_train_with_save_false_does_not_write_pickle(tmp_path, monkeypatch):
@@ -23,7 +24,7 @@ def test_train_with_save_false_does_not_write_pickle(tmp_path, monkeypatch):
     rng = np.random.default_rng(42)
     # Bumped from 500 to 1500 samples so stratified train/val/test split
     # always contains positives in every fold (sklearn complains otherwise).
-    X = rng.random((1500, 21))
+    X = rng.random((1500, NUM_FEATURES))
     y = (rng.random(1500) < 0.10).astype(int)
 
     model.train(X, y, save=False)
@@ -48,7 +49,7 @@ def test_save_model_refuses_below_min_samples(tmp_path, monkeypatch):
 
     model = HKJCRacingMLModel()
     rng = np.random.default_rng(42)
-    X = rng.random((300, 21))  # below 1000 MIN_SAVE_SAMPLES
+    X = rng.random((300, NUM_FEATURES))  # below 1000 MIN_SAVE_SAMPLES
     y = (rng.random(300) < 0.08).astype(int)
 
     model.train(X, y, save=True)

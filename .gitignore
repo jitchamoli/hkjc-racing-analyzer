@@ -3,6 +3,12 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Coverage (local-only; run `pytest --cov` to regenerate)
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Claude Code local settings
 .claude/settings.local.json
 

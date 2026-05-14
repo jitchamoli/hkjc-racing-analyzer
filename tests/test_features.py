@@ -9,8 +9,8 @@ from ml.features import FeatureEngineering
 
 class TestFeatureSchema:
     def test_schema_has_correct_feature_count(self):
-        # v6.6 (2026-05-09): added jt_pair_win_rate (#20) + speed_fig_norm (#21)
-        assert NUM_FEATURES == 21
+        # v6.8 (2026-05-14): added early_speed (#22), late_kick (#23), running_style (#24)
+        assert NUM_FEATURES == 24
 
     def test_feature_names_match_schema(self):
         assert len(FEATURE_NAMES) == NUM_FEATURES
