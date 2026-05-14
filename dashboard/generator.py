@@ -442,11 +442,19 @@ async def main():
     db = HorseDatabase()
     odds_db = OddsDatabase()
 
-    for race_no in range(1, 12):
-        logger.info(f"Fetching Race {race_no}...")
+    # Fetch all race cards concurrently (was sequential 1→11 — the main
+    # generate_predictions bottleneck). analyze/build stay sequential below
+    # since they touch the DB; only the network fetch is parallelized.
+    logger.info("Fetching all race cards concurrently...")
+    fetched = await asyncio.gather(
+        *(fetcher.get_race_card(race_date, rn) for rn in range(1, 12)),
+        return_exceptions=True,
+    )
 
-        race = await fetcher.get_race_card(race_date, race_no)
-
+    for race_no, race in enumerate(fetched, start=1):
+        if isinstance(race, Exception):
+            logger.warning(f"Race {race_no} fetch failed: {race}, stopping")
+            break
         if not race or not race.horses:
             logger.info(f"No data for Race {race_no}, stopping")
             break
