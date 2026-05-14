@@ -748,6 +748,47 @@ def _build_races_from_json(json_races: list, race_date: str) -> list:
     return out
 
 
+async def _attach_sectional_times(today_races: list, race_date: str):
+    """Fetch HKJC sectional data per race and attach `sectional_times` — a
+    space-separated per-section time string, e.g. "27.84 23.69 24.22 24.10" —
+    to each result entry, matched by horse number (Path B, Phase 1).
+
+    Best-effort: a race whose sectional page is missing simply keeps an empty
+    sectional_times. Fetches run concurrently (blocking requests in threads).
+    """
+    import requests
+    from data.sectional_scraper import fetch_sectional_data
+
+    session = requests.Session()
+
+    def _fetch_one(race_no):
+        return race_no, fetch_sectional_data(race_date, race_no, session=session)
+
+    race_nos = [r.get('race_no') for r in today_races if r.get('race_no')]
+    fetched = await asyncio.gather(
+        *(asyncio.to_thread(_fetch_one, rn) for rn in race_nos)
+    )
+    by_race = {rn: data for rn, data in fetched if data}
+
+    n_attached = 0
+    for race in today_races:
+        sdata = by_race.get(race.get('race_no'))
+        if not sdata:
+            continue
+        sect_by_horse = {}
+        for h in sdata['horses']:
+            times = [s['time'] for s in h['sections']]
+            if times:
+                sect_by_horse[h['horse_no']] = ' '.join(f"{t:.2f}" for t in times)
+        for entry in race.get('entries', []):
+            st = sect_by_horse.get(entry.get('number'))
+            if st:
+                entry['sectional_times'] = st
+                n_attached += 1
+    logger.info(f"Attached sectional times to {n_attached} result entries "
+                f"({len(by_race)}/{len(race_nos)} races had sectional pages)")
+
+
 async def auto_learn(race_date: str = None):
     """Automatically ingest results into horse DB and retrain ML model."""
     from data.database import HorseDatabase
@@ -761,6 +802,8 @@ async def auto_learn(race_date: str = None):
     today_races = await scrape_meeting_results(race_date)
 
     if today_races:
+        # Path B (Phase 1): enrich each race with sectional times before ingest.
+        await _attach_sectional_times(today_races, race_date)
         db = HorseDatabase()
         try:
             db.ingest_race_day(today_races)
