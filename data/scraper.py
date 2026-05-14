@@ -44,44 +44,58 @@ async def scrape_meeting_results(race_date: str, max_races: int = 12) -> List[Di
             "Chrome/124.0.0.0 Safari/537.36"
         ),
     })
+    # Pool sized for the concurrent per-race fetch below (default is 10,
+    # but a meeting can have up to `max_races` races fired at once).
+    _adapter = requests.adapters.HTTPAdapter(
+        pool_connections=max_races + 2, pool_maxsize=max_races + 2
+    )
+    session.mount("https://", _adapter)
+    session.mount("http://", _adapter)
 
-    races = []
-    consecutive_empty = 0
-    EMPTY_TOLERANCE = 2  # tolerate up to 2 consecutive missing races (handles "race just ran, results not yet posted")
-    for race_no in range(1, max_races + 1):
+    def _fetch_one(race_no: int):
+        """Blocking fetch of one race's results HTML. Returns html str or None."""
         url = f"{RESULTS_BASE}?RaceDate={race_date}&RaceNo={race_no}"
         try:
             resp = session.get(url, timeout=30)
             if resp.status_code != 200 or len(resp.text) < 5000:
-                if race_no == 1:
-                    logger.warning(f"  Race 1: unexpected response (status={resp.status_code}, "
-                                   f"len={len(resp.text)}) — no results or network issue, skipping meeting")
-                    break
-                consecutive_empty += 1
-                if consecutive_empty >= EMPTY_TOLERANCE:
-                    logger.info(f"  Race {race_no}: no results ({consecutive_empty} consecutive empty — end of card)")
-                    break
-                logger.info(f"  Race {race_no}: empty response (transient or end of card), trying next…")
-                time.sleep(0.5)
-                continue
-
-            soup = BeautifulSoup(resp.text, "html.parser")
-            table_data = []
-            for table in soup.find_all("table"):
-                rows = table.find_all("tr")
-                if len(rows) >= 3:
-                    data = []
-                    for row in rows:
-                        cells = row.find_all(["td", "th"])
-                        data.append([c.get_text(strip=True) for c in cells])
-                    table_data.append(data)
-
+                return None
+            return resp.text
         except Exception as e:
             logger.warning(f"  Race {race_no}: failed to load ({e})")
+            return None
+
+    # Fetch all race pages concurrently (was sequential with 0.5s sleeps
+    # between each — the scrape_history bottleneck). Each session.get is
+    # blocking, so run them in worker threads via asyncio.to_thread.
+    htmls = await asyncio.gather(
+        *(asyncio.to_thread(_fetch_one, rn) for rn in range(1, max_races + 1))
+    )
+
+    races = []
+    consecutive_empty = 0
+    EMPTY_TOLERANCE = 2  # tolerate up to 2 consecutive missing races (handles "race just ran, results not yet posted")
+    for race_no, html in enumerate(htmls, start=1):
+        if html is None:
+            if race_no == 1:
+                logger.warning("  Race 1: no results or network issue — skipping meeting")
+                break
             consecutive_empty += 1
             if consecutive_empty >= EMPTY_TOLERANCE:
+                logger.info(f"  Race {race_no}: no results ({consecutive_empty} consecutive empty — end of card)")
                 break
+            logger.info(f"  Race {race_no}: empty response (transient or end of card), trying next…")
             continue
+
+        soup = BeautifulSoup(html, "html.parser")
+        table_data = []
+        for table in soup.find_all("table"):
+            rows = table.find_all("tr")
+            if len(rows) >= 3:
+                data = []
+                for row in rows:
+                    cells = row.find_all(["td", "th"])
+                    data.append([c.get_text(strip=True) for c in cells])
+                table_data.append(data)
 
         race_data = _parse_tables(table_data, race_date, race_no)
         if not race_data or not race_data.get('entries'):
@@ -90,7 +104,6 @@ async def scrape_meeting_results(race_date: str, max_races: int = 12) -> List[Di
                 logger.info(f"  Race {race_no}: no results ({consecutive_empty} consecutive empty — end of card)")
                 break
             logger.info(f"  Race {race_no}: no entries parsed (transient or end of card), trying next…")
-            time.sleep(0.5)
             continue
 
         consecutive_empty = 0  # reset on successful parse
@@ -100,7 +113,6 @@ async def scrape_meeting_results(race_date: str, max_races: int = 12) -> List[Di
             f"  Race {race_no}: {len(race_data['entries'])} runners, "
             f"winner = {winner}"
         )
-        time.sleep(0.5)
 
     return races
 
@@ -452,7 +464,23 @@ async def scrape_jockey_rankings() -> List[Dict]:
         )
         page = await context.new_page()
         await page.goto(url, wait_until="domcontentloaded", timeout=45000)
-        await page.wait_for_timeout(5000)
+        # Wait for the ranking table to actually populate, instead of a blind
+        # 5s sleep — the table is usually present <1s after domcontentloaded.
+        # On timeout, fall through: the evaluate below handles the empty case.
+        try:
+            await page.wait_for_function(
+                """() => {
+                    for (const t of document.querySelectorAll('table')) {
+                        const txt = t.textContent.toLowerCase();
+                        if (t.querySelectorAll('tr').length >= 5 &&
+                            txt.includes('jockey') && txt.includes('win')) return true;
+                    }
+                    return false;
+                }""",
+                timeout=10000,
+            )
+        except Exception:
+            pass
 
         table_data = await page.evaluate("""
             () => {
@@ -530,7 +558,21 @@ async def scrape_trainer_rankings() -> List[Dict]:
         )
         page = await context.new_page()
         await page.goto(url, wait_until="domcontentloaded", timeout=45000)
-        await page.wait_for_timeout(5000)
+        # Wait for the ranking table to populate instead of a blind 5s sleep.
+        try:
+            await page.wait_for_function(
+                """() => {
+                    for (const t of document.querySelectorAll('table')) {
+                        const txt = t.textContent.toLowerCase();
+                        if (t.querySelectorAll('tr').length >= 5 &&
+                            txt.includes('trainer') && txt.includes('win')) return true;
+                    }
+                    return false;
+                }""",
+                timeout=10000,
+            )
+        except Exception:
+            pass
 
         table_data = await page.evaluate("""
             () => {

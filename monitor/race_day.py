@@ -72,9 +72,13 @@ async def fetch_race_times(fetcher: HKJCDataFetcher, race_date: str) -> list:
     Returns list of (race_number, race_time_datetime) sorted by time.
     """
     race_times = []
-    for race_no in range(1, 12):
-        race = await fetcher.get_race_card(race_date, race_no)
-        if not race or not race.horses:
+    # Fetch all race cards concurrently, then process in order.
+    fetched = await asyncio.gather(
+        *(fetcher.get_race_card(race_date, rn) for rn in range(1, 12)),
+        return_exceptions=True,
+    )
+    for race_no, race in enumerate(fetched, start=1):
+        if isinstance(race, Exception) or not race or not race.horses:
             break
         race_time = parse_race_time(race.time, race_date)
         if race_time:
@@ -128,9 +132,13 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
 
         all_races = []
 
-        for race_no in range(1, 12):
-            race = await fetcher.get_race_card(race_date, race_no)
-            if not race or not race.horses:
+        # Fetch all race cards concurrently; analyze/build stay sequential (DB).
+        fetched = await asyncio.gather(
+            *(fetcher.get_race_card(race_date, rn) for rn in range(1, 12)),
+            return_exceptions=True,
+        )
+        for race_no, race in enumerate(fetched, start=1):
+            if isinstance(race, Exception) or not race or not race.horses:
                 break
             analyses = analyzer.analyze_race(race)
             race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)
