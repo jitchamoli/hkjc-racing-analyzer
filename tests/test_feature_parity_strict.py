@@ -20,10 +20,10 @@ PER_FEATURE_TOLERANCE = 0.02
 NUM_TEST_ROWS = 20
 
 
-def test_num_features_is_21():
-    """NUM_FEATURES must equal 21 — v6.6 (2026-05-09) added
-    jt_pair_win_rate (#20) and speed_fig_norm (#21) on top of v6.5's 19."""
-    assert NUM_FEATURES == 21, f"NUM_FEATURES={NUM_FEATURES}, expected 21"
+def test_num_features_is_24():
+    """NUM_FEATURES must equal 24 — v6.8 (2026-05-14) added
+    early_speed (#22), late_kick (#23), running_style (#24) on top of v6.6's 21."""
+    assert NUM_FEATURES == 24, f"NUM_FEATURES={NUM_FEATURES}, expected 24"
 
 
 def test_strict_feature_parity_per_row_per_feature():

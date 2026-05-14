@@ -331,7 +331,7 @@ def main():
             scores = []
             for entry in entries:
                 features = build_features_from_record(entry, race)
-                prob, _ = model.predict(features, field_size=len(entries))
+                prob, _, _ = model.predict(features, field_size=len(entries))
                 scores.append((entry['number'], entry['name'], prob,
                               entry['actual_position']))
 

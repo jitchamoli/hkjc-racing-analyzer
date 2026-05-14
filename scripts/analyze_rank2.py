@@ -74,7 +74,7 @@ def rank_horses(horses, model, fe, conn):
     for h in horses:
         hd = build_horse_data(h, field_size)
         features = fe.extract_features(hd, [], '', conn=conn)
-        prob, _ = model.predict(features, field_size=field_size)
+        prob, _, _ = model.predict(features, field_size=field_size)
         ml_probs.append(prob)
     ml_arr = np.array(ml_probs)
     # Softmax + market blend

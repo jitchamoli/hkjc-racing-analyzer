@@ -191,7 +191,7 @@ hkjc_racing_analyzer/
   scripts/                   # CLI entry points
     generate.py · scrape.py · train.py · monitor.py · backtest.py
     backfill_dividends.py · accuracy.py · serve.py · fetch_results.py
-  tests/                     # pytest suite — 194 tests
+  tests/                     # pytest suite — 196 tests
   config.py                  # Centralized constants
   models/                    # Trained ML models (pickle + .sha256 sidecar)
   results/                   # HTML dashboards and prediction JSON
@@ -258,7 +258,7 @@ python3 -m scripts.backtest --sweep      # grid over softmax temp × model weigh
 
 ```bash
 pytest tests/ -v
-# 194 tests covering edge math, gates, tier assignment, alerts dedup,
+# 196 tests covering edge math, gates, tier assignment, alerts dedup,
 # Wilson CI, template rendering, JS-syntax validation, end-to-end integration
 ```
 

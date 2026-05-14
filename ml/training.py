@@ -23,15 +23,6 @@ from ml.features import FeatureEngineering, extract_class_rank
 logger = logging.getLogger(__name__)
 
 
-def _date_30d_before(race_date: str) -> str:
-    """Return YYYY/MM/DD 30 days before race_date. Used by Feature 19."""
-    try:
-        dt = datetime.strptime(race_date.replace('/', '-'), '%Y-%m-%d')
-        return (dt - timedelta(days=30)).strftime('%Y/%m/%d')
-    except (ValueError, TypeError):
-        return '0000/00/00'
-
-
 def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
     """Build training data from real race results in horse_database.
 
@@ -167,19 +158,12 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
         for name in horse_history:
             horse_history[name].sort(key=lambda x: x.get('race_date', ''))
 
-        # Build per-jockey/trainer chronological history for PRIOR-only win rate calc
-        jockey_history = {}
-        trainer_history = {}
-        for row in rows:
-            r = dict(row)
-            j = r.get('jockey', '') or ''
-            t = r.get('trainer', '') or ''
-            rd = r.get('race_date', '')
-            is_win = 1 if r.get('is_winner', 0) else 0
-            if j:
-                jockey_history.setdefault(j, []).append((rd, is_win))
-            if t:
-                trainer_history.setdefault(t, []).append((rd, is_win))
+        # NOTE: Removed in-memory jockey_history/trainer_history dicts (Task #51).
+        # They were scoped to `rows` (already filtered to the training window),
+        # which made pre-cutoff jockey/trainer rides invisible during training.
+        # Inference uses FeatureEngineering.calculate_*_win_rate which queries
+        # the full DB. The asymmetry under-trained Features 4 and 5.
+        # Now both training and inference use the same conn-based DB query.
 
         X, y, y_place, weights = [], [], [], []
         for row in rows:
@@ -227,20 +211,21 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             # Feature 3: draw advantage
             feat_draw = FeatureEngineering.calculate_draw_advantage(draw, distance)
 
-            # Feature 4: jockey win rate (prior-only, Bayesian-smoothed)
+            # Feature 4: jockey win rate (Task #51 fix — same call as inference)
+            # Queries full DB with race_date < before_date filter, no leakage.
+            # Caps at 0.6 (was capped at 0.5 in old in-memory training path —
+            # cap now matches features.py:_compute_jockey_win_rate).
             jockey_name = r.get('jockey', '') or ''
-            jockey_prior = [(d, w) for d, w in jockey_history.get(jockey_name, []) if d < race_date]
-            j_rides = len(jockey_prior)
-            j_wins = sum(w for _, w in jockey_prior)
-            # Beta prior at HK league avg (0.08) with strength 15 — matches features.py
-            feat_jockey = min(0.5, (j_wins + 0.08 * 15) / (j_rides + 15))
+            feat_jockey = FeatureEngineering.calculate_jockey_win_rate(
+                jockey_name, [], conn=conn, before_date=race_date,
+            )
 
-            # Feature 5: trainer win rate (prior-only, Bayesian-smoothed)
+            # Feature 5: trainer win rate (Task #51 fix — same call as inference)
+            # Caps at 0.5 (was capped at 0.4 in old in-memory path).
             trainer_name = r.get('trainer', '') or ''
-            trainer_prior = [(d, w) for d, w in trainer_history.get(trainer_name, []) if d < race_date]
-            t_rides = len(trainer_prior)
-            t_wins = sum(w for _, w in trainer_prior)
-            feat_trainer = min(0.4, (t_wins + 0.08 * 15) / (t_rides + 15))
+            feat_trainer = FeatureEngineering.calculate_trainer_win_rate(
+                trainer_name, [], conn=conn, before_date=race_date,
+            )
 
             # Feature 6: field size — clipped to [0,1]; legacy data has stray
             # rows with field_size > 14 (oversize fields pre-2000s).
@@ -415,14 +400,12 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             feat_rating_change = max(0.0, min(1.0, 0.5 + rc_int / 20.0))
 
             # Feature 19 (v6.5): jockey 30-day form (Bayesian-smoothed).
-            # Filter jockey_history (already chronological per name) to the
-            # 30 days BEFORE race_date. Default 0.08 (HK league avg) when
-            # the jockey has no rides in that window.
-            j_30d = [(d, w) for d, w in jockey_history.get(jockey_name, [])
-                     if d < race_date and d >= _date_30d_before(race_date)]
-            j30_rides = len(j_30d)
-            j30_wins = sum(w for _, w in j_30d)
-            feat_jockey_30d = min(0.6, (j30_wins + 0.08 * 15) / (j30_rides + 15))
+            # Task #51: use the same inference helper for train/predict parity.
+            # Was previously using window-scoped jockey_history which lost
+            # pre-cutoff rides for early-window training rows.
+            feat_jockey_30d = FeatureEngineering.calculate_jockey_form_window(
+                jockey_name, conn=conn, before_date=race_date, window_days=30,
+            )
 
             # Feature 20 (v6.6): jockey×trainer pairing strike rate.
             # Bayesian-smoothed Beta(0.08, 15) so unknown pairs default to
@@ -441,6 +424,15 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 conn=conn, before_date=race_date,
             )
 
+            # Features 22-24 (v6.8 Path A): running-position proxies.
+            # Same helper as inference for train/predict parity.
+            feat_early, feat_late, feat_style = (
+                FeatureEngineering.calculate_running_position_features(
+                    r.get('horse_name', '') or '',
+                    conn=conn, before_date=race_date,
+                )
+            )
+
             features = [
                 feat_form_proxy, feat_form, feat_draw,
                 feat_jockey, feat_trainer, feat_field_size,
@@ -451,6 +443,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 feat_hw_change,
                 feat_age, feat_rating_change, feat_jockey_30d,
                 feat_jt_pair, feat_speed_fig,
+                feat_early, feat_late, feat_style,
             ]
             assert len(features) == NUM_FEATURES, f"Expected {NUM_FEATURES} features, got {len(features)}"
             X.append(features)
@@ -545,6 +538,10 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         jt_pair_feat = float(np.random.beta(2, 8))   # similar shape to jockey_rate
         speed_fig_feat = float(np.random.normal(0.5, 0.15))
         speed_fig_feat = float(np.clip(speed_fig_feat, 0.0, 1.0))
+        # v6.8 features 22-24 (running-position proxies)
+        early_speed_feat = float(np.random.uniform(0.05, 0.95))
+        late_kick_feat = float(np.clip(np.random.normal(0.5, 0.15), 0.0, 1.0))
+        running_style_feat = float(np.random.choice([0.0, 0.5, 1.0]))
 
         features = [
             prior_win_rate, form_score / 100, draw_adv,
@@ -557,6 +554,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             hw_change,
             horse_age_feat, rating_change_feat, jockey_form_30d_feat,
             jt_pair_feat, speed_fig_feat,
+            early_speed_feat, late_kick_feat, running_style_feat,
         ]
         assert len(features) == NUM_FEATURES
         X.append(features)
@@ -591,6 +589,11 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             # weight; speed figure positive when faster than par.
             + 1.5 * (jt_pair_feat - 0.08)
             + 0.6 * (speed_fig_feat - 0.5)
+            # v6.8: closing horses (high late_kick) and front-runners (low early_speed)
+            # both correlate with winning in HK; running_style is roughly neutral
+            # so synthetic doesn't bias toward any style.
+            - 0.3 * (early_speed_feat - 0.5)  # lower position = better, so negative coef
+            + 0.5 * (late_kick_feat - 0.5)
             - 2.8
         )
         win_prob = 1.0 / (1.0 + np.exp(-win_logit))

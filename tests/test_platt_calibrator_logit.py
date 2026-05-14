@@ -6,6 +6,7 @@ import numpy as np
 from scipy.special import logit
 
 from ml.model import HKJCRacingMLModel
+from ml.feature_schema import NUM_FEATURES
 
 
 def _logit_value(p):
@@ -26,7 +27,7 @@ def test_calibrator_span_over_realistic_prob_range():
     # base rate ~8%, feature signal at ~20% win rate for a subset
     rng = np.random.default_rng(42)
     n = 2000
-    X = rng.random((n, 21))
+    X = rng.random((n, NUM_FEATURES))
     # Signal: y=1 more likely when X[:,0] is high (feature 0 = "strong horse")
     p_true = 0.05 + 0.25 * X[:, 0]
     y = (rng.random(n) < p_true).astype(int)
@@ -67,7 +68,7 @@ def test_predict_span_exercises_production_path():
     # Train with deterministic signal
     rng = np.random.default_rng(42)
     n = 2000
-    X = rng.random((n, 21))
+    X = rng.random((n, NUM_FEATURES))
     p_true = 0.05 + 0.25 * X[:, 0]
     y = (rng.random(n) < p_true).astype(int)
     result = model.train(X, y, save=False)
@@ -82,8 +83,8 @@ def test_predict_span_exercises_production_path():
     feat_strong = winners[:50].mean(axis=0).astype(np.float32)
     feat_weak = losers[:200].mean(axis=0).astype(np.float32)
 
-    prob_strong, _ = model.predict(feat_strong, field_size=12)
-    prob_weak, _ = model.predict(feat_weak, field_size=12)
+    prob_strong, _, _ = model.predict(feat_strong, field_size=12)
+    prob_weak, _, _ = model.predict(feat_weak, field_size=12)
 
     # The model learned that high X[:,0] → higher win prob.
     # Winners have higher X[0] on average, so prob_strong >= prob_weak.

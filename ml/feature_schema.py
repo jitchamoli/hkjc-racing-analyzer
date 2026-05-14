@@ -30,6 +30,15 @@ v6.6 adds (2026-05-09): two high-ROI features identified in the round-2 audit:
   weight-adjusted (Benter +0.1s/lb above 120). Already in rule engine via
   analytics/speed_figures.py at 5% weight; promoted to ML schema for the
   independent 40% blend channel.
+
+v6.8 adds (2026-05-14): three running-position proxy features (Path A) derived
+from race_results.running_position (99.4% DB coverage, space-separated
+position-at-each-call). All rank-normalized for distance independence.
+- early_speed: 1st-call position / field_size (front-runners ~0.1, closers ~1.0)
+- late_kick: change between 2nd-last call and finish, normalized (closing ≥0.5,
+  fading <0.5). Captures finishing kick that last_start_margin misses.
+- running_style: categorical front/stalker/closer based on avg call position
+  in last race {0.0, 0.5, 1.0}. Pace-map fit signal for THIS race.
 """
 
 import numpy as np
@@ -56,6 +65,9 @@ FEATURE_SCHEMA = [
     {"name": "jockey_form_30d", "default": 0.08, "range": (0.0, 0.6)},     # 19 (last 30-day strike rate)
     {"name": "jt_pair_win_rate", "default": 0.08, "range": (0.0, 0.5)},    # 20 (Bayesian-smoothed jockey×trainer)
     {"name": "speed_fig_norm", "default": 0.5, "range": (0.0, 1.0)},       # 21 (par-time normalised, last run)
+    {"name": "early_speed", "default": 0.5, "range": (0.0, 1.0)},          # 22 (1st-call rank, front=0.0 closer=1.0; default avg)
+    {"name": "late_kick", "default": 0.5, "range": (0.0, 1.0)},            # 23 (closing rate; >0.5=closing, <0.5=fading)
+    {"name": "running_style", "default": 0.5, "range": (0.0, 1.0)},        # 24 (front=0.0, stalker=0.5, closer=1.0)
 ]
 
 FEATURE_NAMES = [f["name"] for f in FEATURE_SCHEMA]

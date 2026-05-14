@@ -69,11 +69,31 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
         market_prob_top = market_fav_prob
 
     # BANKER promotion
+    # Tiebreak on calibrated_prob (combined_probability after apply_calibrated_probs),
+    # NOT rule_score. Pre-blend rule_score can disagree with post-blend reality —
+    # picking the higher rule_score promoted SILVERY BREEZE (cal_prob 0.097) over
+    # LO RIDER (cal_prob 0.168) on HV 2026-05-13 R9.
     banker_horse = None
     for a in analyses:
         if any("BANKER" in r for r in a.reasoning):
-            if banker_horse is None or a.rule_score > banker_horse.rule_score:
+            if banker_horse is None or a.combined_probability > banker_horse.combined_probability:
                 banker_horse = a
+
+    # Cal-prob guard: refuse BANKER promotion if its calibrated_prob is materially
+    # below the market favourite's calibrated_prob. Prevents the rule-engine
+    # BANKER signals (rating surge, class rise, etc) from overriding a post-blend
+    # signal that says "market disagrees, you're picking a worse horse".
+    # Threshold 0.7 catches the SILVERY BREEZE prototype (0.097 / 0.168 = 0.577).
+    if banker_horse and market_fav and market_fav is not banker_horse:
+        market_fav_cal = market_fav.combined_probability or 0
+        banker_cal = banker_horse.combined_probability or 0
+        if market_fav_cal > 0 and banker_cal < 0.7 * market_fav_cal:
+            logger.info(
+                f"BANKER override declined: {banker_horse.horse.name} cal_prob "
+                f"{banker_cal:.3f} < 0.7 × market_fav {market_fav.horse.name} "
+                f"cal_prob {market_fav_cal:.3f}"
+            )
+            banker_horse = None
 
     if banker_horse and banker_horse.rank > 1:
         old_idx = next(i for i, a in enumerate(analyses) if a is banker_horse)
@@ -87,6 +107,10 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
         gap_1_2 = top_prob - second_prob
         gap_2_3 = second_prob - third_prob
         top_3_share = top_prob + second_prob + third_prob
+        # Refresh market_prob_top from the NEW top (BANKER) horse's odds.
+        # Was stale here — kept the original rank-1's odds, so the WIN gate
+        # at line ~121 evaluated the wrong horse's market signal.
+        market_prob_top = (1 / banker_horse.horse.win_odds) if banker_horse.horse.win_odds and banker_horse.horse.win_odds > 0 else 0
 
     # === QUINELLA-FIRST STRATEGY (revised Apr 23, box-4 default) ===
     # Backtest findings with REAL HKJC dividends (72 held-out races):
@@ -108,29 +132,16 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
     fourth_prob = calibrated_probs[3] if n >= 4 else 0
     top_4_share = top_3_share + fourth_prob
 
-    MIN_TOP2_CONVICTION = 0.25  # 1.5× uniform
-    MIN_TOP3_CONVICTION = 0.30  # 1.2× uniform
-    MIN_TOP4_CONVICTION = 0.38  # 1.14× uniform
-
     # Rank-3 and rank-4 inclusion gates — horse must have strong history
     rank3_strong = n >= 3 and _rank_has_strong_history(analyses[2])
     rank4_strong = n >= 4 and _rank_has_strong_history(analyses[3])
 
-    if not has_live_odds or n < 2:
-        race_bet_type = "SKIP"
-    elif top_is_banker_now and market_prob_top >= 0.35 and gap_1_2 > 0.08:
-        race_bet_type = "WIN"
-    elif gap_1_2 < 0.02 and gap_2_3 < 0.02 and top_3_share > 0.35 and n >= 3:
-        race_bet_type = "TRIO"
-    elif rank4_strong and rank3_strong and top_4_share >= MIN_TOP4_CONVICTION:
-        # DEFAULT: box-4 quinella when top-4 has conviction AND rank 3+4 qualify
-        race_bet_type = "BOX Q4"
-    elif rank3_strong and top_3_share >= MIN_TOP3_CONVICTION:
-        race_bet_type = "BOX Q"
-    elif top_2_share >= MIN_TOP2_CONVICTION:
-        race_bet_type = "QIN"
-    else:
-        race_bet_type = "SKIP"
+    race_bet_type = _choose_race_bet_type(
+        has_live_odds=has_live_odds, n=n, top_is_banker=top_is_banker_now,
+        market_prob_top=market_prob_top, gap_1_2=gap_1_2, gap_2_3=gap_2_3,
+        top_2_share=top_2_share, top_3_share=top_3_share, top_4_share=top_4_share,
+        rank3_strong=rank3_strong, rank4_strong=rank4_strong,
+    )
 
     # Assign per-horse recommendations
     MIN_EV = config.MIN_EXPECTED_RETURN
@@ -211,6 +222,56 @@ def _rank_has_strong_history(analysis) -> bool:
 
 # Backward-compatible alias
 _rank3_has_strong_history = _rank_has_strong_history
+
+
+# Conviction gate thresholds (uniform baselines: top2=0.167, top3=0.25, top4=0.333)
+MIN_TOP2_CONVICTION = 0.25   # 1.5× uniform
+MIN_TOP3_CONVICTION = 0.30   # 1.2× uniform
+MIN_TOP4_CONVICTION = 0.48   # v6.8.1 (was 0.36) — gate sweep on 664-race holdout
+                             # + last-6-meetings: raising 0.36→0.48 leaves hit
+                             # rate flat (~32%) but lifts ROI +76pp (full) and
+                             # +237pp (6 mtg) by demoting low-conviction races
+                             # from BOX Q4 (6 combos) to BOX Q / QIN. Pure
+                             # capital efficiency — same hits, less stake.
+                             # 0.52 over-tightens (6-mtg ROI collapses).
+
+
+def _choose_race_bet_type(*, has_live_odds, n, top_is_banker, market_prob_top,
+                          gap_1_2, gap_2_3, top_2_share, top_3_share, top_4_share,
+                          rank3_strong, rank4_strong,
+                          min_top2=MIN_TOP2_CONVICTION,
+                          min_top3=MIN_TOP3_CONVICTION,
+                          min_top4=MIN_TOP4_CONVICTION) -> str:
+    """Pure gate cascade: race shape → bet type. Single source of truth.
+
+    Extracted from assign_bet_recommendations so backtest/sweep tooling can
+    replay the exact same cascade with swept thresholds (no logic duplication).
+
+    Cascade order (first match wins):
+      SKIP    — no live odds, or <2 runners
+      WIN     — top is BANKER, market ≥ 0.45 ($2.2 or shorter), gap_1_2 > 0.12.
+                Tightened v6.8: was 0.35/0.08, fired too liberally on $2.5-3
+                favourites (HV 2026-05-13 R5 ACE WAR BANKER WIN at $2.5 lost).
+      TRIO    — both gaps < 0.025, top_3_share > 0.32, n ≥ 3. Loosened v6.8
+                from 0.02/0.02/0.35; kept AND so it doesn't fire on most races.
+      BOX Q4  — DEFAULT: rank 3+4 strong history AND top_4_share ≥ min_top4.
+      BOX Q   — rank 3 strong history AND top_3_share ≥ min_top3.
+      QIN     — top_2_share ≥ min_top2.
+      SKIP    — otherwise.
+    """
+    if not has_live_odds or n < 2:
+        return "SKIP"
+    if top_is_banker and market_prob_top >= 0.45 and gap_1_2 > 0.12:
+        return "WIN"
+    if gap_1_2 < 0.025 and gap_2_3 < 0.025 and top_3_share > 0.32 and n >= 3:
+        return "TRIO"
+    if rank4_strong and rank3_strong and top_4_share >= min_top4:
+        return "BOX Q4"
+    if rank3_strong and top_3_share >= min_top3:
+        return "BOX Q"
+    if top_2_share >= min_top2:
+        return "QIN"
+    return "SKIP"
 
 
 def _resync_ranks_and_probs(analyses, calibrated_probs: List[float]) -> None:
