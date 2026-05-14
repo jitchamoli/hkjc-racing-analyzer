@@ -946,7 +946,8 @@ class HKJCPlaywrightFetcher:
         self.playwright = None
         self.browser = None
         self.context = None
-        self._intercepted_data: List[dict] = []
+        # NB: intercepted XHR data is held in a per-call local list (not
+        # instance state) so concurrent fetches don't clobber each other.
 
     async def start(self):
         from playwright.async_api import async_playwright
@@ -982,6 +983,20 @@ class HKJCPlaywrightFetcher:
         if self.playwright:
             await self.playwright.stop()
 
+    async def _await_content(self, page, timeout: int = 4000):
+        """Wait for the main HKJC content table instead of a blind sleep.
+
+        page.goto(wait_until="networkidle") already settled the network; this
+        just confirms the table we parse is actually in the DOM, returning as
+        soon as it appears (usually near-instant) rather than always sleeping
+        a fixed 1-2s. Falls through on timeout — the parser handles a missing
+        table gracefully.
+        """
+        try:
+            await page.wait_for_selector("table.tableBorderBlue", timeout=timeout)
+        except Exception:
+            pass
+
     async def fetch_race_card_with_odds(
         self, race_date: str, race_no: int
     ) -> Optional[RaceCard]:
@@ -989,7 +1004,8 @@ class HKJCPlaywrightFetcher:
         Load race card page, intercept any JSON XHR responses,
         and parse both HTML + intercepted data.
         """
-        self._intercepted_data = []
+        # Per-call local — concurrent fetches must not share this list.
+        intercepted: List[dict] = []
         page = await self.context.new_page()
 
         # Intercept network responses that might contain JSON race data
@@ -1000,7 +1016,7 @@ class HKJCPlaywrightFetcher:
                     body = await response.text()
                     if body.strip().startswith(("{", "[")):
                         data = json.loads(body)
-                        self._intercepted_data.append({
+                        intercepted.append({
                             "url": response.url,
                             "data": data,
                         })
@@ -1016,14 +1032,14 @@ class HKJCPlaywrightFetcher:
                 f"RaceCard.aspx?RaceDate={race_date}&RaceNo={race_no}"
             )
             await page.goto(url, wait_until="networkidle", timeout=45000)
-            await asyncio.sleep(2)  # Let JS finish loading odds
+            await self._await_content(page)
 
             html = await page.content()
             race = HKJCParser.parse_race_card(html, race_no, race_date)
 
             if race:
                 # Try to get odds from the same page or intercepted data
-                odds = self._extract_odds_from_intercepted()
+                odds = self._extract_odds_from_intercepted(intercepted)
                 if not odds:
                     odds = HKJCParser.parse_odds(html)
 
@@ -1035,7 +1051,7 @@ class HKJCPlaywrightFetcher:
 
             # If no odds yet, try the dedicated odds page
             if race and not any(h.win_odds > 0 for h in race.horses):
-                await self._fetch_and_apply_odds(page, race, race_date, race_no)
+                await self._fetch_and_apply_odds(page, race, race_date, race_no, intercepted)
 
             await page.close()
             return race
@@ -1047,7 +1063,8 @@ class HKJCPlaywrightFetcher:
 
     async def fetch_live_odds(self, race_date: str, race_no: int) -> Dict[int, float]:
         """Fetch just the odds for a race (quick refresh)."""
-        self._intercepted_data = []
+        # Per-call local — concurrent fetches must not share this list.
+        intercepted: List[dict] = []
         page = await self.context.new_page()
 
         async def on_response(response):
@@ -1056,7 +1073,7 @@ class HKJCPlaywrightFetcher:
                 try:
                     body = await response.text()
                     if body.strip().startswith(("{", "[")):
-                        self._intercepted_data.append({
+                        intercepted.append({
                             "url": response.url,
                             "data": json.loads(body),
                         })
@@ -1071,9 +1088,9 @@ class HKJCPlaywrightFetcher:
                 f"DisplayOdds.aspx?RaceDate={race_date}&RaceNo={race_no}&OddsType=WIN"
             )
             await page.goto(url, wait_until="networkidle", timeout=30000)
-            await asyncio.sleep(2)
+            await self._await_content(page)
 
-            odds = self._extract_odds_from_intercepted()
+            odds = self._extract_odds_from_intercepted(intercepted)
             if not odds:
                 html = await page.content()
                 odds = HKJCParser.parse_odds(html)
@@ -1087,18 +1104,23 @@ class HKJCPlaywrightFetcher:
             return {}
 
     async def _fetch_and_apply_odds(
-        self, page, race: RaceCard, race_date: str, race_no: int
+        self, page, race: RaceCard, race_date: str, race_no: int,
+        intercepted: List[dict],
     ):
-        """Navigate to odds page and apply odds to race card."""
+        """Navigate to odds page and apply odds to race card.
+
+        `intercepted` is the caller's per-call XHR list — this page's
+        on_response handler (registered by the caller) appends to it.
+        """
         try:
             odds_url = (
                 f"https://racing.hkjc.com/racing/information/English/Racing/"
                 f"DisplayOdds.aspx?RaceDate={race_date}&RaceNo={race_no}&OddsType=WIN"
             )
             await page.goto(odds_url, wait_until="networkidle", timeout=30000)
-            await asyncio.sleep(2)
+            await self._await_content(page)
 
-            odds = self._extract_odds_from_intercepted()
+            odds = self._extract_odds_from_intercepted(intercepted)
             if not odds:
                 html = await page.content()
                 odds = HKJCParser.parse_odds(html)
@@ -1113,9 +1135,9 @@ class HKJCPlaywrightFetcher:
             # Also try place odds
             place_url = odds_url.replace("OddsType=WIN", "OddsType=PLA")
             await page.goto(place_url, wait_until="networkidle", timeout=30000)
-            await asyncio.sleep(1)
+            await self._await_content(page)
 
-            place_odds = self._extract_odds_from_intercepted()
+            place_odds = self._extract_odds_from_intercepted(intercepted)
             if not place_odds:
                 html = await page.content()
                 place_odds = HKJCParser.parse_place_odds(html)
@@ -1128,11 +1150,11 @@ class HKJCPlaywrightFetcher:
         except Exception as e:
             logger.warning(f"Odds page fetch failed: {e}")
 
-    def _extract_odds_from_intercepted(self) -> Dict[int, float]:
+    def _extract_odds_from_intercepted(self, intercepted: List[dict]) -> Dict[int, float]:
         """Extract horse odds from intercepted XHR JSON data."""
         odds: Dict[int, float] = {}
 
-        for item in self._intercepted_data:
+        for item in intercepted:
             data = item["data"]
             self._walk_json_for_odds(data, odds)
 
@@ -1199,14 +1221,18 @@ class HKJCDataFetcher:
         self.api = HKJCApiClient()
         self.use_playwright = use_playwright
         self._pw_fetcher: Optional[HKJCPlaywrightFetcher] = None
+        self._pw_lock = asyncio.Lock()
         self._horse_history_cache: Dict[str, List[Dict]] = {}
         self._horse_trial_cache: Dict[str, List[Dict]] = {}
 
     async def _get_pw(self) -> HKJCPlaywrightFetcher:
-        if self._pw_fetcher is None:
-            self._pw_fetcher = HKJCPlaywrightFetcher()
-            await self._pw_fetcher.start()
-        return self._pw_fetcher
+        # Lock guards the lazy-singleton init — without it, concurrent
+        # get_race_card() calls could each launch a browser and leak.
+        async with self._pw_lock:
+            if self._pw_fetcher is None:
+                self._pw_fetcher = HKJCPlaywrightFetcher()
+                await self._pw_fetcher.start()
+            return self._pw_fetcher
 
     async def close(self):
         if self._pw_fetcher:
