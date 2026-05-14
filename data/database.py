@@ -91,6 +91,10 @@ class HorseDatabase:
             "age TEXT DEFAULT ''",
             "running_position TEXT DEFAULT ''",
             "finish_time TEXT DEFAULT ''",
+            # Path B: space-separated per-section times from the HKJC
+            # sectional page, e.g. "27.84 23.69 24.22 24.10". Last token
+            # is the last-400m time. Mirrors the running_position pattern.
+            "sectional_times TEXT DEFAULT ''",
         ]:
             try:
                 c.execute(f"ALTER TABLE race_results ADD COLUMN {col_def}")
@@ -243,6 +247,7 @@ class HorseDatabase:
                 age = entry.get('age', '') or ''
                 running_pos = entry.get('running_position', '') or ''
                 finish_time = entry.get('finish_time', '') or ''
+                sectional_times = entry.get('sectional_times', '') or ''
                 days_since = entry.get('days_since_last_run', 0) or 0
                 rat_change = entry.get('rating_change', 0) or 0
                 c.execute("""
@@ -252,8 +257,8 @@ class HorseDatabase:
                         draw, weight, rating, win_odds, finish_position,
                         is_winner, is_top3, gear, margin, horse_weight,
                         last_6, age, running_position, finish_time,
-                        days_since_last_run, rating_change
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        days_since_last_run, rating_change, sectional_times
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(race_date, race_number, horse_name)
                     DO UPDATE SET
                         finish_position=CASE WHEN excluded.finish_position > 0 THEN excluded.finish_position ELSE race_results.finish_position END,
@@ -276,7 +281,8 @@ class HorseDatabase:
                         running_position=CASE WHEN excluded.running_position != '' THEN excluded.running_position ELSE race_results.running_position END,
                         finish_time=CASE WHEN excluded.finish_time != '' THEN excluded.finish_time ELSE race_results.finish_time END,
                         days_since_last_run=CASE WHEN excluded.days_since_last_run > 0 THEN excluded.days_since_last_run ELSE race_results.days_since_last_run END,
-                        rating_change=CASE WHEN excluded.rating_change != 0 THEN excluded.rating_change ELSE race_results.rating_change END
+                        rating_change=CASE WHEN excluded.rating_change != 0 THEN excluded.rating_change ELSE race_results.rating_change END,
+                        sectional_times=CASE WHEN excluded.sectional_times != '' THEN excluded.sectional_times ELSE race_results.sectional_times END
                 """, (
                     race_date, race_no, venue, distance, class_type,
                     going, course, horse_name, entry.get('number', 0),
@@ -285,7 +291,7 @@ class HorseDatabase:
                     entry.get('rating', 0), entry.get('win_odds', 0),
                     pos, is_winner, is_top3, entry.get('gear', ''), margin, hw,
                     last_6, age, running_pos, finish_time,
-                    days_since, rat_change,
+                    days_since, rat_change, sectional_times,
                 ))
 
                 # Upsert horse master record. total_starts/wins/places are
