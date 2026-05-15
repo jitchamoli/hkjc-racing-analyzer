@@ -869,7 +869,27 @@ async def auto_learn(race_date: str = None):
     except subprocess.TimeoutExpired:
         logger.warning("ML retrain timed out (600s) — run 'python3 train_ml_model.py' manually")
 
-    # 3. Recalibrate gear scores from new race_results
+    # 3. Re-fit the post-blend calibrator on the just-retrained model.
+    # Without this step the calibrator stays frozen against the previous
+    # model's probability distribution — its isotonic mapping no longer
+    # corresponds to current pipeline outputs, leaving residual under-
+    # confidence visible in the next backtest.
+    logger.info("Re-fitting blend calibrator...")
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'scripts.calibrate_blend'],
+            capture_output=True, text=True, timeout=300,
+            cwd=str(Path(__file__).parent.parent),
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split('\n')[-3:]:
+                logger.info(f"Blend calibration: {line}")
+        else:
+            logger.warning(f"Blend calibration failed: {result.stderr[:200]}")
+    except subprocess.TimeoutExpired:
+        logger.warning("Blend calibration timed out — run 'python3 -m scripts.calibrate_blend' manually")
+
+    # 4. Recalibrate gear scores from new race_results
     logger.info("Recalibrating gear scores...")
     try:
         result = subprocess.run(
