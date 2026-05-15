@@ -854,12 +854,14 @@ async def auto_learn(race_date: str = None):
     # 2. Retrain ML model
     # Timeout 600s — full retrain on 50K+ rows takes ~5min, was failing at 300s
     logger.info("Auto-retraining ML model...")
+    retrain_ok = False
     try:
         result = subprocess.run(
             [sys.executable, str(Path(__file__).parent.parent / 'train_ml_model.py')],
             capture_output=True, text=True, timeout=600
         )
         if result.returncode == 0:
+            retrain_ok = True
             # Extract accuracy from output
             for line in result.stdout.split('\n'):
                 if 'Win accuracy' in line:
@@ -874,20 +876,27 @@ async def auto_learn(race_date: str = None):
     # model's probability distribution — its isotonic mapping no longer
     # corresponds to current pipeline outputs, leaving residual under-
     # confidence visible in the next backtest.
-    logger.info("Re-fitting blend calibrator...")
-    try:
-        result = subprocess.run(
-            [sys.executable, '-m', 'scripts.calibrate_blend'],
-            capture_output=True, text=True, timeout=300,
-            cwd=str(Path(__file__).parent.parent),
-        )
-        if result.returncode == 0:
-            for line in result.stdout.strip().split('\n')[-3:]:
-                logger.info(f"Blend calibration: {line}")
-        else:
-            logger.warning(f"Blend calibration failed: {result.stderr[:200]}")
-    except subprocess.TimeoutExpired:
-        logger.warning("Blend calibration timed out — run 'python3 -m scripts.calibrate_blend' manually")
+    # Skip when retrain failed/timed out — the model on disk is still
+    # the OLD model, so re-fitting would produce the same calibrator-vs-
+    # model mismatch this whole step exists to prevent.
+    if not retrain_ok:
+        logger.warning("Skipping blend calibration — retrain did not succeed; "
+                       "calibrator on disk left untouched (matches existing model)")
+    else:
+        logger.info("Re-fitting blend calibrator...")
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'scripts.calibrate_blend'],
+                capture_output=True, text=True, timeout=300,
+                cwd=str(Path(__file__).parent.parent),
+            )
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\n')[-3:]:
+                    logger.info(f"Blend calibration: {line}")
+            else:
+                logger.warning(f"Blend calibration failed: {result.stderr[:200]}")
+        except subprocess.TimeoutExpired:
+            logger.warning("Blend calibration timed out — run 'python3 -m scripts.calibrate_blend' manually")
 
     # 4. Recalibrate gear scores from new race_results
     logger.info("Recalibrating gear scores...")
