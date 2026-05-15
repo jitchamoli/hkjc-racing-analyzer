@@ -612,7 +612,12 @@ class HKJCParser:
                 if pos < 1 or pos > 24:
                     continue
                 horse_no = HKJCParser._safe_int(texts[1])
-                name = texts[2] if len(texts) > 2 else ""
+                raw_name = texts[2] if len(texts) > 2 else ""
+                # HKJC results cell collapses to e.g. 'PODIUM(H173)' — strip
+                # the brand parenthetical so the name matches prediction_log
+                # (which stores 'PODIUM'). Without this, _fill_prediction_log
+                # silently UPDATEs 0 rows on every results fetch.
+                name = re.sub(r"\s*\([^)]+\)\s*$", "", raw_name).strip()
                 if horse_no <= 0 or not name:
                     continue
                 key = (pos, horse_no)
@@ -881,7 +886,10 @@ class HKJCParser:
                 if pos < 1 or pos > 24:
                     continue
                 horse_no = HKJCParser._safe_int(texts[1])
-                name = texts[2] if len(texts) > 2 else ""
+                # Parity with parse_results — strip trailing brand parenthetical
+                # like 'PODIUM(H173)' so downstream consumers see clean names.
+                raw_name = texts[2] if len(texts) > 2 else ""
+                name = re.sub(r"\s*\([^)]+\)\s*$", "", raw_name).strip()
                 if horse_no <= 0 or not name:
                     continue
 

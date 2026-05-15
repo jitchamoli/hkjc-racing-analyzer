@@ -227,13 +227,19 @@ _rank3_has_strong_history = _rank_has_strong_history
 # Conviction gate thresholds (uniform baselines: top2=0.167, top3=0.25, top4=0.333)
 MIN_TOP2_CONVICTION = 0.25   # 1.5× uniform
 MIN_TOP3_CONVICTION = 0.30   # 1.2× uniform
-MIN_TOP4_CONVICTION = 0.48   # v6.8.1 (was 0.36) — gate sweep on 664-race holdout
-                             # + last-6-meetings: raising 0.36→0.48 leaves hit
-                             # rate flat (~32%) but lifts ROI +76pp (full) and
-                             # +237pp (6 mtg) by demoting low-conviction races
-                             # from BOX Q4 (6 combos) to BOX Q / QIN. Pure
-                             # capital efficiency — same hits, less stake.
-                             # 0.52 over-tightens (6-mtg ROI collapses).
+MIN_TOP4_CONVICTION = 0.52   # v6.8.2 (was 0.48 → 0.36 originally) — re-tuned
+                             # after age-fix model retrain shifted the top-4
+                             # share distribution rightward. New sweep on the
+                             # 666-race holdout AND the last-6-meetings:
+                             #   0.48 → 0.52 lifts ROI +32pp (full) and +63pp
+                             #   (6 mtg) at cost of 1 hit out of 197. The
+                             #   prior comment said "0.52 over-tightens" —
+                             #   that was true on the OLD model, which had a
+                             #   flatter distribution. The new (calibrator-
+                             #   refit) model keeps top_4_share ≥ 0.45 in 96%
+                             #   of betted races, so the higher gate just
+                             #   demotes the marginal 4% to BOX Q / QIN
+                             #   without losing real hits.
 
 
 def _choose_race_bet_type(*, has_live_odds, n, top_is_banker, market_prob_top,
