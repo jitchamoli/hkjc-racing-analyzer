@@ -23,6 +23,28 @@ import config
 logger = logging.getLogger(__name__)
 
 
+def parse_age_score(age_raw) -> float:
+    """Convert raw age (any of 5, '5', '5.0') into the v6.5 age feature.
+
+    Single source of truth — used by both inference (extract_features)
+    and training (build_training_data_from_db). Encoding: 3yo→1.0,
+    6yo→0.5, 9yo+→0.0; missing/unparseable → 0.5 fallback.
+
+    Regression: the prior `[:2]` slice silently failed on '5.0' format
+    (`int('5.')` raises) and 94% of training rows fell back to 0.5
+    while inference parsed '5' correctly — train/predict mismatch
+    masquerading as a dead feature.
+    """
+    age_raw = age_raw or 0
+    try:
+        age_int = int(float(str(age_raw).strip())) if age_raw else 0
+    except (ValueError, TypeError):
+        age_int = 0
+    if age_int and 2 <= age_int <= 15:
+        return max(0.0, min(1.0, (9 - age_int) / 6.0))
+    return 0.5
+
+
 # Per-process caches for jockey/trainer Bayesian-smoothed win rates.
 # A typical race day has ~30 unique jockeys riding across 11 races; without
 # caching, extract_features fires one query per (horse, race) → 264 round-trips.
@@ -887,16 +909,7 @@ class FeatureEngineering:
 
         # Feature 17: horse age (v6.5). 3yo→1.0, 6yo→0.5, 9yo+→0.0.
         # Younger HK horses systematically improve; older horses decline.
-        age_raw = horse_data.get('age', 0) or 0
-        try:
-            age_int = int(str(age_raw).strip()[:2]) if age_raw else 0
-        except (ValueError, TypeError):
-            age_int = 0
-        if age_int and 2 <= age_int <= 15:
-            age_score = max(0.0, min(1.0, (9 - age_int) / 6.0))
-        else:
-            age_score = 0.5
-        features.append(age_score)
+        features.append(parse_age_score(horse_data.get('age', 0)))
 
         # Feature 18: rating change from previous race (v6.5). +10pts→1.0,
         # 0→0.5, -10→0.0. Captures handicapper's view of recent form change.

@@ -18,7 +18,7 @@ import numpy as np
 
 import config
 from ml.feature_schema import FEATURE_SCHEMA, NUM_FEATURES
-from ml.features import FeatureEngineering, extract_class_rank
+from ml.features import FeatureEngineering, extract_class_rank, parse_age_score
 
 logger = logging.getLogger(__name__)
 
@@ -379,16 +379,9 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
 
             # speed_consistency dropped v6.4.
 
-            # Feature 17 (v6.5): horse age. 3yo→1.0, 9yo+→0.0. Default 0.5.
-            age_raw = r.get('age', 0) or 0
-            try:
-                age_int = int(str(age_raw).strip()[:2]) if age_raw else 0
-            except (ValueError, TypeError):
-                age_int = 0
-            if age_int and 2 <= age_int <= 15:
-                feat_age = max(0.0, min(1.0, (9 - age_int) / 6.0))
-            else:
-                feat_age = 0.5
+            # Feature 17 (v6.5): horse age. Use shared helper so train/predict
+            # stay in sync — see ml/features.parse_age_score docstring.
+            feat_age = parse_age_score(r.get('age', 0))
 
             # Feature 18 (v6.5): rating change from previous race. +10pts→1.0,
             # 0→0.5, -10→0.0. Default 0.5 when missing.
