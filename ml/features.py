@@ -38,7 +38,10 @@ def parse_age_score(age_raw) -> float:
     age_raw = age_raw or 0
     try:
         age_int = int(float(str(age_raw).strip())) if age_raw else 0
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OverflowError):
+        # OverflowError catches float('inf') / float('-inf'). Unlikely in
+        # normal data flow (DB stores age as TEXT) but the prior except
+        # tuple let inf propagate and crash the pipeline.
         age_int = 0
     if age_int and 2 <= age_int <= 15:
         return max(0.0, min(1.0, (9 - age_int) / 6.0))

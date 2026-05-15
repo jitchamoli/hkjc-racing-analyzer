@@ -154,6 +154,12 @@ class TestFeatureEngineering:
         (1,      0.5),
         ('16',   0.5),
         (20,     0.5),
+        # Robustness: float inf/nan must not crash the pipeline.
+        # Prior except tuple was (ValueError, TypeError) — int(float('inf'))
+        # raises OverflowError, which would have propagated.
+        (float('inf'),  0.5),
+        (float('-inf'), 0.5),
+        (float('nan'),  0.5),
     ])
     def test_age_parser_handles_db_and_card_formats(self, age_raw, expected_score):
         """F-17: parse '5.0' (DB) and '5' (race card) to the same score.
