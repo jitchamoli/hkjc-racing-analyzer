@@ -1,6 +1,48 @@
-# HKJC Horse Racing Analyzer v6.6
+# HKJC Horse Racing Analyzer v6.8
 
-Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 25-factor rule-based engine with an XGBoost ML model (21 features, isotonic-calibrated, post-blend recalibrated) to surface bets the public may be underestimating. The dashboard renders every race as a clickable card stack with two views — **Race Order** (all 11 chronological) and **Top Bets** (curated tier-sorted) — plus a sticky live alerts rail.
+Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 25-factor rule-based engine with an XGBoost ML model (24 features, isotonic-calibrated, post-blend recalibrated, calibrator auto-refit on every retrain) to surface bets the public may be underestimating. The dashboard renders every race as a clickable card stack with two views — **Race Order** (all 11 chronological) and **Top Bets** (curated tier-sorted) — plus a sticky live alerts rail.
+
+## What's New in v6.8 (2026-05-16) — health-check audit
+
+A general health check on the locked v6.8 engine surfaced **4 production bugs** that had been silently degrading the pipeline. All shipped in PR #26.
+
+**1. `horse_age` was secretly dead** (train/predict mismatch — ML rules #2 + #3 in one bug)
+- The inline `int(str(age)[:2])` parser failed on the DB's `'5.0'` format (`int('5.')` raises `ValueError`) → 94% of training rows fell back to 0.5
+- Live race-card scrapes returned `'5'` and parsed correctly → real train/predict mismatch hiding as a dead feature
+- Extracted `parse_age_score()` in `ml/features.py` as single source of truth; both training and inference call it
+- **Result:** training accuracy 69.7% → **71.1%**; `horse_age` importance 0.000 → **0.040 (#5 feature)**
+
+**2. `prediction_log` results never filled** (silent UPDATE-zero-rows)
+- `parse_results` returned `'PODIUM(H173)'` (HKJC collapses brand suffix); `prediction_log.horse_name` stores `'PODIUM'`
+- 643 rows across 4 race dates had `results_filled = 0` while `race_results` filled normally (auto_learn uses a different scraper)
+- Fix: strip `\s*\([^)]+\)\s*$` brand suffix at parse time. Backfilled 480 historical rows.
+
+**3. Blend calibrator was fit BEFORE model retrain**
+- Calibrator's isotonic targeted the prior model's distribution → residual under-confidence in backtests
+- `auto_learn` now invokes `scripts.calibrate_blend` after retrain, gated on `retrain_ok` so a failed retrain doesn't poison the calibrator with a stale model
+
+**4. `MIN_TOP4_CONVICTION` re-tuned 0.48 → 0.52**
+- New model produces more confident top-4 distributions (top_4_share ≥ 0.45 in 96% of betted races)
+- Both-windows sweep: full 666-race holdout +32pp ROI / -1 hit; last-6 meetings +63pp ROI / 0 hits lost
+- ROI lift comes from stake reduction (24 races demoted from 6-combo BOX Q4 to 3-combo BOX Q), not hit-rate change
+
+**Bonus fix from probability-expert audit:** `parse_age_score(float('inf'))` raised `OverflowError` past the `(ValueError, TypeError)` except tuple. Added `OverflowError` to the catch + 3 test cases.
+
+### v6.8 backtest deltas (full 666-race holdout)
+
+| Metric | Before | After | Δ |
+|---|---|---|---|
+| Brier (top-pick) | 0.2056 | **0.1976** | −0.008 |
+| Calibration [25-100%] gap | +8.1pp | **+3.2pp** | tighter |
+| Quinella straight ROI | +1006% | **+1340%** | +334pp |
+| Recommender-gated ROI | +1481% | **+1426%** | within noise |
+| `horse_age` importance | 0.000 | **0.040 (#5)** | feature alive |
+
+### v6.8 forward validation (last 8 meetings — 80 races)
+
+- Recommender: **26 hits (36.6%), +2117% ROI**, +$5,590 P&L on $264 stake
+- Top-pick win rate: **25.0%** — exactly tied with market favourite
+- Brier 0.168 — best calibration on any window measured
 
 ## What's New in v6.6 (2026-05-09)
 
@@ -191,7 +233,7 @@ hkjc_racing_analyzer/
   scripts/                   # CLI entry points
     generate.py · scrape.py · train.py · monitor.py · backtest.py
     backfill_dividends.py · accuracy.py · serve.py · fetch_results.py
-  tests/                     # pytest suite — 196 tests
+  tests/                     # pytest suite — 278 tests
   config.py                  # Centralized constants
   models/                    # Trained ML models (pickle + .sha256 sidecar)
   results/                   # HTML dashboards and prediction JSON
@@ -258,8 +300,9 @@ python3 -m scripts.backtest --sweep      # grid over softmax temp × model weigh
 
 ```bash
 pytest tests/ -v
-# 196 tests covering edge math, gates, tier assignment, alerts dedup,
-# Wilson CI, template rendering, JS-syntax validation, end-to-end integration
+# 278 tests covering edge math, gates, tier assignment, alerts dedup,
+# Wilson CI, template rendering, JS-syntax validation, end-to-end integration,
+# age parser contract (15 cases incl. inf/nan), HKJC results brand-strip
 ```
 
 ## Performance (last 500 races with real HKJC dividends)
@@ -292,9 +335,10 @@ Bug fixes shipped between v6.3 and v6.4:
 5. experiment_log: tests with `save=False` no longer pollute the production training ledger
 
 Issues NOT addressed (worth tracking):
-- Calibrator validation slice spans 2024-04 → 2025-04 (1y stale on field strength)
-- Distance imbalance (1200m has 19,555 rows vs 14 at 1050m)
-- `Corr(edge_pp, actual win)` is mildly negative on disagreements (n still small)
+- ~~Calibrator validation slice spans 2024-04 → 2025-04 (1y stale on field strength)~~ — **fixed in v6.8**: 4-fold split (calib fold = rows[70:85%]) and `auto_learn` re-fits the calibrator after every retrain (gated on `retrain_ok`).
+- Distance imbalance (1200m has 19,555 rows vs 14 at 1050m) — open
+- `Corr(edge_pp, actual win)` is consistently mildly negative (~−0.30 across both holdout windows and both v6.7/v6.8 models). Structural property of rule engine + market interaction. Recommender works around it by using BOX bets, not WIN. Open.
+- Calibrator's thin upper plateau (cal_prob ≥ 0.50 → pinned at 0.80, ~72 supporting samples). **Zero production blast radius** — across 643 logged predictions in last 5 meetings, no horse landed above 0.50, so the plateau is never exercised. Documented as known limitation; fix only when a horse actually trips it.
 
 ## Requirements
 
