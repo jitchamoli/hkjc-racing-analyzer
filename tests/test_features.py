@@ -134,3 +134,31 @@ class TestFeatureEngineering:
             assert 0.0 <= features[idx] <= 1.0, (
                 f"field_rel_draw={features[idx]} out of [0,1] for draw={draw}"
             )
+
+    @pytest.mark.parametrize("age_raw,expected_score", [
+        ('5.0', 4/6),    # DB float-string format — 5yo → (9-5)/6 = 0.667
+        ('5',   4/6),    # race-card int-string format — same horse, same score
+        ('3.0', 1.0),    # young horse → 1.0
+        ('3',   1.0),
+        ('9.0', 0.0),    # old horse → 0.0
+        ('9',   0.0),
+        ('10.0', 0.0),   # 9yo+ floor at 0.0
+        ('-',    0.5),   # missing → 0.5 fallback
+        ('',     0.5),
+        (0,      0.5),
+        (None,   0.5),
+    ])
+    def test_age_parser_handles_db_and_card_formats(self, age_raw, expected_score):
+        """F-17: parse '5.0' (DB) and '5' (race card) to the same score.
+
+        Regression: the prior `[:2]` slice on '5.0' produced '5.' →
+        int('5.') raised → silent fallback to 0.5. 94% of training rows
+        ended up stuck at 0.5 while live inference parsed correctly,
+        creating a train/predict mismatch on a real feature.
+        """
+        horse = {"name": "Test", "distance": 1200, "field_size": 12, "age": age_raw}
+        features = FeatureEngineering.extract_features(horse, [], "Sha Tin")
+        idx = FEATURE_NAMES.index("horse_age")
+        assert abs(features[idx] - expected_score) < 1e-6, (
+            f"age={age_raw!r} → {features[idx]}, expected {expected_score}"
+        )
