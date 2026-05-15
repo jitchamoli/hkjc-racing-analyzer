@@ -64,14 +64,14 @@ python3 -m scripts.accuracy --all
 
 ```
 core/       — fetcher, analyzer, scorer, recommender, ML predictor
-ml/         — feature schema (21 features, v6.6), feature extraction, model, training, integrity, experiments
-analytics/  — 13 specialized analyzers (draw bias, pace, sectionals, etc.)
-data/       — database, odds tracker, scraper, validation
+ml/         — feature schema (24 features, v6.8), feature extraction, model, training, integrity, experiments
+analytics/  — 14 specialized analyzers (draw bias, pace, sectionals, etc.)
+data/       — database, odds tracker, scraper, validation, sectional_scraper
 monitor/    — race day monitor (auto-rerun on sharp moves)
 dashboard/  — prediction generator, edge-first HTML template
 betting/    — edge_calculator, conviction tiers, alerts, tier_stats, dividends, exotic_calculator, optimizer
 scripts/    — CLI entry points
-tests/      — pytest suite (170 tests)
+tests/      — pytest suite (278 tests)
 ```
 
 Root-level shims exist for backwards compatibility (e.g., `hkjc_data_fetcher.py` re-exports from `core/fetcher.py`).
@@ -93,7 +93,7 @@ scripts/train.py → models/hkjc_racing_model.pkl
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
 - **Rule engine (60%)**: 25 dynamically-weighted factors (added `speed_fig` v6.6). Missing-data factors are excluded and remaining weights renormalize to 1.0. The rule_score (0-100) is converted to a probability via a base-rate-anchored sigmoid: `sigmoid(0.06 × (score - 50) + logit(1/field_size))`. `odds` and `odds_movement` are NOT in the rule engine — market info enters via the dynamic market blend only (prevents triple-counting). v6.6 (2026-05-09) audit purged 3 sites that violated this: `field_size` factor (used `1/win_odds`), no-form fallback (used `1/win_odds`), and BANKER signal #9 (used `1/win_odds`). All replaced with structural-only logic.
-- **ML model (40%)**: XGBoost classifier with **21 features** (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a separate place model (`is_top3`). Both use IsotonicRegression recency-weighted, trained on 50,705 real race results from a 5-year window. After the market blend, a second isotonic (`models/blend_calibrator.pkl`, fit by `scripts/calibrate_blend.py` on 71,360 production-pipeline pairs) recalibrates the post-blend distribution per-horse with renormalization.
+- **ML model (40%)**: XGBoost classifier with **24 features** (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a separate place model (`is_top3`). Both use IsotonicRegression recency-weighted, trained on 50,733 real race results from a 5-year window. After the market blend, a second isotonic (`models/blend_calibrator.pkl`, fit by `scripts/calibrate_blend.py` on the 70-85% calibration fold ~8,271 production-pipeline pairs) recalibrates the post-blend distribution per-horse with renormalization. **Auto-learn refits the calibrator after every retrain** (gated on `retrain_ok` — won't refit against a stale model). 4-fold split: rows[0:60%] train, [60:70%] earlystop, [70:85%] calibrator, [85:100%] backtest holdout — strictly disjoint.
 
 The 14 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change, speed figures, jockey form). `analytics/speed_figures.py` was wired into the rule engine in v6.6 (was previously orphaned). `analytics/gear_change.py` scores are now data-calibrated by `scripts/calibrate_gear.py` (auto-runs after each meeting via auto-learn) — `models/gear_scores.json` overrides hand-tuned defaults.
 
@@ -102,7 +102,7 @@ The 14 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, 
 ### Database
 
 SQLite at `tracking_data/horse_history.db`. Five tables:
-- **race_results** (primary data source): one row per horse per race, keyed by (race_date, race_number, horse_name). Contains finish_position, is_winner, is_top3, margin, odds, horse_weight, running_position, finish_time, days_since_last_run.
+- **race_results** (primary data source): one row per horse per race, keyed by (race_date, race_number, horse_name). Contains finish_position, is_winner, is_top3, margin, odds, horse_weight, running_position, finish_time, days_since_last_run, **sectional_times** (Path B, 99.4% backfilled).
 - **race_dividends** (pool payouts): one row per (race_date, race_number, pool, combination). Pools: WIN, PLACE, QUINELLA, QUINELLA PLACE, FORECAST, TIERCE, TRIO, FIRST 4, QUARTET. Backfilled via `python3 -m scripts.backfill_dividends`. Used by `scripts/backtest.py` for real-dividend ROI (replaces Harville estimate when data is available).
 - **horses**: master record per horse. Note: `get_horse_record()` computes aggregates from race_results directly (not from this table's stale counters).
 - **jockey_stats** / **trainer_stats**: season-level win/place rates. Populated two ways: `rebuild_stats()` computes from local race_results; `scrape_history.py --rankings` fetches full-season stats from HKJC (more accurate).
@@ -164,7 +164,7 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 - Async/await used in data fetching pipeline (`HKJCDataFetcher.get_race_card` is async).
 - Race dates use `YYYY/MM/DD` format in HKJC URLs and data, but `YYYYMMDD` in filenames. SQLite `julianday()` requires `YYYY-MM-DD` — always use `REPLACE(date,'/','-')`.
 - The HTML parser (`HKJCParser`) expects specific HKJC table layouts (27 cells per row with documented column indices). HKJC site changes can break parsing — check `_parse_horse_table()` if horses come back empty.
-- ML model saved as pickle dict with keys: `model`, `place_model`, `calibrator`, `version`, `n_features`, `feature_importance`, `trained_date`. A `.sha256` sidecar file is required for loading — model refuses to load without valid checksum.
+- ML model saved as pickle dict with keys: `model`, `place_model`, `calibrator`, `place_calibrator`, `version`, `n_features`, `n_samples`, `feature_names`, `feature_importance`, `trained_date`. A `.sha256` sidecar file is required for loading — model refuses to load without valid checksum.
 - Dashboard probabilities are stored as decimals (0.178) in JSON but displayed as percentages (17.8%) — multiply by 100 in JavaScript display code.
 - `HKJCParser._safe_int()` preserves minus signs (regex `[^\d\-]`) — important for `rating_change` and `weight_change` which can be negative.
 
@@ -174,7 +174,7 @@ These are timeless guidance — violations have caused multiple v6.x bugs.
 
 1. **No data leakage**: Every feature must use ONLY data available BEFORE the race. Never use finish_position, finish_time, running_position, or margin from the CURRENT race. For horse history features (C&D form, pace, speed), use strictly `prior_date < current_date`. `extract_features()` accepts `race_date` via `horse_data` and filters DB queries with `AND race_date < ?`. Track records in training are also date-aware (cumulative best-time lookup, not global).
 
-2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. `generate_synthetic_training_data()` must also match the same feature schema. The DB (race_results) has different fields than race cards. Both training and inference must use the SAME helpers (e.g. `extract_class_rank` for class strings, dslr fallback for freshness) — divergence between them caused multiple v6.x bugs.
+2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. `generate_synthetic_training_data()` must also match the same feature schema. The DB (race_results) has different fields than race cards. Both training and inference must use the SAME helpers (e.g. `extract_class_rank` for class strings, `parse_age_score` for ages, dslr fallback for freshness) — divergence between them caused multiple v6.x bugs. **Concrete pattern**: when adding a feature whose raw value can come in multiple formats (DB `'5.0'` vs race-card `'5'`), define a single `parse_X_score()` helper in `ml/features.py` and call it from both sites. Inline duplicates drift silently and degrade the feature.
 
 3. **No constant features**: If a feature has std < 0.01 in training data, it's wasted. Common cause: field is mostly null and falls back to 0.5. Check with `np.std()` after building features. Feature correlation matrix is logged after each training run — pairs with |r| > 0.7 are flagged.
 
@@ -215,13 +215,19 @@ Market odds enter ONLY through the dynamic market blend. Blend weights are heavi
 
 → Edge gates, conviction tiers, recommender logic, backtest history, exotic pricing math: `docs/betting-strategy.md`.
 
-## DB Data Gaps (post-Renavon backfill)
+## DB Data Gaps (post-Renavon backfill, audited 2026-05-16)
 
-- `rating`: 98.5% coverage (was 5%). `last_6`: 94.8%. `age`: 99.8%. `rating_change`: 62.6%. `gear`: 52.1%.
+- `rating`: 100% coverage. `rating_change`: 100%. `last_6`: 95.5%. `gear`: 93%. `age`: **68.4%** (was claimed 99.8% — coverage actually degrades back in time: 2021 = 20%, 2022 = 45%, 2023 = 79%, 2024 = 86%, 2025 = 95%, 2026 = 100%). `sectional_times`: 99.4% (Path B backfill, permanent — auto-captured forward).
+- `age` format gotcha: Renavon CSV writes `'5.0'`, live race-card scrape writes `'5'`. Both go through `parse_age_score()` (single source of truth in `ml/features.py`); never reimplement inline. Pre-fix the inline `int(str(age)[:2])` parser failed silently on `'5.0'` and 94% of training rows fell back to 0.5 — a real train/predict mismatch (ML rule #2 violation).
 - `running_position` has two formats: space-separated (`"6 5 6"`) and concatenated (`"665"`). Always handle both when parsing.
 - `horse_weight` is in lbs (900-1350 range), `weight` is carried weight assignment (113-133 lbs).
 - `class_type`: 96% coverage; uses `extract_class_rank()` to handle G1/G2/G3/GRIFFIN/4YO. Missing/unparseable rows default to class 3 for class_change calculation.
 - `days_since_last_run`: 87.7% missing in legacy 5y window — both training and inference fall back to `(race_date - prior race_date)` math.
+
+## HKJC parser gotchas
+
+- **Brand suffix on horse names**: `parse_results` returns names like `'PODIUM(H173)'` from the HKJC results page. The parser strips the trailing `\s*\([^)]+\)\s*$` so downstream code (especially `prediction_log.fill_prediction_results` which keys on `horse_name`) sees the clean `'PODIUM'`. Apply the same strip to any new HKJC parser that reads the horse-name cell, otherwise UPDATE-by-name silently matches 0 rows.
+- **Multi-paren handling**: country-coded names like `'STAR (NZ)(H173)'` correctly become `'STAR (NZ)'` (only the trailing brand is stripped).
 
 ## Renavon — frozen snapshot
 
