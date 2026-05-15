@@ -147,6 +147,13 @@ class TestFeatureEngineering:
         ('',     0.5),
         (0,      0.5),
         (None,   0.5),
+        # HK doesn't race 1yo or 16yo+ horses (HKJC minimum is 2). The bound
+        # `2 <= age_int <= 15` is intentional — out-of-range values fall back
+        # to 0.5 (treat as missing/anomalous), NOT mapped to extreme young/old.
+        ('1',    0.5),
+        (1,      0.5),
+        ('16',   0.5),
+        (20,     0.5),
     ])
     def test_age_parser_handles_db_and_card_formats(self, age_raw, expected_score):
         """F-17: parse '5.0' (DB) and '5' (race card) to the same score.
