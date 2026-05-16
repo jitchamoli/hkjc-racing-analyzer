@@ -690,8 +690,19 @@ class FeatureEngineering:
             logger.warning(f"Failed to load prior history for {horse_name}: {e}")
 
         # Feature 1: prior win rate
-        # Lightly-raced horses (≤3 starts) get a floor of 0.35 — penalizing maidens
-        # too heavily misses the ~73% of HK winners that had 0 prior wins in their class
+        # Lightly-raced horses (≤3 starts) get a floor of 0.35 — penalizing
+        # maidens too heavily misses the ~73% of HK winners that had 0 prior
+        # wins in their class.
+        # ---
+        # NOTE on the 0.35 magic constant: this is a hand-set floor, NOT
+        # data-driven. The empirical baseline is `field_size⁻¹ ≈ 0.083`
+        # (12-horse field win rate). 0.35 sits roughly at 4× baseline,
+        # which the rule engine treats as 'plausible-improver' rather than
+        # 'no signal'. If you ever revisit, the data-driven candidate is:
+        #   floor = np.percentile(empirical_win_rate_for_horses_with_≤3_starts, 50)
+        # measured on the historical DB. Not done yet — kept here because
+        # changing it shifts the rule_score distribution across ~3% of horses
+        # in any given race and needs the both-windows ROI re-validation.
         if prior:
             prior_wins = sum(1 for p in prior if p.get('is_winner', 0))
             prior_top3 = sum(1 for p in prior if p.get('is_top3', 0))
