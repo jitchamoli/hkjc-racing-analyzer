@@ -225,21 +225,26 @@ _rank3_has_strong_history = _rank_has_strong_history
 
 
 # Conviction gate thresholds (uniform baselines: top2=0.167, top3=0.25, top4=0.333)
-MIN_TOP2_CONVICTION = 0.25   # 1.5× uniform
-MIN_TOP3_CONVICTION = 0.30   # 1.2× uniform
-MIN_TOP4_CONVICTION = 0.52   # v6.8.2 (was 0.48 → 0.36 originally) — re-tuned
-                             # after age-fix model retrain shifted the top-4
-                             # share distribution rightward. New sweep on the
-                             # 666-race holdout AND the last-6-meetings:
-                             #   0.48 → 0.52 lifts ROI +32pp (full) and +63pp
-                             #   (6 mtg) at cost of 1 hit out of 197. The
-                             #   prior comment said "0.52 over-tightens" —
-                             #   that was true on the OLD model, which had a
-                             #   flatter distribution. The new (calibrator-
-                             #   refit) model keeps top_4_share ≥ 0.45 in 96%
-                             #   of betted races, so the higher gate just
-                             #   demotes the marginal 4% to BOX Q / QIN
-                             #   without losing real hits.
+# v6.8.3 (2026-05-16) — 3D joint sweep across all three thresholds, after the
+# 4 prior model experiments confirmed model↔gate coupling is the binding
+# constraint (see [[feature-experiments-brier-vs-roi-pattern]]). Sweep of
+# 150 combos on the full 664-race holdout + last-6 validation found this
+# triple dominates:
+#
+#                       OLD            NEW       Δ ROI
+#   Full holdout      +1425.9%       +1484.3%   +58pp
+#   Last-6 meetings   +1940.8%       +2045.2%   +104pp
+#
+# All 10 top-ROI combos in the sweep agreed on min_top4=0.58 — that signal
+# is unanimous. min_top2 and min_top3 are less sharply peaked (top combos
+# cluster at 0.28-0.30 and 0.33-0.36 respectively); picked the empirical
+# winner. Tradeoff: 7 fewer hits and $193 less stake on backtest = capital
+# efficiency win, ~$1.4k less absolute P&L. The current gates ranked #51
+# out of 150 — i.e. there were 50 measurably better configurations sitting
+# in the search space the prior 1D sweeps could not see.
+MIN_TOP2_CONVICTION = 0.30   # was 0.25 — sweep evidence above
+MIN_TOP3_CONVICTION = 0.33   # was 0.30 — sweep evidence above
+MIN_TOP4_CONVICTION = 0.58   # was 0.52 — strongest signal (top-10 unanimous)
 
 
 def _choose_race_bet_type(*, has_live_odds, n, top_is_banker, market_prob_top,

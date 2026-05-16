@@ -269,6 +269,7 @@ def build_horse_data(h, field_size):
         'field_size': field_size,
         'class_type': h.get('class_type') or '',
         'race_date': h['race_date'],
+        'race_number': h.get('race_number') or 0,  # cache key (data/feature_cache.py)
         'weight': h.get('weight') or 0,
         'horse_weight': h.get('horse_weight') or 0,
         'days_since_last_run': h.get('days_since_last_run') or 0,
@@ -489,6 +490,9 @@ def simulate_bets(races, conn):
         records.append({
             'race_key': f"{date}-R{race_no}",
             'horse': top_h_row['horse_name'],
+            # Top-pick conviction tier (HIGH/MED/LOW) — used for the
+            # tier-conditional edge-correlation breakdown in print_clv.
+            'conviction_tier': getattr(top_analysis, 'combined_confidence', '') or '',
             'final_prob': top_prob,
             'market_prob': top_mkt,
             'odds': top_odds,
@@ -623,6 +627,13 @@ def print_strategies(records, min_ev):
     _strategy_summary("Baseline: Bet market favourite every race",
                       np.ones(n, dtype=bool), mkt_records)
 
+    # Multiple-comparisons reminder. With 6 strategies (A-F) compared
+    # against the baseline at α=0.05, you expect ~0.3 false discoveries
+    # by chance. The strategies above are NOT pre-registered — treat
+    # them as exploratory and discount apparent edges accordingly.
+    print(f"\n  NB: 6 strategies A-F are exploratory (not pre-registered). With α=0.05")
+    print(f"      Bonferroni-corrected threshold is α=0.0083 — adjust apparent significance.")
+
 
 def print_exotic_hits(records):
     n = len(records)
@@ -732,25 +743,54 @@ def print_exotic_hits(records):
 
 
 def print_calibration(records):
+    """Calibration report — Brier, BSS, ECE, and per-bin diff.
+
+    Brier is a raw score; useful for tracking but uninterpretable in
+    isolation. BSS = 1 − Brier/Brier_climatology says how much better
+    than 'always predict base rate' we are (positive = better, 0 = same,
+    negative = worse). ECE = Σ |pred − actual| × bin_weight collapses
+    the per-bin diffs into one number a stats person actually tracks.
+    """
     probs = np.array([r['final_prob'] for r in records])
     won = np.array([r['won'] for r in records], dtype=float)
+    n_total = len(won)
     brier = float(np.mean((probs - won) ** 2))
+    p_bar = float(won.mean())
+    brier_climatology = p_bar * (1 - p_bar)
+    bss = 1.0 - brier / brier_climatology if brier_climatology > 0 else float('nan')
+
     print("\n" + "=" * 70)
     print("  CALIBRATION")
     print("=" * 70)
-    print(f"  Brier score (top-pick): {brier:.4f}")
+    print(f"  Brier score (top-pick): {brier:.4f}   base rate p̄={p_bar:.4f}")
+    print(f"  Brier Skill Score:      {bss:+.4f}   (>0 beats 'always predict p̄'; ~+0.05 typical)")
+
     bins = [0.0, 0.08, 0.12, 0.18, 0.25, 1.0]
-    print(f"  {'bin':<14}{'n':<6}{'predicted':<12}{'actual':<10}{'diff'}")
+    MIN_BIN_N = 20  # bins below this are too thin to make reliable claims about
+    print(f"\n  {'bin':<14}{'n':<6}{'predicted':<12}{'actual':<10}{'diff':<10}{'note'}")
+    ece_num = 0.0
+    ece_denom = 0
     for i in range(len(bins) - 1):
         lo, hi = bins[i], bins[i + 1]
         mask = (probs >= lo) & (probs < hi)
         k = int(mask.sum())
-        if k > 0:
-            pred = float(probs[mask].mean())
-            act = float(won[mask].mean())
-            diff = act - pred
-            print(f"  [{lo*100:4.1f}-{hi*100:4.1f}%] "
-                  f"{k:<6}{pred*100:5.2f}%{'':<6}{act*100:5.2f}%{'':<4}{diff*100:+5.2f}pp")
+        if k == 0:
+            continue
+        pred = float(probs[mask].mean())
+        act = float(won[mask].mean())
+        diff = act - pred
+        note = ""
+        if k >= MIN_BIN_N:
+            # Only thick-enough bins contribute to ECE — thin bins are noise.
+            ece_num += abs(diff) * k
+            ece_denom += k
+        else:
+            note = f"[thin: n<{MIN_BIN_N}, treat % as noisy]"
+        print(f"  [{lo*100:4.1f}-{hi*100:4.1f}%] "
+              f"{k:<6}{pred*100:5.2f}%{'':<6}{act*100:5.2f}%{'':<4}{diff*100:+5.2f}pp   {note}")
+    ece = ece_num / ece_denom if ece_denom > 0 else float('nan')
+    print(f"\n  Expected Calibration Error (ECE, thick bins only): {ece:.4f}")
+    print(f"    (single-number calibration metric — lower is better, 0 = perfectly calibrated)")
 
 
 def print_clv(records):
@@ -773,6 +813,28 @@ def print_clv(records):
     n_disagree = sum(1 for r in records if not r['same_pick'])
     print(f"  Disagreement with market:  {n_disagree}/{len(records)} "
           f"({n_disagree/len(records)*100:.1f}%)")
+
+    # Tier-conditional breakdown. Answers "is the negative correlation
+    # structural OR concentrated in low-conviction races?" Stats people
+    # always want this when the headline correlation looks bad.
+    print(f"\n  ── by conviction tier (top-pick) ──")
+    print(f"  {'tier':<10}{'n':<7}{'corr(edge, win)':<20}{'mean edge':<14}{'win rate'}")
+    print(f"  {'-'*10}{'-'*7}{'-'*20}{'-'*14}{'-'*10}")
+    tiers = sorted({r.get('conviction_tier', '') or 'NONE' for r in records})
+    for tier in tiers:
+        t_idx = np.array([(r.get('conviction_tier') or 'NONE') == tier for r in records])
+        m_t = mask & t_idx
+        k = int(m_t.sum())
+        if k < 10:
+            print(f"  {tier:<10}{k:<7}{'(n<10, skip)':<20}")
+            continue
+        edge_t = probs[m_t] - mkt[m_t]
+        won_t = won[m_t]
+        if edge_t.std() > 0 and won_t.std() > 0:
+            corr_t = np.corrcoef(edge_t, won_t)[0, 1]
+        else:
+            corr_t = float('nan')
+        print(f"  {tier:<10}{k:<7}{corr_t:+.4f}{'':<13}{edge_t.mean()*100:+.2f}pp{'':<5}{won_t.mean()*100:.1f}%")
 
 
 # ---------------------------------------------------------------------------
@@ -866,10 +928,23 @@ def main():
                         help='Exclude specific race dates (YYYY/MM/DD) — can repeat')
     parser.add_argument('--pnl-json', default=None,
                         help='Path to write per-race P&L JSON (for bootstrap CI)')
+    parser.add_argument('--no-cache', action='store_true',
+                        help='Disable on-disk feature cache (forces fresh extraction)')
     args = parser.parse_args()
 
     conn = sqlite3.connect(str(config.DB_PATH))
     conn.row_factory = sqlite3.Row
+    from data.database import apply_perf_pragmas
+    apply_perf_pragmas(conn)
+
+    # On-disk feature cache — saves ~5-7s of extract_features time on
+    # repeated runs against the same DB. Cache key encodes NUM_FEATURES
+    # and total row count so schema/data changes auto-invalidate.
+    if not args.no_cache:
+        from data import feature_cache as _fc
+        _fc.enable()
+        import atexit
+        atexit.register(_fc.save)
 
     rows = load_held_out_races(conn, last_n=args.last)
     if args.exclude_date:
@@ -879,6 +954,24 @@ def main():
     races = group_by_race(rows)
     print(f"Held-out races: {len(races)}  |  horses: {len(rows)}")
     print(f"Pipeline: production (CombinedRaceAnalyzer + assign_bet_recommendations)")
+
+    # IID check: how many backtest horses also appear in the calibrator
+    # window (or earlier training data)? Each individual PREDICTION is
+    # leakage-free (extract_features filters race_date < ?), but the test
+    # set is NOT IID — the same horse can appear in both windows, so
+    # bootstrap CIs that assume independent samples will under-state
+    # uncertainty. Use the per-race P&L JSON + block-bootstrap by horse
+    # if you need an honest CI.
+    test_horses = {r['horse_name'] for r in rows}
+    pre_window_count = conn.execute(
+        f"SELECT COUNT(DISTINCT horse_name) FROM race_results "
+        f"WHERE finish_position > 0 AND horse_name IN ({','.join(['?']*len(test_horses))}) "
+        f"AND race_date < ?",
+        list(test_horses) + [min(r['race_date'] for r in rows)],
+    ).fetchone()[0]
+    overlap_pct = (100 * pre_window_count / len(test_horses)) if test_horses else 0
+    print(f"IID check: {pre_window_count}/{len(test_horses)} test horses ({overlap_pct:.0f}%) "
+          f"also appear in pre-backtest data — test set is NOT IID by horse.")
 
     if args.sweep:
         model = HKJCRacingMLModel()

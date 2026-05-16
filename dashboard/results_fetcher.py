@@ -898,21 +898,43 @@ async def auto_learn(race_date: str = None):
         except subprocess.TimeoutExpired:
             logger.warning("Blend calibration timed out — run 'python3 -m scripts.calibrate_blend' manually")
 
-    # 4. Recalibrate gear scores from new race_results
-    logger.info("Recalibrating gear scores...")
-    try:
-        result = subprocess.run(
-            [sys.executable, '-m', 'scripts.calibrate_gear'],
-            capture_output=True, text=True, timeout=60,
-            cwd=str(Path(__file__).parent.parent),
-        )
-        if result.returncode == 0:
-            for line in result.stdout.strip().split('\n')[-3:]:
-                logger.info(f"Gear calibration: {line}")
-        else:
-            logger.warning(f"Gear calibration failed: {result.stderr[:200]}")
-    except subprocess.TimeoutExpired:
-        logger.warning("Gear calibration timed out — run 'python3 -m scripts.calibrate_gear' manually")
+    # 4. Recalibrate gear scores from new race_results.
+    # Skip when no new rows since the last calibration — the gear-scores
+    # JSON stores n_total_rows in its _meta block, so we can compare
+    # cheaply without re-reading the whole file.
+    gear_path = Path(__file__).parent.parent / 'models' / 'gear_scores.json'
+    skip_gear = False
+    if gear_path.exists():
+        try:
+            with open(gear_path) as f:
+                last_meta = json.load(f).get('_meta', {})
+            last_n = int(last_meta.get('n_total_rows') or 0)
+            import sqlite3
+            import config
+            _c = sqlite3.connect(str(config.DB_PATH))
+            current_n = _c.execute("SELECT COUNT(*) FROM race_results").fetchone()[0]
+            _c.close()
+            if last_n and current_n == last_n:
+                skip_gear = True
+                logger.info(f"Skipping gear calibration — race_results unchanged at {current_n:,} rows")
+        except Exception as e:
+            logger.warning(f"Could not check gear-scores freshness ({e}); re-running calibration")
+
+    if not skip_gear:
+        logger.info("Recalibrating gear scores...")
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'scripts.calibrate_gear'],
+                capture_output=True, text=True, timeout=60,
+                cwd=str(Path(__file__).parent.parent),
+            )
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\n')[-3:]:
+                    logger.info(f"Gear calibration: {line}")
+            else:
+                logger.warning(f"Gear calibration failed: {result.stderr[:200]}")
+        except subprocess.TimeoutExpired:
+            logger.warning("Gear calibration timed out — run 'python3 -m scripts.calibrate_gear' manually")
 
 
 if __name__ == '__main__':

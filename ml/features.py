@@ -658,8 +658,21 @@ class FeatureEngineering:
         Args:
             conn: Optional shared SQLite connection. If None, opens/closes its own.
         """
-        features = []
         horse_name = horse_data.get('name', '')
+
+        # Opt-in cache: if backtest enabled the feature cache and this
+        # (race_date, race_number, horse_name) is present, return it.
+        # Cache is disabled by default — live race-day extraction never
+        # hits this path. See data/feature_cache.py for invalidation.
+        from data import feature_cache as _fc
+        if _fc.is_enabled():
+            _rd = horse_data.get('race_date', '')
+            _rn = horse_data.get('race_number', 0)
+            _hit = _fc.get(_rd, _rn, horse_name)
+            if _hit is not None:
+                return _hit
+
+        features = []
         distance = horse_data.get('distance', 1200)
         going = horse_data.get('going', '')
         field_size = horse_data.get('field_size', 12)
@@ -690,8 +703,19 @@ class FeatureEngineering:
             logger.warning(f"Failed to load prior history for {horse_name}: {e}")
 
         # Feature 1: prior win rate
-        # Lightly-raced horses (≤3 starts) get a floor of 0.35 — penalizing maidens
-        # too heavily misses the ~73% of HK winners that had 0 prior wins in their class
+        # Lightly-raced horses (≤3 starts) get a floor of 0.35 — penalizing
+        # maidens too heavily misses the ~73% of HK winners that had 0 prior
+        # wins in their class.
+        # ---
+        # NOTE on the 0.35 magic constant: this is a hand-set floor, NOT
+        # data-driven. The empirical baseline is `field_size⁻¹ ≈ 0.083`
+        # (12-horse field win rate). 0.35 sits roughly at 4× baseline,
+        # which the rule engine treats as 'plausible-improver' rather than
+        # 'no signal'. If you ever revisit, the data-driven candidate is:
+        #   floor = np.percentile(empirical_win_rate_for_horses_with_≤3_starts, 50)
+        # measured on the historical DB. Not done yet — kept here because
+        # changing it shifts the rule_score distribution across ~3% of horses
+        # in any given race and needs the both-windows ROI re-validation.
         if prior:
             prior_wins = sum(1 for p in prior if p.get('is_winner', 0))
             prior_top3 = sum(1 for p in prior if p.get('is_top3', 0))
@@ -968,4 +992,15 @@ class FeatureEngineering:
 
         result = np.array(features, dtype=np.float32)
         validate_features(result)
+
+        # Populate cache on miss when enabled (no-op otherwise).
+        from data import feature_cache as _fc
+        if _fc.is_enabled():
+            _fc.put(
+                horse_data.get('race_date', ''),
+                horse_data.get('race_number', 0),
+                horse_name,
+                result,
+            )
+
         return result
