@@ -476,6 +476,22 @@ async def main():
     for r in all_races:
         r['tier_stats'] = tier_stats
 
+    # Per-card suggested stake — bankroll-fraction (BOX) or half-Kelly
+    # (WIN/BANKER WIN), tier-capped. See betting/optimizer.compute_suggested_stake.
+    from betting.optimizer import compute_suggested_stake
+    import config as _cfg
+    for r in all_races:
+        top = (r.get('horses') or [{}])[0]
+        stake = compute_suggested_stake(
+            conviction_tier=r.get('conviction_tier') or 'SKIP',
+            bet_type=top.get('bet_recommendation') or '',
+            top_prob=top.get('calibrated_prob') or 0.0,
+            top_odds=top.get('win_odds') or 0.0,
+            bankroll=_cfg.BANKROLL,
+        )
+        r['suggested_stake'] = stake
+        r['bankroll'] = _cfg.BANKROLL
+
     # Alerts — diff current vs previous race_data file
     from betting.alerts import compute_alerts, AlertState, load_alert_state, save_alert_state
     prev_json = _load_previous_race_data(json_file)

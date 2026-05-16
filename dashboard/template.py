@@ -631,6 +631,24 @@ function renderBetCard(race) {{
        '<br><span style="color:var(--dim);font-size:.65rem">Wilson [' + Math.round((stats.ci_low||0)*100) + '–' + Math.round((stats.ci_high||0)*100) + '%]</span>')
     : '<span style="color:var(--dim)">Insufficient sample</span>';
 
+  // Suggested stake — bankroll-fraction sizing, see betting/optimizer.
+  // Hidden when amount=0 so SKIP cards do not show a wasted line.
+  var ss = race.suggested_stake || {{}};
+  var stakeHtml = '';
+  if (ss.amount && ss.amount > 0) {{
+    var br = race.bankroll || 0;
+    stakeHtml =
+      '<div class="trust-block">' +
+        '<div class="trust-label">Suggested Stake ' +
+          '<span class="info-tip" onclick="showInfoPop(event, &quot;Suggested Stake&quot;, &quot;Per-card stake sized off your bankroll (config.BANKROLL = $' + br + ' HKD). EDGE 3%, HIGH 2%, MED 1%, LOW 0.5%. WIN bets use half-Kelly capped at the tier %. Adjust BANKROLL in config.py to match your rolling bankroll.&quot;)">ⓘ</span>' +
+        '</div>' +
+        '<div class="trust-body" style="margin-top:4px;font-size:.85rem">' +
+          '<strong style="color:var(--gold)">$' + Math.round(ss.amount) + '</strong> HKD' +
+          '<br><span style="color:var(--dim);font-size:.65rem">' + (ss.pct||0).toFixed(2) + '% of $' + br + ' bankroll · ' + esc(ss.method||'') + '</span>' +
+        '</div>' +
+      '</div>';
+  }}
+
   // Bet type sub-label
   var betRec = topH.bet_recommendation || 'QIN';
   var raceLabel = 'R' + race.race_number + ' · ' + esc(race.time || '') + ' · ' + esc(race.class_type || '') + ' ' + race.distance + 'm';
@@ -915,6 +933,7 @@ function renderBetCard(race) {{
         '</div>' +
       '</div>' +
       '<div class="trust-block"><div class="trust-label">Tier Track Record</div><div class="trust-body" style="margin-top:4px">' + trackHtml + '</div></div>' +
+      stakeHtml +
     '</div>' +
   '</div>';
 }}

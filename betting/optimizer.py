@@ -368,3 +368,79 @@ class BettingReportGenerator:
 • Lower hit rate but MASSIVE returns when they hit
 • MEGA MASTERMIND at 30.0 was a classic value bet!
         """)
+
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Bankroll-fraction stake suggestions for the dashboard.
+# Independent of the legacy BettingOptimizer class above.
+# ─────────────────────────────────────────────────────────────────────
+
+# Per-tier base stake fractions. Conservative — tuned to keep the
+# *typical* card's total exposure under 8-10% of bankroll across all
+# bets when the average HK meeting has 2 HIGH-tier + 4 MED-tier + the
+# rest LOW/SKIP. Half-Kelly equivalent for the WIN case.
+_TIER_STAKE_FRACTION = {
+    'EDGE': 0.030,   # 3.0% — rare; gets the largest single-bet allocation
+    'HIGH': 0.020,   # 2.0%
+    'MED':  0.010,   # 1.0%
+    'LOW':  0.005,   # 0.5% — exposure only, no conviction
+    'SKIP': 0.000,
+}
+
+
+def compute_suggested_stake(*, conviction_tier: str, bet_type: str,
+                            top_prob: float, top_odds: float,
+                            bankroll: float) -> dict:
+    """Suggested per-card stake in HKD plus the % of bankroll it represents.
+
+    Two paths:
+    - WIN / BANKER WIN: half-Kelly on (top_prob, top_odds). Capped at the
+      tier-fraction so a single hot bet can't blow the bankroll.
+    - Exotic boxes (QIN/TRIO/F4/BOX Q4/etc): tier-based fraction. Kelly
+      on multi-combo exotics requires the joint distribution of all
+      combos and the dividend, which we don't have a clean handle on —
+      so we use the tier as a proxy for confidence and let conviction
+      gates do the size-discrimination work.
+
+    Returns: {'amount': float HKD, 'pct': float of bankroll, 'method': str}
+    """
+    tier = (conviction_tier or 'SKIP').upper()
+    frac_cap = _TIER_STAKE_FRACTION.get(tier, 0.0)
+    bt = (bet_type or '').upper()
+
+    # Top horse's bet is SKIP (recommender decided race-shape doesn't
+    # support a PRIMARY pick). Return zero so we never suggest money on
+    # a SKIP'd primary pick even when the tier is HIGH/MED — happens
+    # rarely when conviction gates fail downstream of the tier label.
+    if not bt or bt == 'SKIP':
+        return {'amount': 0.0, 'pct': 0.0, 'method': 'skip (bet=SKIP)'}
+
+    if frac_cap == 0 or bankroll <= 0:
+        return {'amount': 0.0, 'pct': 0.0, 'method': 'skip'}
+
+    if bet_type in ('WIN', 'BANKER WIN') and top_odds and top_odds > 1 and top_prob > 0:
+        # Half-Kelly: f* = (b·p - q) / b, then × 0.5 for variance control.
+        b = top_odds - 1
+        p = max(0.0, min(1.0, top_prob))
+        q = 1.0 - p
+        kelly_full = (b * p - q) / b if b > 0 else 0.0
+        kelly_half = max(0.0, kelly_full * 0.5)
+        # Don't exceed the tier cap — Kelly on a high-odds longshot can
+        # suggest 8-10% which violates the per-bet exposure budget.
+        frac = min(kelly_half, frac_cap)
+        amount = round(bankroll * frac, -1)  # round to nearest $10
+        return {
+            'amount': float(amount),
+            'pct': round(frac * 100, 2),
+            'method': f'half-Kelly capped at {tier} {frac_cap*100:.1f}%',
+        }
+
+    # Exotic boxes — use tier fraction directly. This is the "exposure"
+    # for ALL combos in the box (not per-combo).
+    amount = round(bankroll * frac_cap, -1)
+    return {
+        'amount': float(amount),
+        'pct': round(frac_cap * 100, 2),
+        'method': f'tier-fraction ({tier})',
+    }
