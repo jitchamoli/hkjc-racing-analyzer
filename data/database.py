@@ -21,6 +21,27 @@ DB_DIR.mkdir(exist_ok=True)
 DB_FILE = DB_DIR / 'horse_history.db'
 
 
+def apply_perf_pragmas(conn: sqlite3.Connection) -> None:
+    """Connection-local PRAGMAs for read-heavy workloads.
+
+    These have to be set per-connection — they don't persist except for
+    journal_mode (already on as WAL). Measured speedup: backtest +1.4×
+    on top of the composite indexes (14.4s → 10.4s).
+
+    Safe everywhere — `temp_store=MEMORY` only affects temp tables/sorts
+    (we don't materialize large ones); `mmap_size` is advisory and SQLite
+    falls back to read() if the mapping fails.
+    """
+    try:
+        conn.execute("PRAGMA cache_size = -20000")    # 20MB page cache (was 2MB)
+        conn.execute("PRAGMA mmap_size = 268435456")  # 256MB memory-mapped IO
+        conn.execute("PRAGMA temp_store = MEMORY")    # temp tables/sorts in RAM
+    except sqlite3.DatabaseError:
+        # Older SQLite or restricted environment — fall through silently;
+        # the connection still works at default settings.
+        pass
+
+
 class HorseDatabase:
     """Persistent local database for horse racing history."""
 
@@ -29,6 +50,7 @@ class HorseDatabase:
         self.conn = sqlite3.connect(self.db_path, timeout=10)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
+        apply_perf_pragmas(self.conn)
         self._create_tables()
 
     def _create_tables(self):

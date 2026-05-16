@@ -54,6 +54,8 @@ def collect_calibration_pairs(last_n=None):
 
     conn = sqlite3.connect(str(config.DB_PATH))
     conn.row_factory = sqlite3.Row
+    from data.database import apply_perf_pragmas
+    apply_perf_pragmas(conn)
     rows = load_calibration_window(conn)
     if last_n is not None and last_n < len(rows):
         rows = rows[-last_n:]
