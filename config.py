@@ -114,3 +114,9 @@ AU_DB_PATH = PROJECT_ROOT / "tracking_data" / "au_history.db"
 # stakes-only JRA racing (Hanshin, Nakayama, Tokyo, etc) without OR/RPR
 # ratings — too sparse to model, kept for reference / HKIR raider lookup.
 JP_DB_PATH = PROJECT_ROOT / "tracking_data" / "jp_history.db"
+
+# FR database path — same plumbing, region='fr'. Standard plan returns ~2,364
+# races/yr across 7 major French tracks (Longchamp, Auteuil, Chantilly,
+# Saint-Cloud, Compiegne, Deauville, Toulouse) with OR coverage ~89% — the
+# only non-UK jurisdiction with enough data + ratings to plausibly model.
+FR_DB_PATH = PROJECT_ROOT / "tracking_data" / "fr_history.db"
