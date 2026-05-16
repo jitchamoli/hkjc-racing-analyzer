@@ -28,6 +28,12 @@ MIN_EXPECTED_RETURN = 0.05
 MIN_INVESTMENT = 10
 MAX_INVESTMENT = 200
 
+# Bankroll-based stake suggestions (HKD). Used by the per-card "suggested
+# stake" line in the dashboard. Adjust to your actual rolling bankroll.
+# Conservative default. Per-tier fractions are defined in
+# betting/optimizer.compute_suggested_stake.
+BANKROLL = 10000
+
 # Monitor
 POLL_INTERVAL = 300  # seconds
 PRE_RACE_WINDOW = 360  # seconds
