@@ -88,7 +88,15 @@ class UKRacingAPI:
 
         region: optional filter ('gb' = UK only, 'ire' = Ireland, etc).
                 None returns all regions.
+
+        Note: the API rejects end_date >= today with 422 "end date cannot be
+        in the future". We clamp silently to (today - 1 day) so callers like
+        `--since-last` that compute end_date=today don't crash.
         """
+        from datetime import date, timedelta
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        if end_date >= date.today().isoformat():
+            end_date = yesterday
         params: Dict[str, Any] = {
             "start_date": start_date,
             "end_date": end_date,
