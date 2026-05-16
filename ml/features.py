@@ -658,8 +658,21 @@ class FeatureEngineering:
         Args:
             conn: Optional shared SQLite connection. If None, opens/closes its own.
         """
-        features = []
         horse_name = horse_data.get('name', '')
+
+        # Opt-in cache: if backtest enabled the feature cache and this
+        # (race_date, race_number, horse_name) is present, return it.
+        # Cache is disabled by default — live race-day extraction never
+        # hits this path. See data/feature_cache.py for invalidation.
+        from data import feature_cache as _fc
+        if _fc.is_enabled():
+            _rd = horse_data.get('race_date', '')
+            _rn = horse_data.get('race_number', 0)
+            _hit = _fc.get(_rd, _rn, horse_name)
+            if _hit is not None:
+                return _hit
+
+        features = []
         distance = horse_data.get('distance', 1200)
         going = horse_data.get('going', '')
         field_size = horse_data.get('field_size', 12)
@@ -968,4 +981,15 @@ class FeatureEngineering:
 
         result = np.array(features, dtype=np.float32)
         validate_features(result)
+
+        # Populate cache on miss when enabled (no-op otherwise).
+        from data import feature_cache as _fc
+        if _fc.is_enabled():
+            _fc.put(
+                horse_data.get('race_date', ''),
+                horse_data.get('race_number', 0),
+                horse_name,
+                result,
+            )
+
         return result
