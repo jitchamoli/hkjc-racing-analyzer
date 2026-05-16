@@ -56,6 +56,18 @@ python3 -m scripts.analyze_rank2
 
 # Accuracy report (Brier, BSS, calibration curve)
 python3 -m scripts.accuracy --all
+
+# --- Multi-jurisdiction pipelines (UK, FR via theracingapi.com; AU/JP reference-only) ---
+python3 -m scripts.ingest_uk --since-last     # weekly pull of UK results
+python3 -m scripts.ingest_fr --since-last     # weekly pull of FR results
+python3 -m scripts.ingest_au --since-last     # AU stakes-only, reference data
+python3 -m scripts.ingest_jp --since-last     # JP JRA-only, reference data
+python3 -m scripts.train_uk                   # retrain UK MVP (15 features)
+python3 -m scripts.train_fr                   # retrain FR MVP (15 features)
+python3 -m scripts.backtest_uk                # UK kill-or-keep ROI on test fold
+python3 -m scripts.backtest_fr                # FR kill-or-keep ROI on test fold
+python3 -m scripts.validate_uk --since-cutoff # forward-validation (true OOS)
+python3 -m scripts.validate_fr --since-cutoff # forward-validation (true OOS)
 ```
 
 ## Architecture
@@ -63,18 +75,32 @@ python3 -m scripts.accuracy --all
 ### Package Structure
 
 ```
-core/       — fetcher, analyzer, scorer, recommender, ML predictor
-ml/         — feature schema (24 features, v6.8), feature extraction, model, training, integrity, experiments
-analytics/  — 14 specialized analyzers (draw bias, pace, sectionals, etc.)
-data/       — database, odds tracker, scraper, validation, sectional_scraper
-monitor/    — race day monitor (auto-rerun on sharp moves)
-dashboard/  — prediction generator, edge-first HTML template
-betting/    — edge_calculator, conviction tiers, alerts, tier_stats, dividends, exotic_calculator, optimizer
+core/       — fetcher, analyzer, scorer, recommender, ML predictor          (HK)
+ml/         — feature schema (24 features, v6.8), feature extraction,       (HK)
+              model, training, integrity, experiments
+              + uk_features.py, uk_model.py                                   (UK MVP)
+              + fr_features.py, fr_model.py                                   (FR MVP)
+analytics/  — 14 specialized analyzers (draw bias, pace, sectionals, etc.)  (HK only)
+data/       — database, odds tracker, scraper, validation, sectional_scraper (HK)
+              + uk_racing_api.py     (generic theracingapi.com client —
+                                      services UK/AU/JP/FR despite the name)
+              + uk_database.py, au_database.py, jp_database.py, fr_database.py
+monitor/    — race day monitor (auto-rerun on sharp moves)                  (HK only)
+dashboard/  — prediction generator, edge-first HTML template                (HK only)
+betting/    — edge_calculator, conviction tiers, alerts, tier_stats,        (HK only)
+              dividends, exotic_calculator, optimizer
 scripts/    — CLI entry points
-tests/      — pytest suite (278 tests)
+              HK:  generate, scrape, train, monitor, backtest, accuracy, ...
+              UK:  ingest_uk, train_uk, backtest_uk, validate_uk
+              FR:  ingest_fr, train_fr, backtest_fr, validate_fr
+              AU:  ingest_au       (reference data only — no model)
+              JP:  ingest_jp       (reference data only — no model)
+tests/      — pytest suite (322 total: 314 HK tests + 8 UK tests)
 ```
 
 Root-level shims exist for backwards compatibility (e.g., `hkjc_data_fetcher.py` re-exports from `core/fetcher.py`).
+
+**Strict isolation between jurisdictions.** Each non-HK jurisdiction has its own SQLite file (`uk_history.db`, `au_history.db`, `jp_history.db`, `fr_history.db`), its own model pickle (where applicable), and its own scripts. HK code paths (`core/`, `analytics/`, `monitor/`, `dashboard/`, `betting/`) are not touched by any non-HK pipeline. See "Multi-jurisdiction pipelines" section at the end of this doc.
 
 ### Data Pipeline
 
@@ -234,3 +260,46 @@ Market odds enter ONLY through the dynamic market blend. Blend weights are heavi
 `renavon_*` tables are a one-time historical backfill ending 2026/04/22. They will never grow. For new race data, dividends, and rankings, use the HKJC scraper. Do NOT design features that assume continuous renavon_* updates.
 
 → Table inventory, indexes, backfill impact, rebuild commands, untapped feature candidates: `docs/renavon.md`.
+
+## Multi-jurisdiction pipelines (UK / FR / AU / JP)
+
+Added 2026-05-17. All non-HK racing data flows from **theracingapi.com** (HTTP Basic Auth via `.env` — `RACING_API_USERNAME` / `RACING_API_PASSWORD`). The single API client at `data/uk_racing_api.py` services every non-HK jurisdiction; only the `region` filter and DB destination differ.
+
+### Jurisdiction status
+
+| Jurisdiction | DB | Model | Status | 12mo volume |
+|---|---|---|---|---|
+| **HK** | `horse_history.db` | v6.8 production | Production. Untouched by this expansion. | 55,157 race results |
+| **UK** | `uk_history.db` | `uk_racing_model.pkl` (15-feature XGB) | MVP — forward-validating | 81,975 runners |
+| **FR** | `fr_history.db` | `fr_racing_model.pkl` (15-feature XGB) | MVP — forward-validating, **beats market favourite** in backtest | 21,267 runners |
+| **AU** | `au_history.db` | none | Reference data only — too sparse on standard tier | 4,444 runners |
+| **JP** | `jp_history.db` | none | Reference data only — no OR ratings on standard tier | 2,069 runners |
+
+### Forward-validation loop (UK + FR weekly)
+
+```
+python3 -m scripts.ingest_uk --since-last     # pulls UK results since last DB date
+python3 -m scripts.validate_uk --since-cutoff # scores model on all OOS races
+python3 -m scripts.ingest_fr --since-last
+python3 -m scripts.validate_fr --since-cutoff
+```
+
+`validate_*` reports flat WIN ROI for three strategies: **model top-1**, **market favourite**, and **model TOP1 vs market** (the disagreement edge probe). Decision rules:
+- n < 200 disagreements → directional only
+- n ≥ 200 AND ROI > 0 → edge confirmed, revisit Phase 2B build
+- n ≥ 200 AND ROI ≤ 0 → kill that pipeline
+
+### Critical design rules (apply to UK + FR; same as HK ML rules)
+
+1. **No data leakage** — features use only `prior_date < current_date`. Verified by `groupby + shift(1)` patterns in `ml/*_features.py`.
+2. **Feature schema is frozen at the MVP** — adding more features degraded ROI on both UK and FR (memory: `uk-feature-ceiling-2026-05-17`, `feature-experiments-brier-vs-roi-pattern`). Do NOT add features without empirical justification from forward-validation.
+3. **Phase 2B (place model, calibration, market blend, recommender) is deferred** — post-processing layers can't fix a model with no underlying rank edge. Confirm the disagreement edge at n≥200 BEFORE building 2B.
+4. **API client quirk**: `get_results_for_range` rejects `end_date >= today` with 422. The client clamps to (today − 1) silently — don't try to override.
+
+### Adding a new jurisdiction (process if a 5th lands)
+
+YAGNI says copy the AU pattern. The 4-way duplication of `*_database.py` files is intentional; refactor to a shared base class only when a 5th jurisdiction proves the abstraction is needed. Schema parity across all 4 stores means future cross-jurisdiction queries can `UNION ALL`.
+
+### Credentials
+
+`.env` contains `RACING_API_USERNAME` + `RACING_API_PASSWORD`. **Gitignored** (`.gitignore` line 16). `config.py` reads them via `os.environ.get(..., "")` — never hardcode. `.env.example` is a committed placeholder template. The full git history has been audited zero-leakage.
