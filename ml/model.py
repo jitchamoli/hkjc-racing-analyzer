@@ -422,12 +422,23 @@ class HKJCRacingMLModel:
         # from 0.01 → 0.05 so soft-constant features (e.g. rating_change with
         # 37% nulls all collapsing to the 0.5 default) get flagged before
         # they degrade model quality silently.
+        #
+        # Whitelist: features whose natural range IS small (Bayesian-smoothed
+        # rate features like jockey_win_rate ≈ 0.08, jockey_form_30d ≈ 0.08,
+        # etc.) will trip the std<0.05 threshold WITHOUT being broken. They're
+        # flagged as INFO instead of WARNING so the real bugs (like the
+        # horse_age `[:2]` slice that collapsed 94% of rows to 0.5) stand out.
+        RATE_FEATURE_WHITELIST = {
+            "jockey_win_rate", "trainer_win_rate",
+            "jockey_form_30d", "jt_pair_win_rate",
+        }
         feature_stds = features.std(axis=0)
         for i, name in enumerate(FEATURE_NAMES):
             if feature_stds[i] < 0.05:
-                logger.warning(
-                    f"Near-constant feature: {name} std={feature_stds[i]:.4f} "
-                    f"— likely mostly null/default; check feature extraction"
+                level_fn = logger.info if name in RATE_FEATURE_WHITELIST else logger.warning
+                tag = " (rate feature, expected small)" if name in RATE_FEATURE_WHITELIST else ""
+                level_fn(
+                    f"Near-constant feature: {name} std={feature_stds[i]:.4f}{tag}"
                 )
 
         # Only log to the production experiment ledger when this is a real
