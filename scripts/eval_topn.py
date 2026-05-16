@@ -209,6 +209,8 @@ def main():
 
     conn = sqlite3.connect(str(config.DB_PATH))
     conn.row_factory = sqlite3.Row
+    from data.database import apply_perf_pragmas
+    apply_perf_pragmas(conn)
     rows = load_held_out_races(conn, last_n=args.last)
     races = group_by_race(rows)
     print(f"\nEvaluating {len(races)} races "
