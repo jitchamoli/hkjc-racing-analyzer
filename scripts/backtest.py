@@ -269,6 +269,7 @@ def build_horse_data(h, field_size):
         'field_size': field_size,
         'class_type': h.get('class_type') or '',
         'race_date': h['race_date'],
+        'race_number': h.get('race_number') or 0,  # cache key (data/feature_cache.py)
         'weight': h.get('weight') or 0,
         'horse_weight': h.get('horse_weight') or 0,
         'days_since_last_run': h.get('days_since_last_run') or 0,
@@ -866,12 +867,23 @@ def main():
                         help='Exclude specific race dates (YYYY/MM/DD) — can repeat')
     parser.add_argument('--pnl-json', default=None,
                         help='Path to write per-race P&L JSON (for bootstrap CI)')
+    parser.add_argument('--no-cache', action='store_true',
+                        help='Disable on-disk feature cache (forces fresh extraction)')
     args = parser.parse_args()
 
     conn = sqlite3.connect(str(config.DB_PATH))
     conn.row_factory = sqlite3.Row
     from data.database import apply_perf_pragmas
     apply_perf_pragmas(conn)
+
+    # On-disk feature cache — saves ~5-7s of extract_features time on
+    # repeated runs against the same DB. Cache key encodes NUM_FEATURES
+    # and total row count so schema/data changes auto-invalidate.
+    if not args.no_cache:
+        from data import feature_cache as _fc
+        _fc.enable()
+        import atexit
+        atexit.register(_fc.save)
 
     rows = load_held_out_races(conn, last_n=args.last)
     if args.exclude_date:
