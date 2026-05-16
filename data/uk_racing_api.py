@@ -67,20 +67,34 @@ class UKRacingAPI:
         region: Optional[str] = None,
         page_size: int = 50,
     ) -> List[Dict[str, Any]]:
-        """Fetch all race results for a given date (YYYY-MM-DD).
+        """Fetch all race results for a single date (YYYY-MM-DD).
 
-        region: optional filter — 'gb' for UK only, 'ire' for Ireland, etc.
-                None returns all regions (UK + IRE + global).
-        page_size: API hard cap appears to be 50 per response; helper
-                   auto-paginates via skip param until all rows are read.
-
-        Returns: list of race dicts (see api/results sample response in
-        memory). Each race has top-level fields (course, off, race_name,
-        class, dist, going, etc.) plus a 'runners' list with full
-        per-runner detail (horse, sp, sp_dec, position, jockey, trainer,
-        or, btn, weight_lbs, headgear, comment, pedigree, etc.).
+        Convenience wrapper for get_results_for_range(date, date, ...).
         """
-        params: Dict[str, Any] = {"start_date": date, "limit": page_size, "skip": 0}
+        return self.get_results_for_range(date, date, region=region, page_size=page_size)
+
+    def get_results_for_range(
+        self,
+        start_date: str,
+        end_date: str,
+        region: Optional[str] = None,
+        page_size: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Fetch all race results in [start_date, end_date] inclusive.
+
+        Both dates YYYY-MM-DD. The API has a hard 50-per-response cap;
+        this auto-paginates via skip until all rows in the range are
+        returned.
+
+        region: optional filter ('gb' = UK only, 'ire' = Ireland, etc).
+                None returns all regions.
+        """
+        params: Dict[str, Any] = {
+            "start_date": start_date,
+            "end_date": end_date,
+            "limit": page_size,
+            "skip": 0,
+        }
         if region:
             params["region"] = region
         all_results: List[Dict[str, Any]] = []
