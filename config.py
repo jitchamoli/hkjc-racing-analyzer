@@ -104,3 +104,8 @@ RACING_API_BASE_URL = "https://api.theracingapi.com"  # final path TBD after fir
 
 # UK database path — separate file from HK so schemas/ML models don't mix.
 UK_DB_PATH = PROJECT_ROOT / "tracking_data" / "uk_history.db"
+
+# AU database path — separate file from UK/HK. Same theracingapi.com client
+# (data/uk_racing_api.py) services both UK and AU; only the region filter +
+# DB destination differ.
+AU_DB_PATH = PROJECT_ROOT / "tracking_data" / "au_history.db"
