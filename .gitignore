@@ -54,6 +54,7 @@ tracking_data/horse_history.db
 tracking_data/odds_history.db
 tracking_data/uk_history.db
 tracking_data/au_history.db
+tracking_data/jp_history.db
 tracking_data/horse_history.db-shm
 tracking_data/horse_history.db-wal
 tracking_data/odds_history.db-shm
@@ -62,6 +63,8 @@ tracking_data/uk_history.db-shm
 tracking_data/uk_history.db-wal
 tracking_data/au_history.db-shm
 tracking_data/au_history.db-wal
+tracking_data/jp_history.db-shm
+tracking_data/jp_history.db-wal
 
 # Renavon one-time export CSVs (~76MB gzipped, frozen 2026-04-26).
 # Tracked in git so the DB can be rebuilt via `python3 -m scripts.load_renavon_csvs`
