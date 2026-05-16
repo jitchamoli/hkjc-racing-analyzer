@@ -34,6 +34,9 @@ models/*.sha256.*-backup
 # Per-date alert dedup state (ephemeral, regenerated each day)
 tracking_data/alerts_state_*.json
 
+# Backtest feature cache (auto-rebuilt on schema/data change; see data/feature_cache.py)
+tracking_data/cache/
+
 # Runtime logs (auto_dump.sh, launchd stdout/stderr — rotating, not source)
 logs/
 
