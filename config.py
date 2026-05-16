@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 """Centralized configuration for HKJC Racing Analyzer."""
 
+import os
 from pathlib import Path
 
 # Project root
 PROJECT_ROOT = Path(__file__).parent
+
+# Load .env file from project root, if present. python-dotenv is a no-op
+# when the file is missing, so this is safe in fresh checkouts. See
+# .env.example for the expected variables.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(PROJECT_ROOT / ".env")
+except ImportError:
+    pass  # python-dotenv optional; secrets still readable via plain os.environ
 
 # Database paths
 DB_PATH = PROJECT_ROOT / "tracking_data" / "horse_history.db"
@@ -83,3 +93,14 @@ HKJC_BASE_URL = "https://racing.hkjc.com/racing/information/English"
 HKJC_RACE_CARD_URL = f"{HKJC_BASE_URL}/Racing/RaceCard.aspx"
 HKJC_RESULTS_URL = f"{HKJC_BASE_URL}/Racing/LocalResults.aspx"
 HKJC_ODDS_URL = f"{HKJC_BASE_URL}/Odds"
+
+# The Racing API (https://www.theracingapi.com) — UK + IRE + HK racing data.
+# Uses HTTP Basic Auth — both credentials loaded from .env (see .env.example).
+# Used by data/uk_racing_api.py for the UK pipeline; HK pipeline still
+# scrapes HKJC directly and does NOT consume these credentials.
+RACING_API_USERNAME = os.environ.get("RACING_API_USERNAME", "")
+RACING_API_PASSWORD = os.environ.get("RACING_API_PASSWORD", "")
+RACING_API_BASE_URL = "https://api.theracingapi.com"  # final path TBD after first API call
+
+# UK database path — separate file from HK so schemas/ML models don't mix.
+UK_DB_PATH = PROJECT_ROOT / "tracking_data" / "uk_history.db"
