@@ -1357,6 +1357,14 @@ class HorseDatabase:
         return result
 
     def close(self):
+        # Per SQLite recommendation: run `PRAGMA optimize` just before close
+        # so the query planner's per-index statistics stay fresh. Cheap
+        # (~50ms) — only re-ANALYZEs indexes that were materially updated
+        # since last optimize.
+        try:
+            self.conn.execute("PRAGMA optimize")
+        except sqlite3.DatabaseError:
+            pass
         self.conn.close()
 
 
