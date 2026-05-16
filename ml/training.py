@@ -43,6 +43,8 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
 
         conn = sqlite3.connect(str(db_path))
         conn.row_factory = sqlite3.Row
+        from data.database import apply_perf_pragmas
+        apply_perf_pragmas(conn)
 
         # Optional recency cutoff
         cutoff_clause = ""
