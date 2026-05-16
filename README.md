@@ -2,6 +2,8 @@
 
 Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 25-factor rule-based engine with an XGBoost ML model (24 features, isotonic-calibrated, post-blend recalibrated, calibrator auto-refit on every retrain) to surface bets the public may be underestimating. The dashboard renders every race as a clickable card stack with two views — **Race Order** (all 11 chronological) and **Top Bets** (curated tier-sorted) — plus a sticky live alerts rail.
 
+> **Multi-jurisdiction expansion (2026-05-17):** HK remains the primary, production pipeline. Four additional jurisdictions ship as **isolated, experimental pipelines** sharing only the API client — see [Multi-jurisdiction pipelines](#multi-jurisdiction-pipelines-uk--fr--au--jp) below.
+
 ## What's New in v6.8 (2026-05-16) — health-check audit
 
 A general health check on the locked v6.8 engine surfaced **4 production bugs** that had been silently degrading the pipeline. All shipped in PR #26.
@@ -135,6 +137,41 @@ Recommender ROI jumped **+50pp** (v6.4 → v6.5 + calibrator). Brier on the new 
 - **v2.0**: Tips Index integration, ML prediction, advanced analytics
 - **v1.0**: Basic rule-based scoring
 
+## Multi-jurisdiction pipelines (UK / FR / AU / JP)
+
+Shipped 2026-05-17 as completely isolated pipelines — separate DBs, separate models, separate scripts. **HK production code is untouched.** All non-HK data flows from [theracingapi.com](https://www.theracingapi.com) (HTTP Basic Auth via `.env`).
+
+| Jurisdiction | Status | 12-month data | Model? |
+|---|---|---|---|
+| 🇭🇰 **HK** | Production (this README's primary subject) | 55,157 race results | v6.8 — 24 features, isotonic-calibrated |
+| 🇬🇧 **UK** | MVP — forward-validating | 81,975 runners | 15-feature XGBoost (AUC tied with market) |
+| 🇫🇷 **FR** | MVP — forward-validating | 21,267 runners | 15-feature XGBoost, **beats market favourite +4.64% ROI on test fold** |
+| 🇦🇺 **AU** | Reference data only | 4,444 runners | none — stakes-only at this plan tier |
+| 🇯🇵 **JP** | Reference data only | 2,069 runners | none — no OR ratings at this plan tier |
+
+### Weekly forward-validation workflow (UK + FR)
+
+```bash
+# After UK weekend racing
+python3 -m scripts.ingest_uk --since-last
+python3 -m scripts.validate_uk --since-cutoff
+
+# After FR weekend racing
+python3 -m scripts.ingest_fr --since-last
+python3 -m scripts.validate_fr --since-cutoff
+```
+
+`validate_*` reports flat WIN ROI for the model top-1, market favourite, and the **model-vs-market disagreement edge** (the strategy we're forward-validating). Decision rule: confirm at n≥200 disagreements before building further model layers; if ROI stays negative at n≥200, kill that pipeline.
+
+### Setup (one-time)
+
+```bash
+cp .env.example .env                 # then paste API credentials
+# .env is gitignored — credentials never enter git history
+```
+
+→ Full multi-jurisdiction architecture, design rules, and decision gates: `CLAUDE.md` § "Multi-jurisdiction pipelines"
+
 ## How It Works
 
 ### Data Sources (from racing.hkjc.com)
@@ -233,7 +270,7 @@ hkjc_racing_analyzer/
   scripts/                   # CLI entry points
     generate.py · scrape.py · train.py · monitor.py · backtest.py
     backfill_dividends.py · accuracy.py · serve.py · fetch_results.py
-  tests/                     # pytest suite — 278 tests
+  tests/                     # pytest suite — 314 HK tests + 8 UK tests
   config.py                  # Centralized constants
   models/                    # Trained ML models (pickle + .sha256 sidecar)
   results/                   # HTML dashboards and prediction JSON
@@ -300,9 +337,10 @@ python3 -m scripts.backtest --sweep      # grid over softmax temp × model weigh
 
 ```bash
 pytest tests/ -v
-# 278 tests covering edge math, gates, tier assignment, alerts dedup,
+# 322 tests total (314 HK + 8 UK): edge math, gates, tier assignment, alerts dedup,
 # Wilson CI, template rendering, JS-syntax validation, end-to-end integration,
-# age parser contract (15 cases incl. inf/nan), HKJC results brand-strip
+# age parser contract (15 cases incl. inf/nan), HKJC results brand-strip,
+# UK DB schema + ingestion + idempotency
 ```
 
 ## Performance (last 500 races with real HKJC dividends)
