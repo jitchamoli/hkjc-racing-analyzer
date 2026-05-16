@@ -15,6 +15,7 @@ from datetime import datetime
 import logging
 
 from core.fetcher import HKJCDataFetcher, HorseEntry, RaceCard
+from core.ports import HorseHistoryStore
 
 from core.predictor import (
     HKJCRacingMLModel,
@@ -496,8 +497,10 @@ class CombinedRaceAnalyzer:
         self.rolling_analyzer = RollingFormAnalyzer()
         self.margin_analyzer = BeatenMarginAnalyzer()
         self.jockey_change_analyzer = JockeyChangeAnalyzer()
-        # Try to connect to horse database for historical lookups
-        self._horse_db = None
+        # Typed as the HorseHistoryStore Protocol (core/ports.py) so the
+        # domain does not depend on the concrete adapter; HorseDatabase
+        # duck-types into it.
+        self._horse_db: Optional[HorseHistoryStore] = None
         try:
             from data.database import HorseDatabase
             self._horse_db = HorseDatabase()
