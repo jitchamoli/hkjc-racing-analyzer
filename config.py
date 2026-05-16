@@ -109,3 +109,8 @@ UK_DB_PATH = PROJECT_ROOT / "tracking_data" / "uk_history.db"
 # (data/uk_racing_api.py) services both UK and AU; only the region filter +
 # DB destination differ.
 AU_DB_PATH = PROJECT_ROOT / "tracking_data" / "au_history.db"
+
+# JP database path — same plumbing as UK/AU, region='jpn'. Plan tier returns
+# stakes-only JRA racing (Hanshin, Nakayama, Tokyo, etc) without OR/RPR
+# ratings — too sparse to model, kept for reference / HKIR raider lookup.
+JP_DB_PATH = PROJECT_ROOT / "tracking_data" / "jp_history.db"
