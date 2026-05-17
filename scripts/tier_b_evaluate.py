@@ -157,6 +157,10 @@ def report(filter_date: str | None = None) -> int:
 
     conn = sqlite3.connect(str(config.DB_PATH))
     totals = defaultdict(lambda: {'bets': 0, 'hits': 0, 'pnl': 0.0, 'stake': 0.0})
+    # Marginal EDGE totals — only races where the LOWER threshold caught
+    # a candidate that the HIGHER threshold did NOT. Answers "what does
+    # +3pp catch above +5pp?" (audit fix 2026-05-17, ML expert finding LOW).
+    marginal_totals = defaultdict(lambda: {'bets': 0, 'hits': 0, 'pnl': 0.0, 'stake': 0.0})
     races_scored = 0
     diff_rows = []  # races where OLD and NEW disagreed
     for r in rows:
@@ -187,10 +191,12 @@ def report(filter_date: str | None = None) -> int:
         # EDGE shadow — score 1u WIN bet on the candidate at each G3 cutoff.
         # Production cutoff is +5pp; +3 and +2 are observation-only until
         # we have N≥200 disagreements per the EDGE memory.
-        for thr_label, col in (('EDGE @+5pp (prod)', 'edge_5pp_horse'),
-                               ('EDGE @+3pp (shadow)', 'edge_3pp_horse'),
-                               ('EDGE @+2pp (shadow)', 'edge_2pp_horse')):
-            cand = (r.get(col) or '').strip()
+        edge_5 = (r.get('edge_5pp_horse') or '').strip()
+        edge_3 = (r.get('edge_3pp_horse') or '').strip()
+        edge_2 = (r.get('edge_2pp_horse') or '').strip()
+        for thr_label, cand in (('EDGE @+5pp (prod)', edge_5),
+                                 ('EDGE @+3pp (shadow)', edge_3),
+                                 ('EDGE @+2pp (shadow)', edge_2)):
             if not cand:
                 continue
             pnl, stake, hit = _score_edge_shadow(conn, date, race_no,
@@ -200,6 +206,20 @@ def report(filter_date: str | None = None) -> int:
             totals[thr_label]['stake'] += stake
             if hit:
                 totals[thr_label]['hits'] += 1
+
+        # MARGINAL: what does each lower threshold catch beyond the higher?
+        # +3pp marginal = candidate exists at +3pp but NOT at +5pp (different horse)
+        # +2pp marginal = candidate exists at +2pp but NOT at +3pp
+        for marg_label, lower, higher in (('+3pp ABOVE +5pp', edge_3, edge_5),
+                                            ('+2pp ABOVE +3pp', edge_2, edge_3)):
+            if lower and lower != higher:
+                pnl, stake, hit = _score_edge_shadow(conn, date, race_no,
+                                                      int(lower), actual_top2)
+                marginal_totals[marg_label]['bets'] += 1
+                marginal_totals[marg_label]['pnl'] += pnl
+                marginal_totals[marg_label]['stake'] += stake
+                if hit:
+                    marginal_totals[marg_label]['hits'] += 1
 
         races_scored += 1
     conn.close()
@@ -234,6 +254,27 @@ def report(filter_date: str | None = None) -> int:
         n_diff = len(diff_rows)
         if n_diff < 10:
             print(f"  ⚠️  Only {n_diff} disagreement(s) so far — collect ≥10 before drawing conclusions.")
+
+    # Marginal EDGE table — only rows where lower threshold caught a horse
+    # the higher one did not. Shows the incremental value of lowering G3.
+    if marginal_totals:
+        print(f"\n--- EDGE marginal-only (lower threshold catches above higher) ---")
+        print(f"{'comparison':<22} {'bets':>5} {'hits':>5} {'hit%':>6} {'stake':>7} {'P&L':>9} {'ROI':>9}")
+        print('-' * 75)
+        for label in ('+3pp ABOVE +5pp', '+2pp ABOVE +3pp'):
+            if label not in marginal_totals:
+                continue
+            d = marginal_totals[label]
+            hit_pct = d['hits'] / d['bets'] * 100 if d['bets'] else 0
+            roi = d['pnl'] / d['stake'] * 100 if d['stake'] else 0
+            print(f"  {label:<20} {d['bets']:>5} {d['hits']:>5} {hit_pct:>5.1f}% "
+                  f"{f'${d['stake']:.0f}':>7} {f'${d['pnl']:+.1f}':>9} {roi:>+7.1f}%")
+        # Decision rule from EDGE memory: need ≥10 marginal fires per tier
+        # before lowering production threshold
+        m3_n = marginal_totals.get('+3pp ABOVE +5pp', {}).get('bets', 0)
+        if m3_n < 10:
+            print(f"  ⚠️  Only {m3_n} marginal +3pp fire(s) — need ≥10 before considering "
+                  f"lowering production G3 to +3pp.")
     return 0
 
 

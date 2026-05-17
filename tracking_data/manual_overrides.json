@@ -1,0 +1,9 @@
+{
+  "_schema": "Manual TRIO-6 rank-6 override. Format: { 'YYYY/MM/DD': { race_number_str: { 'trio6_horse': N, 'reason': str } } }. Set when racing-API form/RPR signal beats the auto rank-6 swap candidate (e.g., auto-swap picks a horse with long layoff, or RPR-flagged horse outside top-5 is the better hedge).",
+  "2026/05/17": {
+    "9": {
+      "trio6_horse": 10,
+      "reason": "RPR 76 (top in field) + Andrea Atzeni vs auto-swap #14 SILVER UP off 168 days, trainer 0% form"
+    }
+  }
+}
