@@ -390,7 +390,37 @@ class ResultsFetcher:
         json_data = json.dumps(data)
         json_data = json_data.replace('</script>', r'<\/script>').replace('</Script>', r'<\/Script>')
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        html = generate_html(json_data, now, race_date, venue)
+
+        # Mirror generator.py: load accuracy_summary + edge_stats so the
+        # post-results dashboard render does not erase the trust footer or
+        # EDGE banner stats (bug 2026-05-17 — post_race regen left both
+        # panels empty because this call passed neither).
+        accuracy_summary = None
+        try:
+            from data.database import HorseDatabase
+            _db = HorseDatabase()
+            try:
+                accuracy_summary = _db.get_accuracy_summary(days=60)
+                if accuracy_summary and 'message' in accuracy_summary:
+                    accuracy_summary = None
+            finally:
+                _db.close() if hasattr(_db, 'close') else None
+        except Exception as e:
+            logger.warning(f"accuracy_summary load failed in results_fetcher: {e}")
+
+        edge_stats = None
+        try:
+            es_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                    'tracking_data', 'edge_stats.json')
+            if os.path.exists(es_path):
+                with open(es_path) as f:
+                    edge_stats = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+        html = generate_html(json_data, now, race_date, venue,
+                              accuracy_summary=accuracy_summary,
+                              edge_stats=edge_stats)
 
         # Atomic write — same pattern the generator uses.
         # try/finally ensures tmp is unlinked on write failure (disk full,
@@ -533,6 +563,18 @@ async def _attach_sectional_times(today_races: list, race_date: str):
             if st:
                 entry['sectional_times'] = st
                 n_attached += 1
+                # Backfill finish_time from sectional sum when HKJC has not yet
+                # published official times (often the case for the last race of
+                # the card). The sectionals partition the total — their sum IS
+                # the finish time by definition. Next official fetch overwrites
+                # this with the authoritative value if it differs.
+                if not (entry.get('finish_time') or '').strip():
+                    try:
+                        total = sum(float(x) for x in st.split())
+                        mins, secs = divmod(total, 60)
+                        entry['finish_time'] = f"{int(mins)}:{secs:05.2f}"
+                    except (ValueError, TypeError):
+                        pass
     logger.info(f"Attached sectional times to {n_attached} result entries "
                 f"({len(by_race)}/{len(race_nos)} races had sectional pages)")
 
