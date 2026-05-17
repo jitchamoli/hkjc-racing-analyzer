@@ -389,9 +389,35 @@ _TIER_STAKE_FRACTION = {
 }
 
 
+def _confidence_scale(tier: str, top_2_share: float) -> float:
+    """Within-tier confidence scaling on HIGH races (2026-05-17 learning).
+
+    HIGH tier covers top_2_share 0.40-1.00. The bottom of that band
+    (0.40-0.50) is meaningfully less concentrated than the top (>0.55).
+    R8 (0.47) and R9 (0.55) both lost on full HIGH stake today, while
+    R10 (0.45) hit. Variance dominates at any individual race, but
+    long-run we should risk less when the model is just-above-threshold.
+
+    Linear ramp: scale=0.75 at top_2_share=0.40, scale=1.0 at top_2_share=0.50+.
+    EDGE / MED / LOW tiers unchanged — they have their own threshold logic.
+    Bands chosen to keep current-meeting stakes within ±25% so we do not
+    suddenly chop bets in half without forward validation.
+    """
+    if tier != 'HIGH' or top_2_share is None or top_2_share <= 0:
+        return 1.0
+    if top_2_share >= 0.50:
+        return 1.0
+    # Linear from (0.40, 0.75) to (0.50, 1.0).
+    # Floor at 0.75 — HIGH tier sometimes fires below top_2=0.40 due to
+    # tier-escalation rules; do not let stake collapse below 75%.
+    scale = 0.75 + (top_2_share - 0.40) / 0.10 * 0.25
+    return max(0.75, scale)
+
+
 def compute_suggested_stake(*, conviction_tier: str, bet_type: str,
                             top_prob: float, top_odds: float,
-                            bankroll: float) -> dict:
+                            bankroll: float,
+                            top_2_share: float = None) -> dict:
     """Suggested per-card stake in HKD plus the % of bankroll it represents.
 
     Two paths:
@@ -403,10 +429,17 @@ def compute_suggested_stake(*, conviction_tier: str, bet_type: str,
       so we use the tier as a proxy for confidence and let conviction
       gates do the size-discrimination work.
 
+    top_2_share (optional): within-tier scaling on HIGH races — see
+    _confidence_scale. Defaults to None which means no scaling (back-compat
+    with callers that haven't passed the new param yet).
+
     Returns: {'amount': float HKD, 'pct': float of bankroll, 'method': str}
     """
     tier = (conviction_tier or 'SKIP').upper()
     frac_cap = _TIER_STAKE_FRACTION.get(tier, 0.0)
+    # Within-tier confidence scaling (HIGH only — see _confidence_scale)
+    conf_scale = _confidence_scale(tier, top_2_share)
+    frac_cap = frac_cap * conf_scale
     bt = (bet_type or '').upper()
 
     # Top horse's bet is SKIP (recommender decided race-shape doesn't
@@ -439,8 +472,11 @@ def compute_suggested_stake(*, conviction_tier: str, bet_type: str,
     # Exotic boxes — use tier fraction directly. This is the "exposure"
     # for ALL combos in the box (not per-combo).
     amount = round(bankroll * frac_cap, -1)
+    method = f'tier-fraction ({tier})'
+    if conf_scale < 1.0 and top_2_share is not None:
+        method += f' ×{conf_scale:.2f} (top_2={top_2_share:.2f})'
     return {
         'amount': float(amount),
         'pct': round(frac_cap * 100, 2),
-        'method': f'tier-fraction ({tier})',
+        'method': method,
     }

@@ -613,6 +613,7 @@ async def _run_generation(fetcher, analyzer, race_date: str):
             top_prob=top.get('calibrated_prob') or 0.0,
             top_odds=top.get('win_odds') or 0.0,
             bankroll=_cfg.BANKROLL,
+            top_2_share=r.get('top_2_share'),
         )
         r['suggested_stake'] = stake
         r['bankroll'] = _cfg.BANKROLL
