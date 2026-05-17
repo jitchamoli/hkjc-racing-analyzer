@@ -992,6 +992,37 @@ function renderBetCard(race) {{
     }}
   }}
 
+  // Rank-5 swap for F4 BOX-5 + BOX TRIO-5 — mirrors the TRIO-6 rank-6 swap
+  // logic (line ~937) with a STRICTER 0.5 threshold. Triggers when rank-5 is
+  // a longshot AND a rank 6-11 horse has odds <= 50% of rank-5 AND has gear
+  // (signals committed horse). Shipped after R4 2026-05-17 where #11 LITTLE
+  // MONSTER (rank 6, $11, hot trainer W K Mo 20%) won — the swap framework
+  // would have replaced rank-5 #3 MASSIVE REWARD ($40 longshot) and hit
+  // both F4 BOX-5 + TRIO-5. Memory [[box_5_market_lean]] validated for TRIO-6;
+  // extending the same rule down one rank with a tighter threshold.
+  var top5waSwap = null;
+  var top5waSwapOut = null;
+  if (top5wa.length === 5) {{
+    var rank5wa = top5wa[4];
+    var rank5OddsWa = (rank5wa && rank5wa.win_odds) || 0;
+    if (rank5OddsWa > 0) {{
+      for (var swi5 = 5; swi5 < Math.min(12, race.horses.length); swi5++) {{
+        var cand5 = race.horses[swi5];
+        var cand5Odds = cand5.win_odds || 0;
+        var cand5Gear = (cand5.gear || '').trim();
+        if (cand5Odds > 0 && cand5Gear && cand5Odds <= rank5OddsWa * 0.5) {{
+          if (!top5waSwap || cand5Odds < top5waSwap.win_odds) {{
+            top5waSwap = cand5;
+          }}
+        }}
+      }}
+    }}
+    if (top5waSwap) {{
+      top5waSwapOut = top5wa[4];
+      top5wa = race.horses.slice(0, 4).concat([top5waSwap]);
+    }}
+  }}
+
   // BOX TRIO-5 — promoted to MAIN bet block (between PRIMARY and Optional
   // adds) per user feedback after R3 2026-05-03: TRIO-5 caught the podium
   // when the model's top-1/top-2 ordering was unreliable. It's the floor
@@ -1001,7 +1032,10 @@ function renderBetCard(race) {{
   if (top5wa.length === 5) {{
     var t5Nums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
     var t5Stake = waUnit > 0 ? (' · $' + (10 * waUnit)) : '';
-    t5MainBlock = ['', '*MAIN: BOX TRIO-5' + t5Stake + '* (10 combos)', t5Nums];
+    var t5SwapAnno = top5waSwap
+      ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
+      : '';
+    t5MainBlock = ['', '*MAIN: BOX TRIO-5' + t5Stake + '* (10 combos)' + t5SwapAnno, t5Nums];
   }}
 
   // F4 BOX-5 — second MAIN bet block (shipped 2026-05-06, +54% ROI on 60-race
@@ -1019,7 +1053,10 @@ function renderBetCard(race) {{
     if (!f4bSkipWa) {{
       var f4bNums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
       var f4bStake = waUnit > 0 ? (' · $' + (5 * waUnit)) : '';
-      f4bMainBlock = ['', '*MAIN: F4 BOX-5' + f4bStake + '* (5 combos · top-4 any order)', f4bNums];
+      var f4bSwapAnno = top5waSwap
+        ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
+        : '';
+      f4bMainBlock = ['', '*MAIN: F4 BOX-5' + f4bStake + '* (5 combos · top-4 any order)' + f4bSwapAnno, f4bNums];
     }}
   }}
 
@@ -1731,12 +1768,47 @@ function _buildRaceDetailPanel(race) {{
     }}
   }}
 
+  // Rank-5 swap for F4 BOX-5 + BOX TRIO-5 — mirrors the WA-side swap
+  // (same rule, 0.5 odds threshold + gear required). Shipped after R4
+  // 2026-05-17 validated the framework: rank-5 #3 ($40) would have been
+  // swapped for #11 LITTLE MONSTER (rank 6, $11) which won the race —
+  // F4 BOX-5 + TRIO-5 would have BOTH hit instead of both missing.
+  // [[box_5_market_lean]] validated the same rule for TRIO-6.
+  var top5_pre = race.horses.slice(0, 5);
+  var top5_swap = null;
+  var top5_swap_out = null;
+  if (top5_pre.length === 5) {{
+    var r5_horse = top5_pre[4];
+    var r5_odds = (r5_horse && r5_horse.win_odds) || 0;
+    if (r5_odds > 0) {{
+      for (var swi5d = 5; swi5d < Math.min(12, race.horses.length); swi5d++) {{
+        var c5 = race.horses[swi5d];
+        var c5o = c5.win_odds || 0;
+        var c5g = (c5.gear || '').trim();
+        if (c5o > 0 && c5g && c5o <= r5_odds * 0.5) {{
+          if (!top5_swap || c5o < top5_swap.win_odds) {{
+            top5_swap = c5;
+          }}
+        }}
+      }}
+    }}
+  }}
+  var top5_eff = top5_swap
+    ? race.horses.slice(0, 4).concat([top5_swap])
+    : top5_pre;
+  if (top5_swap) {{
+    top5_swap_out = top5_pre[4];
+  }}
+  var swapBadge = top5_swap
+    ? ' <span style="background:rgba(168,85,247,.6);color:#fff;padding:1px 6px;border-radius:3px;font-size:.6rem;margin-left:4px">🔁 #' + esc(top5_swap_out.number) + '→#' + esc(top5_swap.number) + '</span>'
+    : '';
+
   // F4 BOX-5 — top 5 model picks in a 5-combo F4 box (any-order).
   // Shipped 2026-05-06 after 60-race backtest: 17% hit rate, +54% ROI
   // ($50 stake, median $461 dividend per hit) — strictly better economics
   // than BOX TRIO-5 (+8% ROI). Same gates as F4 SAVER apply: heavy fav,
   // LOW conv, or small field collapse the F4 dividend pool.
-  var top5_f4 = race.horses.slice(0, 5);
+  var top5_f4 = top5_eff;
   if (top5_f4.length === 5) {{
     var f4bTop1Odds = (race.horses[0] && race.horses[0].win_odds) || 0;
     var f4bTier = race.conviction_tier || '';
@@ -1755,6 +1827,7 @@ function _buildRaceDetailPanel(race) {{
           '<span style="display:inline-block;background:linear-gradient(135deg,rgba(168,85,247,.95),rgba(236,72,153,.85));color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
             '★ MAIN · F4 BOX-5 · 5 combos' +
           '</span>' +
+          swapBadge +
           top5_f4.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
           '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when the top-4 finishers are all inside these 5. Backtest: 17% hit, +54% ROI on 60 races (median dividend ~$461 per hit, 9× the $50 stake).</div>' +
         '</div>'
@@ -1775,14 +1848,16 @@ function _buildRaceDetailPanel(race) {{
   // Hits when any 3 of the 5 finish top-3 in any order. Validated on
   // Apr 26 R10 by a user-driven 4-horse trio that paid 12x. Adds the
   // 5th model pick to expand placing-pool coverage beyond the QIN-4
-  // box. 10 combos at 1 unit = 10-unit stake.
-  var top5 = race.horses.slice(0, 5);
+  // box. 10 combos at 1 unit = 10-unit stake. Uses the swapped top-5
+  // (same rank-5 swap as F4 BOX-5) for consistency.
+  var top5 = top5_eff;
   if (top5.length === 5) {{
     ticketLines.push(
       '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
         '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
           '+ BOX TRIO-5 · 10 combos' +
         '</span>' +
+        swapBadge +
         top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
         '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
       '</div>'
