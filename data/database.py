@@ -1200,7 +1200,19 @@ class HorseDatabase:
         self.conn.commit()
 
     def get_accuracy_summary(self, days: int = 30) -> Dict:
-        """Get prediction accuracy summary over the last N days."""
+        """Get prediction accuracy summary over the last N days.
+
+        Bets are evaluated at race-level (one bet per race, taken from the
+        rank-1 row since `bet_recommendation` is replicated across the top-3
+        rows of each race). Hit logic per bet type:
+          WIN, BANKER WIN, BANKER : rank-1 horse won
+          PLACE                   : rank-1 horse placed (top-3)
+          QIN                     : ≥2 of model's top-3 picks finished in top 2
+          TRIO                    : all 3 of model's top-3 picks finished in top 3
+        SKIP is excluded. P&L is summed from the rank-1 row's profit_loss
+        column (per-row, currently -stake on losing exotics — ROI for exotic
+        types is approximate until race_dividends is joined in).
+        """
         c = self.conn.cursor()
         cutoff = (datetime.now() - __import__('datetime').timedelta(days=days)).strftime('%Y/%m/%d')
 
@@ -1238,46 +1250,58 @@ class HorseDatabase:
 
         for race_key, horses in races.items():
             horses.sort(key=lambda x: x[3])  # sort by predicted_rank
+            rank1 = horses[0]
 
             # Rank 1 win check
-            if horses and horses[0][8]:  # actual_won
+            if rank1[8]:  # actual_won
                 rank1_wins += 1
 
             # Top-3 overlap
-            our_top3 = {h[2] for h in horses[:3]}  # horse_name
-            actual_top3_set = {h[2] for h in horses if h[9]}  # actual_top3
+            our_top3 = {h[2] for h in horses[:3]}
+            actual_top3_set = {h[2] for h in horses if h[9]}
             top3_overlaps += len(our_top3 & actual_top3_set)
 
             # Where did winner rank?
             for h in horses:
-                if h[8]:  # actual_won
-                    winner_ranks.append(h[3])  # predicted_rank
+                if h[8]:
+                    winner_ranks.append(h[3])
                     break
 
-            # Bet P&L
-            for h in horses:
-                bet = h[4]
-                if bet and bet != 'SKIP':
-                    bets_placed += 1
-                    total_profit += h[10]  # profit_loss
-                    if h[8] and bet in ('WIN', 'BANKER WIN'):
-                        bets_won += 1
-                    elif h[9] and bet == 'PLACE':
-                        bets_won += 1
+            # By-confidence is rank-1 only
+            conf = rank1[11] or 'UNKNOWN'
+            by_confidence.setdefault(conf, {'total': 0, 'wins': 0})
+            by_confidence[conf]['total'] += 1
+            if rank1[8]:
+                by_confidence[conf]['wins'] += 1
 
-                    if 'BANKER' in bet:
-                        banker_count += 1
-                        if h[8]:
-                            banker_wins += 1
+            # Race-level bet evaluation
+            bet = rank1[4]
+            if not bet or bet == 'SKIP':
+                continue
+            bets_placed += 1
+            total_profit += rank1[10] or 0
 
-                # By confidence
-                conf = h[11] or 'UNKNOWN'
-                if conf not in by_confidence:
-                    by_confidence[conf] = {'total': 0, 'wins': 0}
-                if h[3] == 1:  # rank 1 only
-                    by_confidence[conf]['total'] += 1
-                    if h[8]:
-                        by_confidence[conf]['wins'] += 1
+            top3 = horses[:3]
+            top3_in_top2 = sum(1 for h in top3 if h[7] in (1, 2))
+            top3_in_top3 = sum(1 for h in top3 if h[9])
+
+            if bet in ('WIN', 'BANKER WIN', 'BANKER'):
+                hit = bool(rank1[8])
+            elif bet == 'PLACE':
+                hit = bool(rank1[9])
+            elif bet == 'QIN':
+                hit = top3_in_top2 >= 2
+            elif bet == 'TRIO':
+                hit = top3_in_top3 >= 3
+            else:
+                hit = False  # unknown bet type
+
+            if hit:
+                bets_won += 1
+            if 'BANKER' in bet:
+                banker_count += 1
+                if hit:
+                    banker_wins += 1
 
         return {
             'period_days': days,
@@ -1327,32 +1351,66 @@ class HorseDatabase:
         return result
 
     def get_bet_type_roi(self, days: int = 30) -> list:
-        """Get ROI breakdown by bet recommendation type."""
+        """Get ROI breakdown by bet recommendation type — race-level.
+
+        Same hit rules as get_accuracy_summary. P&L is summed from the rank-1
+        row of each race so each race contributes exactly once per bet type.
+        """
         c = self.conn.cursor()
         cutoff = (datetime.now() - __import__('datetime').timedelta(days=days)).strftime('%Y/%m/%d')
 
         rows = c.execute("""
-            SELECT bet_recommendation,
-                   COUNT(*) as bets,
-                   SUM(CASE WHEN actual_won = 1 OR actual_top3 = 1 THEN 1 ELSE 0 END) as hits,
-                   SUM(profit_loss) as profit
+            SELECT race_date, race_number, horse_name, predicted_rank,
+                   bet_recommendation, actual_position, actual_won,
+                   actual_top3, profit_loss
             FROM prediction_log
-            WHERE results_filled = 1 AND bet_recommendation != 'SKIP'
-                  AND race_date >= ?
-            GROUP BY bet_recommendation
-            ORDER BY profit DESC
+            WHERE results_filled = 1 AND race_date >= ?
+            ORDER BY race_date, race_number, predicted_rank
         """, (cutoff,)).fetchall()
 
-        result = []
+        races = {}
         for r in rows:
-            bets = r[1] or 1
+            races.setdefault(f"{r[0]}-{r[1]}", []).append(r)
+
+        by_type = {}  # bet_type -> {'count','hits','profit'}
+        for horses in races.values():
+            horses.sort(key=lambda x: x[3])
+            rank1 = horses[0]
+            bet = rank1[4]
+            if not bet or bet == 'SKIP':
+                continue
+
+            top3 = horses[:3]
+            top3_in_top2 = sum(1 for h in top3 if h[5] in (1, 2))
+            top3_in_top3 = sum(1 for h in top3 if h[7])
+
+            if bet in ('WIN', 'BANKER WIN', 'BANKER'):
+                hit = bool(rank1[6])
+            elif bet == 'PLACE':
+                hit = bool(rank1[7])
+            elif bet == 'QIN':
+                hit = top3_in_top2 >= 2
+            elif bet == 'TRIO':
+                hit = top3_in_top3 >= 3
+            else:
+                hit = False
+
+            d = by_type.setdefault(bet, {'count': 0, 'hits': 0, 'profit': 0.0})
+            d['count'] += 1
+            if hit:
+                d['hits'] += 1
+            d['profit'] += rank1[8] or 0
+
+        result = []
+        for bet, d in sorted(by_type.items(), key=lambda kv: -kv[1]['profit']):
+            n = d['count']
             result.append({
-                'bet_type': r[0],
-                'count': bets,
-                'hits': r[2],
-                'hit_rate': round(r[2] / bets * 100, 1),
-                'profit': round(r[3] or 0, 1),
-                'roi': round((r[3] or 0) / (bets * 10) * 100, 1),
+                'bet_type': bet,
+                'count': n,
+                'hits': d['hits'],
+                'hit_rate': round(d['hits'] / n * 100, 1) if n else 0.0,
+                'profit': round(d['profit'], 1),
+                'roi': round(d['profit'] / (n * 10) * 100, 1) if n else 0.0,
             })
         return result
 
