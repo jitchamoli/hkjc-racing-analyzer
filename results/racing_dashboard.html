@@ -314,9 +314,9 @@ button { font-family:inherit; cursor:pointer; }
   </div>
   <div class="topbar-meta">
     <span class="live-dot"></span>
-    <span id="clock">2026-05-17 11:13:30</span>
+    <span id="clock">2026-05-17 23:30:00</span>
     <span style="margin-left:8px">|</span>
-    <span style="margin-left:8px">Last refresh 2026-05-17 11:13:30</span>
+    <span style="margin-left:8px">Last refresh 2026-05-17 23:30:00</span>
     <button id="refresh-btn" onclick="refreshDashboard()" style="display:none;margin-left:12px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.75rem;font-weight:700;cursor:pointer;">
       ↻ Refresh
     </button>
@@ -347,7 +347,7 @@ button { font-family:inherit; cursor:pointer; }
     <div id="race-detail"></div>
     <details class="accuracy-panel" style="margin:10px 0;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px"><summary style="cursor:pointer;font-weight:600;font-size:.85rem">Recent accuracy — last 60d · 40 races · <span style="color:var(--green)">$+756 (+657.0% ROI)</span> · 7/39 bets hit</summary><div style="font-size:.75rem;color:var(--dim);margin-top:6px">1u-stake terms (WIN 1u, BOX Q3 3u, BOX Q4 6u). Wilson 95% CI shown when N&lt;30.</div><div style="margin-top:8px"><div style="font-size:.75rem;color:var(--dim);margin-bottom:4px">By ML Confidence</div><table class="acc-table"><thead><tr><th>tier</th><th>bets</th><th>hits</th><th>hit%</th><th>P&amp;L (1u)</th><th>ROI</th></tr></thead><tbody><tr><td>VERY_HIGH</td><td>3</td><td>1</td><td>33.3% <span style="color:var(--dim);font-size:.7rem">[CI 6-79%]</span></td><td>$+54</td><td style="color:var(--green)">+356.7%</td></tr><tr><td>HIGH</td><td>8</td><td>0</td><td>0.0% <span style="color:var(--dim);font-size:.7rem">[CI 0-32%]</span></td><td>$-19</td><td style="color:var(--red)">-100.0%</td></tr><tr><td>MEDIUM</td><td>25</td><td>6</td><td>24.0% <span style="color:var(--dim);font-size:.7rem">[CI 11-43%]</span></td><td>$+729</td><td style="color:var(--green)">+998.6%</td></tr><tr><td>LOW</td><td>3</td><td>0</td><td>0.0% <span style="color:var(--dim);font-size:.7rem">[CI 0-56%]</span></td><td>$-8</td><td style="color:var(--red)">-100.0%</td></tr></tbody></table></div><div style="margin-top:8px"><div style="font-size:.75rem;color:var(--dim);margin-bottom:4px">By Conviction Tier (strategy edge)</div><table class="acc-table"><thead><tr><th>tier</th><th>bets</th><th>hits</th><th>hit%</th><th>P&amp;L (1u)</th><th>ROI</th></tr></thead><tbody><tr><td>HIGH</td><td>37</td><td>7</td><td>18.9%</td><td>$+762</td><td style="color:var(--green)">+706.0%</td></tr><tr><td>MED</td><td>1</td><td>0</td><td>0.0% <span style="color:var(--dim);font-size:.7rem">[CI 0-79%]</span></td><td>$-1</td><td style="color:var(--red)">-100.0%</td></tr><tr><td>LOW</td><td>1</td><td>0</td><td>0.0% <span style="color:var(--dim);font-size:.7rem">[CI 0-79%]</span></td><td>$-6</td><td style="color:var(--red)">-100.0%</td></tr></tbody></table></div></details>
     <div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>
-    <div class="footer">HKJC Racing Analyzer v6.6 — Generated: 2026-05-17 11:13:30</div>
+    <div class="footer">HKJC Racing Analyzer v6.6 — Generated: 2026-05-17 23:30:00</div>
   </div>
   <div class="alerts-rail" id="alerts-rail"></div>
 </div>
@@ -21852,7 +21852,7 @@ const RACES = [
 ];
 const ACCURACY_SUMMARY = {"period_days": 60, "total_races": 40, "rank1_win_rate": 25.0, "rank1_wins": 10, "top3_overlap_rate": 47.5, "avg_winner_rank": 3.7, "bets_placed": 39, "bets_won": 7, "bet_hit_rate": 17.9, "total_profit": 755.5, "total_stake": 115.0, "roi_percent": 657.0, "banker_count": 2, "banker_wins": 0, "banker_hit_rate": 0.0, "by_confidence": {"LOW": {"total": 3, "wins": 0, "bets": 3, "hits": 0, "profit": -8.0, "stake": 8.0}, "MEDIUM": {"total": 26, "wins": 8, "bets": 25, "hits": 6, "profit": 729.0, "stake": 73.0}, "HIGH": {"total": 8, "wins": 2, "bets": 8, "hits": 0, "profit": -19.0, "stake": 19.0}, "VERY_HIGH": {"total": 3, "wins": 0, "bets": 3, "hits": 1, "profit": 53.5, "stake": 15.0}}, "by_conviction": {"HIGH": {"total": 37, "wins": 10, "bets": 37, "hits": 7, "profit": 762.5, "stake": 108.0}, "MED": {"total": 2, "wins": 0, "bets": 1, "hits": 0, "profit": -1.0, "stake": 1.0}, "LOW": {"total": 1, "wins": 0, "bets": 1, "hits": 0, "profit": -6.0, "stake": 6.0}}};
 const RACE_DATE = "2026/05/17";
-const GENERATED = "2026-05-17 11:13:30";
+const GENERATED = "2026-05-17 23:30:00";
 
 // ─────────────────────────────────────────────────────────────
 // Tier colours (mirrors Python TIER_COLORS)
@@ -22122,7 +22122,8 @@ function renderBetCard(race) {
 
   // MAIN BET — one focused block (not a duplicate summary + detail).
   var mainBetTypes = Object.keys(waBets);
-  if (mainBetTypes.length > 0) {
+  var isSkipRace = mainBetTypes.length === 0;
+  if (!isSkipRace) {
     mainBetTypes.forEach(function(bt) {
       var picks = waBets[bt];
       var lbl = bt;
@@ -22137,6 +22138,12 @@ function renderBetCard(race) {
       waLines.push('*MAIN: ' + lbl + '*');
       picks.forEach(function(h) { waLines.push(_waPick(h)); });
     });
+    // Suggested stake — bankroll-fraction sizing (mirrors dashboard panel).
+    // Skipped on SKIP races where amount=0 by construction.
+    if (ss && ss.amount && ss.amount > 0) {
+      waLines.push('Stake: $' + Math.round(ss.amount) + ' (' +
+                   (ss.pct||0).toFixed(1) + '% bankroll)');
+    }
   } else {
     waLines.push('');
     waLines.push('*SKIP* — no bet recommended');
@@ -22260,11 +22267,25 @@ function renderBetCard(race) {
 
   // Insert the TRIO-5 MAIN block before the optional adds so it reads
   // as a primary bet alongside PRIMARY, not buried under "optional".
+  // On SKIP races we demote both MAIN blocks (TRIO-5, F4 BOX-5) to the
+  // optional-adds bucket so the pasted text does not contradict itself
+  // (was: "SKIP — no bet recommended ... MAIN: BOX TRIO-5"). Audit fix
+  // 2026-05-17 for WA-copy consistency with dashboard.
   if (t5MainBlock) {
-    t5MainBlock.forEach(function(l) { waLines.push(l); });
+    if (isSkipRace) {
+      // Demote on SKIP — render as a single optional-adds bullet so the
+      // pasted message does not say SKIP + MAIN in the same race.
+      addOns.push('BOX TRIO-5 (10 combos): ' + t5MainBlock[2]);
+    } else {
+      t5MainBlock.forEach(function(l) { waLines.push(l); });
+    }
   }
   if (f4bMainBlock) {
-    f4bMainBlock.forEach(function(l) { waLines.push(l); });
+    if (isSkipRace) {
+      addOns.push('F4 BOX-5 (5 combos · top-4 any order): ' + f4bMainBlock[2]);
+    } else {
+      f4bMainBlock.forEach(function(l) { waLines.push(l); });
+    }
   }
 
   if (addOns.length) {
@@ -22288,11 +22309,13 @@ function renderBetCard(race) {
     if (tierStats && tierStats.bets > 0 && tierStats.stake > 0) {
       var tBets = tierStats.bets, tHits = tierStats.hits;
       var tHitPct = (tHits / tBets * 100).toFixed(0);
-      var tRoi = (tierStats.profit / tierStats.stake * 100).toFixed(0);
+      // Compare BEFORE .toFixed() so tiny negatives do not render as "+-0%".
+      var tRoiNum = tierStats.profit / tierStats.stake * 100;
+      var tRoiStr = (tRoiNum >= 0 ? '+' : '') + tRoiNum.toFixed(0) + '%';
       var noteN = tBets < 30 ? ' (small N)' : '';
       waLines.push('');
       waLines.push('_Model 60d · ' + tier + ' tier: ' + tHits + '/' + tBets +
-                   ' (' + tHitPct + '%) · ' + (tRoi >= 0 ? '+' : '') + tRoi + '% ROI' + noteN + '_');
+                   ' (' + tHitPct + '%) · ' + tRoiStr + ' ROI' + noteN + '_');
     }
   } catch (e) { /* silent — never break WA copy */ }
 
