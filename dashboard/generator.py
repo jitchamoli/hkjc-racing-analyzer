@@ -36,9 +36,58 @@ def _atomic_write(path: str, content: str) -> None:
     os.replace(tmp, path)
 
 
+_OVERRIDES_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'tracking_data', 'manual_overrides.json',
+)
+
+
+def _load_manual_overrides() -> dict:
+    """Tactical per-race overrides for the rank-6 TRIO-6 swap. When the auto
+    rank-6 swap picks a poor candidate (e.g., horse off 168-day layoff) but
+    racing-API form/RPR signal flags a better hedge, the user can set the
+    TRIO-6 rank-6 horse here. Schema documented at the top of the JSON file.
+    Returns {} if file missing or unreadable so a misfiled override never
+    breaks dashboard generation.
+    """
+    if not os.path.exists(_OVERRIDES_PATH):
+        return {}
+    try:
+        with open(_OVERRIDES_PATH) as f:
+            return json.load(f) or {}
+    except (json.JSONDecodeError, IOError) as e:
+        logger.warning(f"manual_overrides.json unreadable, skipping: {e}")
+        return {}
+
+
 # Result fields set by results_fetcher that should survive prediction re-runs
 _RESULT_KEYS_RACE = {'results_available', 'actual_results', 'actual_winner', 'actual_top3', 'actual_win_odds', 'accuracy'}
 _RESULT_KEYS_HORSE = {'actual_position'}
+
+# Pre-race prediction fields that should be FROZEN once a race is finished.
+# Re-running generate_predictions after a race ends pulls post-race "odds"
+# (HKJC swaps in final SP / dividend prices once the race is settled), which
+# corrupts the model blend and produces fake EDGE fires on losing horses.
+# Audit 2026-05-17: R1 flipped MED → EDGE post-race because #10's odds
+# moved $7.40 → $3.10 in the post-race feed, dragging cal_probs.
+_FROZEN_PREDICTION_KEYS_RACE = {'conviction_tier', 'has_edge', 'suggested_stake',
+                                 'bankroll', 'odds_age_minutes',
+                                 # Shape stats — must move in lockstep with the
+                                 # frozen horse-level calibrated_prob (audit
+                                 # 2026-05-17, ML expert finding HIGH-1)
+                                 'top_2_share', 'top_3_share',
+                                 # EDGE banner identifiers — must point at the
+                                 # horse whose frozen edge_fires=True
+                                 'edge_horse_rank', 'edge_horse_number',
+                                 'edge_horse_name',
+                                 # Tactical manual override for TRIO-6 rank-6
+                                 # slot (set via tracking_data/manual_overrides.json)
+                                 'manual_trio6_horse', 'manual_trio6_reason'}
+_FROZEN_PREDICTION_KEYS_HORSE = {'rank', 'win_odds', 'calibrated_prob',
+                                  'edge_pp', 'ev_win', 'overlay', 'edge_fires',
+                                  'pure_prob', 'market_prob', 'model_rank',
+                                  'bet_recommendation', 'confidence',
+                                  'expected_return', 'value_score'}
 
 
 def _merge_with_existing(json_file: str, new_races: list) -> list:
@@ -90,16 +139,38 @@ def _merge_with_existing(json_file: str, new_races: list) -> list:
             if key in old_race:
                 race[key] = old_race[key]
 
-        # Copy horse-level result fields (match by horse number)
+        # Freeze pre-race prediction fields on finished races (audit 2026-05-17).
+        # HKJC's post-race odds feed corrupts the model blend on re-run,
+        # producing fake EDGE fires on horses that finished outside the money.
+        for key in _FROZEN_PREDICTION_KEYS_RACE:
+            if key in old_race:
+                race[key] = old_race[key]
+
+        # Copy horse-level result fields + freeze pre-race predictions
         old_horses = {h['number']: h for h in old_race.get('horses', []) if 'number' in h}
+        # Build a horse-number → predicted_rank-ordered list so we can also
+        # restore the original rank ordering (post-race feed can reshuffle).
+        old_horses_by_rank = sorted(
+            (h for h in old_race.get('horses', []) if 'rank' in h),
+            key=lambda h: h.get('rank', 99)
+        )
         for horse in race.get('horses', []):
             old_h = old_horses.get(horse['number'])
             if old_h:
                 for key in _RESULT_KEYS_HORSE:
                     if key in old_h:
                         horse[key] = old_h[key]
+                for key in _FROZEN_PREDICTION_KEYS_HORSE:
+                    if key in old_h:
+                        horse[key] = old_h[key]
+        # Re-sort horses by the frozen rank so downstream renderers see the
+        # original pre-race ordering, not the post-race shuffled one.
+        if old_horses_by_rank:
+            race['horses'] = sorted(race.get('horses', []),
+                                     key=lambda h: h.get('rank', 99))
 
-        logger.info(f"  Race {race['race_number']}: preserved results from prior run")
+        logger.info(f"  Race {race['race_number']}: FROZEN — preserved pre-race "
+                    f"predictions + results from prior run")
 
     return new_races
 
@@ -300,15 +371,27 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     # the freshest possible odds. This snapshot is only used downstream by
     # the EDGE freshness gate; nothing else reads it on the predict path.
     # Audit fix 2026-05-17.
+    # Anti-poison: skip the snapshot if the race already has results in
+    # race_results — HKJC post-race odds (final SP / settled) would
+    # otherwise overwrite the legitimate pre-race odds we captured earlier
+    # and corrupt any future backtest that reads odds_snapshots.
     try:
-        odds_horses = [
-            {'number': h.number, 'name': h.name,
-             'win_odds': h.win_odds or 0, 'place_odds': getattr(h, 'place_odds', 0) or 0}
-            for h in race.horses if (h.win_odds or 0) > 0
-        ]
-        if odds_horses:
-            odds_db.record_snapshot(race_date, race.race_number,
-                                    odds_horses, source='generator')
+        race_finished = False
+        if db is not None and hasattr(db, 'conn'):
+            row = db.conn.execute(
+                "SELECT 1 FROM race_results WHERE race_date=? AND race_number=? LIMIT 1",
+                (race_date, race.race_number),
+            ).fetchone()
+            race_finished = bool(row)
+        if not race_finished:
+            odds_horses = [
+                {'number': h.number, 'name': h.name,
+                 'win_odds': h.win_odds or 0, 'place_odds': getattr(h, 'place_odds', 0) or 0}
+                for h in race.horses if (h.win_odds or 0) > 0
+            ]
+            if odds_horses:
+                odds_db.record_snapshot(race_date, race.race_number,
+                                        odds_horses, source='generator')
     except Exception:
         pass  # snapshot failure must not block prediction generation
 
@@ -343,6 +426,16 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
 
     race_data['has_edge'] = has_edge_race
     race_data['odds_age_minutes'] = odds_age_min
+
+    # Manual TRIO-6 rank-6 override — tactical hedge when racing-API form/RPR
+    # signal beats the auto rank-6 swap (e.g., auto-swap picks horse with
+    # 168-day layoff). Surface as race-level fields so the template can apply
+    # the override without recomputing form data client-side.
+    _overrides = _load_manual_overrides()
+    _race_overrides = (_overrides.get(race_date) or {}).get(str(race.race_number)) or {}
+    if _race_overrides.get('trio6_horse'):
+        race_data['manual_trio6_horse'] = _race_overrides['trio6_horse']
+        race_data['manual_trio6_reason'] = _race_overrides.get('reason', '')
 
     # Identify which horse fired EDGE — alert text was misleadingly hardcoded
     # to "the top pick", but G4 allows max_model_rank=2 so rank-2 can fire EDGE
@@ -506,9 +599,13 @@ async def _run_generation(fetcher, analyzer, race_date: str):
 
     # Per-card suggested stake — bankroll-fraction (BOX) or half-Kelly
     # (WIN/BANKER WIN), tier-capped. See betting/optimizer.compute_suggested_stake.
+    # Skip recompute on finished races — _merge_with_existing already restored
+    # the frozen pre-race stake (audit 2026-05-17, Python expert finding HIGH).
     from betting.optimizer import compute_suggested_stake
     import config as _cfg
     for r in all_races:
+        if r.get('results_available'):
+            continue
         top = (r.get('horses') or [{}])[0]
         stake = compute_suggested_stake(
             conviction_tier=r.get('conviction_tier') or 'SKIP',
