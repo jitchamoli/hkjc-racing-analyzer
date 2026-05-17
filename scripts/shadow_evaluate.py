@@ -38,7 +38,7 @@ LOG_HEADERS = [
 
 def _cost(bet_type: str) -> float:
     return {'QIN': 1.0, 'BOX Q': 3.0, 'BOX Q4': 6.0, 'WIN': 1.0,
-            'BANKER WIN': 1.0, 'TRIO': 1.0}.get(bet_type, 0.0)
+            'BANKER WIN': 1.0, 'PLACE': 1.0, 'TRIO': 1.0}.get(bet_type, 0.0)
 
 
 def _name(leg) -> str:
@@ -53,7 +53,7 @@ def _legs_for_bet(bet_type: str, ranked_legs):
     if bet_type == 'BOX Q':  return {_name(l) for l in ranked_legs[:3]}
     if bet_type == 'QIN':    return {_name(l) for l in ranked_legs[:2]}
     if bet_type == 'TRIO':   return {_name(l) for l in ranked_legs[:3]}
-    if bet_type in ('WIN', 'BANKER WIN'): return {_name(ranked_legs[0])}
+    if bet_type in ('WIN', 'BANKER WIN', 'PLACE'): return {_name(ranked_legs[0])}
     return set()
 
 
@@ -62,6 +62,9 @@ def _is_hit(bet_type: str, legs: set, actual_top2: set, actual_top3: set, top1_w
     if bet_type == 'QIN':               return legs == actual_top2
     if bet_type == 'TRIO':              return actual_top3.issubset(legs) and len(legs) >= 3
     if bet_type in ('WIN', 'BANKER WIN'): return top1_won
+    # PLACE — top horse hits if it finished top-3 (HKJC PLACE pool pays 1st/2nd/3rd).
+    # legs is a 1-element set with rank-1 name; we check it intersects actual_top3.
+    if bet_type == 'PLACE': return bool(legs & actual_top3)
     return False
 
 
