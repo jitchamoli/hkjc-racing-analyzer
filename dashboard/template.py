@@ -23,7 +23,8 @@ ALERT_COLORS = {
 
 def generate_html(races_json: str, now: str, race_date: str,
                   venue: str = 'Sha Tin', auto_refresh: bool = False,
-                  accuracy_summary: dict = None) -> str:
+                  accuracy_summary: dict = None,
+                  edge_stats: dict = None) -> str:
     import json as _json
     import html as _html
 
@@ -49,6 +50,13 @@ def generate_html(races_json: str, now: str, race_date: str,
         .replace('</script>', r'<\/script>') \
         .replace('</Script>', r'<\/Script>')
 
+    # EDGE stats (n_fires / n_placed / n_won) — fed by scripts/track_edge.py.
+    # Banner text in WA + dashboard reads from this so the count stays live
+    # instead of hardcoded. Defaults to empty when stats file missing.
+    edge_stats_json = _json.dumps(edge_stats or {}) \
+        .replace('</script>', r'<\/script>') \
+        .replace('</Script>', r'<\/Script>')
+
     return _HTML_TEMPLATE.format(
         races_json=races_json_safe,
         now=now,
@@ -58,6 +66,7 @@ def generate_html(races_json: str, now: str, race_date: str,
         strip_tiles_html=strip_tiles_html,
         accuracy_panel_html=accuracy_panel_html,
         accuracy_summary_json=accuracy_summary_json,
+        edge_stats_json=edge_stats_json,
     )
 
 
@@ -563,6 +572,7 @@ function escAttr(s) {{
 
 const RACES = {races_json};
 const ACCURACY_SUMMARY = {accuracy_summary_json};
+const EDGE_STATS = {edge_stats_json};
 const RACE_DATE = "{race_date}";
 const GENERATED = "{now}";
 
@@ -918,7 +928,13 @@ function renderBetCard(race) {{
     waLines.push('💰 *Suggested stake: $' + Math.round(ss.amount) + ' HKD*' + ssPctTxt);
   }}
   if (tier === 'EDGE') {{
-    waLines.push('*★ RARE EDGE — anchor TRIO-5/F4 with this horse* (N=4 historical: 3 placed, 0 won — do NOT WIN-bet)');
+    // Banner text reads live stats from EDGE_STATS (track_edge.py). Falls
+    // back to generic "place > win" framing when no stats file present.
+    var _es = (typeof EDGE_STATS !== 'undefined' && EDGE_STATS) ? EDGE_STATS : {{}};
+    var _esText = (_es.n_fires && _es.n_fires > 0)
+      ? ' (N=' + _es.n_fires + ' historical: ' + (_es.n_placed||0) + ' placed, ' + (_es.n_won||0) + ' won — do NOT WIN-bet)'
+      : ' (historically places > wins — anchor TRIO, do NOT WIN-bet)';
+    waLines.push('*★ RARE EDGE — anchor TRIO-5/F4 with this horse*' + _esText);
   }}
 
   // Group horses by primary bet type
@@ -1258,7 +1274,12 @@ function renderBetCard(race) {{
         '<div style="color:var(--fg);margin-top:3px;font-size:.72rem;line-height:1.4">' +
           'Pre-blend model probability ≥ +5pp above market — fires <1× per meeting. ' +
           'The model has found a real mispricing on the ' + edgeWho + '. ' +
-          '<strong>Historical pattern (N=4): 3 placed top-3, 0 won.</strong> ' +
+          (function() {{
+            var es = (typeof EDGE_STATS !== 'undefined' && EDGE_STATS) ? EDGE_STATS : {{}};
+            return (es.n_fires && es.n_fires > 0)
+              ? '<strong>Historical pattern (N=' + es.n_fires + '): ' + (es.n_placed||0) + ' placed top-3, ' + (es.n_won||0) + ' won.</strong> '
+              : '<strong>Historically places more than wins.</strong> ';
+          }})() +
           'Use as TRIO-5/F4 anchor — do NOT bet WIN on the EDGE horse.' +
         '</div>' +
       '</div>'
