@@ -10,8 +10,8 @@ from ml.feature_schema import NUM_FEATURES
 def _isolate(tmp_path, monkeypatch):
     """Each test gets its own cache dir + clean state."""
     monkeypatch.setattr(fc, "CACHE_DIR", tmp_path)
-    # Force a known db row count so cache_path is deterministic per-test
-    monkeypatch.setattr(fc, "_db_row_count", lambda: 999)
+    # Force a known db signature so cache_path is deterministic per-test
+    monkeypatch.setattr(fc, "_db_signature", lambda: "deadbeef")
     yield
     fc.disable()
 
@@ -74,27 +74,27 @@ class TestCachePersistence:
         fc.save()
         # Only the final .npz file, no .tmp leftovers
         files = sorted(p.name for p in tmp_path.glob("*"))
-        assert files == ["features_v24_n999.npz"], f"unexpected files: {files}"
+        assert files == ["features_v24_deadbeef.npz"], f"unexpected files: {files}"
 
 
 class TestCacheInvalidation:
-    def test_cache_path_includes_schema_and_row_count(self, monkeypatch):
-        monkeypatch.setattr(fc, "_db_row_count", lambda: 12345)
+    def test_cache_path_includes_schema_and_signature(self, monkeypatch):
+        monkeypatch.setattr(fc, "_db_signature", lambda: "cafebabe")
         path = fc._cache_path()
         assert "v24" in path.name  # NUM_FEATURES
-        assert "n12345" in path.name  # row count
+        assert "cafebabe" in path.name  # data signature
 
-    def test_different_row_count_writes_to_different_file(self, monkeypatch, tmp_path):
-        # Run 1: row count 100
-        monkeypatch.setattr(fc, "_db_row_count", lambda: 100)
+    def test_different_signature_writes_to_different_file(self, monkeypatch, tmp_path):
+        # Run 1: signature X
+        monkeypatch.setattr(fc, "_db_signature", lambda: "sig00001")
         fc.enable()
         fc.put("2026/05/13", 1, "X", np.zeros(NUM_FEATURES, dtype=np.float32))
         fc.save()
-        # Run 2: row count 200 (simulates new data)
-        monkeypatch.setattr(fc, "_db_row_count", lambda: 200)
+        # Run 2: signature changes (simulates new data OR backfill in place)
+        monkeypatch.setattr(fc, "_db_signature", lambda: "sig00002")
         fc.disable()
         fc.enable()
-        # Cache for the new row count should be empty — different file
+        # Cache for the new signature should be empty — different file
         assert fc.get("2026/05/13", 1, "X") is None
         files = sorted(p.name for p in tmp_path.glob("*.npz"))
-        assert "features_v24_n100.npz" in files
+        assert "features_v24_sig00001.npz" in files
