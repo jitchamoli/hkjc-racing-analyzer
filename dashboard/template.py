@@ -801,11 +801,31 @@ function renderBetCard(race) {{
         betLines.push({{lbl: 'F4 BOX-5', combos: 5}});
         totalCombos += 5;
       }}
+      // BOX TRIO-6 fires as MAIN only when verdict is TAKE (mirrors logic
+      // at line ~1088). Adding 20 combos dilutes the per-bet unit stake
+      // (e.g., $200 / 36 combos = $5/combo) which is the intended trade —
+      // the user sees TRIO-6 sized in the breakdown when it matters.
+      var t6t1 = f4top1;
+      var t6fld = f4field;
+      var t6stm = race.horses.slice(0, 12).filter(function(h) {{
+        return h.steam_move && h.steam_move.is_steam;
+      }}).length;
+      var t6Take = (t6t1 > 0 && t6t1 < 2.5) ? false :
+                    (t6stm >= 2) ? true :
+                    (tier === 'HIGH' && t6fld >= 11 && t6t1 >= 2.5 && t6t1 <= 5.0) ? true :
+                    false;
+      if (t6Take) {{
+        betLines.push({{lbl: 'BOX TRIO-6', combos: 20}});
+        totalCombos += 20;
+      }}
     }}
-    // Unit stake — divide budget across all combos. Round to nearest $5
-    // so the per-bet amounts stay round and tractable for actual bet entry.
+    // Unit stake — divide budget across all combos. Floor to nearest $5
+    // so per-bet stakes never sum above the budget (was: round() inflated
+    // unit when amount/combos > .5 boundary, e.g., $300/16 = $18.75 → $20
+    // pushed the breakdown total to $320 over the $300 budget). Mirrors the
+    // WA-payload unit calc above to keep the two views in sync.
     var unit = totalCombos > 0 ? (ss.amount / totalCombos) : 0;
-    var unitRounded = Math.max(5, Math.round(unit / 5) * 5);
+    var unitRounded = Math.max(5, Math.floor(unit / 5) * 5);
     var breakdownRows = '';
     var allocated = 0;
     betLines.forEach(function(b) {{
@@ -886,6 +906,13 @@ function renderBetCard(race) {{
   waLines.push('*R' + race.race_number + ' · ' + (race.time||'') + (venueWa ? ' · ' + venueWa : '') + '*');
   waLines.push((race.distance||'') + 'm · ' + (race.class_type||'') + ' · ' +
                race.horses.length + ' horses · Tier: ' + tier);
+  // Suggested-stake banner — mirrors the dashboard per-card budget so
+  // the user knows the total $ before scanning individual MAIN blocks.
+  // Hidden on SKIP races (amount=0 there).
+  if (ss && ss.amount && ss.amount > 0) {{
+    var ssPctTxt = (ss.pct != null) ? (' (' + (ss.pct||0).toFixed(2) + '% of $' + (race.bankroll||0) + ')') : '';
+    waLines.push('💰 *Suggested stake: $' + Math.round(ss.amount) + ' HKD*' + ssPctTxt);
+  }}
   if (tier === 'EDGE') {{
     waLines.push('*★ RARE EDGE — TAKE SERIOUSLY* (fires <1×/meeting; model has found a real mispricing)');
   }}
@@ -912,11 +939,12 @@ function renderBetCard(race) {{
     waMainCombos[bt] = c;
     waTotalCombos += c;
   }});
-  // top5/F4 gating mirrors the block below — compute inline to avoid
+  // top5/F4/T6 gating mirrors the block below — compute inline to avoid
   // a forward reference to top5wa (declared later in the addOns section).
   var waTop5Len = race.horses.slice(0, 5).length;
   var waT5Combos = (waTop5Len === 5) ? 10 : 0;
   var waF4Combos = 0;
+  var waT6Combos = 0;
   if (waTop5Len === 5) {{
     var f4t1 = (race.horses[0] && race.horses[0].win_odds) || 0;
     var f4f = race.horses.length;
@@ -924,10 +952,24 @@ function renderBetCard(race) {{
                 (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
                 (f4f < 8);
     if (!f4Sk) waF4Combos = 5;
+    // TRIO-6 included only when verdict is TAKE (mirrors logic at line ~1088).
+    var t6stm = race.horses.slice(0, 12).filter(function(h) {{
+      return h.steam_move && h.steam_move.is_steam;
+    }}).length;
+    var t6Tk = (f4t1 > 0 && f4t1 < 2.5) ? false :
+                (t6stm >= 2) ? true :
+                (tier === 'HIGH' && f4f >= 11 && f4t1 >= 2.5 && f4t1 <= 5.0) ? true :
+                false;
+    if (t6Tk && mainBetTypes.length > 0) waT6Combos = 20;
   }}
-  waTotalCombos += waT5Combos + waF4Combos;
+  waTotalCombos += waT5Combos + waF4Combos + waT6Combos;
+  // Floor (not round) to nearest $5 so the per-bet stakes never sum above
+  // the budget. Was: Math.round() inflated unit when amount/combos > .5
+  // boundary (e.g., $300/16 = $18.75 → $20 → total $320, over the $300
+  // budget). Floor gives $15 → total $240, under budget — user can manually
+  // add the residual to a preferred bet if desired.
   var waUnit = (ss && ss.amount > 0 && waTotalCombos > 0)
-    ? Math.max(5, Math.round((ss.amount / waTotalCombos) / 5) * 5)
+    ? Math.max(5, Math.floor((ss.amount / waTotalCombos) / 5) * 5)
     : 0;
 
   // MAIN BET — one focused block (not a duplicate summary + detail).
@@ -992,36 +1034,13 @@ function renderBetCard(race) {{
     }}
   }}
 
-  // Rank-5 swap for F4 BOX-5 + BOX TRIO-5 — mirrors the TRIO-6 rank-6 swap
-  // logic (line ~937) with a STRICTER 0.5 threshold. Triggers when rank-5 is
-  // a longshot AND a rank 6-11 horse has odds <= 50% of rank-5 AND has gear
-  // (signals committed horse). Shipped after R4 2026-05-17 where #11 LITTLE
-  // MONSTER (rank 6, $11, hot trainer W K Mo 20%) won — the swap framework
-  // would have replaced rank-5 #3 MASSIVE REWARD ($40 longshot) and hit
-  // both F4 BOX-5 + TRIO-5. Memory [[box_5_market_lean]] validated for TRIO-6;
-  // extending the same rule down one rank with a tighter threshold.
+  // Rank-5 swap REVERTED 2026-05-17 after R5 forward test: shipped on N=1
+  // retrospective (R4) per user [[n6_validation_rule]] should have been ≥6
+  // meetings. First live test (R5) swap turned a default BOX TRIO-5 HIT into
+  // a MISS (removed #2 ISLAND BUDDY which finished 3rd at $28). Keep nulls
+  // so downstream annotations no-op. Re-evaluate via backtest at N≥6 meetings.
   var top5waSwap = null;
   var top5waSwapOut = null;
-  if (top5wa.length === 5) {{
-    var rank5wa = top5wa[4];
-    var rank5OddsWa = (rank5wa && rank5wa.win_odds) || 0;
-    if (rank5OddsWa > 0) {{
-      for (var swi5 = 5; swi5 < Math.min(12, race.horses.length); swi5++) {{
-        var cand5 = race.horses[swi5];
-        var cand5Odds = cand5.win_odds || 0;
-        var cand5Gear = (cand5.gear || '').trim();
-        if (cand5Odds > 0 && cand5Gear && cand5Odds <= rank5OddsWa * 0.5) {{
-          if (!top5waSwap || cand5Odds < top5waSwap.win_odds) {{
-            top5waSwap = cand5;
-          }}
-        }}
-      }}
-    }}
-    if (top5waSwap) {{
-      top5waSwapOut = top5wa[4];
-      top5wa = race.horses.slice(0, 4).concat([top5waSwap]);
-    }}
-  }}
 
   // BOX TRIO-5 — promoted to MAIN bet block (between PRIMARY and Optional
   // adds) per user feedback after R3 2026-05-03: TRIO-5 caught the podium
@@ -1063,10 +1082,28 @@ function renderBetCard(race) {{
   // BOX TRIO-6 — annotate with TAKE/SKIP/YOUR CALL + chaos so user sees
   // the gate decision in the WA message (matches dashboard visual).
   // Mirror the spoiler-swap logic from the visual ticket so WA picks
-  // match what the dashboard recommends.
+  // match what the dashboard recommends. t6MainBlock is set when verdict
+  // says TAKE so the line is rendered as MAIN instead of "Optional".
+  var t6MainBlock = null;
   var top6waSwap = null;
   var top6waSwapOut = null;
-  if (top6wa.length === 6) {{
+  var top6waManual = null;
+  var top6waManualOut = null;
+  // Manual TRIO-6 override (race.manual_trio6_horse) takes precedence over
+  // the auto rank-6 swap. Set via tracking_data/manual_overrides.json when
+  // racing-API form/RPR signal beats the auto candidate. If the override
+  // names a horse that is ALREADY rank-6, the override just suppresses the
+  // auto-swap (no visible badge) — nothing to swap.
+  if (top6wa.length === 6 && race.manual_trio6_horse) {{
+    if (top6wa[5].number !== race.manual_trio6_horse) {{
+      top6waManual = race.horses.find(function(h) {{ return h.number === race.manual_trio6_horse; }});
+      if (top6waManual) {{
+        top6waManualOut = top6wa[5];
+        top6wa = race.horses.slice(0, 5).concat([top6waManual]);
+      }}
+    }}
+    // else: override matches current rank-6 — no swap, no badge, but auto-swap is suppressed
+  }} else if (top6wa.length === 6) {{
     var rank6wa = top6wa[5];
     var rank6OddsWa = (rank6wa && rank6wa.win_odds) || 0;
     if (rank6OddsWa > 0) {{
@@ -1103,10 +1140,22 @@ function renderBetCard(race) {{
     else if (t6Steam >= 2) t6Verdict = '★ TAKE (' + t6Steam + ' steam)';
     else if (tier === 'HIGH' && t6Field >= 11 && t6Top1 >= 2.5 && t6Top1 <= 5.0) t6Verdict = '★ TAKE';
     else t6Verdict = 'YOUR CALL';
-    var swapAnno = top6waSwap
+    var swapAnno = top6waManual
+      ? ' · 🛠 MANUAL #' + top6waManualOut.number + '→#' + top6waManual.number + (race.manual_trio6_reason ? ' (' + race.manual_trio6_reason + ')' : '')
+      : top6waSwap
       ? ' · 🔁 swapped #' + top6waSwapOut.number + '→#' + top6waSwap.number + ' (gear ' + (top6waSwap.gear||'') + ')'
       : '';
-    addOns.push('BOX TRIO-6 (20 combos · ' + t6Verdict + ' · CHAOS ' + chaosScore + '/4): ' + t6Nums + swapAnno);
+    // When verdict says TAKE, hoist out of "Optional adds" into a MAIN block
+    // so the section header matches the recommendation (was: TAKE shown under
+    // "Optional", contradicting the verdict). Skip races stay in addOns
+    // alongside the other demoted MAIN bets.
+    var isT6Take = t6Verdict.indexOf('★ TAKE') === 0;
+    if (isT6Take && !isSkipRace) {{
+      var t6Stake = waUnit > 0 ? (' · $' + (20 * waUnit)) : '';
+      t6MainBlock = ['', '*MAIN: BOX TRIO-6' + t6Stake + '* (20 combos · ' + t6Verdict + ' · CHAOS ' + chaosScore + '/4)' + swapAnno, t6Nums];
+    }} else {{
+      addOns.push('BOX TRIO-6 (20 combos · ' + t6Verdict + ' · CHAOS ' + chaosScore + '/4): ' + t6Nums + swapAnno);
+    }}
   }}
 
   // Insert the TRIO-5 MAIN block before the optional adds so it reads
@@ -1130,6 +1179,9 @@ function renderBetCard(race) {{
     }} else {{
       f4bMainBlock.forEach(function(l) {{ waLines.push(l); }});
     }}
+  }}
+  if (t6MainBlock) {{
+    t6MainBlock.forEach(function(l) {{ waLines.push(l); }});
   }}
 
   if (addOns.length) {{
@@ -1768,40 +1820,13 @@ function _buildRaceDetailPanel(race) {{
     }}
   }}
 
-  // Rank-5 swap for F4 BOX-5 + BOX TRIO-5 — mirrors the WA-side swap
-  // (same rule, 0.5 odds threshold + gear required). Shipped after R4
-  // 2026-05-17 validated the framework: rank-5 #3 ($40) would have been
-  // swapped for #11 LITTLE MONSTER (rank 6, $11) which won the race —
-  // F4 BOX-5 + TRIO-5 would have BOTH hit instead of both missing.
-  // [[box_5_market_lean]] validated the same rule for TRIO-6.
+  // Rank-5 swap REVERTED 2026-05-17 — see WA-path comment above for rationale.
+  // Keep null-shaped vars so downstream blocks (F4 BOX-5, TRIO-5) compile.
   var top5_pre = race.horses.slice(0, 5);
+  var top5_eff = top5_pre;
   var top5_swap = null;
   var top5_swap_out = null;
-  if (top5_pre.length === 5) {{
-    var r5_horse = top5_pre[4];
-    var r5_odds = (r5_horse && r5_horse.win_odds) || 0;
-    if (r5_odds > 0) {{
-      for (var swi5d = 5; swi5d < Math.min(12, race.horses.length); swi5d++) {{
-        var c5 = race.horses[swi5d];
-        var c5o = c5.win_odds || 0;
-        var c5g = (c5.gear || '').trim();
-        if (c5o > 0 && c5g && c5o <= r5_odds * 0.5) {{
-          if (!top5_swap || c5o < top5_swap.win_odds) {{
-            top5_swap = c5;
-          }}
-        }}
-      }}
-    }}
-  }}
-  var top5_eff = top5_swap
-    ? race.horses.slice(0, 4).concat([top5_swap])
-    : top5_pre;
-  if (top5_swap) {{
-    top5_swap_out = top5_pre[4];
-  }}
-  var swapBadge = top5_swap
-    ? ' <span style="background:rgba(168,85,247,.6);color:#fff;padding:1px 6px;border-radius:3px;font-size:.6rem;margin-left:4px">🔁 #' + esc(top5_swap_out.number) + '→#' + esc(top5_swap.number) + '</span>'
-    : '';
+  var swapBadge = '';
 
   // F4 BOX-5 — top 5 model picks in a 5-combo F4 box (any-order).
   // Shipped 2026-05-06 after 60-race backtest: 17% hit rate, +54% ROI
@@ -1882,7 +1907,21 @@ function _buildRaceDetailPanel(race) {{
   var top6 = race.horses.slice(0, 6);
   var swapCandidate = null;
   var swappedOut = null;
-  if (top6.length === 6) {{
+  var manualCandidate = null;
+  var manualSwappedOut = null;
+  // Manual override (race.manual_trio6_horse) wins over auto rank-6 swap.
+  // If override matches the current rank-6 horse, it is a no-op swap — just
+  // suppress the auto-swap; do not render a misleading "MANUAL #X→#X" badge.
+  if (top6.length === 6 && race.manual_trio6_horse) {{
+    if (top6[5].number !== race.manual_trio6_horse) {{
+      manualCandidate = race.horses.find(function(h) {{ return h.number === race.manual_trio6_horse; }});
+      if (manualCandidate) {{
+        manualSwappedOut = top6[5];
+        top6 = race.horses.slice(0, 5).concat([manualCandidate]);
+      }}
+    }}
+    // else: override matches current rank-6 — suppress auto-swap silently
+  }} else if (top6.length === 6) {{
     var rank6 = top6[5];
     var rank6Odds = (rank6 && rank6.win_odds) || 0;
     if (rank6Odds > 0) {{
@@ -1951,7 +1990,10 @@ function _buildRaceDetailPanel(race) {{
 
     var swapBadge = '';
     var swapNote = '';
-    if (swapCandidate && swappedOut) {{
+    if (manualCandidate && manualSwappedOut) {{
+      swapBadge = '<span style="background:rgba(245,158,11,.95);color:#000;font-weight:800;padding:1px 6px;border-radius:3px;font-size:.62rem;margin-left:6px" title="Manual override via tracking_data/manual_overrides.json">🛠 MANUAL #' + manualSwappedOut.number + '→#' + manualCandidate.number + '</span>';
+      swapNote = ' · <span style="color:#f59e0b">MANUAL OVERRIDE: #' + manualSwappedOut.number + ' (rank 6, $' + (manualSwappedOut.win_odds||0).toFixed(1) + ') → #' + manualCandidate.number + ' (rank ' + manualCandidate.rank + ', $' + (manualCandidate.win_odds||0).toFixed(1) + ')' + (race.manual_trio6_reason ? ' — ' + esc(race.manual_trio6_reason) : '') + '</span>';
+    }} else if (swapCandidate && swappedOut) {{
       swapBadge = '<span style="background:rgba(168,85,247,.85);color:#fff;font-weight:800;padding:1px 6px;border-radius:3px;font-size:.62rem;margin-left:6px" title="Spoiler swap: rank-' + (swapCandidate.rank) + ' #' + swapCandidate.number + ' has shorter market odds + gear change vs default rank-6 #' + swappedOut.number + '">🔁 SWAP #' + swappedOut.number + '→#' + swapCandidate.number + '</span>';
       swapNote = ' · <span style="color:#a855f7">Swapped #' + swappedOut.number + ' (rank 6, $' + (swappedOut.win_odds||0).toFixed(1) + ') for #' + swapCandidate.number + ' (rank ' + swapCandidate.rank + ', $' + (swapCandidate.win_odds||0).toFixed(1) + ', gear ' + esc(swapCandidate.gear||'') + ') — market support + gear change</span>';
     }}
