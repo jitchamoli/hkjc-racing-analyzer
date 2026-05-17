@@ -102,12 +102,14 @@ def evaluate_date(race_date: str) -> int:
 
     for race in prod:
         rn = race['race_number']
-        # Production bet info — derive from horses in prod JSON
+        # Production bet info — derive actual box size from horse count, not
+        # just rank-1's bet_recommendation. Rank-1's rec says 'QIN' equally
+        # for STRAIGHT QIN (2 horses) and BOX QIN-4 (4 horses) — different
+        # stakes (1u vs 6u) and very different hit rates. _infer_bet_type
+        # counts horses with QIN/TRIO rec and resolves to STRAIGHT/BOX-N.
+        # Falls back to rank-1 rec for WIN/BANKER WIN which aren't box-bets.
         horses_sorted = sorted(race['horses'], key=lambda h: h['rank'])
-        prod_bet = horses_sorted[0].get('bet_recommendation', 'SKIP')
-        if prod_bet == 'SKIP':
-            # Could still be a multi-leg bet (QIN top-2). Infer from top-4 bets.
-            prod_bet = _infer_bet_type_from_horses(horses_sorted)
+        prod_bet = _infer_bet_type_from_horses(horses_sorted)
         prod_legs_set = _legs_for_bet(prod_bet, horses_sorted)
 
         # Shadow

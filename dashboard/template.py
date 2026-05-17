@@ -908,9 +908,13 @@ function renderBetCard(race) {{
                race.horses.length + ' horses · Tier: ' + tier);
   // Suggested-stake banner — mirrors the dashboard per-card budget so
   // the user knows the total $ before scanning individual MAIN blocks.
-  // Hidden on SKIP races (amount=0 there).
+  // Hidden on SKIP races (amount=0 there). Index is remembered so the
+  // banner can be updated later with the unallocated residual once
+  // waUnit + combo counts are known (budget floor often leaves $5-60 free).
+  var _ssBannerIdx = -1;
   if (ss && ss.amount && ss.amount > 0) {{
     var ssPctTxt = (ss.pct != null) ? (' (' + (ss.pct||0).toFixed(2) + '% of $' + (race.bankroll||0) + ')') : '';
+    _ssBannerIdx = waLines.length;
     waLines.push('💰 *Suggested stake: $' + Math.round(ss.amount) + ' HKD*' + ssPctTxt);
   }}
   if (tier === 'EDGE') {{
@@ -971,6 +975,17 @@ function renderBetCard(race) {{
   var waUnit = (ss && ss.amount > 0 && waTotalCombos > 0)
     ? Math.max(5, Math.floor((ss.amount / waTotalCombos) / 5) * 5)
     : 0;
+  // Annotate the stake banner with unallocated residual when floor leaves
+  // budget on the table. User can then manually deploy the residual to a
+  // preferred bet (e.g., round TRIO-5 up to next $5). Skip hint when
+  // residual < $5 (rounding noise, not actionable).
+  if (_ssBannerIdx >= 0 && waUnit > 0) {{
+    var _allocated = waTotalCombos * waUnit;
+    var _unalloc = Math.round(ss.amount) - _allocated;
+    if (_unalloc >= 5) {{
+      waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(' HKD*', ' HKD — $' + _unalloc + ' unallocated*');
+    }}
+  }}
 
   // MAIN BET — one focused block (not a duplicate summary + detail).
   var isSkipRace = mainBetTypes.length === 0;
