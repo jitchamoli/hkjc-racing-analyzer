@@ -47,7 +47,15 @@ _RESULT_KEYS_HORSE = {'actual_position'}
 # Audit 2026-05-17: R1 flipped MED → EDGE post-race because #10's odds
 # moved $7.40 → $3.10 in the post-race feed, dragging cal_probs.
 _FROZEN_PREDICTION_KEYS_RACE = {'conviction_tier', 'has_edge', 'suggested_stake',
-                                 'bankroll', 'odds_age_minutes'}
+                                 'bankroll', 'odds_age_minutes',
+                                 # Shape stats — must move in lockstep with the
+                                 # frozen horse-level calibrated_prob (audit
+                                 # 2026-05-17, ML expert finding HIGH-1)
+                                 'top_2_share', 'top_3_share',
+                                 # EDGE banner identifiers — must point at the
+                                 # horse whose frozen edge_fires=True
+                                 'edge_horse_rank', 'edge_horse_number',
+                                 'edge_horse_name'}
 _FROZEN_PREDICTION_KEYS_HORSE = {'rank', 'win_odds', 'calibrated_prob',
                                   'edge_pp', 'ev_win', 'overlay', 'edge_fires',
                                   'pure_prob', 'market_prob', 'model_rank',
@@ -336,15 +344,27 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     # the freshest possible odds. This snapshot is only used downstream by
     # the EDGE freshness gate; nothing else reads it on the predict path.
     # Audit fix 2026-05-17.
+    # Anti-poison: skip the snapshot if the race already has results in
+    # race_results — HKJC post-race odds (final SP / settled) would
+    # otherwise overwrite the legitimate pre-race odds we captured earlier
+    # and corrupt any future backtest that reads odds_snapshots.
     try:
-        odds_horses = [
-            {'number': h.number, 'name': h.name,
-             'win_odds': h.win_odds or 0, 'place_odds': getattr(h, 'place_odds', 0) or 0}
-            for h in race.horses if (h.win_odds or 0) > 0
-        ]
-        if odds_horses:
-            odds_db.record_snapshot(race_date, race.race_number,
-                                    odds_horses, source='generator')
+        race_finished = False
+        if db is not None and hasattr(db, 'conn'):
+            row = db.conn.execute(
+                "SELECT 1 FROM race_results WHERE race_date=? AND race_number=? LIMIT 1",
+                (race_date, race.race_number),
+            ).fetchone()
+            race_finished = bool(row)
+        if not race_finished:
+            odds_horses = [
+                {'number': h.number, 'name': h.name,
+                 'win_odds': h.win_odds or 0, 'place_odds': getattr(h, 'place_odds', 0) or 0}
+                for h in race.horses if (h.win_odds or 0) > 0
+            ]
+            if odds_horses:
+                odds_db.record_snapshot(race_date, race.race_number,
+                                        odds_horses, source='generator')
     except Exception:
         pass  # snapshot failure must not block prediction generation
 
@@ -542,9 +562,13 @@ async def _run_generation(fetcher, analyzer, race_date: str):
 
     # Per-card suggested stake — bankroll-fraction (BOX) or half-Kelly
     # (WIN/BANKER WIN), tier-capped. See betting/optimizer.compute_suggested_stake.
+    # Skip recompute on finished races — _merge_with_existing already restored
+    # the frozen pre-race stake (audit 2026-05-17, Python expert finding HIGH).
     from betting.optimizer import compute_suggested_stake
     import config as _cfg
     for r in all_races:
+        if r.get('results_available'):
+            continue
         top = (r.get('horses') or [{}])[0]
         stake = compute_suggested_stake(
             conviction_tier=r.get('conviction_tier') or 'SKIP',

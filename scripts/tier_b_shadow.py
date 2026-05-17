@@ -165,7 +165,6 @@ def run(race_date: str) -> int:
         races = json.load(f)
 
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    fresh = not LOG_PATH.exists()
     fields = [
         'race_date', 'race_number', 'n_horses',
         'top_2_share', 'top_3_share', 'gap_1_2', 'gap_2_3',
@@ -177,11 +176,26 @@ def run(race_date: str) -> int:
         'edge_5pp_horse', 'edge_3pp_horse', 'edge_2pp_horse',
         'odds_age_min',
     ]
+
+    # Dedup: load existing rows, drop any matching (race_date, race_number)
+    # so a re-run of the same date overwrites instead of triple-counting.
+    # Audit fix 2026-05-17 — was appending blindly, log went 1×→3× in a
+    # day from fresh-odds re-runs, invalidating the forward-validation
+    # experiment's bet/hit/P&L counts.
+    existing_rows = []
+    if LOG_PATH.exists():
+        with open(LOG_PATH, newline='') as f:
+            existing_rows = [row for row in csv.DictReader(f)
+                              if row.get('race_date') != race_date]
     rows_written = 0
-    with open(LOG_PATH, 'a', newline='') as f:
+    new_rows = []
+    with open(LOG_PATH, 'w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=fields)
-        if fresh:
-            w.writeheader()
+        w.writeheader()
+        # Re-emit kept rows (other dates) first
+        for row in existing_rows:
+            w.writerow({k: row.get(k, '') for k in fields})
+        # Now build this date's rows
         for r in races:
             horses = r.get('horses') or []
             shape = _compute_shape(horses)
@@ -242,7 +256,8 @@ def run(race_date: str) -> int:
                 msg += f"2pp={edge_shadow.get(2.0) or '—'}"
                 print(msg)
 
-    print(f"Wrote {rows_written} rows to {LOG_PATH}")
+    print(f"Wrote {rows_written} rows for {race_date} to {LOG_PATH} "
+          f"({len(existing_rows)} prior rows preserved from other dates)")
     return 0
 
 
