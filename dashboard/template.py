@@ -22,7 +22,8 @@ ALERT_COLORS = {
 
 
 def generate_html(races_json: str, now: str, race_date: str,
-                  venue: str = 'Sha Tin', auto_refresh: bool = False) -> str:
+                  venue: str = 'Sha Tin', auto_refresh: bool = False,
+                  accuracy_summary: dict = None) -> str:
     import json as _json
     import html as _html
 
@@ -40,6 +41,10 @@ def generate_html(races_json: str, now: str, race_date: str,
         races_list = []
 
     strip_tiles_html = _build_strip_tiles(races_list)
+    accuracy_panel_html = _build_accuracy_panel(accuracy_summary or {})
+    # JSON-encoded for the JS layer (WhatsApp copy footer reads from it)
+    accuracy_summary_json = _json.dumps(accuracy_summary or {}).replace(
+        '</script>', r'<\/script>')
 
     return _HTML_TEMPLATE.format(
         races_json=races_json_safe,
@@ -48,6 +53,110 @@ def generate_html(races_json: str, now: str, race_date: str,
         venue=venue,
         auto_refresh_meta=auto_refresh_meta,
         strip_tiles_html=strip_tiles_html,
+        accuracy_panel_html=accuracy_panel_html,
+        accuracy_summary_json=accuracy_summary_json,
+    )
+
+
+def _wilson_ci_pct(hits: int, n: int, z: float = 1.96):
+    """Wilson 95% CI as (lo%, hi%); None if n=0. Mirrors scripts/accuracy.py."""
+    if n <= 0:
+        return None
+    import math as _math
+    p = hits / n
+    denom = 1.0 + z * z / n
+    center = (p + z * z / (2 * n)) / denom
+    half = z * _math.sqrt((p * (1 - p) + z * z / (4 * n)) / n) / denom
+    return (max(0.0, center - half) * 100, min(1.0, center + half) * 100)
+
+
+def _build_accuracy_panel(summary: dict) -> str:
+    """Render two-dimension accuracy panel (ML Confidence + Conviction Tier).
+
+    Pulls from db.get_accuracy_summary(60). Hidden cleanly when summary is
+    empty or in 'no results' state.
+    """
+    if not summary or 'message' in summary:
+        return ''  # silent when no results yet
+
+    tier_order = {'EDGE': 0, 'VERY_HIGH': 1, 'HIGH': 2, 'MEDIUM': 3, 'MED': 3,
+                  'LOW': 4, 'UNKNOWN': 5}
+
+    def _render_table(title: str, by_tier: dict) -> str:
+        if not by_tier:
+            return ''
+        rows_html = []
+        for conf, data in sorted(by_tier.items(),
+                                  key=lambda kv: tier_order.get(kv[0], 99)):
+            if data.get('total', 0) == 0:
+                continue
+            bets = data.get('bets', 0)
+            hits = data.get('hits', 0)
+            profit = data.get('profit', 0.0)
+            stake = data.get('stake', 0.0)
+            if bets > 0 and stake > 0:
+                hit_pct = hits / bets * 100
+                roi = profit / stake * 100
+                ci_str = ''
+                if bets < 30:
+                    ci = _wilson_ci_pct(hits, bets)
+                    if ci:
+                        ci_str = ' <span style="color:var(--dim);font-size:.7rem">[CI {:.0f}-{:.0f}%]</span>'.format(ci[0], ci[1])
+                roi_color = 'var(--green)' if roi >= 0 else 'var(--red)'
+                rows_html.append(
+                    '<tr><td>{conf}</td><td>{bets}</td><td>{hits}</td>'
+                    '<td>{hit_pct:.1f}%{ci}</td>'
+                    '<td>${profit:+.0f}</td>'
+                    '<td style="color:{roi_color}">{roi:+.1f}%</td></tr>'.format(
+                        conf=_esc(conf), bets=bets, hits=hits,
+                        hit_pct=hit_pct, ci=ci_str,
+                        profit=profit, roi=roi, roi_color=roi_color,
+                    )
+                )
+            else:
+                rows_html.append(
+                    '<tr><td>{conf}</td><td>{bets}</td><td>—</td>'
+                    '<td>—</td><td>—</td><td>—</td></tr>'.format(conf=_esc(conf), bets=bets)
+                )
+        if not rows_html:
+            return ''
+        return (
+            '<div style="margin-top:8px">'
+            '<div style="font-size:.75rem;color:var(--dim);margin-bottom:4px">{title}</div>'
+            '<table class="acc-table"><thead><tr>'
+            '<th>tier</th><th>bets</th><th>hits</th><th>hit%</th><th>P&amp;L (1u)</th><th>ROI</th>'
+            '</tr></thead><tbody>{rows}</tbody></table>'
+            '</div>'
+        ).format(title=_esc(title), rows=''.join(rows_html))
+
+    total_races = summary.get('total_races', 0)
+    total_profit = summary.get('total_profit', 0.0)
+    roi = summary.get('roi_percent', 0.0)
+    bets_placed = summary.get('bets_placed', 0)
+    bets_won = summary.get('bets_won', 0)
+    period_days = summary.get('period_days', 60)
+    roi_color = 'var(--green)' if roi >= 0 else 'var(--red)'
+
+    ml_table = _render_table('By ML Confidence', summary.get('by_confidence', {}))
+    conv_table = _render_table('By Conviction Tier (strategy edge)',
+                                summary.get('by_conviction', {}))
+
+    return (
+        '<details class="accuracy-panel" style="margin:10px 0;background:var(--card);'
+        'border:1px solid var(--border);border-radius:8px;padding:10px">'
+        '<summary style="cursor:pointer;font-weight:600;font-size:.85rem">'
+        'Recent accuracy — last {days}d · {races} races · '
+        '<span style="color:{roi_color}">${profit:+.0f} ({roi:+.1f}% ROI)</span> · '
+        '{hits}/{bets} bets hit</summary>'
+        '<div style="font-size:.75rem;color:var(--dim);margin-top:6px">'
+        '1u-stake terms (WIN 1u, BOX Q3 3u, BOX Q4 6u). Wilson 95% CI shown when N&lt;30.'
+        '</div>'
+        '{ml_table}{conv_table}'
+        '</details>'
+    ).format(
+        days=period_days, races=total_races, hits=bets_won, bets=bets_placed,
+        profit=total_profit, roi=roi, roi_color=roi_color,
+        ml_table=ml_table, conv_table=conv_table,
     )
 
 
@@ -363,6 +472,14 @@ button {{ font-family:inherit; cursor:pointer; }}
 /* ── Footer ── */
 .footer {{ text-align:center; padding:20px; font-size:.7rem; color:var(--dim); border-top:1px solid var(--border); margin-top:16px; }}
 .disclaimer {{ font-size:.72rem; color:#fca5a5; background:rgba(239,68,68,.07); border:1px solid rgba(239,68,68,.18); border-radius:6px; padding:8px 14px; margin-top:12px; }}
+.accuracy-panel summary {{ list-style:none; }}
+.accuracy-panel summary::-webkit-details-marker {{ display:none; }}
+.accuracy-panel summary::before {{ content:"▸ "; color:var(--dim); }}
+.accuracy-panel[open] summary::before {{ content:"▾ "; }}
+.acc-table {{ width:100%; border-collapse:collapse; font-size:.75rem; margin-top:4px; }}
+.acc-table th, .acc-table td {{ padding:3px 8px; text-align:right; border-bottom:1px solid var(--border); }}
+.acc-table th:first-child, .acc-table td:first-child {{ text-align:left; }}
+.acc-table th {{ font-weight:500; color:var(--dim); text-transform:uppercase; font-size:.65rem; }}
 </style>
 </head>
 <body>
@@ -417,6 +534,7 @@ button {{ font-family:inherit; cursor:pointer; }}
     </div>
     <div id="top-bets-view" style="display:none"></div>
     <div id="race-detail"></div>
+    {accuracy_panel_html}
     <div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>
     <div class="footer">HKJC Racing Analyzer v6.6 — Generated: {now}</div>
   </div>
@@ -441,6 +559,7 @@ function escAttr(s) {{
 }}
 
 const RACES = {races_json};
+const ACCURACY_SUMMARY = {accuracy_summary_json};
 const RACE_DATE = "{race_date}";
 const GENERATED = "{now}";
 
@@ -868,6 +987,23 @@ function renderBetCard(race) {{
     waLines.push('');
     waLines.push('_Why: ' + whyItems.slice(0, 3).join(' · ') + '_');
   }}
+
+  // Model trust footer — recent accuracy for the conviction tier on this race.
+  // Reads from ACCURACY_SUMMARY (60d window from db.get_accuracy_summary).
+  // Silent when no data yet, or when the tier has 0 bets in the window.
+  try {{
+    var convBucket = ACCURACY_SUMMARY && ACCURACY_SUMMARY.by_conviction;
+    var tierStats = convBucket && convBucket[tier];
+    if (tierStats && tierStats.bets > 0 && tierStats.stake > 0) {{
+      var tBets = tierStats.bets, tHits = tierStats.hits;
+      var tHitPct = (tHits / tBets * 100).toFixed(0);
+      var tRoi = (tierStats.profit / tierStats.stake * 100).toFixed(0);
+      var noteN = tBets < 30 ? ' (small N)' : '';
+      waLines.push('');
+      waLines.push('_Model 60d · ' + tier + ' tier: ' + tHits + '/' + tBets +
+                   ' (' + tHitPct + '%) · ' + (tRoi >= 0 ? '+' : '') + tRoi + '% ROI' + noteN + '_');
+    }}
+  }} catch (e) {{ /* silent — never break WA copy */ }}
 
   var waPayload = waLines.join('\\n');
 
