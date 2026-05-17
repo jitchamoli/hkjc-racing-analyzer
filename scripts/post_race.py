@@ -1,17 +1,17 @@
-"""Post-race one-command wrapper: results ingest + shadow eval + DB dump.
+"""Post-race one-command wrapper: results ingest + analytics + DB dump.
 
-Runs in sequence (each step depends on the previous):
-  1. python3 results_fetcher.py <date> --auto-learn — ingest finishes,
-     retrain ML, recalibrate, refresh dashboard with hit/miss badges
-  2. python3 -m scripts.shadow_evaluate <date>      — compare prod vs shadow
-     vs actual, append to shadow_log.csv
-  3. python3 -m scripts.tier_b_evaluate <date>      — score OLD vs NEW
-     recommender for Tier B forward-validation
-  4. bash scripts/auto_dump.sh                      — refresh DB snapshot,
-     commit + push if bytes changed
+Runs in sequence:
+  1. results_fetcher.py <date> --auto-learn   — ingest finishes, retrain ML,
+                                                refresh dashboard with badges
+  2. scripts.shadow_evaluate <date>           — prod vs rule_w=0.9 shadow
+  3. scripts.tier_b_evaluate <date>           — OLD vs NEW recommender
+  4. scripts.track_spoilers <date>            — log outside-top-5 placers
+  5. scripts.track_edge <date>                — log EDGE fires + outcomes
+                                                (feeds dashboard banner)
+  6. bash scripts/auto_dump.sh                — refresh DB snapshot, push
 
 Skips shadow step if results/shadow_race_data_<date>.json is missing.
-Skips tier B eval if tracking_data/tier_b_log.csv has no rows for date.
+Other steps are always-safe (skip internally if no relevant data).
 
 Usage:
     python3 -m scripts.post_race '2026/05/17'
@@ -47,7 +47,7 @@ def main():
                    help='Skip the DB dump step (run scripts/auto_dump.sh later)')
     args = p.parse_args()
 
-    rc = _run("1/3 results ingest + auto-learn",
+    rc = _run("1/6 results ingest + auto-learn",
               [sys.executable, 'results_fetcher.py', args.race_date, '--auto-learn'])
     if rc != 0:
         print(f"\nABORT: results_fetcher failed. Fix and rerun.", file=sys.stderr)
@@ -57,22 +57,30 @@ def main():
     date_str = args.race_date.replace('/', '')
     shadow_path = REPO_ROOT / 'results' / f'shadow_race_data_{date_str}.json'
     if not shadow_path.exists():
-        print(f"\n  [2/3 shadow_evaluate] SKIPPED — no shadow file at {shadow_path}")
+        print(f"\n  [2/6 shadow_evaluate] SKIPPED — no shadow file at {shadow_path}")
     else:
-        rc = _run("2/3 shadow_evaluate",
+        rc = _run("2/6 shadow_evaluate",
                   [sys.executable, '-m', 'scripts.shadow_evaluate', args.race_date])
         if rc != 0:
             print(f"\nWARN: shadow_evaluate failed but results were ingested. "
-                  f"Continuing to dump step.", file=sys.stderr)
+                  f"Continuing to remaining steps.", file=sys.stderr)
 
-    # Step 3: tier B eval — always safe to run (skips internally if no rows)
-    _run("3/4 tier B evaluate (OLD vs NEW recommender)",
+    # Step 3: tier B eval — always safe (skips internally if no rows)
+    _run("3/6 tier B evaluate (OLD vs NEW recommender)",
          [sys.executable, '-m', 'scripts.tier_b_evaluate', args.race_date])
 
+    # Step 4: spoiler tracker — logs rank>5 horses that placed top-3
+    _run("4/6 track_spoilers",
+         [sys.executable, '-m', 'scripts.track_spoilers', args.race_date])
+
+    # Step 5: EDGE tracker — logs EDGE fires + outcomes; feeds dashboard banner
+    _run("5/6 track_edge (banner stats)",
+         [sys.executable, '-m', 'scripts.track_edge', args.race_date])
+
     if args.skip_dump:
-        print(f"\n  [4/4 DB dump] SKIPPED — run `bash scripts/auto_dump.sh` later")
+        print(f"\n  [6/6 DB dump] SKIPPED — run `bash scripts/auto_dump.sh` later")
     else:
-        rc = _run("4/4 DB dump + commit + push",
+        rc = _run("6/6 DB dump + commit + push",
                   ['bash', 'scripts/auto_dump.sh'])
         if rc != 0:
             print(f"\nWARN: auto_dump exited non-zero. Check logs/auto_dump.log.",
@@ -81,6 +89,8 @@ def main():
     print(f"\n{'='*70}\n  POST-RACE COMPLETE — {args.race_date}\n{'='*70}")
     print(f"  Cumulative shadow comparison: python3 -m scripts.shadow_evaluate --report")
     print(f"  Cumulative tier B forward:    python3 -m scripts.tier_b_evaluate --report")
+    print(f"  Spoiler dataset:              tracking_data/spoilers.csv")
+    print(f"  EDGE history:                 tracking_data/edge_log.csv + edge_stats.json")
     return 0
 
 
