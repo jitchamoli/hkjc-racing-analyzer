@@ -2,7 +2,7 @@
 # HKJC Racing Scheduler Setup
 # Run this to set up automatic daily race analysis
 
-SCRIPT_DIR="$HOME/Documents/project_hub/hkjc_racing_analyzer"
+SCRIPT_DIR="$HOME/Code/hkjc_racing_analyzer"
 SCHEDULER="$SCRIPT_DIR/racing_scheduler.py"
 
 echo "🏇 HKJC Racing Scheduler Setup"
