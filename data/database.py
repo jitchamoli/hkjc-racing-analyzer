@@ -1199,6 +1199,43 @@ class HorseDatabase:
 
         self.conn.commit()
 
+    # Per-combo cost table for exotic stakes (1 unit per combo)
+    _BET_COMBOS = {
+        # bet_type → leg_count → combo count
+        'QIN':   {2: 1, 3: 3, 4: 6},   # straight QIN / BOX Q3 / BOX Q4
+        'TRIO':  {3: 1, 4: 4, 5: 10, 6: 20},
+    }
+
+    def _real_exotic_pnl(self, race_date: str, race_number: int,
+                         bet_type: str, leg_count: int, hit: bool,
+                         actual_top2_nums, actual_top3_nums):
+        """Return (pnl, stake) for an exotic bet using real HKJC dividends.
+
+        Falls back to (None, stake) if the dividend can't be looked up — caller
+        should then fall back to the stored profit_loss column.
+        """
+        combos = self._BET_COMBOS.get(bet_type, {}).get(leg_count)
+        if combos is None:
+            return None, 0.0
+        stake = float(combos)
+        if not hit:
+            return -stake, stake
+        pool = 'QUINELLA' if bet_type == 'QIN' else 'TRIO'
+        winning_nums = actual_top2_nums if bet_type == 'QIN' else actual_top3_nums
+        nums = sorted(int(n) for n in winning_nums if n)
+        if (bet_type == 'QIN' and len(nums) != 2) or (bet_type == 'TRIO' and len(nums) != 3):
+            return None, stake
+        combo = ','.join(str(n) for n in nums)
+        row = self.conn.execute(
+            "SELECT dividend FROM race_dividends "
+            "WHERE race_date=? AND race_number=? AND pool=? AND combination=?",
+            (race_date, race_number, pool, combo)
+        ).fetchone()
+        if not row:
+            return None, stake
+        dividend = float(row[0])
+        return dividend - stake, stake
+
     def get_accuracy_summary(self, days: int = 30) -> Dict:
         """Get prediction accuracy summary over the last N days.
 
@@ -1209,18 +1246,26 @@ class HorseDatabase:
           PLACE                   : rank-1 horse placed (top-3)
           QIN                     : ≥2 of model's top-3 picks finished in top 2
           TRIO                    : all 3 of model's top-3 picks finished in top 3
-        SKIP is excluded. P&L is summed from the rank-1 row's profit_loss
-        column (per-row, currently -stake on losing exotics — ROI for exotic
-        types is approximate until race_dividends is joined in).
+        SKIP is excluded.
+
+        P&L sources (2026-05-17):
+          - WIN / BANKER WIN / PLACE: prediction_log.profit_loss (per-row,
+            computed from win_odds when fill_prediction_results runs)
+          - QIN / TRIO: REAL HKJC dividend looked up from race_dividends,
+            with stake = #combos × 1u (QIN: 1/3/6 combos for 2/3/4 legs,
+            TRIO: 1/4/10/20 combos for 3/4/5/6 legs). Falls back to stored
+            profit_loss if the dividend lookup misses.
         """
         c = self.conn.cursor()
         cutoff = (datetime.now() - __import__('datetime').timedelta(days=days)).strftime('%Y/%m/%d')
 
-        # Only races where results have been filled
+        # Only races where results have been filled. horse_number is needed
+        # for joining actual top-2/top-3 numbers to race_dividends.
         rows = c.execute("""
             SELECT race_date, race_number, horse_name, predicted_rank,
                    bet_recommendation, calibrated_prob, win_odds,
-                   actual_position, actual_won, actual_top3, profit_loss, confidence
+                   actual_position, actual_won, actual_top3, profit_loss, confidence,
+                   horse_number
             FROM prediction_log
             WHERE results_filled = 1 AND race_date >= ?
             ORDER BY race_date, race_number, predicted_rank
@@ -1243,7 +1288,9 @@ class HorseDatabase:
         winner_ranks = []
         bets_placed = 0
         bets_won = 0
-        total_profit = 0.0
+        total_profit = 0.0   # 1-unit-stake terms
+        total_stake = 0.0    # 1-unit-stake terms (1u for WIN/PLACE/straight,
+                             # 3u BOX Q3, 6u BOX Q4)
         banker_count = 0
         banker_wins = 0
         by_confidence = {}
@@ -1279,7 +1326,6 @@ class HorseDatabase:
             if not bet or bet == 'SKIP':
                 continue
             bets_placed += 1
-            total_profit += rank1[10] or 0
 
             top3 = horses[:3]
             top3_in_top2 = sum(1 for h in top3 if h[7] in (1, 2))
@@ -1303,6 +1349,27 @@ class HorseDatabase:
                 if hit:
                     banker_wins += 1
 
+            # P&L: normalize everything to 1-unit-stake terms.
+            #   - WIN / PLACE / BANKER WIN: stored profit_loss is in $10-stake
+            #     dollars (see fill_prediction_results) → divide by 10
+            #   - QIN / TRIO: look up real HKJC dividend; cost = #combos × 1u
+            if bet in ('QIN', 'TRIO'):
+                leg_count = sum(1 for h in horses if h[4] == bet)
+                actual_top2 = [h[12] for h in horses if h[7] in (1, 2)]
+                actual_top3 = [h[12] for h in horses if h[9]]
+                pnl, stake = self._real_exotic_pnl(
+                    horses[0][0], horses[0][1], bet, leg_count, hit,
+                    actual_top2, actual_top3,
+                )
+                if pnl is None:
+                    pnl = (rank1[10] or 0) / 10.0
+                    stake = 1.0
+            else:
+                pnl = (rank1[10] or 0) / 10.0
+                stake = 1.0
+            total_profit += pnl
+            total_stake += stake
+
         return {
             'period_days': days,
             'total_races': total_races,
@@ -1314,7 +1381,8 @@ class HorseDatabase:
             'bets_won': bets_won,
             'bet_hit_rate': round(bets_won / bets_placed * 100, 1) if bets_placed else 0,
             'total_profit': round(total_profit, 1),
-            'roi_percent': round(total_profit / (bets_placed * 10) * 100, 1) if bets_placed else 0,
+            'total_stake': round(total_stake, 1),
+            'roi_percent': round(total_profit / total_stake * 100, 1) if total_stake else 0,
             'banker_count': banker_count,
             'banker_wins': banker_wins,
             'banker_hit_rate': round(banker_wins / banker_count * 100, 1) if banker_count else 0,
@@ -1362,7 +1430,7 @@ class HorseDatabase:
         rows = c.execute("""
             SELECT race_date, race_number, horse_name, predicted_rank,
                    bet_recommendation, actual_position, actual_won,
-                   actual_top3, profit_loss
+                   actual_top3, profit_loss, horse_number
             FROM prediction_log
             WHERE results_filled = 1 AND race_date >= ?
             ORDER BY race_date, race_number, predicted_rank
@@ -1372,7 +1440,7 @@ class HorseDatabase:
         for r in rows:
             races.setdefault(f"{r[0]}-{r[1]}", []).append(r)
 
-        by_type = {}  # bet_type -> {'count','hits','profit'}
+        by_type = {}  # bet_type -> {'count','hits','profit','stake'}
         for horses in races.values():
             horses.sort(key=lambda x: x[3])
             rank1 = horses[0]
@@ -1395,22 +1463,41 @@ class HorseDatabase:
             else:
                 hit = False
 
-            d = by_type.setdefault(bet, {'count': 0, 'hits': 0, 'profit': 0.0})
+            # P&L in 1-unit-stake terms (see get_accuracy_summary for full
+            # rationale on unit normalization).
+            if bet in ('QIN', 'TRIO'):
+                leg_count = sum(1 for h in horses if h[4] == bet)
+                actual_top2 = [h[9] for h in horses if h[5] in (1, 2)]
+                actual_top3 = [h[9] for h in horses if h[7]]
+                pnl, stake = self._real_exotic_pnl(
+                    horses[0][0], horses[0][1], bet, leg_count, hit,
+                    actual_top2, actual_top3,
+                )
+                if pnl is None:
+                    pnl = (rank1[8] or 0) / 10.0
+                    stake = 1.0
+            else:
+                pnl = (rank1[8] or 0) / 10.0
+                stake = 1.0
+
+            d = by_type.setdefault(bet, {'count': 0, 'hits': 0, 'profit': 0.0, 'stake': 0.0})
             d['count'] += 1
             if hit:
                 d['hits'] += 1
-            d['profit'] += rank1[8] or 0
+            d['profit'] += pnl
+            d['stake'] += stake
 
         result = []
         for bet, d in sorted(by_type.items(), key=lambda kv: -kv[1]['profit']):
             n = d['count']
+            stake = d['stake'] or n  # fallback to 1u/bet if no stake tracked
             result.append({
                 'bet_type': bet,
                 'count': n,
                 'hits': d['hits'],
                 'hit_rate': round(d['hits'] / n * 100, 1) if n else 0.0,
                 'profit': round(d['profit'], 1),
-                'roi': round(d['profit'] / (n * 10) * 100, 1) if n else 0.0,
+                'roi': round(d['profit'] / stake * 100, 1) if stake else 0.0,
             })
         return result
 
