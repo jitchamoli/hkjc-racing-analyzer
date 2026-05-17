@@ -834,7 +834,8 @@ function renderBetCard(race) {{
 
   // MAIN BET — one focused block (not a duplicate summary + detail).
   var mainBetTypes = Object.keys(waBets);
-  if (mainBetTypes.length > 0) {{
+  var isSkipRace = mainBetTypes.length === 0;
+  if (!isSkipRace) {{
     mainBetTypes.forEach(function(bt) {{
       var picks = waBets[bt];
       var lbl = bt;
@@ -849,6 +850,12 @@ function renderBetCard(race) {{
       waLines.push('*MAIN: ' + lbl + '*');
       picks.forEach(function(h) {{ waLines.push(_waPick(h)); }});
     }});
+    // Suggested stake — bankroll-fraction sizing (mirrors dashboard panel).
+    // Skipped on SKIP races where amount=0 by construction.
+    if (ss && ss.amount && ss.amount > 0) {{
+      waLines.push('Stake: $' + Math.round(ss.amount) + ' (' +
+                   (ss.pct||0).toFixed(1) + '% bankroll)');
+    }}
   }} else {{
     waLines.push('');
     waLines.push('*SKIP* — no bet recommended');
@@ -972,11 +979,25 @@ function renderBetCard(race) {{
 
   // Insert the TRIO-5 MAIN block before the optional adds so it reads
   // as a primary bet alongside PRIMARY, not buried under "optional".
+  // On SKIP races we demote both MAIN blocks (TRIO-5, F4 BOX-5) to the
+  // optional-adds bucket so the pasted text does not contradict itself
+  // (was: "SKIP — no bet recommended ... MAIN: BOX TRIO-5"). Audit fix
+  // 2026-05-17 for WA-copy consistency with dashboard.
   if (t5MainBlock) {{
-    t5MainBlock.forEach(function(l) {{ waLines.push(l); }});
+    if (isSkipRace) {{
+      // Demote on SKIP — render as a single optional-adds bullet so the
+      // pasted message does not say SKIP + MAIN in the same race.
+      addOns.push('BOX TRIO-5 (10 combos): ' + t5MainBlock[2]);
+    }} else {{
+      t5MainBlock.forEach(function(l) {{ waLines.push(l); }});
+    }}
   }}
   if (f4bMainBlock) {{
-    f4bMainBlock.forEach(function(l) {{ waLines.push(l); }});
+    if (isSkipRace) {{
+      addOns.push('F4 BOX-5 (5 combos · top-4 any order): ' + f4bMainBlock[2]);
+    }} else {{
+      f4bMainBlock.forEach(function(l) {{ waLines.push(l); }});
+    }}
   }}
 
   if (addOns.length) {{
