@@ -15,6 +15,16 @@ For deep history, version-by-version changelogs, full feature lists, and audit d
 python3 generate_predictions.py '2026/04/15'
 # Output: results/race_data_YYYYMMDD.json + results/racing_dashboard.html (always-latest) + results/racing_dashboard_YYYYMMDD.html (archive)
 
+# One-command race-day wrappers (recommended workflow)
+python3 -m scripts.race_day '2026/05/17'     # generate_predictions + shadow_generate
+python3 -m scripts.post_race '2026/05/17'    # results_fetcher --auto-learn + shadow_evaluate + auto_dump
+
+# Shadow logging — active forward-validation experiment for rule_w=0.9 (see
+# memory/project_shadow_logging_rule_w_09.md). Production stays at 0.6.
+python3 -m scripts.shadow_generate '2026/05/17'           # writes shadow_race_data_YYYYMMDD.json
+python3 -m scripts.shadow_evaluate '2026/05/17'           # appends to tracking_data/shadow_log.csv
+python3 -m scripts.shadow_evaluate --report               # cumulative comparison after N≥6 meetings
+
 # Scrape historical results into database (Playwright required)
 python3 scrape_history.py                    # Last 10 meeting dates
 python3 scrape_history.py --date 2026/04/09  # Specific date
@@ -95,7 +105,8 @@ scripts/    — CLI entry points
               FR:  ingest_fr, train_fr, backtest_fr, validate_fr
               AU:  ingest_au       (reference data only — no model)
               JP:  ingest_jp       (reference data only — no model)
-tests/      — pytest suite (322 total: 314 HK tests + 8 UK tests)
+tests/      — pytest suite (366 total: 314 HK + 8 UK + 9 accuracy regressions
+              + 24 FR/AU/JP DB tests + 11 backfill script tests)
 ```
 
 Root-level shims exist for backwards compatibility (e.g., `hkjc_data_fetcher.py` re-exports from `core/fetcher.py`).
