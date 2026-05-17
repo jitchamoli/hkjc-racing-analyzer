@@ -755,18 +755,83 @@ function renderBetCard(race) {{
 
   // Suggested stake — bankroll-fraction sizing, see betting/optimizer.
   // Hidden when amount=0 so SKIP cards do not show a wasted line.
+  // Distributes the total across firing MAIN-tier bets (MAIN + BOX TRIO-5
+  // + F4 BOX-5) by combo-count, so the user sees how the $X splits.
   var ss = race.suggested_stake || {{}};
   var stakeHtml = '';
   if (ss.amount && ss.amount > 0) {{
     var br = race.bankroll || 0;
+    // Enumerate firing MAIN bets and their combo counts
+    var mainBets = {{}};
+    race.horses.forEach(function(h) {{
+      var b = (h.bet_recommendation || '').trim();
+      if (b && b !== 'SKIP') {{ (mainBets[b] = mainBets[b] || []).push(h); }}
+    }});
+    var betLines = [];
+    var totalCombos = 0;
+    Object.keys(mainBets).forEach(function(bt) {{
+      var n = mainBets[bt].length;
+      var combos = 0, lbl = bt;
+      if (bt === 'WIN' || bt === 'BANKER WIN') {{ combos = 1; lbl = bt; }}
+      else if (bt === 'PLACE') {{ combos = 1; lbl = 'PLACE'; }}
+      else if ((bt === 'QIN' || bt === 'BOX QIN')) {{
+        combos = n === 2 ? 1 : (n*(n-1)/2);
+        lbl = n === 2 ? 'STRAIGHT QIN' : 'BOX QIN-' + n;
+      }} else if (bt === 'TRIO') {{
+        combos = n === 3 ? 1 : (n*(n-1)*(n-2)/6);
+        lbl = n === 3 ? 'STRAIGHT TRIO' : 'BOX TRIO-' + n;
+      }}
+      if (combos > 0) {{
+        betLines.push({{lbl: lbl, combos: combos}});
+        totalCombos += combos;
+      }}
+    }});
+    // BOX TRIO-5 and F4 BOX-5 also fire as MAIN tier when top5 length is 5
+    var top5len = race.horses.slice(0, 5).length;
+    if (top5len === 5) {{
+      betLines.push({{lbl: 'BOX TRIO-5', combos: 10}});
+      totalCombos += 10;
+      // F4 BOX-5 has its own gate (mirrors logic at line ~915)
+      var f4top1 = (race.horses[0] && race.horses[0].win_odds) || 0;
+      var f4field = race.horses.length;
+      var f4Skip = (f4top1 > 0 && f4top1 < 2.5) ||
+                    (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+                    (f4field < 8);
+      if (!f4Skip) {{
+        betLines.push({{lbl: 'F4 BOX-5', combos: 5}});
+        totalCombos += 5;
+      }}
+    }}
+    // Unit stake — divide budget across all combos. Round to nearest $5
+    // so the per-bet amounts stay round and tractable for actual bet entry.
+    var unit = totalCombos > 0 ? (ss.amount / totalCombos) : 0;
+    var unitRounded = Math.max(5, Math.round(unit / 5) * 5);
+    var breakdownRows = '';
+    var allocated = 0;
+    betLines.forEach(function(b) {{
+      var amt = b.combos * unitRounded;
+      allocated += amt;
+      breakdownRows +=
+        '<tr><td style="padding:1px 6px 1px 0;color:var(--dim)">' + esc(b.lbl) + '</td>' +
+        '<td style="padding:1px 0;text-align:right">' + b.combos + ' × $' + unitRounded + '</td>' +
+        '<td style="padding:1px 0 1px 8px;text-align:right;color:var(--gold);font-weight:600">$' + amt + '</td></tr>';
+    }});
+    var breakdownHtml = breakdownRows
+      ? '<table style="font-size:.7rem;border-collapse:collapse;margin-top:6px;width:100%">' +
+          breakdownRows +
+          '<tr style="border-top:1px solid var(--border)"><td style="padding:3px 0 1px 0;color:var(--dim)">Total</td>' +
+          '<td></td><td style="padding:3px 0 1px 8px;text-align:right;color:var(--gold);font-weight:600">$' + allocated + '</td></tr>' +
+        '</table>'
+      : '';
     stakeHtml =
       '<div class="trust-block">' +
         '<div class="trust-label">Suggested Stake ' +
-          '<span class="info-tip" onclick="showInfoPop(event, &quot;Suggested Stake&quot;, &quot;Per-card stake sized off your bankroll (config.BANKROLL = $' + br + ' HKD). EDGE 3%, HIGH 2%, MED 1%, LOW 0.5%. WIN bets use half-Kelly capped at the tier %. Adjust BANKROLL in config.py to match your rolling bankroll.&quot;)">ⓘ</span>' +
+          '<span class="info-tip" onclick="showInfoPop(event, &quot;Suggested Stake&quot;, &quot;Per-card stake sized off your bankroll (config.BANKROLL = $' + br + ' HKD). EDGE 3%, HIGH 2%, MED 1%, LOW 0.5%. WIN bets use half-Kelly capped at the tier %. The budget is split across firing MAIN bets by combo count — unit stake is rounded to the nearest $5 for clean bet entry. Adjust BANKROLL in config.py to match your rolling bankroll.&quot;)">ⓘ</span>' +
         '</div>' +
         '<div class="trust-body" style="margin-top:4px;font-size:.85rem">' +
-          '<strong style="color:var(--gold)">$' + Math.round(ss.amount) + '</strong> HKD' +
-          '<br><span style="color:var(--dim);font-size:.65rem">' + (ss.pct||0).toFixed(2) + '% of $' + br + ' bankroll · ' + esc(ss.method||'') + '</span>' +
+          '<strong style="color:var(--gold)">$' + Math.round(ss.amount) + '</strong> HKD budget' +
+          '<br><span style="color:var(--dim);font-size:.65rem">' + (ss.pct||0).toFixed(2) + '% of $' + br + ' · ' + esc(ss.method||'') + '</span>' +
+          breakdownHtml +
         '</div>' +
       '</div>';
   }}
@@ -832,8 +897,40 @@ function renderBetCard(race) {{
     if (b && b !== 'SKIP') {{ (waBets[b] = waBets[b] || []).push(h); }}
   }});
 
-  // MAIN BET — one focused block (not a duplicate summary + detail).
+  // Compute per-bet stake amounts so each MAIN block shows its $ allocation
+  // inline (matches the dashboard stake-breakdown table). Shared unit
+  // stake = ss.amount / total_combos, rounded to nearest $5.
+  var waTotalCombos = 0;
+  var waMainCombos = {{}};
   var mainBetTypes = Object.keys(waBets);
+  mainBetTypes.forEach(function(bt) {{
+    var n = waBets[bt].length;
+    var c = 0;
+    if (bt === 'WIN' || bt === 'BANKER WIN' || bt === 'PLACE') c = 1;
+    else if (bt === 'QIN' || bt === 'BOX QIN') c = n === 2 ? 1 : (n*(n-1)/2);
+    else if (bt === 'TRIO') c = n === 3 ? 1 : (n*(n-1)*(n-2)/6);
+    waMainCombos[bt] = c;
+    waTotalCombos += c;
+  }});
+  // top5/F4 gating mirrors the block below — compute inline to avoid
+  // a forward reference to top5wa (declared later in the addOns section).
+  var waTop5Len = race.horses.slice(0, 5).length;
+  var waT5Combos = (waTop5Len === 5) ? 10 : 0;
+  var waF4Combos = 0;
+  if (waTop5Len === 5) {{
+    var f4t1 = (race.horses[0] && race.horses[0].win_odds) || 0;
+    var f4f = race.horses.length;
+    var f4Sk = (f4t1 > 0 && f4t1 < 2.5) ||
+                (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+                (f4f < 8);
+    if (!f4Sk) waF4Combos = 5;
+  }}
+  waTotalCombos += waT5Combos + waF4Combos;
+  var waUnit = (ss && ss.amount > 0 && waTotalCombos > 0)
+    ? Math.max(5, Math.round((ss.amount / waTotalCombos) / 5) * 5)
+    : 0;
+
+  // MAIN BET — one focused block (not a duplicate summary + detail).
   var isSkipRace = mainBetTypes.length === 0;
   if (!isSkipRace) {{
     mainBetTypes.forEach(function(bt) {{
@@ -846,16 +943,12 @@ function renderBetCard(race) {{
       }} else if (bt === 'TRIO' && picks.length >= 3) {{
         lbl = picks.length === 3 ? 'STRAIGHT TRIO' : 'BOX TRIO-' + picks.length;
       }}
+      // Inline stake: combos × unit, shown beside the label
+      var betStake = waUnit > 0 ? (' · $' + (waMainCombos[bt] * waUnit)) : '';
       waLines.push('');
-      waLines.push('*MAIN: ' + lbl + '*');
+      waLines.push('*MAIN: ' + lbl + betStake + '*');
       picks.forEach(function(h) {{ waLines.push(_waPick(h)); }});
     }});
-    // Suggested stake — bankroll-fraction sizing (mirrors dashboard panel).
-    // Skipped on SKIP races where amount=0 by construction.
-    if (ss && ss.amount && ss.amount > 0) {{
-      waLines.push('Stake: $' + Math.round(ss.amount) + ' (' +
-                   (ss.pct||0).toFixed(1) + '% bankroll)');
-    }}
   }} else {{
     waLines.push('');
     waLines.push('*SKIP* — no bet recommended');
@@ -907,7 +1000,8 @@ function renderBetCard(race) {{
   var t5MainBlock = null;
   if (top5wa.length === 5) {{
     var t5Nums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    t5MainBlock = ['', '*MAIN: BOX TRIO-5* (10 combos)', t5Nums];
+    var t5Stake = waUnit > 0 ? (' · $' + (10 * waUnit)) : '';
+    t5MainBlock = ['', '*MAIN: BOX TRIO-5' + t5Stake + '* (10 combos)', t5Nums];
   }}
 
   // F4 BOX-5 — second MAIN bet block (shipped 2026-05-06, +54% ROI on 60-race
@@ -924,7 +1018,8 @@ function renderBetCard(race) {{
                     (f4bFieldWa < 8);
     if (!f4bSkipWa) {{
       var f4bNums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-      f4bMainBlock = ['', '*MAIN: F4 BOX-5* (5 combos · top-4 any order)', f4bNums];
+      var f4bStake = waUnit > 0 ? (' · $' + (5 * waUnit)) : '';
+      f4bMainBlock = ['', '*MAIN: F4 BOX-5' + f4bStake + '* (5 combos · top-4 any order)', f4bNums];
     }}
   }}
 
