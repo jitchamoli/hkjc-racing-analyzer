@@ -294,6 +294,24 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     except Exception:
         integrity_ok = False
 
+    # Persist the just-fetched odds before computing age — otherwise
+    # _compute_odds_age_minutes returns None (no snapshot in DB) and G5
+    # fails for every EDGE candidate even though the dashboard is showing
+    # the freshest possible odds. This snapshot is only used downstream by
+    # the EDGE freshness gate; nothing else reads it on the predict path.
+    # Audit fix 2026-05-17.
+    try:
+        odds_horses = [
+            {'number': h.number, 'name': h.name,
+             'win_odds': h.win_odds or 0, 'place_odds': getattr(h, 'place_odds', 0) or 0}
+            for h in race.horses if (h.win_odds or 0) > 0
+        ]
+        if odds_horses:
+            odds_db.record_snapshot(race_date, race.race_number,
+                                    odds_horses, source='generator')
+    except Exception:
+        pass  # snapshot failure must not block prediction generation
+
     # G5 odds freshness — compute once for the race, reuse per-horse
     odds_age_min = _compute_odds_age_minutes(odds_db, race_date, race.race_number)
 
