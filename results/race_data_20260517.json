@@ -1995,200 +1995,108 @@
         {
           "type": "EXACTA",
           "horses": [
-            8,
-            1
+            5,
+            6
           ],
-          "probability": 0.031634265154633884,
-          "min_odds": 31.61129222100855,
-          "market_prob": 0.012980497394204267,
-          "market_odds": 77.03865034066379,
-          "edge": 1.4370610920316844
+          "probability": 0.01285409280937048,
+          "min_odds": 77.79623306212726,
+          "market_prob": 0.006501287183230926,
+          "market_odds": 153.81569400277328,
+          "edge": 0.9771612062493782
         },
         {
           "type": "EXACTA",
           "horses": [
-            1,
-            8
+            6,
+            5
           ],
-          "probability": 0.02434928859152246,
-          "min_odds": 41.06896167587269,
-          "market_prob": 0.010226192829967388,
-          "market_odds": 97.7881032195624,
-          "edge": 1.3810707461107117
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            8,
-            3
-          ],
-          "probability": 0.031634265154633884,
-          "min_odds": 31.61129222100855,
-          "market_prob": 0.016225621742755332,
-          "market_odds": 61.630920272531036,
-          "edge": 0.9496488736253477
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            3,
-            8
-          ],
-          "probability": 0.02434928859152246,
-          "min_odds": 41.06896167587269,
-          "market_prob": 0.01291815347151288,
-          "market_odds": 77.41044431816053,
-          "edge": 0.8848892487008708
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            8,
-            9
-          ],
-          "probability": 0.031634265154633884,
-          "min_odds": 31.61129222100855,
-          "market_prob": 0.019969995991083487,
-          "market_odds": 50.07512272143146,
-          "edge": 0.5840897098205948
+          "probability": 0.01285409280937048,
+          "min_odds": 77.79623306212726,
+          "market_prob": 0.006668267088243963,
+          "market_odds": 149.96399915698973,
+          "edge": 0.9276511632283024
         }
       ],
       "quinella": [
         {
           "type": "QUINELLA",
           "horses": [
-            1,
-            8
-          ],
-          "probability": 0.06438108680807979,
-          "min_odds": 15.532511946885938,
-          "boost": 1.15,
-          "market_prob": 0.026687693757797403,
-          "market_odds": 37.47045395062763,
-          "edge": 1.4123885485335137
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            3,
-            8
-          ],
-          "probability": 0.06438108680807979,
-          "min_odds": 15.532511946885938,
-          "boost": 1.15,
-          "market_prob": 0.03351534149640844,
-          "market_odds": 29.837082224185654,
-          "edge": 0.9209437807751109
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            10
-          ],
-          "probability": 0.042661693719927715,
-          "min_odds": 23.440232039659733,
-          "boost": 1.15,
-          "market_prob": 0.028747198620722853,
-          "market_odds": 34.78599821824499,
-          "edge": 0.4840296017287189
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
             5,
-            8
+            6
           ],
-          "probability": 0.06438108680807979,
-          "min_odds": 15.532511946885938,
-          "boost": 1.15,
-          "market_prob": 0.045043127375366816,
-          "market_odds": 22.200945144561164,
-          "edge": 0.42932097657340984
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            8,
-            9
-          ],
-          "probability": 0.060462238045848854,
-          "min_odds": 16.539248832332248,
-          "boost": 1.08,
-          "market_prob": 0.04479397874604226,
-          "market_odds": 22.324429041444645,
-          "edge": 0.34978494294148743
+          "probability": 0.02570818561874096,
+          "min_odds": 38.89811653106363,
+          "boost": 1.0,
+          "market_prob": 0.01514498741219612,
+          "market_odds": 66.02844708835539,
+          "edge": 0.6974715738646566
         }
       ],
       "trifecta": [
         {
           "type": "TRIFECTA",
           "horses": [
-            8,
-            1,
-            10
-          ],
-          "probability": 0.010227555057828871,
-          "min_odds": 97.77507863275021,
-          "market_prob": 0.0047076825616398565,
-          "market_odds": 212.41874041134662,
-          "edge": 1.1725243628717061
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            8,
-            10,
-            1
-          ],
-          "probability": 0.01279772285686208,
-          "min_odds": 78.13890105174488,
-          "market_prob": 0.00678789480820308,
-          "market_odds": 147.32108087348576,
-          "edge": 0.8853743639922356
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            8,
-            3,
-            10
-          ],
-          "probability": 0.010227555057828871,
-          "min_odds": 97.77507863275021,
-          "market_prob": 0.005968481849877778,
-          "market_odds": 167.54679416851673,
-          "edge": 0.713594062121226
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            10,
-            8,
-            1
-          ],
-          "probability": 0.011423790407238957,
-          "min_odds": 87.53662001417027,
-          "market_prob": 0.006932155532572584,
-          "market_odds": 144.25527461137202,
-          "edge": 0.6479420222990133
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            10,
-            1,
+            5,
+            6,
             8
           ],
-          "probability": 0.008043659311333159,
-          "min_odds": 124.32152597401091,
-          "market_prob": 0.004915783233278885,
-          "market_odds": 203.42638243895638,
-          "edge": 0.6362925152759318
+          "probability": 0.0026019701463573944,
+          "min_odds": 384.32416351891715,
+          "market_prob": 0.0018820281973252063,
+          "market_odds": 531.3416671552686,
+          "edge": 0.38253515545377637
+        },
+        {
+          "type": "TRIFECTA",
+          "horses": [
+            6,
+            5,
+            8
+          ],
+          "probability": 0.0026019701463573944,
+          "min_odds": 384.32416351891715,
+          "market_prob": 0.0019303664541602233,
+          "market_odds": 518.036354105125,
+          "edge": 0.3479151281093631
+        },
+        {
+          "type": "TRIFECTA",
+          "horses": [
+            5,
+            8,
+            6
+          ],
+          "probability": 0.0027860717050177818,
+          "min_odds": 358.9283069057326,
+          "market_prob": 0.002301184777157434,
+          "market_odds": 434.55875856925405,
+          "edge": 0.21071186141745235
+        },
+        {
+          "type": "TRIFECTA",
+          "horses": [
+            6,
+            8,
+            5
+          ],
+          "probability": 0.0027860717050177818,
+          "min_odds": 358.9283069057326,
+          "market_prob": 0.002443121357480058,
+          "market_odds": 409.3124547163075,
+          "edge": 0.1403738485964765
         }
       ],
       "first4": []
     },
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 0,
+      "winner_our_rank": 5,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "actual_win_odds": 8.9,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -2289,30 +2197,21 @@
         "win_odds": 31.0
       }
     ],
-    "results_available": true,
-    "actual_winner": 6,
     "actual_top3": [
       10,
       6,
       7
     ],
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 0,
-      "winner_our_rank": 5,
-      "bet_hit": false,
-      "profit": 0.0
-    },
-    "actual_win_odds": 8.9,
-    "bankroll": 10000,
-    "edge_horse_rank": 2,
-    "edge_horse_number": 1,
-    "edge_horse_name": "HAILTOTHEVICTORS",
+    "actual_winner": 6,
     "suggested_stake": {
       "amount": 100.0,
       "pct": 1.0,
       "method": "tier-fraction (MED)"
     },
+    "edge_horse_rank": 2,
+    "edge_horse_number": 1,
+    "bankroll": 10000,
+    "edge_horse_name": "HAILTOTHEVICTORS",
     "tier_stats": {
       "EDGE": {
         "hit": 0,
@@ -3974,26 +3873,26 @@
         {
           "type": "EXACTA",
           "horses": [
-            10,
-            2
+            8,
+            14
           ],
-          "probability": 0.021046879880290692,
-          "min_odds": 47.51298081652701,
-          "market_prob": 0.013692645387282624,
-          "market_odds": 73.0319066707719,
-          "edge": 0.5370937671283367
+          "probability": 0.0163135260897448,
+          "min_odds": 61.29882617030488,
+          "market_prob": 0.012306063463417153,
+          "market_odds": 81.26075434055332,
+          "edge": 0.3256494360069595
         },
         {
           "type": "EXACTA",
           "horses": [
-            2,
-            10
+            14,
+            8
           ],
-          "probability": 0.018070868661077273,
-          "min_odds": 55.33768291691995,
-          "market_prob": 0.011778134965577915,
-          "market_odds": 84.90308549889615,
-          "edge": 0.5342725069707668
+          "probability": 0.01584668417652701,
+          "min_odds": 63.10468416359654,
+          "market_prob": 0.012069752975172527,
+          "market_odds": 82.85173707009574,
+          "edge": 0.31292531082646247
         },
         {
           "type": "EXACTA",
@@ -4001,11 +3900,11 @@
             8,
             1
           ],
-          "probability": 0.0252245594323088,
-          "min_odds": 39.64390350140875,
+          "probability": 0.020214917807955604,
+          "min_odds": 49.468417804125274,
           "market_prob": 0.0166034189585787,
           "market_odds": 60.22855909946892,
-          "edge": 0.5192388685268767
+          "edge": 0.2175153718873608
         },
         {
           "type": "EXACTA",
@@ -4013,64 +3912,38 @@
             1,
             8
           ],
-          "probability": 0.025299040837815544,
-          "min_odds": 39.52719023660604,
+          "probability": 0.020214917807955604,
+          "min_odds": 49.468417804125274,
           "market_prob": 0.01691271581108492,
           "market_odds": 59.12710951747801,
-          "edge": 0.4958591583046683
+          "edge": 0.19524965911780745
         },
         {
           "type": "EXACTA",
           "horses": [
             8,
-            14
+            3
           ],
-          "probability": 0.018089203131854567,
-          "min_odds": 55.28159492216817,
-          "market_prob": 0.012306063463417153,
-          "market_odds": 81.26075434055332,
-          "edge": 0.4699422919140017
+          "probability": 0.0163135260897448,
+          "min_odds": 61.29882617030488,
+          "market_prob": 0.013946871925206106,
+          "market_odds": 71.70066559460588,
+          "edge": 0.16969067882967037
         }
       ],
       "quinella": [
         {
           "type": "QUINELLA",
           "horses": [
-            2,
-            10
+            8,
+            14
           ],
-          "probability": 0.039117748541367965,
-          "min_odds": 25.56384345439707,
-          "boost": 1.0,
-          "market_prob": 0.025470780352860538,
-          "market_odds": 39.260673844556685,
-          "edge": 0.5357891670160306
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            8
-          ],
-          "probability": 0.05052360027012434,
-          "min_odds": 19.792730420110637,
-          "boost": 1.0,
-          "market_prob": 0.03854355498511316,
-          "market_odds": 25.944674807143095,
-          "edge": 0.31081837909446297
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            10
-          ],
-          "probability": 0.07568022803134716,
-          "min_odds": 13.213490841832487,
-          "boost": 1.0,
-          "market_prob": 0.058747066869886524,
-          "market_odds": 17.022126435942887,
-          "edge": 0.2882384102505806
+          "probability": 0.036984241806212584,
+          "min_odds": 27.038542664730816,
+          "boost": 1.15,
+          "market_prob": 0.032237017240034846,
+          "market_odds": 31.020239637993228,
+          "edge": 0.1472600436582019
         },
         {
           "type": "QUINELLA",
@@ -4078,167 +3951,26 @@
             1,
             14
           ],
-          "probability": 0.04145453743309372,
-          "min_odds": 24.122811685306285,
+          "probability": 0.036984241806212584,
+          "min_odds": 27.038542664730816,
           "boost": 1.15,
           "market_prob": 0.03233807884149535,
           "market_odds": 30.923296492085576,
-          "edge": 0.28191095198581717
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            8,
-            10
-          ],
-          "probability": 0.0742891304078981,
-          "min_odds": 13.460919444194818,
-          "boost": 1.0,
-          "market_prob": 0.058593106806100616,
-          "market_odds": 17.066854012524928,
-          "edge": 0.26788174338902326
+          "edge": 0.14367467490849828
         }
       ],
-      "trifecta": [
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            8,
-            10,
-            1
-          ],
-          "probability": 0.008196951722083944,
-          "min_odds": 121.99657066490151,
-          "market_prob": 0.004529944116462653,
-          "market_odds": 220.75327515980064,
-          "edge": 0.8095039389767984
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            8,
-            1,
-            10
-          ],
-          "probability": 0.007483423773021489,
-          "min_odds": 133.62867456539112,
-          "market_prob": 0.0041688648282894175,
-          "market_odds": 239.87345265169543,
-          "edge": 0.7950746980904422
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            10,
-            8,
-            1
-          ],
-          "probability": 0.00886067721101594,
-          "min_odds": 112.85819087922094,
-          "market_prob": 0.004957995451069087,
-          "market_odds": 201.69441659821837,
-          "edge": 0.7871491207409884
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            8,
-            10
-          ],
-          "probability": 0.007505520330232447,
-          "min_odds": 133.23526631084746,
-          "market_prob": 0.004246524542420017,
-          "market_odds": 235.48668799877424,
-          "edge": 0.7674501242739054
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            10,
-            1,
-            8
-          ],
-          "probability": 0.008895375702628511,
-          "min_odds": 112.41796113282861,
-          "market_prob": 0.0050761548014374765,
-          "market_odds": 196.99950831224018,
-          "edge": 0.7523846396704648
-        }
-      ],
-      "first4": [
-        {
-          "type": "FIRST4",
-          "horses": [
-            10,
-            8,
-            1,
-            14
-          ],
-          "probability": 0.0018938530801385885,
-          "min_odds": 528.024064003329,
-          "market_prob": 0.0008408978659675742,
-          "market_odds": 1189.2050633870451,
-          "edge": 1.2521796722119607
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            10,
-            1,
-            8,
-            14
-          ],
-          "probability": 0.0019012694258254547,
-          "min_odds": 525.9643827522448,
-          "market_prob": 0.0008609382122223227,
-          "market_odds": 1161.5235400212052,
-          "edge": 1.2083691940188666
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            10,
-            1,
-            14,
-            8
-          ],
-          "probability": 0.0017616645730897007,
-          "min_odds": 567.6449508467705,
-          "market_prob": 0.000835357058421682,
-          "market_odds": 1197.092895688693,
-          "edge": 1.1088761450321352
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            8,
-            10,
-            1,
-            4
-          ],
-          "probability": 0.001751990496540847,
-          "min_odds": 570.7793518140727,
-          "market_prob": 0.0008825050042271619,
-          "market_odds": 1133.1380504473539,
-          "edge": 0.9852470956525867
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            10,
-            8,
-            1,
-            4
-          ],
-          "probability": 0.0018938530801385885,
-          "min_odds": 528.024064003329,
-          "market_prob": 0.0009658961973951865,
-          "market_odds": 1035.3079375369568,
-          "edge": 0.9607211263962954
-        }
-      ]
+      "trifecta": [],
+      "first4": []
     },
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 3,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "actual_win_odds": 8.5,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -4339,27 +4071,18 @@
         "win_odds": 87.0
       }
     ],
-    "results_available": true,
-    "actual_winner": 14,
     "actual_top3": [
       10,
       4,
       14
     ],
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 3,
-      "bet_hit": false,
-      "profit": 0.0
-    },
-    "actual_win_odds": 8.5,
-    "bankroll": 10000,
+    "actual_winner": 14,
     "suggested_stake": {
       "amount": 200.0,
       "pct": 2.0,
       "method": "tier-fraction (HIGH)"
     },
+    "bankroll": 10000,
     "tier_stats": {
       "EDGE": {
         "hit": 0,
@@ -6244,211 +5967,188 @@
     "conviction_tier": "MED",
     "top_2_share": 0.2859,
     "top_3_share": 0.4289,
-    "qin_bet_ev": {
-      "n_combos": 1,
-      "total_stake": 1.0,
-      "expected_profit": 0.02,
-      "ev_pct": 2.3,
-      "hit_prob": 0.054,
-      "avg_dividend": 18.95
-    },
-    "qin_top_pair_dividend": 1188.0,
-    "qin_dividend_source": "real",
     "exotic_value": {
       "exacta": [
         {
           "type": "EXACTA",
           "horses": [
-            9,
-            11
+            4,
+            5
           ],
-          "probability": 0.030430257794055175,
-          "min_odds": 32.86202853645752,
-          "market_prob": 0.01885088464447132,
-          "market_odds": 53.04790830032929,
-          "edge": 0.6142615250144197
+          "probability": 0.012746105775640473,
+          "min_odds": 78.45533511193159,
+          "market_prob": 0.006787165747300877,
+          "market_odds": 147.3369057470978,
+          "edge": 0.8779717853080793
         },
         {
           "type": "EXACTA",
           "horses": [
-            11,
-            9
+            4,
+            7
           ],
-          "probability": 0.023544029010422175,
-          "min_odds": 42.473613991782486,
-          "market_prob": 0.01509461878989509,
-          "market_odds": 66.24877474013707,
-          "edge": 0.5597630743867106
+          "probability": 0.012746105775640473,
+          "min_odds": 78.45533511193159,
+          "market_prob": 0.007008486369495473,
+          "market_odds": 142.68416135508414,
+          "edge": 0.8186674131404552
         },
         {
           "type": "EXACTA",
           "horses": [
-            9,
-            3
-          ],
-          "probability": 0.030430257794055175,
-          "min_odds": 32.86202853645752,
-          "market_prob": 0.021992698751883203,
-          "market_odds": 45.469635685996536,
-          "edge": 0.3836527357266455
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            9,
-            10
-          ],
-          "probability": 0.030430257794055175,
-          "min_odds": 32.86202853645752,
-          "market_prob": 0.021992698751883203,
-          "market_odds": 45.469635685996536,
-          "edge": 0.3836527357266455
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            9,
+            4,
             1
           ],
-          "probability": 0.055794506030816204,
-          "min_odds": 17.92291161154261,
-          "market_prob": 0.04060190538809207,
-          "market_odds": 24.629385996581455,
-          "edge": 0.37418442552156406
+          "probability": 0.015794346311681477,
+          "min_odds": 63.31379471275753,
+          "market_prob": 0.009919703784516669,
+          "market_odds": 100.80946182696164,
+          "edge": 0.5922195515892661
+        },
+        {
+          "type": "EXACTA",
+          "horses": [
+            1,
+            4
+          ],
+          "probability": 0.016258810103435446,
+          "min_odds": 61.505115911815864,
+          "market_prob": 0.010497839508349607,
+          "market_odds": 95.25769556722939,
+          "edge": 0.5487767831184471
+        },
+        {
+          "type": "EXACTA",
+          "horses": [
+            5,
+            1
+          ],
+          "probability": 0.015794346311681477,
+          "min_odds": 63.31379471275753,
+          "market_prob": 0.01163207459832244,
+          "market_odds": 85.96918731454994,
+          "edge": 0.3578271165798157
         }
       ],
       "quinella": [
         {
           "type": "QUINELLA",
           "horses": [
-            9,
-            11
+            4,
+            5
           ],
-          "probability": 0.062070429825148946,
-          "min_odds": 16.11073103274745,
-          "boost": 1.15,
-          "market_prob": 0.03903732894952136,
-          "market_odds": 25.61650673623409,
-          "edge": 0.5900275837368734
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            9,
-            10
-          ],
-          "probability": 0.06827747280766384,
-          "min_odds": 14.646119120679499,
-          "boost": 1.265,
-          "market_prob": 0.05032843903419524,
-          "market_odds": 19.869481732198338,
-          "edge": 0.3566379986725454
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            3,
-            9
-          ],
-          "probability": 0.05397428680447735,
-          "min_odds": 18.527340687659567,
-          "boost": 1.0,
-          "market_prob": 0.03978532729975909,
-          "market_odds": 25.134894391230894,
-          "edge": 0.3566379986725452
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            9
-          ],
-          "probability": 0.10215188917917309,
-          "min_odds": 9.789344162260308,
-          "boost": 1.0,
-          "market_prob": 0.07559470374925742,
-          "market_odds": 13.22843996210281,
-          "edge": 0.3513101330220709
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            10
-          ],
-          "probability": 0.03229820510873709,
-          "min_odds": 30.961472832107525,
+          "probability": 0.03441448559422928,
+          "min_odds": 29.057531522937623,
           "boost": 1.35,
-          "market_prob": 0.02518587026554988,
-          "market_odds": 39.704802314011566,
-          "edge": 0.2823938489398048
+          "market_prob": 0.01844189690433613,
+          "market_odds": 54.22435691877641,
+          "edge": 0.8661033500375774
+        },
+        {
+          "type": "QUINELLA",
+          "horses": [
+            4,
+            7
+          ],
+          "probability": 0.03441448559422928,
+          "min_odds": 29.057531522937623,
+          "boost": 1.35,
+          "market_prob": 0.01907249743097133,
+          "market_odds": 52.43151840073792,
+          "edge": 0.8044037346857627
+        },
+        {
+          "type": "QUINELLA",
+          "horses": [
+            1,
+            4
+          ],
+          "probability": 0.03981002026757522,
+          "min_odds": 25.119303966154668,
+          "boost": 1.242,
+          "market_prob": 0.025358588769739916,
+          "market_odds": 39.434371095338214,
+          "edge": 0.5698831125444968
+        },
+        {
+          "type": "QUINELLA",
+          "horses": [
+            1,
+            5
+          ],
+          "probability": 0.04054724286512291,
+          "min_odds": 24.66258934858822,
+          "boost": 1.265,
+          "market_prob": 0.03009114665726575,
+          "market_odds": 33.23236603077543,
+          "edge": 0.34748081643251205
+        },
+        {
+          "type": "QUINELLA",
+          "horses": [
+            1,
+            7
+          ],
+          "probability": 0.04327176116040785,
+          "min_odds": 23.109759648862294,
+          "boost": 1.35,
+          "market_prob": 0.0332097205812253,
+          "market_odds": 30.111665575570587,
+          "edge": 0.3029848009281655
         }
       ],
       "trifecta": [
         {
           "type": "TRIFECTA",
           "horses": [
-            9,
+            4,
             1,
-            3
+            9
           ],
-          "probability": 0.007398444404971189,
-          "min_odds": 135.16354861409468,
-          "market_prob": 0.0043554030019133895,
-          "market_odds": 229.59987848671776,
-          "edge": 0.698681936372122
+          "probability": 0.003868669434915505,
+          "min_odds": 258.48680452633215,
+          "market_prob": 0.003039494674499115,
+          "market_odds": 329.0020569504015,
+          "edge": 0.2728002017483486
+        },
+        {
+          "type": "TRIFECTA",
+          "horses": [
+            1,
+            4,
+            9
+          ],
+          "probability": 0.003982435262213757,
+          "min_odds": 251.10263799846925,
+          "market_prob": 0.0032166411389399916,
+          "market_odds": 310.88329621051196,
+          "edge": 0.23807260126198737
         },
         {
           "type": "TRIFECTA",
           "horses": [
             9,
-            1,
-            10
+            4,
+            5
           ],
-          "probability": 0.007398444404971189,
-          "min_odds": 135.16354861409468,
-          "market_prob": 0.0043554030019133895,
-          "market_odds": 229.59987848671776,
-          "edge": 0.698681936372122
+          "probability": 0.003690717551510291,
+          "min_odds": 270.95002151838645,
+          "market_prob": 0.0030072852378468843,
+          "market_odds": 332.525823428697,
+          "edge": 0.22725889285870382
         },
         {
           "type": "TRIFECTA",
           "horses": [
+            4,
             9,
-            3,
             1
           ],
-          "probability": 0.006662106874711789,
-          "min_odds": 150.10266553900956,
-          "market_prob": 0.003992970325013996,
-          "market_odds": 250.44012817613284,
-          "edge": 0.6684588996259164
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            9,
-            10,
-            1
-          ],
-          "probability": 0.006662106874711789,
-          "min_odds": 150.10266553900956,
-          "market_prob": 0.003992970325013996,
-          "market_odds": 250.44012817613284,
-          "edge": 0.6684588996259164
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            9,
-            3
-          ],
-          "probability": 0.00614706619669036,
-          "min_odds": 162.6792307098319,
-          "market_prob": 0.0037537090333762614,
-          "market_odds": 266.40317379649247,
-          "edge": 0.637597944335446
+          "probability": 0.004165260821417521,
+          "min_odds": 240.08100401733788,
+          "market_prob": 0.0035794467438899735,
+          "market_odds": 279.3727834355896,
+          "edge": 0.1636605094146233
         }
       ],
       "first4": [
@@ -6456,15 +6156,43 @@
           "type": "FIRST4",
           "horses": [
             9,
+            4,
             1,
-            3,
+            5
+          ],
+          "probability": 0.0008492092352793325,
+          "min_odds": 1177.566091436897,
+          "market_prob": 0.0006744891292291618,
+          "market_odds": 1482.603583460044,
+          "edge": 0.2590406553325022
+        },
+        {
+          "type": "FIRST4",
+          "horses": [
+            9,
+            4,
+            1,
+            7
+          ],
+          "probability": 0.0008492092352793325,
+          "min_odds": 1177.566091436897,
+          "market_prob": 0.0006964833399648956,
+          "market_odds": 1435.7845229297263,
+          "edge": 0.2192814767430542
+        },
+        {
+          "type": "FIRST4",
+          "horses": [
+            9,
+            5,
+            1,
             4
           ],
-          "probability": 0.0011310213636106753,
-          "min_odds": 884.1565970138686,
-          "market_prob": 0.0005709251143327725,
-          "market_odds": 1751.5431969894646,
-          "edge": 0.9810327750820258
+          "probability": 0.0008492092352793325,
+          "min_odds": 1177.566091436897,
+          "market_prob": 0.0007008851347274196,
+          "market_odds": 1426.7673124340251,
+          "edge": 0.21162397831364688
         },
         {
           "type": "FIRST4",
@@ -6472,27 +6200,13 @@
             9,
             1,
             4,
-            3
-          ],
-          "probability": 0.0011310213636106753,
-          "min_odds": 884.1565970138686,
-          "market_prob": 0.0005772306052590064,
-          "market_odds": 1732.4098737822378,
-          "edge": 0.9593925777777843
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            9,
-            1,
-            3,
             5
           ],
-          "probability": 0.0011310213636106753,
-          "min_odds": 884.1565970138686,
-          "market_prob": 0.0006610711850168944,
-          "market_odds": 1512.6963973999923,
-          "edge": 0.7108919421162954
+          "probability": 0.0008810143084409114,
+          "min_odds": 1135.0553452073348,
+          "market_prob": 0.0007291333961166396,
+          "market_odds": 1371.4911500776052,
+          "edge": 0.20830332711845156
         },
         {
           "type": "FIRST4",
@@ -6500,30 +6214,25 @@
             9,
             1,
             5,
-            3
+            4
           ],
-          "probability": 0.0011310213636106753,
-          "min_odds": 884.1565970138686,
-          "market_prob": 0.0006826576539804366,
-          "market_odds": 1464.8630893819256,
-          "edge": 0.6567914488556921
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            9,
-            1,
-            4,
-            5
-          ],
-          "probability": 0.0011310213636106753,
-          "min_odds": 884.1565970138686,
-          "market_prob": 0.0007291333961166396,
-          "market_odds": 1371.4911500776052,
-          "edge": 0.5511857907407463
+          "probability": 0.0008810143084409114,
+          "min_odds": 1135.0553452073348,
+          "market_prob": 0.0007447174407059308,
+          "market_odds": 1342.7911652667651,
+          "edge": 0.1830182298480647
         }
       ]
     },
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 0,
+      "winner_our_rank": 7,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "actual_win_odds": 12.0,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -6610,27 +6319,18 @@
         "win_odds": 13.0
       }
     ],
-    "results_available": true,
-    "actual_winner": 3,
     "actual_top3": [
       11,
       3,
       5
     ],
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 0,
-      "winner_our_rank": 7,
-      "bet_hit": false,
-      "profit": 0.0
-    },
-    "actual_win_odds": 12.0,
-    "bankroll": 10000,
+    "actual_winner": 3,
     "suggested_stake": {
       "amount": 0.0,
       "pct": 0.0,
       "method": "skip (bet=SKIP)"
     },
+    "bankroll": 10000,
     "tier_stats": {
       "EDGE": {
         "hit": 0,
@@ -8155,9 +7855,9 @@
     "qin_bet_ev": {
       "n_combos": 1,
       "total_stake": 1.0,
-      "expected_profit": 0.02,
-      "ev_pct": 1.8,
-      "hit_prob": 0.136,
+      "expected_profit": -0.31,
+      "ev_pct": -31.4,
+      "hit_prob": 0.0916,
       "avg_dividend": 7.49
     },
     "qin_top_pair_dividend": 204.0,
@@ -8168,13 +7868,13 @@
           "type": "EXACTA",
           "horses": [
             1,
-            8
+            2
           ],
-          "probability": 0.0781942578163333,
-          "min_odds": 12.7886628497562,
-          "market_prob": 0.05447034985281284,
-          "market_odds": 18.358611661246016,
-          "edge": 0.4355380133894138
+          "probability": 0.016324805153647513,
+          "min_odds": 61.25647384995381,
+          "market_prob": 0.008559626405442017,
+          "market_odds": 116.82752875338375,
+          "edge": 0.9071866434811418
         },
         {
           "type": "EXACTA",
@@ -8182,256 +7882,26 @@
             1,
             3
           ],
-          "probability": 0.015086845191456722,
-          "min_odds": 66.28290986682049,
+          "probability": 0.016324805153647513,
+          "min_odds": 61.25647384995381,
           "market_prob": 0.010894069970562567,
           "market_odds": 91.79305830623008,
-          "edge": 0.3848676603164538
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            1,
-            4
-          ],
-          "probability": 0.11257750678884483,
-          "min_odds": 8.882769111911873,
-          "market_prob": 0.0836056532624569,
-          "market_odds": 11.960913658084527,
-          "edge": 0.3465298385437976
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            1,
-            10
-          ],
-          "probability": 0.07954561183986772,
-          "min_odds": 12.571403712540267,
-          "market_prob": 0.06093293373365503,
-          "market_odds": 16.41148618202296,
-          "edge": 0.30546170955055074
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            8,
-            1
-          ],
-          "probability": 0.05536721611285454,
-          "min_odds": 18.06122955435773,
-          "market_prob": 0.04328127660328735,
-          "market_odds": 23.104678939253997,
-          "edge": 0.2792417520477948
+          "edge": 0.4985037913066115
         }
       ],
-      "quinella": [
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            8
-          ],
-          "probability": 0.14424639184352286,
-          "min_odds": 6.932582418316506,
-          "boost": 1.08,
-          "market_prob": 0.10557175657258822,
-          "market_odds": 9.47223038116665,
-          "edge": 0.3663350551938864
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            3
-          ],
-          "probability": 0.030614979789849315,
-          "min_odds": 32.663748493852,
-          "boost": 1.242,
-          "market_prob": 0.023183308383785454,
-          "market_odds": 43.1344820784684,
-          "edge": 0.3205612970779277
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            4
-          ],
-          "probability": 0.21353997427868135,
-          "min_odds": 4.682963943298716,
-          "boost": 1.08,
-          "market_prob": 0.16794715327162535,
-          "market_odds": 5.95425394548173,
-          "edge": 0.27147123436690546
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            10
-          ],
-          "probability": 0.13601125754539314,
-          "min_odds": 7.3523325792812,
-          "boost": 1.0,
-          "market_prob": 0.11018020099741377,
-          "market_odds": 9.076040803587505,
-          "edge": 0.2344437232292369
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            11
-          ],
-          "probability": 0.09591062721176111,
-          "min_odds": 10.426373271359175,
-          "boost": 1.0,
-          "market_prob": 0.0853823615547456,
-          "market_odds": 11.712020864623408,
-          "edge": 0.12330726704326378
-        }
-      ],
-      "trifecta": [
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            8,
-            4
-          ],
-          "probability": 0.029010040919181967,
-          "min_odds": 34.47082349128235,
-          "market_prob": 0.018225214926531216,
-          "market_odds": 54.869037431446564,
-          "edge": 0.591753021082392
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            4,
-            8
-          ],
-          "probability": 0.032717235343474566,
-          "min_odds": 30.56492975343803,
-          "market_prob": 0.020630748227610515,
-          "market_odds": 48.47133942828508,
-          "edge": 0.5858482194886407
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            8,
-            10
-          ],
-          "probability": 0.020498068577270958,
-          "min_odds": 48.78508412782062,
-          "market_prob": 0.013282783760014277,
-          "market_odds": 75.28542345244993,
-          "edge": 0.5432057727972022
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            10,
-            8
-          ],
-          "probability": 0.02058976287683147,
-          "min_odds": 48.567824990604684,
-          "market_prob": 0.013635440522018429,
-          "market_odds": 73.3382979732269,
-          "edge": 0.5100181650591518
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            4,
-            10
-          ],
-          "probability": 0.03328265496449297,
-          "min_odds": 30.045679981564955,
-          "market_prob": 0.023078464119021924,
-          "market_odds": 43.330439791951825,
-          "edge": 0.4421520770552694
-        }
-      ],
-      "first4": [
-        {
-          "type": "FIRST4",
-          "horses": [
-            1,
-            8,
-            4,
-            10
-          ],
-          "probability": 0.012090256706420584,
-          "min_odds": 82.71122973501014,
-          "market_prob": 0.006679009178508078,
-          "market_odds": 149.72280667285665,
-          "edge": 0.8101871674806176
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            1,
-            4,
-            8,
-            10
-          ],
-          "probability": 0.013635271150735697,
-          "min_odds": 73.33920894899435,
-          "market_prob": 0.007560566902896099,
-          "market_odds": 132.26521408294752,
-          "edge": 0.803472057831095
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            1,
-            8,
-            10,
-            4
-          ],
-          "probability": 0.010306569914468978,
-          "min_odds": 97.02549037154837,
-          "market_prob": 0.005877540525300071,
-          "market_odds": 170.13919269386,
-          "edge": 0.7535514846905778
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            1,
-            4,
-            10,
-            8
-          ],
-          "probability": 0.01373249877231711,
-          "min_odds": 72.81995917712128,
-          "market_prob": 0.007866315774076005,
-          "market_odds": 127.12431444661426,
-          "edge": 0.7457344920697848
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            1,
-            10,
-            8,
-            4
-          ],
-          "probability": 0.010352674439176568,
-          "min_odds": 96.59339776162595,
-          "market_prob": 0.006033588718784949,
-          "market_odds": 165.73884078087792,
-          "edge": 0.71584026053095
-        }
-      ]
+      "quinella": [],
+      "trifecta": [],
+      "first4": []
     },
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 6,
+      "bet_hit": true,
+      "profit": 0.0
+    },
+    "actual_win_odds": 7.5,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -8518,27 +7988,18 @@
         "win_odds": 48.0
       }
     ],
-    "results_available": true,
-    "actual_winner": 11,
     "actual_top3": [
       8,
       10,
       11
     ],
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 6,
-      "bet_hit": true,
-      "profit": 0.0
-    },
-    "actual_win_odds": 7.5,
-    "bankroll": 10000,
+    "actual_winner": 11,
     "suggested_stake": {
       "amount": 200.0,
       "pct": 2.0,
       "method": "tier-fraction (HIGH)"
     },
+    "bankroll": 10000,
     "tier_stats": {
       "EDGE": {
         "hit": 0,
@@ -10156,9 +9617,9 @@
     "qin_bet_ev": {
       "n_combos": 1,
       "total_stake": 1.0,
-      "expected_profit": 0.03,
-      "ev_pct": 2.7,
-      "hit_prob": 0.1859,
+      "expected_profit": -0.4,
+      "ev_pct": -39.5,
+      "hit_prob": 0.1095,
       "avg_dividend": 5.53
     },
     "qin_top_pair_dividend": 57.0,
@@ -10169,270 +9630,79 @@
           "type": "EXACTA",
           "horses": [
             7,
-            5
+            12
           ],
-          "probability": 0.07445925518810236,
-          "min_odds": 13.430163885923308,
-          "market_prob": 0.0565003258228116,
-          "market_odds": 17.69901297801467,
-          "edge": 0.3178553239075299
+          "probability": 0.01682146073106641,
+          "min_odds": 59.447869360903255,
+          "market_prob": 0.009887557018992032,
+          "market_odds": 101.13721701722667,
+          "edge": 0.70127572450462
+        },
+        {
+          "type": "EXACTA",
+          "horses": [
+            2,
+            7
+          ],
+          "probability": 0.012720019899048536,
+          "min_odds": 78.61622921476723,
+          "market_prob": 0.009452096096052971,
+          "market_odds": 105.79663916214123,
+          "edge": 0.3457353553948941
         },
         {
           "type": "EXACTA",
           "horses": [
             7,
-            3
+            2
           ],
-          "probability": 0.10537900347420172,
-          "min_odds": 9.489556429946827,
-          "market_prob": 0.08239630849160025,
-          "market_odds": 12.136466042067203,
-          "edge": 0.278928697211531
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            7,
-            6
-          ],
-          "probability": 0.10537900347420172,
-          "min_odds": 9.489556429946827,
-          "market_prob": 0.08239630849160025,
-          "market_odds": 12.136466042067203,
-          "edge": 0.278928697211531
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            5,
-            7
-          ],
-          "probability": 0.05347403011095648,
-          "min_odds": 18.700666434249296,
-          "market_prob": 0.04307902540940967,
-          "market_odds": 23.213152816163102,
-          "edge": 0.24130083266173985
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            3,
-            7
-          ],
-          "probability": 0.08048268617360863,
-          "min_odds": 12.425032606925011,
-          "market_prob": 0.06686814403311912,
-          "market_odds": 14.95480418156529,
-          "edge": 0.20360281173268935
+          "probability": 0.01682146073106641,
+          "min_odds": 59.447869360903255,
+          "market_prob": 0.013638009681368319,
+          "market_odds": 73.32448233748934,
+          "edge": 0.2334249002658495
         }
       ],
       "quinella": [
         {
           "type": "QUINELLA",
           "horses": [
-            5,
+            2,
             7
           ],
-          "probability": 0.12793328529905884,
-          "min_odds": 7.816574065634166,
-          "boost": 1.0,
-          "market_prob": 0.09957935123222128,
-          "market_odds": 10.042242569626485,
-          "edge": 0.2847370837023788
+          "probability": 0.03397270272463218,
+          "min_odds": 29.435397239529664,
+          "boost": 1.15,
+          "market_prob": 0.02655362164403448,
+          "market_odds": 37.65964633395533,
+          "edge": 0.27939996961824853
         },
         {
           "type": "QUINELLA",
           "horses": [
-            3,
-            7
+            7,
+            10
           ],
-          "probability": 0.2007306248196352,
-          "min_odds": 4.9818008632142785,
-          "boost": 1.08,
-          "market_prob": 0.16120560872669693,
-          "market_odds": 6.20325811179045,
-          "edge": 0.24518387669716746
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            6,
-            7
-          ],
-          "probability": 0.18586168964781036,
-          "min_odds": 5.380344932271421,
-          "boost": 1.0,
-          "market_prob": 0.14926445252471937,
-          "market_odds": 6.699518760733686,
-          "edge": 0.24518387669716746
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            3,
-            5
-          ],
-          "probability": 0.05695810656898074,
-          "min_odds": 17.556763386945132,
-          "boost": 1.08,
-          "market_prob": 0.050023950205567456,
-          "market_odds": 19.990424504474742,
-          "edge": 0.13861672928503643
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            5,
-            6
-          ],
-          "probability": 0.05273898756387105,
-          "min_odds": 18.961304457900745,
-          "boost": 1.0,
-          "market_prob": 0.046318472412562456,
-          "market_odds": 21.589658464832723,
-          "edge": 0.1386167292850362
+          "probability": 0.03397270272463218,
+          "min_odds": 29.435397239529664,
+          "boost": 1.15,
+          "market_prob": 0.03086088974896044,
+          "market_odds": 32.40347274931324,
+          "edge": 0.10083354695813851
         }
       ],
-      "trifecta": [
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            7,
-            3,
-            5
-          ],
-          "probability": 0.029420571925935224,
-          "min_odds": 33.98982190140452,
-          "market_prob": 0.019076674882763222,
-          "market_odds": 52.42003683270571,
-          "edge": 0.5422274639967921
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            7,
-            6,
-            5
-          ],
-          "probability": 0.029420571925935224,
-          "min_odds": 33.98982190140452,
-          "market_prob": 0.019076674882763222,
-          "market_odds": 52.42003683270571,
-          "edge": 0.5422274639967921
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            7,
-            5,
-            3
-          ],
-          "probability": 0.026364056957488852,
-          "min_odds": 37.930429357381,
-          "market_prob": 0.01724655810423931,
-          "market_odds": 57.98258376865317,
-          "edge": 0.5286561410191408
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            7,
-            5,
-            6
-          ],
-          "probability": 0.026364056957488852,
-          "min_odds": 37.930429357381,
-          "market_prob": 0.01724655810423931,
-          "market_odds": 57.98258376865317,
-          "edge": 0.5286561410191408
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            7,
-            3,
-            6
-          ],
-          "probability": 0.04163767879982124,
-          "min_odds": 24.01670863564789,
-          "market_prob": 0.027820150870696368,
-          "market_odds": 35.945168113855345,
-          "edge": 0.49667336433028497
-        }
-      ],
-      "first4": [
-        {
-          "type": "FIRST4",
-          "horses": [
-            7,
-            3,
-            6,
-            5
-          ],
-          "probability": 0.019218369405044615,
-          "min_odds": 52.03355076198664,
-          "market_prob": 0.009724319125508037,
-          "market_odds": 102.8349632599862,
-          "edge": 0.9763203116846058
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            7,
-            6,
-            3,
-            5
-          ],
-          "probability": 0.019218369405044615,
-          "min_odds": 52.03355076198664,
-          "market_prob": 0.009724319125508037,
-          "market_odds": 102.8349632599862,
-          "edge": 0.9763203116846058
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            7,
-            3,
-            5,
-            6
-          ],
-          "probability": 0.016127298826341892,
-          "min_odds": 62.00666402774326,
-          "market_prob": 0.008381538917743027,
-          "market_odds": 119.30983197883654,
-          "edge": 0.924145313243339
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            7,
-            6,
-            5,
-            3
-          ],
-          "probability": 0.016127298826341892,
-          "min_odds": 62.00666402774326,
-          "market_prob": 0.008381538917743027,
-          "market_odds": 119.30983197883654,
-          "edge": 0.924145313243339
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            7,
-            5,
-            3,
-            6
-          ],
-          "probability": 0.014451827309764478,
-          "min_odds": 69.1954019769073,
-          "market_prob": 0.007577457750690563,
-          "market_odds": 131.9703827987515,
-          "edge": 0.9072131822110692
-        }
-      ]
+      "trifecta": [],
+      "first4": []
     },
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 2,
+      "winner_our_rank": 2,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "actual_win_odds": 2.5,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -10519,27 +9789,18 @@
         "win_odds": 190.0
       }
     ],
-    "results_available": true,
-    "actual_winner": 7,
     "actual_top3": [
       2,
       3,
       7
     ],
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 2,
-      "winner_our_rank": 2,
-      "bet_hit": false,
-      "profit": 0.0
-    },
-    "actual_win_odds": 2.5,
-    "bankroll": 10000,
+    "actual_winner": 7,
     "suggested_stake": {
       "amount": 200.0,
       "pct": 2.0,
       "method": "tier-fraction (HIGH)"
     },
+    "bankroll": 10000,
     "tier_stats": {
       "EDGE": {
         "hit": 0,
@@ -12143,12 +11404,12 @@
     "top_2_share": 0.4002,
     "top_3_share": 0.5349,
     "qin_bet_ev": {
-      "n_combos": 6,
-      "total_stake": 6.0,
-      "expected_profit": -0.65,
-      "ev_pct": -10.8,
-      "hit_prob": 0.4015,
-      "avg_dividend": 18.43
+      "n_combos": 3,
+      "total_stake": 3.0,
+      "expected_profit": -1.3,
+      "ev_pct": -43.4,
+      "hit_prob": 0.1758,
+      "avg_dividend": 10.02
     },
     "qin_top_pair_dividend": 896.0,
     "qin_dividend_source": "real",
@@ -12157,232 +11418,117 @@
         {
           "type": "EXACTA",
           "horses": [
-            10,
-            1
+            3,
+            10
           ],
-          "probability": 0.014581633659353154,
-          "min_odds": 68.57942143941918,
-          "market_prob": 0.010523647577271755,
-          "market_odds": 95.02408672062819,
-          "edge": 0.38560642137480494
+          "probability": 0.01698918826298271,
+          "min_odds": 58.86096407436212,
+          "market_prob": 0.01224404743653672,
+          "market_odds": 81.67233957424574,
+          "edge": 0.3875467529051142
+        },
+        {
+          "type": "EXACTA",
+          "horses": [
+            3,
+            2
+          ],
+          "probability": 0.01698918826298271,
+          "min_odds": 58.86096407436212,
+          "market_prob": 0.01272420615953816,
+          "market_odds": 78.59036449597231,
+          "edge": 0.335186498078506
         },
         {
           "type": "EXACTA",
           "horses": [
             10,
-            2
+            3
           ],
-          "probability": 0.037536878727047716,
-          "min_odds": 26.640467559158992,
-          "market_prob": 0.02888844432976561,
-          "market_odds": 34.61591730537169,
-          "edge": 0.29937348991724955
+          "probability": 0.017762122801162232,
+          "min_odds": 56.299576981562524,
+          "market_prob": 0.013393733280164053,
+          "market_odds": 74.66178242335072,
+          "edge": 0.32615174795721136
+        },
+        {
+          "type": "EXACTA",
+          "horses": [
+            3,
+            7
+          ],
+          "probability": 0.015371543445355207,
+          "min_odds": 65.05527590999122,
+          "market_prob": 0.011798809347935384,
+          "market_odds": 84.75431465251917,
+          "edge": 0.3028046298625038
         },
         {
           "type": "EXACTA",
           "horses": [
             2,
-            10
+            3
           ],
-          "probability": 0.03751597098667786,
-          "min_odds": 26.655314355454262,
-          "market_prob": 0.02909519796098207,
-          "market_odds": 34.36993284393677,
-          "edge": 0.28942140338719846
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            1,
-            4
-          ],
-          "probability": 0.018693604229751436,
-          "min_odds": 53.49423191534513,
-          "market_prob": 0.016171075407565925,
-          "market_odds": 61.838806312914244,
-          "edge": 0.15599017125387338
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            10,
-            4
-          ],
-          "probability": 0.05456447733801285,
-          "min_odds": 18.32694179044836,
-          "market_prob": 0.047526150348969225,
-          "market_odds": 21.041047773853382,
-          "edge": 0.14809377442446858
+          "probability": 0.017762122801162232,
+          "min_odds": 56.299576981562524,
+          "market_prob": 0.01401859538120045,
+          "market_odds": 71.33382288364238,
+          "edge": 0.26704012193561244
         }
       ],
       "quinella": [
         {
           "type": "QUINELLA",
           "horses": [
-            2,
+            3,
             10
           ],
-          "probability": 0.08255813468509815,
-          "min_odds": 12.112676767883677,
+          "probability": 0.03822644217055944,
+          "min_odds": 26.15990249728661,
           "boost": 1.1,
-          "market_prob": 0.06378200651982245,
-          "market_odds": 15.678402962898566,
-          "edge": 0.29437970345822184
+          "market_prob": 0.028201558788370853,
+          "market_odds": 35.459032867798726,
+          "edge": 0.3554726693448744
         },
         {
           "type": "QUINELLA",
           "horses": [
-            4,
-            10
+            2,
+            3
           ],
-          "probability": 0.11493280962266055,
-          "min_odds": 8.70073570186904,
-          "boost": 1.0,
-          "market_prob": 0.1020659961215914,
-          "market_odds": 9.797582329071655,
-          "edge": 0.12606366458953566
+          "probability": 0.037531415949276545,
+          "min_odds": 26.644345136125246,
+          "boost": 1.08,
+          "market_prob": 0.0288822256639977,
+          "market_odds": 34.62337049898897,
+          "edge": 0.29946411976346554
+        },
+        {
+          "type": "QUINELLA",
+          "horses": [
+            3,
+            7
+          ],
+          "probability": 0.034307351278503685,
+          "min_odds": 29.14827180571589,
+          "boost": 1.1,
+          "market_prob": 0.027083109303900073,
+          "market_odds": 36.92338234797864,
+          "edge": 0.26674344860260546
         }
       ],
-      "trifecta": [
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            10,
-            2,
-            4
-          ],
-          "probability": 0.014782586300302122,
-          "min_odds": 67.64716130759625,
-          "market_prob": 0.011026080213365404,
-          "market_odds": 90.69406177435906,
-          "edge": 0.34069279510439454
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            2,
-            10,
-            4
-          ],
-          "probability": 0.014774352518303113,
-          "min_odds": 67.68486123240638,
-          "market_prob": 0.011104993501189918,
-          "market_odds": 90.0495799383267,
-          "edge": 0.3304242381339546
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            10,
-            4,
-            2
-          ],
-          "probability": 0.01685384674169557,
-          "min_odds": 59.33363553888562,
-          "market_prob": 0.012966940795374237,
-          "market_odds": 77.11919224284074,
-          "edge": 0.29975504690419585
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            2,
-            4,
-            10
-          ],
-          "probability": 0.01683086788680133,
-          "min_odds": 59.414642591556095,
-          "market_prob": 0.01319560371607327,
-          "market_odds": 75.78281536159822,
-          "edge": 0.275490553440918
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            4,
-            10,
-            2
-          ],
-          "probability": 0.018646538371007125,
-          "min_odds": 53.62925708263719,
-          "market_prob": 0.014880543572950508,
-          "market_odds": 67.20184616224476,
-          "edge": 0.2530818030668147
-        }
-      ],
-      "first4": [
-        {
-          "type": "FIRST4",
-          "horses": [
-            10,
-            4,
-            2,
-            7
-          ],
-          "probability": 0.005457697768872486,
-          "min_odds": 183.22744174355253,
-          "market_prob": 0.004511476940008334,
-          "market_odds": 221.65690156407024,
-          "edge": 0.20973637712141424
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            2,
-            4,
-            10,
-            7
-          ],
-          "probability": 0.005450256640030529,
-          "min_odds": 183.47759858779762,
-          "market_prob": 0.004591033676639432,
-          "market_odds": 217.81587120310235,
-          "edge": 0.18715239832874309
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            4,
-            10,
-            2,
-            7
-          ],
-          "probability": 0.006038216225906096,
-          "min_odds": 165.6118235232525,
-          "market_prob": 0.005177260407335569,
-          "market_odds": 193.15234724973803,
-          "edge": 0.16629563723521668
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            4,
-            2,
-            10,
-            7
-          ],
-          "probability": 0.006033344131457278,
-          "min_odds": 165.74555971142038,
-          "market_prob": 0.005231118826465889,
-          "market_odds": 191.1636942637745,
-          "edge": 0.15335635293403715
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            10,
-            4,
-            7,
-            2
-          ],
-          "probability": 0.004859491611192657,
-          "min_odds": 205.78284314695455,
-          "market_prob": 0.004391638106247124,
-          "market_odds": 227.70546566154798,
-          "edge": 0.10653280020500988
-        }
-      ]
+      "trifecta": [],
+      "first4": []
     },
+    "accuracy": {
+      "win_correct": true,
+      "top3_overlap": 2,
+      "winner_our_rank": 1,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "actual_win_odds": 5.3,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -12469,27 +11615,18 @@
         "win_odds": 52.0
       }
     ],
-    "results_available": true,
-    "actual_winner": 10,
     "actual_top3": [
       2,
       10,
       11
     ],
-    "accuracy": {
-      "win_correct": true,
-      "top3_overlap": 2,
-      "winner_our_rank": 1,
-      "bet_hit": false,
-      "profit": 0.0
-    },
-    "actual_win_odds": 5.3,
-    "bankroll": 10000,
+    "actual_winner": 10,
     "suggested_stake": {
       "amount": 200.0,
       "pct": 2.0,
       "method": "tier-fraction (HIGH)"
     },
+    "bankroll": 10000,
     "tier_stats": {
       "EDGE": {
         "hit": 0,
@@ -14307,12 +13444,12 @@
     "top_2_share": 0.5619,
     "top_3_share": 0.7077,
     "qin_bet_ev": {
-      "n_combos": 6,
-      "total_stake": 6.0,
-      "expected_profit": 1.9,
-      "ev_pct": 31.7,
-      "hit_prob": 0.4908,
-      "avg_dividend": 27.75
+      "n_combos": 3,
+      "total_stake": 3.0,
+      "expected_profit": -0.69,
+      "ev_pct": -23.0,
+      "hit_prob": 0.2188,
+      "avg_dividend": 11.34
     },
     "qin_top_pair_dividend": 100.5,
     "qin_dividend_source": "real",
@@ -14321,50 +13458,50 @@
         {
           "type": "EXACTA",
           "horses": [
+            1,
+            9
+          ],
+          "probability": 0.010753408020722579,
+          "min_odds": 92.99377444554592,
+          "market_prob": 0.0029778558437451304,
+          "market_odds": 335.8120918111133,
+          "edge": 2.6111244415372528
+        },
+        {
+          "type": "EXACTA",
+          "horses": [
+            1,
+            11
+          ],
+          "probability": 0.010753408020722579,
+          "min_odds": 92.99377444554592,
+          "market_prob": 0.004753116058285496,
+          "market_odds": 210.38829848407102,
+          "edge": 1.2623912163847852
+        },
+        {
+          "type": "EXACTA",
+          "horses": [
             3,
-            12
+            4
           ],
-          "probability": 0.010881099142976039,
-          "min_odds": 91.90248033403128,
-          "market_prob": 0.005616790149433907,
-          "market_odds": 178.03762885832327,
-          "edge": 0.9372450907877874
+          "probability": 0.0215237755464313,
+          "min_odds": 46.46025033306959,
+          "market_prob": 0.01664234118350787,
+          "market_odds": 60.08769973968411,
+          "edge": 0.2933141622983193
         },
         {
           "type": "EXACTA",
           "horses": [
-            1,
-            12
-          ],
-          "probability": 0.026366989649963545,
-          "min_odds": 37.92621051077716,
-          "market_prob": 0.015447627189427863,
-          "market_odds": 64.73486107202184,
-          "edge": 0.7068634118778281
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            12,
-            1
-          ],
-          "probability": 0.020775493231793715,
-          "min_odds": 48.13363460703079,
-          "market_prob": 0.012487785062899699,
-          "market_odds": 80.07825206496605,
-          "edge": 0.6636651837895733
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            1,
+            4,
             3
           ],
-          "probability": 0.04834441998472844,
-          "min_odds": 20.684910488447084,
-          "market_prob": 0.03014171158912754,
-          "market_odds": 33.176616299411194,
-          "edge": 0.6039042720509218
+          "probability": 0.0215237755464313,
+          "min_odds": 46.46025033306959,
+          "market_prob": 0.017652007566779555,
+          "market_odds": 56.65078015726461,
+          "edge": 0.2193386766351877
         },
         {
           "type": "EXACTA",
@@ -14372,11 +13509,11 @@
             3,
             1
           ],
-          "probability": 0.04071707611573098,
-          "min_odds": 24.559720279464063,
+          "probability": 0.030644683618223534,
+          "min_odds": 32.632087590074775,
           "market_prob": 0.025676754968840716,
           "market_odds": 38.94573131275822,
-          "edge": 0.5857563062443838
+          "edge": 0.19347961435981698
         }
       ],
       "quinella": [
@@ -14384,14 +13521,27 @@
           "type": "QUINELLA",
           "horses": [
             1,
-            12
+            9
           ],
-          "probability": 0.05421385531402085,
-          "min_odds": 18.445469229364672,
+          "probability": 0.02279798174168211,
+          "min_odds": 43.863531927112454,
           "boost": 1.15,
-          "market_prob": 0.032125724090176694,
-          "market_odds": 31.127703057929732,
-          "edge": 0.687552789840407
+          "market_prob": 0.0060779962843380535,
+          "market_odds": 164.52790577987474,
+          "edge": 2.7509041919667787
+        },
+        {
+          "type": "QUINELLA",
+          "horses": [
+            3,
+            4
+          ],
+          "probability": 0.04649135518029161,
+          "min_odds": 21.509375154198885,
+          "boost": 1.08,
+          "market_prob": 0.037037896650310424,
+          "market_odds": 26.99937335646782,
+          "edge": 0.2552374563608475
         },
         {
           "type": "QUINELLA",
@@ -14399,193 +13549,26 @@
             1,
             3
           ],
-          "probability": 0.08906149610045941,
-          "min_odds": 11.228196738038422,
+          "probability": 0.06348638535195392,
+          "min_odds": 15.751408659608355,
           "boost": 1.0,
           "market_prob": 0.05581846655796825,
           "market_odds": 17.915218057118896,
-          "edge": 0.5955561231329745
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            2,
-            12
-          ],
-          "probability": 0.05421385531402085,
-          "min_odds": 18.445469229364672,
-          "boost": 1.15,
-          "market_prob": 0.03442566277296421,
-          "market_odds": 29.048097246375697,
-          "edge": 0.5748093412626194
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            2,
-            3
-          ],
-          "probability": 0.08906149610045941,
-          "min_odds": 11.228196738038422,
-          "boost": 1.0,
-          "market_prob": 0.059800216398610426,
-          "market_odds": 16.722347513498914,
-          "edge": 0.48931728786401063
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            2
-          ],
-          "probability": 0.19733056567419982,
-          "min_odds": 5.067638642718116,
-          "boost": 1.0,
-          "market_prob": 0.1511981048267212,
-          "market_odds": 6.613839513041769,
-          "edge": 0.3051126923869065
+          "edge": 0.13737243723853343
         }
       ],
-      "trifecta": [
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            2,
-            12
-          ],
-          "probability": 0.01530633296930975,
-          "min_odds": 65.33243475135872,
-          "market_prob": 0.007328798399277243,
-          "market_odds": 136.4480158300737,
-          "edge": 1.0885187632967557
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            2,
-            1,
-            12
-          ],
-          "probability": 0.01530633296930975,
-          "min_odds": 65.33243475135872,
-          "market_prob": 0.007466076606568494,
-          "market_odds": 133.93915609173118,
-          "edge": 1.0501173207683894
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            12,
-            2
-          ],
-          "probability": 0.010738443225659637,
-          "min_odds": 93.12336797669965,
-          "market_prob": 0.005323925975839903,
-          "market_odds": 187.83131180599105,
-          "edge": 1.0170158778298077
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            2,
-            3
-          ],
-          "probability": 0.02806447756524337,
-          "min_odds": 35.63223287072539,
-          "market_prob": 0.014300094437614132,
-          "market_odds": 69.92960811291277,
-          "edge": 0.9625379180311013
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            3,
-            2
-          ],
-          "probability": 0.021653520851741912,
-          "min_odds": 46.18186607373624,
-          "market_prob": 0.011141482878084872,
-          "market_odds": 89.75465931621947,
-          "edge": 0.9435043870447497
-        }
-      ],
-      "first4": [
-        {
-          "type": "FIRST4",
-          "horses": [
-            1,
-            2,
-            3,
-            4
-          ],
-          "probability": 0.011348687416609446,
-          "min_odds": 88.115917135619,
-          "market_prob": 0.005124402732495801,
-          "market_odds": 195.14469338223884,
-          "edge": 1.2146361262051228
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            1,
-            3,
-            2,
-            4
-          ],
-          "probability": 0.008756230685006257,
-          "min_odds": 114.20439181808575,
-          "market_prob": 0.003992522255960635,
-          "market_odds": 250.4682343365902,
-          "edge": 1.193157639117389
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            2,
-            1,
-            3,
-            4
-          ],
-          "probability": 0.011348687416609446,
-          "min_odds": 88.115917135619,
-          "market_prob": 0.0052203896572589085,
-          "market_odds": 191.55658210484503,
-          "edge": 1.1739157729019691
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            2,
-            3,
-            1,
-            4
-          ],
-          "probability": 0.008756230685006257,
-          "min_odds": 114.20439181808575,
-          "market_prob": 0.004155071365406435,
-          "market_odds": 240.6697531901918,
-          "edge": 1.1073598778368399
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            1,
-            2,
-            4,
-            3
-          ],
-          "probability": 0.011427189469282806,
-          "min_odds": 87.51058190538272,
-          "market_prob": 0.005838860621239346,
-          "market_odds": 171.2662906119759,
-          "edge": 0.9570923525242998
-        }
-      ]
+      "trifecta": [],
+      "first4": []
     },
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 2,
+      "winner_our_rank": 3,
+      "bet_hit": true,
+      "profit": 0.0
+    },
+    "actual_win_odds": 3.5,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -14686,30 +13669,21 @@
         "win_odds": 13.0
       }
     ],
-    "results_available": true,
-    "actual_winner": 1,
     "actual_top3": [
       1,
       3,
       4
     ],
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 2,
-      "winner_our_rank": 3,
-      "bet_hit": true,
-      "profit": 0.0
-    },
-    "actual_win_odds": 3.5,
-    "bankroll": 10000,
-    "edge_horse_rank": 2,
-    "edge_horse_number": 3,
-    "edge_horse_name": "MASTER LUCKY",
+    "actual_winner": 1,
     "suggested_stake": {
       "amount": 300.0,
       "pct": 3.0,
       "method": "tier-fraction (EDGE)"
     },
+    "edge_horse_rank": 2,
+    "edge_horse_number": 3,
+    "bankroll": 10000,
+    "edge_horse_name": "MASTER LUCKY",
     "tier_stats": {
       "EDGE": {
         "hit": 0,
@@ -16391,9 +15365,9 @@
     "qin_bet_ev": {
       "n_combos": 3,
       "total_stake": 3.0,
-      "expected_profit": -1.27,
-      "ev_pct": -42.2,
-      "hit_prob": 0.1086,
+      "expected_profit": -0.62,
+      "ev_pct": -20.5,
+      "hit_prob": 0.1272,
       "avg_dividend": 20.39
     },
     "qin_top_pair_dividend": 784.0,
@@ -16403,50 +15377,50 @@
         {
           "type": "EXACTA",
           "horses": [
+            14,
+            4
+          ],
+          "probability": 0.017271588505628908,
+          "min_odds": 57.89855401395734,
+          "market_prob": 0.010863532176633198,
+          "market_odds": 92.05109201507587,
+          "edge": 0.5898685827781733
+        },
+        {
+          "type": "EXACTA",
+          "horses": [
+            4,
+            14
+          ],
+          "probability": 0.01780484429916255,
+          "min_odds": 56.1644900229223,
+          "market_prob": 0.011348639405433252,
+          "market_odds": 88.1162899158856,
+          "edge": 0.5688968221722102
+        },
+        {
+          "type": "EXACTA",
+          "horses": [
             5,
             8
           ],
-          "probability": 0.01893965913295731,
-          "min_odds": 52.79926069312823,
+          "probability": 0.010703037544878056,
+          "min_odds": 93.4314203614609,
           "market_prob": 0.007811451540987338,
           "market_odds": 128.0171802581014,
-          "edge": 1.4246017572507923
+          "edge": 0.3701726866918811
         },
         {
           "type": "EXACTA",
           "horses": [
-            5,
-            12
-          ],
-          "probability": 0.031650172909433505,
-          "min_odds": 31.59540400810716,
-          "market_prob": 0.016273857377056954,
-          "market_odds": 61.44824652388867,
-          "edge": 0.9448476274625728
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            12,
+            14,
             5
           ],
-          "probability": 0.024359883522147435,
-          "min_odds": 41.05109940656422,
-          "market_prob": 0.014076710003998983,
-          "market_odds": 71.03932664066497,
-          "edge": 0.7305097224583839
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            5,
-            10
-          ],
-          "probability": 0.031650172909433505,
-          "min_odds": 31.59540400810716,
-          "market_prob": 0.019528628852468345,
-          "market_odds": 51.206872103240556,
-          "edge": 0.6207063562188107
+          "probability": 0.02069342160453573,
+          "min_odds": 48.32453613088388,
+          "market_prob": 0.017329920377010106,
+          "market_odds": 57.70366962139083,
+          "edge": 0.1940863636042811
         },
         {
           "type": "EXACTA",
@@ -16454,52 +15428,26 @@
             5,
             14
           ],
-          "probability": 0.031650172909433505,
-          "min_odds": 31.59540400810716,
+          "probability": 0.02203057089199133,
+          "min_odds": 45.39147010318853,
           "market_prob": 0.019725887729766002,
           "market_odds": 50.694803382208164,
-          "edge": 0.6044992926566228
+          "edge": 0.1168354597672987
         }
       ],
       "quinella": [
         {
           "type": "QUINELLA",
           "horses": [
-            5,
-            8
+            4,
+            14
           ],
-          "probability": 0.03799720238591089,
-          "min_odds": 26.317727022208178,
-          "boost": 1.15,
-          "market_prob": 0.016470470455983745,
-          "market_odds": 60.71471987836866,
-          "edge": 1.306989499022261
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            5,
-            12
-          ],
-          "probability": 0.06441156489631808,
-          "min_odds": 15.52516231533388,
-          "boost": 1.15,
-          "market_prob": 0.03490315248821433,
-          "market_odds": 28.650707134195624,
-          "edge": 0.8454368818996447
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            5,
-            10
-          ],
-          "probability": 0.05601005643158094,
-          "min_odds": 17.85393666263396,
+          "probability": 0.03507643280479146,
+          "min_odds": 28.509170404106754,
           "boost": 1.0,
-          "market_prob": 0.03666990873075368,
-          "market_odds": 27.270316033302187,
-          "edge": 0.5274119399323021
+          "market_prob": 0.025543997319376417,
+          "market_odds": 39.14814065696168,
+          "edge": 0.37317712518644086
         },
         {
           "type": "QUINELLA",
@@ -16507,167 +15455,92 @@
             5,
             14
           ],
-          "probability": 0.05601005643158094,
-          "min_odds": 17.85393666263396,
+          "probability": 0.04272399249652706,
+          "min_odds": 23.406052233561454,
           "boost": 1.0,
           "market_prob": 0.03705580810677611,
           "market_odds": 26.986322822012283,
-          "edge": 0.5115054641417687
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            4,
-            5
-          ],
-          "probability": 0.09901042981482845,
-          "min_odds": 10.099946054877478,
-          "boost": 1.242,
-          "market_prob": 0.0694247838716789,
-          "market_odds": 14.40407797089217,
-          "edge": 0.4261539509843357
+          "edge": 0.15296345375650966
         }
       ],
       "trifecta": [
         {
           "type": "TRIFECTA",
           "horses": [
-            5,
-            12,
-            1
-          ],
-          "probability": 0.010236075521386626,
-          "min_odds": 97.69369109388276,
-          "market_prob": 0.006178917608255407,
-          "market_odds": 161.84064320002255,
-          "edge": 0.6566130462252175
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            5,
-            1,
-            12
-          ],
-          "probability": 0.012809446954392248,
-          "min_odds": 78.06738289018081,
-          "market_prob": 0.008677362588469304,
-          "market_odds": 115.24238958607366,
-          "edge": 0.47619127630021607
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            12,
-            5,
-            1
-          ],
-          "probability": 0.007878301585852088,
-          "min_odds": 126.9309113268534,
-          "market_prob": 0.005344696668697489,
-          "market_odds": 187.10135709978496,
-          "edge": 0.4740409183543137
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            5,
-            10,
-            1
-          ],
-          "probability": 0.010236075521386626,
-          "min_odds": 97.69369109388276,
-          "market_prob": 0.007553314854894087,
-          "market_odds": 132.39220384836216,
-          "edge": 0.3551765970346481
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            5,
+            4,
             14,
-            1
+            5
           ],
-          "probability": 0.010236075521386626,
-          "min_odds": 97.69369109388276,
-          "market_prob": 0.007638265093587158,
-          "market_odds": 130.91978188077917,
-          "edge": 0.34010477457512
-        }
-      ],
-      "first4": [
+          "probability": 0.003918559336642623,
+          "min_odds": 255.1958294082612,
+          "market_prob": 0.002758997682022169,
+          "market_odds": 362.4504676158568,
+          "edge": 0.4202836639466001
+        },
         {
-          "type": "FIRST4",
+          "type": "TRIFECTA",
           "horses": [
+            14,
             5,
-            1,
-            12,
             4
           ],
-          "probability": 0.0032519465390169356,
-          "min_odds": 307.50813028503853,
-          "market_prob": 0.0022988975234094445,
-          "market_odds": 434.99111631427655,
-          "edge": 0.414567855201325
+          "probability": 0.0039447589176860014,
+          "min_odds": 253.5009162452444,
+          "market_prob": 0.002904543816787002,
+          "market_odds": 344.28814405223784,
+          "edge": 0.35813372650362774
         },
         {
-          "type": "FIRST4",
+          "type": "TRIFECTA",
           "horses": [
-            5,
-            1,
             4,
-            12
-          ],
-          "probability": 0.003507241009649179,
-          "min_odds": 285.12440326991606,
-          "market_prob": 0.002603540228804116,
-          "market_odds": 384.0923942470941,
-          "edge": 0.3471045965977486
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
             5,
-            4,
-            1,
             14
           ],
-          "probability": 0.0029478272469911884,
-          "min_odds": 339.23290485244274,
-          "market_prob": 0.0024230385663031304,
-          "market_odds": 412.70494572676836,
-          "edge": 0.21658288398138725
+          "probability": 0.004221877315773198,
+          "min_odds": 236.86145408914118,
+          "market_prob": 0.0032080396435217686,
+          "market_odds": 311.71684614913465,
+          "edge": 0.3160302817013956
         },
         {
-          "type": "FIRST4",
+          "type": "TRIFECTA",
           "horses": [
             5,
-            1,
-            10,
-            4
-          ],
-          "probability": 0.0032519465390169356,
-          "min_odds": 307.50813028503853,
-          "market_prob": 0.0028427774713351587,
-          "market_odds": 351.76865234208185,
-          "edge": 0.14393285151848478
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            5,
-            1,
             14,
             4
           ],
-          "probability": 0.0032519465390169356,
-          "min_odds": 307.50813028503853,
-          "market_prob": 0.002876807652768816,
-          "market_odds": 347.6075291434722,
-          "edge": 0.1304011013343429
+          "probability": 0.0041996578743095795,
+          "min_odds": 238.11463455565394,
+          "market_prob": 0.003306114742000411,
+          "market_odds": 302.46984089697264,
+          "edge": 0.27026984906413687
+        },
+        {
+          "type": "TRIFECTA",
+          "horses": [
+            5,
+            4,
+            14
+          ],
+          "probability": 0.004360066934694675,
+          "min_odds": 229.35427711960747,
+          "market_prob": 0.003495481229281294,
+          "market_odds": 286.08364182393564,
+          "edge": 0.2473438272735764
         }
-      ]
+      ],
+      "first4": []
     },
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 5,
+      "bet_hit": true,
+      "profit": 0.0
+    },
+    "actual_win_odds": 9.9,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -16768,27 +15641,18 @@
         "win_odds": 81.0
       }
     ],
-    "results_available": true,
-    "actual_winner": 14,
     "actual_top3": [
       5,
       14,
       7
     ],
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 5,
-      "bet_hit": true,
-      "profit": 0.0
-    },
-    "actual_win_odds": 9.9,
-    "bankroll": 10000,
+    "actual_winner": 14,
     "suggested_stake": {
       "amount": 200.0,
       "pct": 2.0,
       "method": "tier-fraction (HIGH)"
     },
+    "bankroll": 10000,
     "tier_stats": {
       "EDGE": {
         "hit": 0,
@@ -18750,9 +17614,9 @@
     "qin_bet_ev": {
       "n_combos": 1,
       "total_stake": 1.0,
-      "expected_profit": -0.07,
-      "ev_pct": -7.2,
-      "hit_prob": 0.2184,
+      "expected_profit": -0.6,
+      "ev_pct": -59.9,
+      "hit_prob": 0.0943,
       "avg_dividend": 4.25
     },
     "qin_top_pair_dividend": 2878.0,
@@ -18762,243 +17626,68 @@
         {
           "type": "EXACTA",
           "horses": [
-            7,
-            8
+            10,
+            12
           ],
-          "probability": 0.029186605245353853,
-          "min_odds": 34.26229229448285,
-          "market_prob": 0.01388307695594146,
-          "market_odds": 72.0301416734592,
-          "edge": 1.102315310790165
+          "probability": 0.013717612797843441,
+          "min_odds": 72.8989813852459,
+          "market_prob": 0.011080257525442016,
+          "market_odds": 90.25060994330164,
+          "edge": 0.23802292197141117
         },
         {
           "type": "EXACTA",
           "horses": [
-            8,
-            7
+            12,
+            10
           ],
-          "probability": 0.02270515947330547,
-          "min_odds": 44.042852954884694,
-          "market_prob": 0.0109404563548912,
-          "market_odds": 91.40386539295736,
-          "edge": 1.0753393402236435
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            7,
-            5
-          ],
-          "probability": 0.029186605245353853,
-          "min_odds": 34.26229229448285,
-          "market_prob": 0.016486153885180488,
-          "market_odds": 60.656961409228785,
-          "edge": 0.7703707880338231
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            8,
-            11
-          ],
-          "probability": 0.02270515947330547,
-          "min_odds": 44.042852954884694,
-          "market_prob": 0.012894109275407482,
-          "market_odds": 77.55479487887291,
-          "edge": 0.760893985644304
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            5,
-            7
-          ],
-          "probability": 0.02270515947330547,
-          "min_odds": 44.042852954884694,
-          "market_prob": 0.013101231959536254,
-          "market_odds": 76.32869970461901,
-          "edge": 0.7330552991834187
+          "probability": 0.013717612797843441,
+          "min_odds": 72.8989813852459,
+          "market_prob": 0.011472412816246275,
+          "market_odds": 87.16562208987837,
+          "edge": 0.1957042531121005
         }
       ],
       "quinella": [
         {
           "type": "QUINELLA",
           "horses": [
-            7,
-            8
+            6,
+            11
           ],
-          "probability": 0.05189176471865932,
-          "min_odds": 19.2708805611388,
-          "boost": 1.0,
-          "market_prob": 0.028547063307457557,
-          "market_odds": 35.029872923522845,
-          "edge": 0.8177619238719822
+          "probability": 0.0248320001985248,
+          "min_odds": 40.27061823474885,
+          "boost": 1.242,
+          "market_prob": 0.00396938100436566,
+          "market_odds": 251.92844902017873,
+          "edge": 5.255887296083124
         },
         {
           "type": "QUINELLA",
           "horses": [
-            5,
-            7
-          ],
-          "probability": 0.05189176471865932,
-          "min_odds": 19.2708805611388,
-          "boost": 1.0,
-          "market_prob": 0.029587385844716742,
-          "market_odds": 33.79818701281325,
-          "edge": 0.7538475683861523
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            8,
-            11
-          ],
-          "probability": 0.05189176471865932,
-          "min_odds": 19.2708805611388,
-          "boost": 1.0,
-          "market_prob": 0.03480596400777212,
-          "market_odds": 28.730708328512364,
-          "edge": 0.4908871567835893
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            5,
-            11
-          ],
-          "probability": 0.05189176471865932,
-          "min_odds": 19.2708805611388,
-          "boost": 1.0,
-          "market_prob": 0.036069923997031995,
-          "market_odds": 27.72392866927817,
-          "edge": 0.43864358358307665
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            7,
-            11
-          ],
-          "probability": 0.21843257040847694,
-          "min_odds": 4.578071842170622,
-          "boost": 1.0,
-          "market_prob": 0.19422689098929102,
-          "market_odds": 5.148617654880428,
-          "edge": 0.12462578840599647
-        }
-      ],
-      "trifecta": [
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            7,
-            8,
-            11
-          ],
-          "probability": 0.012691445407495006,
-          "min_odds": 78.79323181025892,
-          "market_prob": 0.0056450575188435066,
-          "market_odds": 177.14611350937454,
-          "edge": 1.2482402287541405
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            8,
-            7,
-            11
-          ],
-          "probability": 0.0098730664118533,
-          "min_odds": 101.2856551637727,
-          "market_prob": 0.0044485459240595025,
-          "market_odds": 224.7925540324543,
-          "edge": 1.2193918148525422
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            7,
-            11,
-            8
-          ],
-          "probability": 0.018626454267826845,
-          "min_odds": 53.687083200117314,
-          "market_prob": 0.00864073167717187,
-          "market_odds": 115.7309400825304,
-          "edge": 1.155657062819861
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            8,
-            11,
-            7
-          ],
-          "probability": 0.0098730664118533,
-          "min_odds": 101.2856551637727,
-          "market_prob": 0.004740606267237052,
-          "market_odds": 210.9434835183699,
-          "edge": 1.082659021924548
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            11,
-            7,
-            8
-          ],
-          "probability": 0.018626454267826845,
-          "min_odds": 53.687083200117314,
-          "market_prob": 0.00917397093407306,
-          "market_odds": 109.00405148286424,
-          "edge": 1.0303589799534136
-        }
-      ],
-      "first4": [
-        {
-          "type": "FIRST4",
-          "horses": [
-            11,
-            7,
-            5,
+            10,
             12
           ],
-          "probability": 0.005122759270811469,
-          "min_odds": 195.20729886680687,
-          "market_prob": 0.0030877876395428313,
-          "market_odds": 323.8564683638856,
-          "edge": 0.6590387257233563
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            7,
-            11,
-            12,
-            5
-          ],
-          "probability": 0.005504868261792734,
-          "min_odds": 181.6573898671894,
-          "market_prob": 0.003467245756854488,
-          "market_odds": 288.41336038066356,
-          "edge": 0.5876775538365047
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            11,
-            7,
-            12,
-            5
-          ],
-          "probability": 0.005504868261792734,
-          "min_odds": 181.6573898671894,
-          "market_prob": 0.0036812173995295475,
-          "market_odds": 271.6492647589349,
-          "edge": 0.4953934159107922
+          "probability": 0.027435225595686882,
+          "min_odds": 36.44949069262295,
+          "boost": 1.0,
+          "market_prob": 0.022552670341688293,
+          "market_odds": 44.340647242624485,
+          "edge": 0.21649566016017419
         }
-      ]
+      ],
+      "trifecta": [],
+      "first4": []
     },
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 8,
+      "bet_hit": true,
+      "profit": 0.0
+    },
+    "actual_win_odds": 16.0,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -19099,27 +17788,18 @@
         "win_odds": 55.0
       }
     ],
-    "results_available": true,
-    "actual_winner": 5,
     "actual_top3": [
       13,
       5,
       7
     ],
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 8,
-      "bet_hit": true,
-      "profit": 0.0
-    },
-    "actual_win_odds": 16.0,
-    "bankroll": 10000,
+    "actual_winner": 5,
     "suggested_stake": {
       "amount": 200.0,
       "pct": 2.0,
       "method": "tier-fraction (HIGH)"
     },
+    "bankroll": 10000,
     "tier_stats": {
       "EDGE": {
         "hit": 0,
@@ -20769,9 +19449,9 @@
     "qin_bet_ev": {
       "n_combos": 3,
       "total_stake": 3.0,
-      "expected_profit": 0.15,
-      "ev_pct": 5.2,
-      "hit_prob": 0.2392,
+      "expected_profit": -0.69,
+      "ev_pct": -22.9,
+      "hit_prob": 0.1423,
       "avg_dividend": 23.67
     },
     "qin_top_pair_dividend": 97.5,
@@ -20781,62 +19461,14 @@
         {
           "type": "EXACTA",
           "horses": [
-            8,
-            10
-          ],
-          "probability": 0.07776739784861071,
-          "min_odds": 12.858858952008315,
-          "market_prob": 0.04667157136279852,
-          "market_odds": 21.426319508862534,
-          "edge": 0.6662691136771621
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            10,
-            8
-          ],
-          "probability": 0.04959673780609616,
-          "min_odds": 20.162616418636418,
-          "market_prob": 0.0328264216618765,
-          "market_odds": 30.463265545673725,
-          "edge": 0.5108785939862626
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            8,
+            6,
             11
           ],
-          "probability": 0.05813993624750406,
-          "min_odds": 17.199881261358104,
-          "market_prob": 0.04115584020174051,
-          "market_odds": 24.297888102833806,
-          "edge": 0.41267766524774485
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            8,
-            6
-          ],
-          "probability": 0.10844304940519342,
-          "min_odds": 9.22143010072999,
-          "market_prob": 0.07805417969295617,
-          "market_odds": 12.81161372694873,
-          "edge": 0.38933046035175534
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            10,
-            6
-          ],
-          "probability": 0.016749775487146505,
-          "min_odds": 59.70229277206629,
-          "market_prob": 0.013017374107295854,
-          "market_odds": 76.82040876735113,
-          "edge": 0.2867245996839525
+          "probability": 0.01362059329804869,
+          "min_odds": 73.41824090315227,
+          "market_prob": 0.01223766864169558,
+          "market_odds": 81.71491068101398,
+          "edge": 0.11300556477246637
         }
       ],
       "quinella": [
@@ -20844,208 +19476,41 @@
           "type": "QUINELLA",
           "horses": [
             8,
-            10
+            13
           ],
-          "probability": 0.12736413565470686,
-          "min_odds": 7.85150383865573,
-          "boost": 1.0,
-          "market_prob": 0.07949799302467503,
-          "market_odds": 12.578933907043597,
-          "edge": 0.6021050445282923
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            8,
-            11
-          ],
-          "probability": 0.09416647727234945,
-          "min_odds": 10.61949038518015,
-          "boost": 1.0,
-          "market_prob": 0.06979075176610548,
-          "market_odds": 14.328546042194363,
-          "edge": 0.34926870522810805
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            6,
-            8
-          ],
-          "probability": 0.180912758600133,
-          "min_odds": 5.527526127719247,
-          "boost": 1.0,
-          "market_prob": 0.13658216015323937,
-          "market_odds": 7.32160041163533,
-          "edge": 0.32457092783681696
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            6,
-            10
-          ],
-          "probability": 0.03430103318279594,
-          "min_odds": 29.153640786002942,
-          "boost": 1.0,
-          "market_prob": 0.02689514267004342,
-          "market_odds": 37.18143503710908,
-          "edge": 0.27536163699185034
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            3,
-            8
-          ],
-          "probability": 0.040558104928207064,
-          "min_odds": 24.655984340740908,
+          "probability": 0.029612233846611494,
+          "min_odds": 33.76982652439877,
           "boost": 1.242,
-          "market_prob": 0.033402396706898756,
-          "market_odds": 29.93797148075501,
-          "edge": 0.21422738865413238
+          "market_prob": 0.025910739573046217,
+          "market_odds": 38.59403538756012,
+          "edge": 0.1428556009808295
+        },
+        {
+          "type": "QUINELLA",
+          "horses": [
+            6,
+            11
+          ],
+          "probability": 0.02688626865174622,
+          "min_odds": 37.19370705369529,
+          "boost": 1.0,
+          "market_prob": 0.023592892193081687,
+          "market_odds": 42.38564699131025,
+          "edge": 0.1395918919864465
         }
       ],
-      "trifecta": [
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            8,
-            10,
-            11
-          ],
-          "probability": 0.012894438399652116,
-          "min_odds": 77.5528153305986,
-          "market_prob": 0.0062090764277018635,
-          "market_odds": 161.05454839281555,
-          "edge": 1.0767079532349508
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            8,
-            10,
-            6
-          ],
-          "probability": 0.024050804157628,
-          "min_odds": 41.57865131851893,
-          "market_prob": 0.011775834604262157,
-          "market_odds": 84.91967097075727,
-          "edge": 1.0423863756478906
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            8,
-            6,
-            10
-          ],
-          "probability": 0.02635655719484065,
-          "min_odds": 37.9412224672406,
-          "market_prob": 0.0131053070730738,
-          "market_odds": 76.30496518884344,
-          "edge": 1.0111361792500766
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            8,
-            11,
-            10
-          ],
-          "probability": 0.012210930990883165,
-          "min_odds": 81.89383763994839,
-          "market_prob": 0.006100309202594025,
-          "market_odds": 163.92611698678675,
-          "edge": 1.0016905021290938
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            10,
-            8,
-            6
-          ],
-          "probability": 0.015338579672599306,
-          "min_odds": 65.19508463918537,
-          "market_prob": 0.008282526189982717,
-          "market_odds": 120.73611082684505,
-          "edge": 0.8519204552773425
-        }
-      ],
-      "first4": [
-        {
-          "type": "FIRST4",
-          "horses": [
-            8,
-            10,
-            6,
-            11
-          ],
-          "probability": 0.005773292596635566,
-          "min_odds": 173.2113838440751,
-          "market_prob": 0.0020953005681977415,
-          "market_odds": 477.25849702801503,
-          "edge": 1.755352947573256
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            8,
-            6,
-            10,
-            11
-          ],
-          "probability": 0.0063267787442157,
-          "min_odds": 158.05831694592715,
-          "market_prob": 0.002331856575726589,
-          "market_odds": 428.8428415407185,
-          "edge": 1.7131937744688792
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            8,
-            6,
-            11,
-            10
-          ],
-          "probability": 0.005852508775659481,
-          "min_odds": 170.86689458014806,
-          "market_prob": 0.0022775449004382203,
-          "market_odds": 439.0692801742749,
-          "edge": 1.5696568153424355
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            8,
-            10,
-            6,
-            5
-          ],
-          "probability": 0.005773292596635566,
-          "min_odds": 173.2113838440751,
-          "market_prob": 0.0024783125000188344,
-          "market_odds": 403.5003656691399,
-          "edge": 1.3295256738573893
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            8,
-            6,
-            10,
-            5
-          ],
-          "probability": 0.0063267787442157,
-          "min_odds": 158.05831694592715,
-          "market_prob": 0.002758109928278761,
-          "market_odds": 362.56712966624383,
-          "edge": 1.293882009323689
-        }
-      ]
+      "trifecta": [],
+      "first4": []
     },
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 4,
+      "bet_hit": false,
+      "profit": 0.0
+    },
+    "actual_win_odds": 9.7,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -21146,30 +19611,21 @@
         "win_odds": 11.0
       }
     ],
-    "results_available": true,
-    "actual_winner": 10,
     "actual_top3": [
       8,
       10,
       6
     ],
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 4,
-      "bet_hit": false,
-      "profit": 0.0
-    },
-    "actual_win_odds": 9.7,
-    "bankroll": 10000,
-    "edge_horse_rank": 2,
-    "edge_horse_number": 11,
-    "edge_horse_name": "PATONGA HEART",
+    "actual_winner": 10,
     "suggested_stake": {
       "amount": 200.0,
       "pct": 2.0,
       "method": "tier-fraction (HIGH)"
     },
+    "edge_horse_rank": 2,
+    "edge_horse_number": 11,
+    "bankroll": 10000,
+    "edge_horse_name": "PATONGA HEART",
     "tier_stats": {
       "EDGE": {
         "hit": 0,
@@ -23170,12 +21626,12 @@
     "top_2_share": 0.34,
     "top_3_share": 0.487,
     "qin_bet_ev": {
-      "n_combos": 6,
-      "total_stake": 6.0,
-      "expected_profit": 0.73,
-      "ev_pct": 12.1,
-      "hit_prob": 0.3899,
-      "avg_dividend": 17.33
+      "n_combos": 3,
+      "total_stake": 3.0,
+      "expected_profit": -0.52,
+      "ev_pct": -17.2,
+      "hit_prob": 0.1318,
+      "avg_dividend": 18.93
     },
     "qin_top_pair_dividend": 468.0,
     "qin_dividend_source": "real",
@@ -23185,270 +21641,40 @@
           "type": "EXACTA",
           "horses": [
             8,
-            7
-          ],
-          "probability": 0.017604207736022465,
-          "min_odds": 56.804601206435336,
-          "market_prob": 0.006289962775777067,
-          "market_odds": 158.98345278783611,
-          "edge": 1.798777729467187
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            1,
-            7
-          ],
-          "probability": 0.017604207736022465,
-          "min_odds": 56.804601206435336,
-          "market_prob": 0.007757987151855194,
-          "market_odds": 128.8994142972854,
-          "edge": 1.2691720663410369
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            8,
-            1
-          ],
-          "probability": 0.045317762488770695,
-          "min_odds": 22.066402776346038,
-          "market_prob": 0.024666520689321833,
-          "market_odds": 40.54078046089821,
-          "edge": 0.8372174600363809
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            1,
-            8
-          ],
-          "probability": 0.045317762488770695,
-          "min_odds": 22.066402776346038,
-          "market_prob": 0.025436023448705554,
-          "market_odds": 39.314321360672054,
-          "edge": 0.7816370778301405
-        },
-        {
-          "type": "EXACTA",
-          "horses": [
-            8,
             2
           ],
-          "probability": 0.032835501592740866,
-          "min_odds": 30.454841604157977,
+          "probability": 0.021335467344168673,
+          "min_odds": 46.870311480348995,
           "market_prob": 0.01877600828590169,
           "market_odds": 53.25945668392511,
-          "edge": 0.748800974773536
+          "edge": 0.1363153988480501
+        },
+        {
+          "type": "EXACTA",
+          "horses": [
+            2,
+            8
+          ],
+          "probability": 0.021003877536989186,
+          "min_odds": 47.610256641371826,
+          "market_prob": 0.018520119430545903,
+          "market_odds": 53.99533214406079,
+          "edge": 0.1341113439229087
         }
       ],
-      "quinella": [
-        {
-          "type": "QUINELLA",
-          "horses": [
-            7,
-            8
-          ],
-          "probability": 0.04096372644033415,
-          "min_odds": 24.41184157053078,
-          "boost": 1.242,
-          "market_prob": 0.014867699815626386,
-          "market_odds": 67.25989980971843,
-          "edge": 1.7552161362095893
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            7
-          ],
-          "probability": 0.04096372644033415,
-          "min_odds": 24.41184157053078,
-          "boost": 1.242,
-          "market_prob": 0.018074430413874493,
-          "market_odds": 55.3267780561632,
-          "edge": 1.2663910011177517
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            1,
-            8
-          ],
-          "probability": 0.09063552497754139,
-          "min_odds": 11.033201388173019,
-          "boost": 1.0,
-          "market_prob": 0.05010254413802739,
-          "market_odds": 19.959066295018918,
-          "edge": 0.8090004517105915
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            2,
-            8
-          ],
-          "probability": 0.0636609488123693,
-          "min_odds": 15.708217025595136,
-          "boost": 1.0,
-          "market_prob": 0.04289054687391473,
-          "market_odds": 23.315160866092437,
-          "edge": 0.4842652624484667
-        },
-        {
-          "type": "QUINELLA",
-          "horses": [
-            4,
-            8
-          ],
-          "probability": 0.035620631687247085,
-          "min_odds": 28.073617806110395,
-          "boost": 1.08,
-          "market_prob": 0.026401520605918688,
-          "market_odds": 37.87660623516587,
-          "edge": 0.34918864026573004
-        }
-      ],
-      "trifecta": [
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            8,
-            1,
-            2
-          ],
-          "probability": 0.010184633106675906,
-          "min_odds": 98.18714032462415,
-          "market_prob": 0.004249046358591967,
-          "market_odds": 235.34692625273595,
-          "edge": 1.3969220966680278
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            8,
-            2,
-            1
-          ],
-          "probability": 0.009383012580862358,
-          "min_odds": 106.5755791524361,
-          "market_prob": 0.004031191709046822,
-          "market_odds": 248.06560247576286,
-          "edge": 1.3276026689092832
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            8,
-            2
-          ],
-          "probability": 0.010184633106675906,
-          "min_odds": 98.18714032462415,
-          "market_prob": 0.0043816006389003894,
-          "market_odds": 228.22709836261137,
-          "edge": 1.3244092618244303
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            2,
-            8,
-            1
-          ],
-          "probability": 0.008808623137842524,
-          "min_odds": 113.52512014095858,
-          "market_prob": 0.003976252607165285,
-          "market_odds": 251.49307621904617,
-          "edge": 1.2153077301902835
-        },
-        {
-          "type": "TRIFECTA",
-          "horses": [
-            1,
-            2,
-            8
-          ],
-          "probability": 0.009383012580862358,
-          "min_odds": 106.5755791524361,
-          "market_prob": 0.004308597602272388,
-          "market_odds": 232.09408079153,
-          "edge": 1.1777416800106102
-        }
-      ],
-      "first4": [
-        {
-          "type": "FIRST4",
-          "horses": [
-            8,
-            1,
-            2,
-            3
-          ],
-          "probability": 0.0029523914704410624,
-          "min_odds": 338.70847074714266,
-          "market_prob": 0.001184910966514068,
-          "market_odds": 843.9452653070938,
-          "edge": 1.4916568028117831
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            8,
-            2,
-            1,
-            3
-          ],
-          "probability": 0.0027200122007950047,
-          "min_odds": 367.64540971828,
-          "market_prob": 0.0011241588961512345,
-          "market_odds": 889.5539620098943,
-          "edge": 1.4195976299324489
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            1,
-            8,
-            2,
-            3
-          ],
-          "probability": 0.0029523914704410624,
-          "min_odds": 338.70847074714266,
-          "market_prob": 0.0012218757362860498,
-          "market_odds": 818.4138290850657,
-          "edge": 1.4162780082817576
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            8,
-            1,
-            3,
-            2
-          ],
-          "probability": 0.0029523914704410624,
-          "min_odds": 338.70847074714266,
-          "market_prob": 0.0012751355133646214,
-          "market_odds": 784.2303735713248,
-          "edge": 1.315355065792787
-        },
-        {
-          "type": "FIRST4",
-          "horses": [
-            2,
-            8,
-            1,
-            3
-          ],
-          "probability": 0.002553504239779545,
-          "min_odds": 391.6186957599625,
-          "market_prob": 0.0011088382950525354,
-          "market_odds": 901.8447545163664,
-          "edge": 1.3028644042804847
-        }
-      ]
+      "quinella": [],
+      "trifecta": [],
+      "first4": []
     },
+    "accuracy": {
+      "win_correct": false,
+      "top3_overlap": 1,
+      "winner_our_rank": 4,
+      "bet_hit": true,
+      "profit": 0.0
+    },
+    "actual_win_odds": 5.0,
+    "results_available": true,
     "actual_results": [
       {
         "position": 1,
@@ -23549,30 +21775,21 @@
         "win_odds": 141.0
       }
     ],
-    "results_available": true,
-    "actual_winner": 3,
     "actual_top3": [
       2,
       3,
       7
     ],
-    "accuracy": {
-      "win_correct": false,
-      "top3_overlap": 1,
-      "winner_our_rank": 4,
-      "bet_hit": true,
-      "profit": 0.0
-    },
-    "actual_win_odds": 5.0,
-    "bankroll": 10000,
-    "edge_horse_rank": 2,
-    "edge_horse_number": 2,
-    "edge_horse_name": "AEROVOLANIC",
+    "actual_winner": 3,
     "suggested_stake": {
       "amount": 300.0,
       "pct": 3.0,
       "method": "tier-fraction (EDGE)"
     },
+    "edge_horse_rank": 2,
+    "edge_horse_number": 2,
+    "bankroll": 10000,
+    "edge_horse_name": "AEROVOLANIC",
     "tier_stats": {
       "EDGE": {
         "hit": 0,
