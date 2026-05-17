@@ -98,6 +98,13 @@ def _evaluate(args):
         return 1
 
     box_size = 5 if args.bet == 'trio5' else 6
+    if args.rank_out > box_size:
+        print(f"ERROR: --rank-out {args.rank_out} is outside the TRIO-{box_size} box. "
+              f"A horse at rank {args.rank_out} is not in the default box, "
+              f"so swapping it makes no sense for this bet type.", file=sys.stderr)
+        print(f"  Use --bet trio6 if you want to swap rank 6, or --rank-out ≤ {box_size}.",
+              file=sys.stderr)
+        return 2
     print(f"\nRule: rank-{args.rank_out} swap | odds ≤ {args.odds_ratio*100:.0f}% "
           f"of rank-{args.rank_out} | gear={'required' if args.require_gear else 'optional'} "
           f"| measuring BOX TRIO-{box_size}")

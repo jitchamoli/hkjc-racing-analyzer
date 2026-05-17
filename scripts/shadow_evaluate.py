@@ -178,10 +178,17 @@ def evaluate_date(race_date: str) -> int:
 
 
 def _infer_bet_type_from_horses(horses_sorted) -> str:
-    """Derive race-level bet type from per-horse bet_recommendation values."""
+    """Derive race-level bet type from per-horse bet_recommendation values.
+
+    Handles all bet_recommendation values emitted by core/recommender.py:
+    WIN, BANKER WIN, PLACE, QIN, TRIO (and SKIP). PLACE is rare but real —
+    bug 2026-05-17: this returned SKIP for PLACE races until the explicit
+    branch was added.
+    """
     for h in horses_sorted[:4]:
         rec = h.get('bet_recommendation', '')
         if rec in ('BANKER WIN', 'WIN'): return 'WIN'
+        if rec == 'PLACE': return 'PLACE'
         if rec == 'TRIO': return 'TRIO'
     qin = sum(1 for h in horses_sorted[:4] if h.get('bet_recommendation') == 'QIN')
     if qin == 4: return 'BOX Q4'
