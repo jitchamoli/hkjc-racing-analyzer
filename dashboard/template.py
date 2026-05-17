@@ -23,7 +23,8 @@ ALERT_COLORS = {
 
 def generate_html(races_json: str, now: str, race_date: str,
                   venue: str = 'Sha Tin', auto_refresh: bool = False,
-                  accuracy_summary: dict = None) -> str:
+                  accuracy_summary: dict = None,
+                  edge_stats: dict = None) -> str:
     import json as _json
     import html as _html
 
@@ -49,6 +50,13 @@ def generate_html(races_json: str, now: str, race_date: str,
         .replace('</script>', r'<\/script>') \
         .replace('</Script>', r'<\/Script>')
 
+    # EDGE stats (n_fires / n_placed / n_won) — fed by scripts/track_edge.py.
+    # Banner text in WA + dashboard reads from this so the count stays live
+    # instead of hardcoded. Defaults to empty when stats file missing.
+    edge_stats_json = _json.dumps(edge_stats or {}) \
+        .replace('</script>', r'<\/script>') \
+        .replace('</Script>', r'<\/Script>')
+
     return _HTML_TEMPLATE.format(
         races_json=races_json_safe,
         now=now,
@@ -58,6 +66,7 @@ def generate_html(races_json: str, now: str, race_date: str,
         strip_tiles_html=strip_tiles_html,
         accuracy_panel_html=accuracy_panel_html,
         accuracy_summary_json=accuracy_summary_json,
+        edge_stats_json=edge_stats_json,
     )
 
 
@@ -563,6 +572,7 @@ function escAttr(s) {{
 
 const RACES = {races_json};
 const ACCURACY_SUMMARY = {accuracy_summary_json};
+const EDGE_STATS = {edge_stats_json};
 const RACE_DATE = "{race_date}";
 const GENERATED = "{now}";
 
@@ -908,13 +918,23 @@ function renderBetCard(race) {{
                race.horses.length + ' horses · Tier: ' + tier);
   // Suggested-stake banner — mirrors the dashboard per-card budget so
   // the user knows the total $ before scanning individual MAIN blocks.
-  // Hidden on SKIP races (amount=0 there).
+  // Hidden on SKIP races (amount=0 there). Index is remembered so the
+  // banner can be updated later with the unallocated residual once
+  // waUnit + combo counts are known (budget floor often leaves $5-60 free).
+  var _ssBannerIdx = -1;
   if (ss && ss.amount && ss.amount > 0) {{
     var ssPctTxt = (ss.pct != null) ? (' (' + (ss.pct||0).toFixed(2) + '% of $' + (race.bankroll||0) + ')') : '';
+    _ssBannerIdx = waLines.length;
     waLines.push('💰 *Suggested stake: $' + Math.round(ss.amount) + ' HKD*' + ssPctTxt);
   }}
   if (tier === 'EDGE') {{
-    waLines.push('*★ RARE EDGE — TAKE SERIOUSLY* (fires <1×/meeting; model has found a real mispricing)');
+    // Banner text reads live stats from EDGE_STATS (track_edge.py). Falls
+    // back to generic "place > win" framing when no stats file present.
+    var _es = (typeof EDGE_STATS !== 'undefined' && EDGE_STATS) ? EDGE_STATS : {{}};
+    var _esText = (_es.n_fires && _es.n_fires > 0)
+      ? ' (N=' + _es.n_fires + ' historical: ' + (_es.n_placed||0) + ' placed, ' + (_es.n_won||0) + ' won — do NOT WIN-bet)'
+      : ' (historically places > wins — anchor TRIO, do NOT WIN-bet)';
+    waLines.push('*★ RARE EDGE — anchor TRIO-5/F4 with this horse*' + _esText);
   }}
 
   // Group horses by primary bet type
@@ -971,6 +991,17 @@ function renderBetCard(race) {{
   var waUnit = (ss && ss.amount > 0 && waTotalCombos > 0)
     ? Math.max(5, Math.floor((ss.amount / waTotalCombos) / 5) * 5)
     : 0;
+  // Annotate the stake banner with unallocated residual when floor leaves
+  // budget on the table. User can then manually deploy the residual to a
+  // preferred bet (e.g., round TRIO-5 up to next $5). Skip hint when
+  // residual < $5 (rounding noise, not actionable).
+  if (_ssBannerIdx >= 0 && waUnit > 0) {{
+    var _allocated = waTotalCombos * waUnit;
+    var _unalloc = Math.round(ss.amount) - _allocated;
+    if (_unalloc >= 5) {{
+      waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(' HKD*', ' HKD — $' + _unalloc + ' unallocated*');
+    }}
+  }}
 
   // MAIN BET — one focused block (not a duplicate summary + detail).
   var isSkipRace = mainBetTypes.length === 0;
@@ -1130,11 +1161,16 @@ function renderBetCard(race) {{
     var t6Steam = race.horses.slice(0, 12).filter(function(h) {{
       return h.steam_move && h.steam_move.is_steam;
     }}).length;
+    // CHAOS score 0-4 — only count truly differentiating signals.
+    // 2026-05-17: dropped "tier HIGH/MED" (always-on for bettable races) and
+    // raised field-size to ≥13 (was ≥11 — most ST races already 12-14). Added
+    // top_2_share<0.40 (model itself uncertain — the strongest chaos signal).
+    var t6Top2Share = race.top_2_share || 0;
     var chaosScore = 0;
-    if (t6Field >= 11) chaosScore++;
+    if (t6Field >= 13) chaosScore++;
     if (t6Top1 >= 2.5 && t6Top1 <= 5.0) chaosScore++;
     if (t6Steam >= 2) chaosScore++;
-    if (tier === 'HIGH' || tier === 'MED') chaosScore++;
+    if (t6Top2Share > 0 && t6Top2Share < 0.40) chaosScore++;
     var t6Verdict;
     if (t6Top1 > 0 && t6Top1 < 2.5) t6Verdict = 'SKIP heavy fav';
     else if (t6Steam >= 2) t6Verdict = '★ TAKE (' + t6Steam + ' steam)';
@@ -1234,12 +1270,17 @@ function renderBetCard(race) {{
     : 'rank-' + edgeRank + ' pick #' + esc(race.edge_horse_number) + ' ' + esc(race.edge_horse_name);
   var edgeAlertHTML = isEdge
     ? '<div style="background:linear-gradient(135deg,rgba(251,191,36,.25),rgba(251,191,36,.08));border:2px solid var(--gold);border-radius:6px;padding:8px 12px;margin:6px 0 10px 0;font-size:.78rem">' +
-        '<span style="color:var(--gold);font-weight:800;letter-spacing:.06em">★ RARE EDGE — TAKE SERIOUSLY</span>' +
+        '<span style="color:var(--gold);font-weight:800;letter-spacing:.06em">★ RARE EDGE — anchor TRIO-5 with this horse</span>' +
         '<div style="color:var(--fg);margin-top:3px;font-size:.72rem;line-height:1.4">' +
-          'Pre-blend model probability ≥ +5pp above market — fires <1× per meeting on average ' +
-          '(0 in 124-race backtest holdout). The model has found a real mispricing on the ' +
-          edgeWho + '. First production EDGE hit was R9 2026-05-03 (TRIO-5 hit). ' +
-          'Recommend: WIN or PRIMARY QIN at full unit, plus TRIO-5 protection.' +
+          'Pre-blend model probability ≥ +5pp above market — fires <1× per meeting. ' +
+          'The model has found a real mispricing on the ' + edgeWho + '. ' +
+          (function() {{
+            var es = (typeof EDGE_STATS !== 'undefined' && EDGE_STATS) ? EDGE_STATS : {{}};
+            return (es.n_fires && es.n_fires > 0)
+              ? '<strong>Historical pattern (N=' + es.n_fires + '): ' + (es.n_placed||0) + ' placed top-3, ' + (es.n_won||0) + ' won.</strong> '
+              : '<strong>Historically places more than wins.</strong> ';
+          }})() +
+          'Use as TRIO-5/F4 anchor — do NOT bet WIN on the EDGE horse.' +
         '</div>' +
       '</div>'
     : '';
@@ -1955,12 +1996,16 @@ function _buildRaceDetailPanel(race) {{
     }}).length;
 
     // Chaos score 0-4: each signal that suggests rank-6 spoiler likely
+    // CHAOS score 0-4 — same tightened conditions as WA path. Tier and
+    // ≥11-field were always-on at ST; dropped/raised. Added top_2_share<0.40
+    // (model uncertain) which is the strongest chaos signal.
+    var top2ShareChaos = race.top_2_share || 0;
     var chaosScore = 0;
     var chaosFactors = [];
-    if (fieldSize >= 11) {{ chaosScore++; chaosFactors.push('big field ' + fieldSize); }}
+    if (fieldSize >= 13) {{ chaosScore++; chaosFactors.push('large field ' + fieldSize); }}
     if (top1Odds >= 2.5 && top1Odds <= 5.0) {{ chaosScore++; chaosFactors.push('competitive fav $' + top1Odds.toFixed(1)); }}
     if (steamCount >= 2) {{ chaosScore++; chaosFactors.push(steamCount + ' steam horses'); }}
-    if (tier === 'HIGH' || tier === 'MED') {{ chaosScore++; chaosFactors.push(tier + ' conviction'); }}
+    if (top2ShareChaos > 0 && top2ShareChaos < 0.40) {{ chaosScore++; chaosFactors.push('top-2 share ' + (top2ShareChaos*100).toFixed(0) + '% (model uncertain)'); }}
     var chaosColor = chaosScore >= 3 ? 'rgba(244,63,94,.85)' :
                      chaosScore >= 2 ? 'rgba(251,191,36,.7)' :
                      'rgba(148,163,184,.3)';

@@ -613,6 +613,7 @@ async def _run_generation(fetcher, analyzer, race_date: str):
             top_prob=top.get('calibrated_prob') or 0.0,
             top_odds=top.get('win_odds') or 0.0,
             bankroll=_cfg.BANKROLL,
+            top_2_share=r.get('top_2_share'),
         )
         r['suggested_stake'] = stake
         r['bankroll'] = _cfg.BANKROLL
@@ -654,8 +655,21 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     # Detect venue from race data
     venue = "Happy Valley" if any(r.get("venue", "").startswith("Happy") for r in all_races) else "Sha Tin"
 
+    # Load EDGE stats (live count from track_edge.py — replaces the
+    # hardcoded N=4 banner text). Silent fallback to None if file missing.
+    edge_stats = None
+    try:
+        es_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                'tracking_data', 'edge_stats.json')
+        if os.path.exists(es_path):
+            with open(es_path) as f:
+                edge_stats = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        pass
+
     html = generate_html(json_data, now, race_date, venue,
-                          accuracy_summary=accuracy_summary)
+                          accuracy_summary=accuracy_summary,
+                          edge_stats=edge_stats)
 
     html_file = os.path.join(results_dir, f"racing_dashboard_{date_str}.html")
     latest_file = os.path.join(results_dir, "racing_dashboard.html")

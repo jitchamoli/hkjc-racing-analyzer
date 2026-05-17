@@ -38,7 +38,7 @@ LOG_HEADERS = [
 
 def _cost(bet_type: str) -> float:
     return {'QIN': 1.0, 'BOX Q': 3.0, 'BOX Q4': 6.0, 'WIN': 1.0,
-            'BANKER WIN': 1.0, 'TRIO': 1.0}.get(bet_type, 0.0)
+            'BANKER WIN': 1.0, 'PLACE': 1.0, 'TRIO': 1.0}.get(bet_type, 0.0)
 
 
 def _name(leg) -> str:
@@ -53,7 +53,7 @@ def _legs_for_bet(bet_type: str, ranked_legs):
     if bet_type == 'BOX Q':  return {_name(l) for l in ranked_legs[:3]}
     if bet_type == 'QIN':    return {_name(l) for l in ranked_legs[:2]}
     if bet_type == 'TRIO':   return {_name(l) for l in ranked_legs[:3]}
-    if bet_type in ('WIN', 'BANKER WIN'): return {_name(ranked_legs[0])}
+    if bet_type in ('WIN', 'BANKER WIN', 'PLACE'): return {_name(ranked_legs[0])}
     return set()
 
 
@@ -62,6 +62,9 @@ def _is_hit(bet_type: str, legs: set, actual_top2: set, actual_top3: set, top1_w
     if bet_type == 'QIN':               return legs == actual_top2
     if bet_type == 'TRIO':              return actual_top3.issubset(legs) and len(legs) >= 3
     if bet_type in ('WIN', 'BANKER WIN'): return top1_won
+    # PLACE — top horse hits if it finished top-3 (HKJC PLACE pool pays 1st/2nd/3rd).
+    # legs is a 1-element set with rank-1 name; we check it intersects actual_top3.
+    if bet_type == 'PLACE': return bool(legs & actual_top3)
     return False
 
 
@@ -102,12 +105,14 @@ def evaluate_date(race_date: str) -> int:
 
     for race in prod:
         rn = race['race_number']
-        # Production bet info — derive from horses in prod JSON
+        # Production bet info — derive actual box size from horse count, not
+        # just rank-1's bet_recommendation. Rank-1's rec says 'QIN' equally
+        # for STRAIGHT QIN (2 horses) and BOX QIN-4 (4 horses) — different
+        # stakes (1u vs 6u) and very different hit rates. _infer_bet_type
+        # counts horses with QIN/TRIO rec and resolves to STRAIGHT/BOX-N.
+        # Falls back to rank-1 rec for WIN/BANKER WIN which aren't box-bets.
         horses_sorted = sorted(race['horses'], key=lambda h: h['rank'])
-        prod_bet = horses_sorted[0].get('bet_recommendation', 'SKIP')
-        if prod_bet == 'SKIP':
-            # Could still be a multi-leg bet (QIN top-2). Infer from top-4 bets.
-            prod_bet = _infer_bet_type_from_horses(horses_sorted)
+        prod_bet = _infer_bet_type_from_horses(horses_sorted)
         prod_legs_set = _legs_for_bet(prod_bet, horses_sorted)
 
         # Shadow
@@ -176,10 +181,17 @@ def evaluate_date(race_date: str) -> int:
 
 
 def _infer_bet_type_from_horses(horses_sorted) -> str:
-    """Derive race-level bet type from per-horse bet_recommendation values."""
+    """Derive race-level bet type from per-horse bet_recommendation values.
+
+    Handles all bet_recommendation values emitted by core/recommender.py:
+    WIN, BANKER WIN, PLACE, QIN, TRIO (and SKIP). PLACE is rare but real —
+    bug 2026-05-17: this returned SKIP for PLACE races until the explicit
+    branch was added.
+    """
     for h in horses_sorted[:4]:
         rec = h.get('bet_recommendation', '')
         if rec in ('BANKER WIN', 'WIN'): return 'WIN'
+        if rec == 'PLACE': return 'PLACE'
         if rec == 'TRIO': return 'TRIO'
     qin = sum(1 for h in horses_sorted[:4] if h.get('bet_recommendation') == 'QIN')
     if qin == 4: return 'BOX Q4'
