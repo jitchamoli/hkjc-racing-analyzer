@@ -1265,7 +1265,7 @@ class HorseDatabase:
             SELECT race_date, race_number, horse_name, predicted_rank,
                    bet_recommendation, calibrated_prob, win_odds,
                    actual_position, actual_won, actual_top3, profit_loss, confidence,
-                   horse_number
+                   horse_number, conviction_tier
             FROM prediction_log
             WHERE results_filled = 1 AND race_date >= ?
             ORDER BY race_date, race_number, predicted_rank
@@ -1293,7 +1293,15 @@ class HorseDatabase:
                              # 3u BOX Q3, 6u BOX Q4)
         banker_count = 0
         banker_wins = 0
+        # Two independent breakdowns:
+        # - by_confidence: prediction_log.confidence (ML combined_confidence
+        #   VERY_HIGH/HIGH/MEDIUM/LOW). Model's self-confidence.
+        # - by_conviction: prediction_log.conviction_tier (EDGE/HIGH/MED/LOW
+        #   from betting/conviction.py). Strategy-level edge over market.
+        # These are different dimensions; pre-2026-05-17 the report mislabeled
+        # by_confidence as "conviction" — audit fix made the labels honest.
         by_confidence = {}
+        by_conviction = {}
 
         for race_key, horses in races.items():
             horses.sort(key=lambda x: x[3])  # sort by predicted_rank
@@ -1314,16 +1322,16 @@ class HorseDatabase:
                     winner_ranks.append(h[3])
                     break
 
-            # By-confidence: rank-1 hit rate + per-tier 1u-stake ROI (added
-            # 2026-05-17 to surface the audit finding that HIGH-tier bets have
-            # negative edge correlation in backtest)
+            # By-confidence (ML self-confidence) AND by-conviction (strategy edge)
             conf = rank1[11] or 'UNKNOWN'
-            by_confidence.setdefault(conf, {'total': 0, 'wins': 0,
-                                            'bets': 0, 'hits': 0,
-                                            'profit': 0.0, 'stake': 0.0})
-            by_confidence[conf]['total'] += 1
-            if rank1[8]:
-                by_confidence[conf]['wins'] += 1
+            conv = rank1[13] or 'UNKNOWN'
+            for bucket, key in ((by_confidence, conf), (by_conviction, conv)):
+                bucket.setdefault(key, {'total': 0, 'wins': 0,
+                                        'bets': 0, 'hits': 0,
+                                        'profit': 0.0, 'stake': 0.0})
+                bucket[key]['total'] += 1
+                if rank1[8]:
+                    bucket[key]['wins'] += 1
 
             # Race-level bet evaluation
             bet = rank1[4]
@@ -1331,18 +1339,19 @@ class HorseDatabase:
                 continue
             bets_placed += 1
 
-            top3 = horses[:3]
-            top3_in_top2 = sum(1 for h in top3 if h[7] in (1, 2))
-            top3_in_top3 = sum(1 for h in top3 if h[9])
-
+            # 2026-05-17 audit fix: for exotic bets, hit check must look at the
+            # actual legs in that bet (all horses marked with this bet_recommendation),
+            # not top-3. BOX Q4 stakes 6u across 4 legs — checking only top-3 missed
+            # any race where rank-1 + rank-4 finished top-2, falsely scoring it -6u.
             if bet in ('WIN', 'BANKER WIN', 'BANKER'):
                 hit = bool(rank1[8])
             elif bet == 'PLACE':
                 hit = bool(rank1[9])
-            elif bet == 'QIN':
-                hit = top3_in_top2 >= 2
-            elif bet == 'TRIO':
-                hit = top3_in_top3 >= 3
+            elif bet in ('QIN', 'TRIO'):
+                legs = [h for h in horses if h[4] == bet]
+                legs_in_top2 = sum(1 for h in legs if h[7] in (1, 2))
+                legs_in_top3 = sum(1 for h in legs if h[9])
+                hit = (legs_in_top2 >= 2) if bet == 'QIN' else (legs_in_top3 >= 3)
             else:
                 hit = False  # unknown bet type
 
@@ -1373,13 +1382,14 @@ class HorseDatabase:
                 stake = 1.0
             total_profit += pnl
             total_stake += stake
-            # Per-tier bet aggregates (using same 1u-stake terms)
-            tier = by_confidence[conf]
-            tier['bets'] += 1
-            if hit:
-                tier['hits'] += 1
-            tier['profit'] += pnl
-            tier['stake'] += stake
+            # Per-bucket bet aggregates (using same 1u-stake terms)
+            for bucket, key in ((by_confidence, conf), (by_conviction, conv)):
+                tier = bucket[key]
+                tier['bets'] += 1
+                if hit:
+                    tier['hits'] += 1
+                tier['profit'] += pnl
+                tier['stake'] += stake
 
         return {
             'period_days': days,
@@ -1398,6 +1408,7 @@ class HorseDatabase:
             'banker_wins': banker_wins,
             'banker_hit_rate': round(banker_wins / banker_count * 100, 1) if banker_count else 0,
             'by_confidence': by_confidence,
+            'by_conviction': by_conviction,
         }
 
     def get_accuracy_by_class(self, days: int = 30) -> list:
@@ -1441,18 +1452,17 @@ class HorseDatabase:
             if not bet or bet == 'SKIP':
                 continue
 
-            # Race-level hit + 1u-stake P&L (mirrors get_accuracy_summary)
-            top3 = horses[:3]
-            top3_in_top2 = sum(1 for h in top3 if h[6] in (1, 2))
-            top3_in_top3 = sum(1 for h in top3 if h[8])
+            # Race-level hit + 1u-stake P&L (mirrors get_accuracy_summary).
+            # Exotic hit check uses actual bet legs (audit fix 2026-05-17).
             if bet in ('WIN', 'BANKER WIN', 'BANKER'):
                 hit = bool(rank1[7])
             elif bet == 'PLACE':
                 hit = bool(rank1[8])
-            elif bet == 'QIN':
-                hit = top3_in_top2 >= 2
-            elif bet == 'TRIO':
-                hit = top3_in_top3 >= 3
+            elif bet in ('QIN', 'TRIO'):
+                legs = [h for h in horses if h[5] == bet]
+                legs_in_top2 = sum(1 for h in legs if h[6] in (1, 2))
+                legs_in_top3 = sum(1 for h in legs if h[8])
+                hit = (legs_in_top2 >= 2) if bet == 'QIN' else (legs_in_top3 >= 3)
             else:
                 hit = False
 
@@ -1513,18 +1523,16 @@ class HorseDatabase:
             if not bet or bet == 'SKIP':
                 continue
 
-            top3 = horses[:3]
-            top3_in_top2 = sum(1 for h in top3 if h[5] in (1, 2))
-            top3_in_top3 = sum(1 for h in top3 if h[7])
-
+            # Exotic hit check uses actual bet legs (audit fix 2026-05-17).
             if bet in ('WIN', 'BANKER WIN', 'BANKER'):
                 hit = bool(rank1[6])
             elif bet == 'PLACE':
                 hit = bool(rank1[7])
-            elif bet == 'QIN':
-                hit = top3_in_top2 >= 2
-            elif bet == 'TRIO':
-                hit = top3_in_top3 >= 3
+            elif bet in ('QIN', 'TRIO'):
+                legs = [h for h in horses if h[4] == bet]
+                legs_in_top2 = sum(1 for h in legs if h[5] in (1, 2))
+                legs_in_top3 = sum(1 for h in legs if h[7])
+                hit = (legs_in_top2 >= 2) if bet == 'QIN' else (legs_in_top3 >= 3)
             else:
                 hit = False
 

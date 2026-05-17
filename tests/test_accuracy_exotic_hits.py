@@ -124,6 +124,46 @@ class TestRaceLevelHitDetection:
         finally:
             path.unlink(missing_ok=True)
 
+    def test_box_q4_qin_hits_when_rank1_and_rank4_in_top2(self):
+        """Regression for 2026-05-17 audit fix.
+
+        BOX Q4 stakes 6u across 4 legs (all 4 horses marked 'QIN'). If rank-1
+        and rank-4 finish 1-2, the ticket hits. Pre-fix code only checked
+        horses[:3], missing rank-4 entirely → false MISS + false -6u P&L.
+        """
+        db, path = _make_db()
+        try:
+            conn = sqlite3.connect(str(path))
+            _insert_race(conn, '2026/01/15', 1, [
+                (1, 'A', 'QIN', 1, 1, 1, -10),  # rank-1 wins
+                (2, 'B', 'QIN', 5, 0, 0, -10),
+                (3, 'C', 'QIN', 7, 0, 0, -10),
+                (4, 'D', 'QIN', 2, 0, 1, -10),  # rank-4 finishes 2nd
+            ])
+            conn.close()
+            s = db.get_accuracy_summary(days=9999)
+            assert s['bets_placed'] == 1
+            assert s['bets_won'] == 1, "BOX Q4 covers rank-1 + rank-4 → hit"
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_box_q4_trio_hits_when_three_of_four_in_top3(self):
+        """BOX TRIO-4 (4 legs, 4 combos) hits when any 3 of the 4 finish top 3."""
+        db, path = _make_db()
+        try:
+            conn = sqlite3.connect(str(path))
+            _insert_race(conn, '2026/01/16', 1, [
+                (1, 'A', 'TRIO', 1, 1, 1, -10),
+                (2, 'B', 'TRIO', 5, 0, 0, -10),  # rank-2 misses
+                (3, 'C', 'TRIO', 3, 0, 1, -10),
+                (4, 'D', 'TRIO', 2, 0, 1, -10),  # rank-4 places 2nd → still 3-of-4 in top 3
+            ])
+            conn.close()
+            s = db.get_accuracy_summary(days=9999)
+            assert s['bets_won'] == 1, "rank-1,3,4 all in top 3 → TRIO-4 hit"
+        finally:
+            path.unlink(missing_ok=True)
+
     def test_win_bet_hits_only_when_rank1_wins(self):
         db, path = _make_db()
         try:
