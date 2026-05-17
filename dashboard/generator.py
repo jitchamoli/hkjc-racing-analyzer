@@ -433,6 +433,16 @@ async def main():
 
     fetcher = HKJCDataFetcher()
     analyzer = CombinedRaceAnalyzer()
+    # Lazy-started Playwright browser sits on fetcher._pw_fetcher. Without an
+    # explicit close() at the end the chromium subprocess lingers and stacks
+    # across shadow runs that immediately follow (audit fix 2026-05-17).
+    try:
+        await _run_generation(fetcher, analyzer, race_date)
+    finally:
+        await fetcher.close()
+
+
+async def _run_generation(fetcher, analyzer, race_date: str):
 
     results_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'results')
     os.makedirs(results_dir, exist_ok=True)

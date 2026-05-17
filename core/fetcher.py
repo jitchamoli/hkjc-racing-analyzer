@@ -1404,7 +1404,11 @@ class HKJCDataFetcher:
 
         html = self.api.fetch_horse_profile_html(horse_name)
         history = HKJCParser.parse_horse_history(html) if html else []
-        self._cache_set(self._horse_history_cache, cache_key, history)
+        # Only cache successful fetches. Empty result = rate-limit or transient
+        # failure; caching [] would blind us for the rest of the session
+        # (audit fix 2026-05-17 — race-day blocker on 6h+ monitor runs).
+        if html and history:
+            self._cache_set(self._horse_history_cache, cache_key, history)
         return history[:num_races]
 
     async def get_barrier_trials(self, horse_name: str) -> List[Dict]:
@@ -1425,7 +1429,11 @@ class HKJCDataFetcher:
             t for t in all_trials
             if horse_name.upper() in t.get("horse_name", "").upper()
         ]
-        self._cache_set(self._horse_trial_cache, cache_key, horse_trials)
+        # Cache only when the upstream fetch succeeded. Empty horse_trials is
+        # legitimate (horse may have no trials), but if html itself was None
+        # we shouldn't poison subsequent lookups with a forced [] (audit fix).
+        if html is not None:
+            self._cache_set(self._horse_trial_cache, cache_key, horse_trials)
         return horse_trials
 
     async def snapshot_odds(self, race_date: str, race_no: int):

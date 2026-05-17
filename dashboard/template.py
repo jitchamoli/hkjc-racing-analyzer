@@ -42,9 +42,12 @@ def generate_html(races_json: str, now: str, race_date: str,
 
     strip_tiles_html = _build_strip_tiles(races_list)
     accuracy_panel_html = _build_accuracy_panel(accuracy_summary or {})
-    # JSON-encoded for the JS layer (WhatsApp copy footer reads from it)
-    accuracy_summary_json = _json.dumps(accuracy_summary or {}).replace(
-        '</script>', r'<\/script>')
+    # JSON-encoded for the JS layer (WhatsApp copy footer reads from it).
+    # Match the same defense-in-depth pattern as races_json_safe — strip both
+    # casings of </script> to avoid breaking out of the <script> block.
+    accuracy_summary_json = _json.dumps(accuracy_summary or {}) \
+        .replace('</script>', r'<\/script>') \
+        .replace('</Script>', r'<\/Script>')
 
     return _HTML_TEMPLATE.format(
         races_json=races_json_safe,
@@ -997,11 +1000,13 @@ function renderBetCard(race) {{
     if (tierStats && tierStats.bets > 0 && tierStats.stake > 0) {{
       var tBets = tierStats.bets, tHits = tierStats.hits;
       var tHitPct = (tHits / tBets * 100).toFixed(0);
-      var tRoi = (tierStats.profit / tierStats.stake * 100).toFixed(0);
+      // Compare BEFORE .toFixed() so tiny negatives do not render as "+-0%".
+      var tRoiNum = tierStats.profit / tierStats.stake * 100;
+      var tRoiStr = (tRoiNum >= 0 ? '+' : '') + tRoiNum.toFixed(0) + '%';
       var noteN = tBets < 30 ? ' (small N)' : '';
       waLines.push('');
       waLines.push('_Model 60d · ' + tier + ' tier: ' + tHits + '/' + tBets +
-                   ' (' + tHitPct + '%) · ' + (tRoi >= 0 ? '+' : '') + tRoi + '% ROI' + noteN + '_');
+                   ' (' + tHitPct + '%) · ' + tRoiStr + ' ROI' + noteN + '_');
     }}
   }} catch (e) {{ /* silent — never break WA copy */ }}
 

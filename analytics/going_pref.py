@@ -33,11 +33,19 @@ class GoingPreferenceAnalyzer:
 
     @staticmethod
     def _classify_going(going: str) -> int:
-        """Map going string to wetness level 0-4."""
+        """Map going string to wetness level 0-4.
+
+        Iterates keys longest-first so substring overlaps don't mis-classify
+        (audit fix 2026-05-17: 'GOOD TO YIELDING' was matching 'GOOD' and
+        returning level 1 instead of 2 because dict insertion order put GOOD
+        before GOOD TO YIELDING — silently bypassed all wet-track logic on
+        GTY meetings).
+        """
         if not going:
             return 1  # default to GOOD
         g = going.upper().strip()
-        for key, level in GoingPreferenceAnalyzer.GOING_WETNESS.items():
+        for key, level in sorted(GoingPreferenceAnalyzer.GOING_WETNESS.items(),
+                                  key=lambda kv: -len(kv[0])):
             if key in g:
                 return level
         return 1  # default GOOD

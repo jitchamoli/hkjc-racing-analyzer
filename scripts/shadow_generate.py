@@ -50,60 +50,64 @@ async def run(race_date: str, rule_w: float = 0.9) -> int:
 
     fetcher = HKJCDataFetcher()
     analyzer = CombinedRaceAnalyzer()
+    # Close the Playwright browser before returning so it doesn't stack with
+    # the production run that immediately precedes/follows (audit fix 2026-05-17).
+    try:
+        # Fetch all race cards concurrently — same pattern as dashboard/generator.py
+        fetched = await asyncio.gather(
+            *(fetcher.get_race_card(race_date, rn) for rn in range(1, 12)),
+            return_exceptions=True,
+        )
 
-    # Fetch all race cards concurrently — same pattern as dashboard/generator.py
-    fetched = await asyncio.gather(
-        *(fetcher.get_race_card(race_date, rn) for rn in range(1, 12)),
-        return_exceptions=True,
-    )
+        shadow_races = []
+        for race_no, race in enumerate(fetched, start=1):
+            if isinstance(race, Exception):
+                print(f"  Race {race_no}: fetch failed ({race}), stopping", flush=True)
+                break
+            if not race or not race.horses:
+                print(f"  Race {race_no}: no data, stopping", flush=True)
+                break
 
-    shadow_races = []
-    for race_no, race in enumerate(fetched, start=1):
-        if isinstance(race, Exception):
-            print(f"  Race {race_no}: fetch failed ({race}), stopping", flush=True)
-            break
-        if not race or not race.horses:
-            print(f"  Race {race_no}: no data, stopping", flush=True)
-            break
+            analyses = analyzer.analyze_race(race)
+            if not analyses:
+                continue
 
-        analyses = analyzer.analyze_race(race)
-        if not analyses:
-            continue
+            # Infer race-level bet type from per-horse recommendations (top 4)
+            bet_type = _infer_bet_type(analyses)
 
-        # Infer race-level bet type from per-horse recommendations (top 4)
-        bet_type = _infer_bet_type(analyses)
+            # Slim leg payload — only what we need for evaluation
+            legs = [{
+                "rank": a.rank,
+                "horse_number": a.horse.number,
+                "horse_name": a.horse.name,
+                "win_odds": a.horse.win_odds,
+                "bet_recommendation": a.bet_recommendation,
+                "calibrated_prob": round(a.combined_probability, 4),
+            } for a in analyses[:5]]
 
-        # Slim leg payload — only what we need for evaluation
-        legs = [{
-            "rank": a.rank,
-            "horse_number": a.horse.number,
-            "horse_name": a.horse.name,
-            "win_odds": a.horse.win_odds,
-            "bet_recommendation": a.bet_recommendation,
-            "calibrated_prob": round(a.combined_probability, 4),
-        } for a in analyses[:5]]
+            shadow_races.append({
+                "race_number": race_no,
+                "bet_type": bet_type,
+                "legs": legs,
+            })
+            print(f"  Race {race_no}: {len(race.horses)} horses, "
+                  f"shadow bet={bet_type}, top-1={analyses[0].horse.name}",
+                  flush=True)
 
-        shadow_races.append({
-            "race_number": race_no,
-            "bet_type": bet_type,
-            "legs": legs,
-        })
-        print(f"  Race {race_no}: {len(race.horses)} horses, "
-              f"shadow bet={bet_type}, top-1={analyses[0].horse.name}",
-              flush=True)
-
-    date_str = race_date.replace('/', '')
-    out_path = Path(__file__).resolve().parent.parent / "results" / f"shadow_race_data_{date_str}.json"
-    payload = {
-        "rule_w": rule_w,
-        "ml_w": 1.0 - rule_w,
-        "generated_at": datetime.now().isoformat(timespec='seconds'),
-        "race_date": race_date,
-        "races": shadow_races,
-    }
-    out_path.write_text(json.dumps(payload, indent=2))
-    print(f"Wrote {out_path} ({len(shadow_races)} races)", flush=True)
-    return 0
+        date_str = race_date.replace('/', '')
+        out_path = Path(__file__).resolve().parent.parent / "results" / f"shadow_race_data_{date_str}.json"
+        payload = {
+            "rule_w": rule_w,
+            "ml_w": 1.0 - rule_w,
+            "generated_at": datetime.now().isoformat(timespec='seconds'),
+            "race_date": race_date,
+            "races": shadow_races,
+        }
+        out_path.write_text(json.dumps(payload, indent=2))
+        print(f"Wrote {out_path} ({len(shadow_races)} races)", flush=True)
+        return 0
+    finally:
+        await fetcher.close()
 
 
 def _infer_bet_type(analyses) -> str:

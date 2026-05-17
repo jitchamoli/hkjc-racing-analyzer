@@ -9,11 +9,18 @@ from dataclasses import dataclass
 
 @dataclass
 class ConvictionThresholds:
-    """Spec §4 defaults."""
-    high_top2: float = 0.33
-    high_top3: float = 0.42
-    med_top2: float = 0.27
-    med_top3: float = 0.35
+    """Conviction tier thresholds.
+
+    Raised 2026-05-17 after backtest (40-race, 90d window) showed the original
+    0.33/0.42 thresholds labeled 74% of races as HIGH — no tier discrimination.
+    New 0.40/0.55: HIGH share drops to 46%, HIGH hit-rate +7pp (20.7→27.8%),
+    and MED becomes informative (was 0/7 hits, now 1/13). LOW tightened
+    proportionally so a real low-conviction race still surfaces as LOW.
+    """
+    high_top2: float = 0.40
+    high_top3: float = 0.55
+    med_top2: float = 0.30
+    med_top3: float = 0.42
     low_top2: float = 0.22
 
 
