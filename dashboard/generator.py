@@ -40,6 +40,20 @@ def _atomic_write(path: str, content: str) -> None:
 _RESULT_KEYS_RACE = {'results_available', 'actual_results', 'actual_winner', 'actual_top3', 'actual_win_odds', 'accuracy'}
 _RESULT_KEYS_HORSE = {'actual_position'}
 
+# Pre-race prediction fields that should be FROZEN once a race is finished.
+# Re-running generate_predictions after a race ends pulls post-race "odds"
+# (HKJC swaps in final SP / dividend prices once the race is settled), which
+# corrupts the model blend and produces fake EDGE fires on losing horses.
+# Audit 2026-05-17: R1 flipped MED → EDGE post-race because #10's odds
+# moved $7.40 → $3.10 in the post-race feed, dragging cal_probs.
+_FROZEN_PREDICTION_KEYS_RACE = {'conviction_tier', 'has_edge', 'suggested_stake',
+                                 'bankroll', 'odds_age_minutes'}
+_FROZEN_PREDICTION_KEYS_HORSE = {'rank', 'win_odds', 'calibrated_prob',
+                                  'edge_pp', 'ev_win', 'overlay', 'edge_fires',
+                                  'pure_prob', 'market_prob', 'model_rank',
+                                  'bet_recommendation', 'confidence',
+                                  'expected_return', 'value_score'}
+
 
 def _merge_with_existing(json_file: str, new_races: list) -> list:
     """Preserve result data from a prior prediction file when re-generating.
@@ -90,16 +104,38 @@ def _merge_with_existing(json_file: str, new_races: list) -> list:
             if key in old_race:
                 race[key] = old_race[key]
 
-        # Copy horse-level result fields (match by horse number)
+        # Freeze pre-race prediction fields on finished races (audit 2026-05-17).
+        # HKJC's post-race odds feed corrupts the model blend on re-run,
+        # producing fake EDGE fires on horses that finished outside the money.
+        for key in _FROZEN_PREDICTION_KEYS_RACE:
+            if key in old_race:
+                race[key] = old_race[key]
+
+        # Copy horse-level result fields + freeze pre-race predictions
         old_horses = {h['number']: h for h in old_race.get('horses', []) if 'number' in h}
+        # Build a horse-number → predicted_rank-ordered list so we can also
+        # restore the original rank ordering (post-race feed can reshuffle).
+        old_horses_by_rank = sorted(
+            (h for h in old_race.get('horses', []) if 'rank' in h),
+            key=lambda h: h.get('rank', 99)
+        )
         for horse in race.get('horses', []):
             old_h = old_horses.get(horse['number'])
             if old_h:
                 for key in _RESULT_KEYS_HORSE:
                     if key in old_h:
                         horse[key] = old_h[key]
+                for key in _FROZEN_PREDICTION_KEYS_HORSE:
+                    if key in old_h:
+                        horse[key] = old_h[key]
+        # Re-sort horses by the frozen rank so downstream renderers see the
+        # original pre-race ordering, not the post-race shuffled one.
+        if old_horses_by_rank:
+            race['horses'] = sorted(race.get('horses', []),
+                                     key=lambda h: h.get('rank', 99))
 
-        logger.info(f"  Race {race['race_number']}: preserved results from prior run")
+        logger.info(f"  Race {race['race_number']}: FROZEN — preserved pre-race "
+                    f"predictions + results from prior run")
 
     return new_races
 
