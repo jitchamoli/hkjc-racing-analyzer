@@ -533,6 +533,18 @@ async def _attach_sectional_times(today_races: list, race_date: str):
             if st:
                 entry['sectional_times'] = st
                 n_attached += 1
+                # Backfill finish_time from sectional sum when HKJC has not yet
+                # published official times (often the case for the last race of
+                # the card). The sectionals partition the total — their sum IS
+                # the finish time by definition. Next official fetch overwrites
+                # this with the authoritative value if it differs.
+                if not (entry.get('finish_time') or '').strip():
+                    try:
+                        total = sum(float(x) for x in st.split())
+                        mins, secs = divmod(total, 60)
+                        entry['finish_time'] = f"{int(mins)}:{secs:05.2f}"
+                    except (ValueError, TypeError):
+                        pass
     logger.info(f"Attached sectional times to {n_attached} result entries "
                 f"({len(by_race)}/{len(race_nos)} races had sectional pages)")
 

@@ -914,7 +914,7 @@ function renderBetCard(race) {{
     waLines.push('💰 *Suggested stake: $' + Math.round(ss.amount) + ' HKD*' + ssPctTxt);
   }}
   if (tier === 'EDGE') {{
-    waLines.push('*★ RARE EDGE — TAKE SERIOUSLY* (fires <1×/meeting; model has found a real mispricing)');
+    waLines.push('*★ RARE EDGE — anchor TRIO-5/F4 with this horse* (N=4 historical: 3 placed, 0 won — do NOT WIN-bet)');
   }}
 
   // Group horses by primary bet type
@@ -1130,11 +1130,16 @@ function renderBetCard(race) {{
     var t6Steam = race.horses.slice(0, 12).filter(function(h) {{
       return h.steam_move && h.steam_move.is_steam;
     }}).length;
+    // CHAOS score 0-4 — only count truly differentiating signals.
+    // 2026-05-17: dropped "tier HIGH/MED" (always-on for bettable races) and
+    // raised field-size to ≥13 (was ≥11 — most ST races already 12-14). Added
+    // top_2_share<0.40 (model itself uncertain — the strongest chaos signal).
+    var t6Top2Share = race.top_2_share || 0;
     var chaosScore = 0;
-    if (t6Field >= 11) chaosScore++;
+    if (t6Field >= 13) chaosScore++;
     if (t6Top1 >= 2.5 && t6Top1 <= 5.0) chaosScore++;
     if (t6Steam >= 2) chaosScore++;
-    if (tier === 'HIGH' || tier === 'MED') chaosScore++;
+    if (t6Top2Share > 0 && t6Top2Share < 0.40) chaosScore++;
     var t6Verdict;
     if (t6Top1 > 0 && t6Top1 < 2.5) t6Verdict = 'SKIP heavy fav';
     else if (t6Steam >= 2) t6Verdict = '★ TAKE (' + t6Steam + ' steam)';
@@ -1234,12 +1239,12 @@ function renderBetCard(race) {{
     : 'rank-' + edgeRank + ' pick #' + esc(race.edge_horse_number) + ' ' + esc(race.edge_horse_name);
   var edgeAlertHTML = isEdge
     ? '<div style="background:linear-gradient(135deg,rgba(251,191,36,.25),rgba(251,191,36,.08));border:2px solid var(--gold);border-radius:6px;padding:8px 12px;margin:6px 0 10px 0;font-size:.78rem">' +
-        '<span style="color:var(--gold);font-weight:800;letter-spacing:.06em">★ RARE EDGE — TAKE SERIOUSLY</span>' +
+        '<span style="color:var(--gold);font-weight:800;letter-spacing:.06em">★ RARE EDGE — anchor TRIO-5 with this horse</span>' +
         '<div style="color:var(--fg);margin-top:3px;font-size:.72rem;line-height:1.4">' +
-          'Pre-blend model probability ≥ +5pp above market — fires <1× per meeting on average ' +
-          '(0 in 124-race backtest holdout). The model has found a real mispricing on the ' +
-          edgeWho + '. First production EDGE hit was R9 2026-05-03 (TRIO-5 hit). ' +
-          'Recommend: WIN or PRIMARY QIN at full unit, plus TRIO-5 protection.' +
+          'Pre-blend model probability ≥ +5pp above market — fires <1× per meeting. ' +
+          'The model has found a real mispricing on the ' + edgeWho + '. ' +
+          '<strong>Historical pattern (N=4): 3 placed top-3, 0 won.</strong> ' +
+          'Use as TRIO-5/F4 anchor — do NOT bet WIN on the EDGE horse.' +
         '</div>' +
       '</div>'
     : '';
@@ -1955,12 +1960,16 @@ function _buildRaceDetailPanel(race) {{
     }}).length;
 
     // Chaos score 0-4: each signal that suggests rank-6 spoiler likely
+    // CHAOS score 0-4 — same tightened conditions as WA path. Tier and
+    // ≥11-field were always-on at ST; dropped/raised. Added top_2_share<0.40
+    // (model uncertain) which is the strongest chaos signal.
+    var top2ShareChaos = race.top_2_share || 0;
     var chaosScore = 0;
     var chaosFactors = [];
-    if (fieldSize >= 11) {{ chaosScore++; chaosFactors.push('big field ' + fieldSize); }}
+    if (fieldSize >= 13) {{ chaosScore++; chaosFactors.push('large field ' + fieldSize); }}
     if (top1Odds >= 2.5 && top1Odds <= 5.0) {{ chaosScore++; chaosFactors.push('competitive fav $' + top1Odds.toFixed(1)); }}
     if (steamCount >= 2) {{ chaosScore++; chaosFactors.push(steamCount + ' steam horses'); }}
-    if (tier === 'HIGH' || tier === 'MED') {{ chaosScore++; chaosFactors.push(tier + ' conviction'); }}
+    if (top2ShareChaos > 0 && top2ShareChaos < 0.40) {{ chaosScore++; chaosFactors.push('top-2 share ' + (top2ShareChaos*100).toFixed(0) + '% (model uncertain)'); }}
     var chaosColor = chaosScore >= 3 ? 'rgba(244,63,94,.85)' :
                      chaosScore >= 2 ? 'rgba(251,191,36,.7)' :
                      'rgba(148,163,184,.3)';
