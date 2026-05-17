@@ -7,9 +7,17 @@ them to disk shaves ~5-7s off every repeated backtest.
 
 Cache key encodes:
   - NUM_FEATURES (schema width)         — schema change → new file
-  - total race_results row count        — new data → new file
+  - data-signature hash                 — bumps on:
+      * row count change (new meetings)
+      * MAX(race_date) change (auto-learn ingests latest meeting)
+      * sum(rating_change) change (backfill_from_renavon)
+      * sum(length(sectional_times)) change (sectional backfill)
 The cache file is written to:
-  tracking_data/cache/features_v{NUM_FEATURES}_n{rows}.npz
+  tracking_data/cache/features_v{NUM_FEATURES}_{sig8}.npz
+
+(2026-05-17) Replaced the pure `n{rows}` key after audit flagged that
+re-ingestion of an existing date and rating_change/sectional backfills
+all leave row count unchanged while changing the features themselves.
 
 Opt-in via `backtest_use_feature_cache(True)`. Default OFF so live
 prediction paths (race-day) are never touched.
@@ -19,6 +27,7 @@ NOT a general-purpose cache. Only valid for backtest semantics where:
   - DB is read-only for the duration of the backtest
   - the same race_results rows produce identical features
 """
+import hashlib
 import logging
 import sqlite3
 from pathlib import Path
@@ -40,20 +49,34 @@ _CACHE_PATH: Optional[Path] = None
 _DIRTY: bool = False  # True if any new entries since last save
 
 
-def _db_row_count() -> int:
-    """Count race_results rows. Used as a coarse data-freshness key."""
+def _db_signature() -> str:
+    """Short hash of data-freshness signals — bumps when features may change.
+
+    Catches: new meetings (count + max_date), rating_change backfills
+    (sum_rating_change), and sectional backfills (sum_sectional_len).
+    Does NOT catch arbitrary in-place UPDATEs to other columns — those
+    are rare; the user can manually delete the cache file if needed.
+    """
     try:
         conn = sqlite3.connect(str(config.DB_PATH))
-        n = conn.execute("SELECT COUNT(*) FROM race_results").fetchone()[0]
+        row = conn.execute("""
+            SELECT
+                COUNT(*),
+                COALESCE(MAX(race_date), ''),
+                COALESCE(SUM(rating_change), 0),
+                COALESCE(SUM(LENGTH(sectional_times)), 0)
+            FROM race_results
+        """).fetchone()
         conn.close()
-        return int(n)
+        signal = f"{row[0]}|{row[1]}|{row[2]}|{row[3]}"
     except Exception:
-        return 0
+        signal = "0|||"
+    return hashlib.sha1(signal.encode()).hexdigest()[:8]
 
 
 def _cache_path() -> Path:
-    n_rows = _db_row_count()
-    return CACHE_DIR / f"features_v{NUM_FEATURES}_n{n_rows}.npz"
+    sig = _db_signature()
+    return CACHE_DIR / f"features_v{NUM_FEATURES}_{sig}.npz"
 
 
 def enable() -> None:
