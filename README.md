@@ -270,7 +270,9 @@ hkjc_racing_analyzer/
   scripts/                   # CLI entry points
     generate.py · scrape.py · train.py · monitor.py · backtest.py
     backfill_dividends.py · accuracy.py · serve.py · fetch_results.py
-  tests/                     # pytest suite — 314 HK tests + 8 UK tests
+    race_day.py · post_race.py             # one-command race-day wrappers
+    shadow_generate.py · shadow_evaluate.py # active rule_w=0.9 forward-validation
+  tests/                     # pytest suite — 366 tests (314 HK + 8 UK + 44 new)
   config.py                  # Centralized constants
   models/                    # Trained ML models (pickle + .sha256 sidecar)
   results/                   # HTML dashboards and prediction JSON
@@ -337,10 +339,14 @@ python3 -m scripts.backtest --sweep      # grid over softmax temp × model weigh
 
 ```bash
 pytest tests/ -v
-# 322 tests total (314 HK + 8 UK): edge math, gates, tier assignment, alerts dedup,
-# Wilson CI, template rendering, JS-syntax validation, end-to-end integration,
+# 366 tests total (322 + 44 from 2026-05-17 audit-driven additions):
+#   - 9 accuracy regressions (race-level QIN/TRIO hit detection)
+#   - 24 FR/AU/JP DB tests (8 each, mirror UK pattern)
+#   - 11 backfill script tests (backfill_dividends + backfill_from_renavon)
+# Coverage: edge math, gates, tier assignment, alerts dedup, Wilson CI,
+# template rendering, JS-syntax validation, end-to-end integration,
 # age parser contract (15 cases incl. inf/nan), HKJC results brand-strip,
-# UK DB schema + ingestion + idempotency
+# all 4 jurisdiction DB schemas + ingestion idempotency.
 ```
 
 ## Performance (last 500 races with real HKJC dividends)

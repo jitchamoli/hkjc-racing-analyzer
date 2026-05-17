@@ -13,9 +13,17 @@ class JockeyChangeAnalyzer:
     strong positive indicator; downgrades are neutral to negative.
     """
 
-    TIER_1 = {'Z Purton', 'J Moreira', 'H Bowman', 'R Moore', 'J McDonald'}
-    TIER_2 = {'K Teetan', 'A Badel', 'A Atzeni', 'B Avdulla', 'R Kingscote',
-              'L Ferraris', 'D J Whyte', 'M Newnham'}
+    # Tiers refreshed 2026-05-17 against current-season DB stats:
+    # - A Atzeni promoted TIER_2 → TIER_1 (527 rides this season at 10.8% wr,
+    #   beats current TIER_1 R Moore/J McDonald on big-sample win rate)
+    # - K Teetan removed from TIER_2 → defaults to TIER_3 (552 rides at 7.4%;
+    #   user memory `project_may06_race_learnings` documents "Teetan blind spot")
+    # - Added H Bentley, M Guyon, C L Chau to TIER_2 (all 8-9% wr on >150 rides)
+    TIER_1 = {'Z Purton', 'J Moreira', 'H Bowman', 'R Moore', 'J McDonald',
+              'A Atzeni'}
+    TIER_2 = {'A Badel', 'B Avdulla', 'R Kingscote',
+              'L Ferraris', 'D J Whyte', 'M Newnham',
+              'H Bentley', 'M Guyon', 'C L Chau'}
 
     @staticmethod
     def _jockey_tier(name: str) -> int:

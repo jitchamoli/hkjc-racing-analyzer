@@ -350,10 +350,17 @@ class BettingStrategy:
             name=jockey, role="jockey", db=db,
             stats_getter=db.get_jockey_stats if db else lambda x: None,
             table="jockey_stats", count_field="rides",
+            # Tiers refreshed 2026-05-17 against current-season DB stats:
+            # - "atzeni" promoted tier 2 → tier 1 (527 rides at 10.8% wr)
+            # - "teetan" demoted tier 2 → tier 3 (552 rides at 7.4%, per
+            #   `project_may06_race_learnings` Teetan blind spot)
+            # DB-stats path takes precedence when available; this is fallback only.
             tiers={
-                1: {"moreira", "purton", "bowman", "moore", "mcdonald"},
-                2: {"teetan", "badel", "hewitson", "shinn", "atzeni", "avdulla", "bentley"},
-                3: {"schofield", "chau", "ho", "kingscote", "ferraris", "borges", "leung"},
+                1: {"moreira", "purton", "bowman", "moore", "mcdonald", "atzeni"},
+                2: {"badel", "hewitson", "shinn", "avdulla", "bentley",
+                    "guyon", "chau"},
+                3: {"teetan", "schofield", "ho", "kingscote", "ferraris",
+                    "borges", "leung"},
             },
             tier_scores=(90.0, 78.0, 70.0),
             thresholds=[
@@ -375,10 +382,17 @@ class BettingStrategy:
             name=trainer, role="trainer", db=db,
             stats_getter=db.get_trainer_stats if db else lambda x: None,
             table="trainer_stats", count_field="runners",
+            # Tiers refreshed 2026-05-17 against current-season DB stats:
+            # - "shum" promoted tier 2 → tier 1 (445 runners at 12.1% wr,
+            #   #1 by win rate; user memory notes Shum top 2 seasons)
+            # - "fownes", "newnham", "lui" all 10-11% wr — added to tier 1
+            # - "lor" demoted tier 1 → tier 2 (7.7% wr this season, behind hayes
+            #   at 8.8%; per 2026-05-17 audit domain-expert review)
+            # DB-stats path takes precedence when available; this is fallback only.
             tiers={
-                1: {"size", "cruz", "lor"},
-                2: {"hall", "fownes", "lui", "whyte", "hayes", "richards", "newnham", "shum"},
-                3: {"ting", "yiu", "eustace", "crawford", "yip", "man", "tsui"},
+                1: {"size", "cruz", "shum", "fownes", "newnham", "lui"},
+                2: {"hall", "whyte", "hayes", "richards", "man", "yiu", "lor"},
+                3: {"ting", "eustace", "crawford", "yip", "tsui", "mo"},
             },
             tier_scores=(88.0, 75.0, 68.0),
             thresholds=[
