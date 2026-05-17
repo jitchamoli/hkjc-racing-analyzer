@@ -5,11 +5,13 @@ Runs in sequence (each step depends on the previous):
      retrain ML, recalibrate, refresh dashboard with hit/miss badges
   2. python3 -m scripts.shadow_evaluate <date>      — compare prod vs shadow
      vs actual, append to shadow_log.csv
-  3. bash scripts/auto_dump.sh                      — refresh DB snapshot,
+  3. python3 -m scripts.tier_b_evaluate <date>      — score OLD vs NEW
+     recommender for Tier B forward-validation
+  4. bash scripts/auto_dump.sh                      — refresh DB snapshot,
      commit + push if bytes changed
 
-Skips the shadow step if results/shadow_race_data_<date>.json is missing
-(useful for meetings where you forgot to run scripts.shadow_generate).
+Skips shadow step if results/shadow_race_data_<date>.json is missing.
+Skips tier B eval if tracking_data/tier_b_log.csv has no rows for date.
 
 Usage:
     python3 -m scripts.post_race '2026/05/17'
@@ -63,10 +65,14 @@ def main():
             print(f"\nWARN: shadow_evaluate failed but results were ingested. "
                   f"Continuing to dump step.", file=sys.stderr)
 
+    # Step 3: tier B eval — always safe to run (skips internally if no rows)
+    _run("3/4 tier B evaluate (OLD vs NEW recommender)",
+         [sys.executable, '-m', 'scripts.tier_b_evaluate', args.race_date])
+
     if args.skip_dump:
-        print(f"\n  [3/3 DB dump] SKIPPED — run `bash scripts/auto_dump.sh` later")
+        print(f"\n  [4/4 DB dump] SKIPPED — run `bash scripts/auto_dump.sh` later")
     else:
-        rc = _run("3/3 DB dump + commit + push",
+        rc = _run("4/4 DB dump + commit + push",
                   ['bash', 'scripts/auto_dump.sh'])
         if rc != 0:
             print(f"\nWARN: auto_dump exited non-zero. Check logs/auto_dump.log.",
@@ -74,6 +80,7 @@ def main():
 
     print(f"\n{'='*70}\n  POST-RACE COMPLETE — {args.race_date}\n{'='*70}")
     print(f"  Cumulative shadow comparison: python3 -m scripts.shadow_evaluate --report")
+    print(f"  Cumulative tier B forward:    python3 -m scripts.tier_b_evaluate --report")
     return 0
 
 

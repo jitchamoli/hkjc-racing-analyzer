@@ -3,10 +3,12 @@
 Runs in sequence:
   1. python3 generate_predictions.py <date>   — production dashboard + JSON
   2. python3 -m scripts.shadow_generate <date> — shadow predictions (rule_w=0.9)
+  3. python3 -m scripts.tier_b_shadow <date>   — log OLD-recommender decisions
+                                                 for Tier B forward-validation
 
-Both steps are required for the active shadow-logging experiment. After
-the meeting finishes, run `scripts.post_race` to ingest results, evaluate
-shadow vs production, and refresh the DB dump.
+All three feed independent experiments. After the meeting finishes, run
+`scripts.post_race` to ingest results, evaluate shadow vs production +
+tier B old vs new, and refresh the DB dump.
 
 Usage:
     python3 -m scripts.race_day '2026/05/17'
@@ -46,13 +48,20 @@ def main():
         print(f"\nABORT: production prediction failed. Skipping shadow.", file=sys.stderr)
         return rc
 
-    rc = _run("2/2 shadow predictions (rule_w=0.9)",
+    rc = _run("2/3 shadow predictions (rule_w=0.9)",
               [sys.executable, '-m', 'scripts.shadow_generate', args.race_date])
     if rc != 0:
         print(f"\nWARN: shadow failed but production succeeded. "
               f"You can bet from the production dashboard; rerun shadow later.",
               file=sys.stderr)
-        return rc
+        # Don't return — tier B shadow is independent of rule_w shadow
+
+    # Tier B shadow is a pure local replay of race_data JSON (no HKJC fetch)
+    rc_b = _run("3/3 tier B shadow (OLD recommender decisions)",
+                [sys.executable, '-m', 'scripts.tier_b_shadow', args.race_date])
+    if rc_b != 0:
+        print(f"\nWARN: tier B shadow failed but production succeeded.",
+              file=sys.stderr)
 
     print(f"\n{'='*70}\n  RACE DAY READY — {args.race_date}\n{'='*70}")
     print(f"  Dashboard: results/racing_dashboard.html")
