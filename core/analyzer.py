@@ -385,11 +385,13 @@ class BettingStrategy:
             # Tiers refreshed 2026-05-17 against current-season DB stats:
             # - "shum" promoted tier 2 → tier 1 (445 runners at 12.1% wr,
             #   #1 by win rate; user memory notes Shum top 2 seasons)
-            # - "fownes", "newnham", "lui" all 10-11% wr — added to tier 1 alongside
+            # - "fownes", "newnham", "lui" all 10-11% wr — added to tier 1
+            # - "lor" demoted tier 1 → tier 2 (7.7% wr this season, behind hayes
+            #   at 8.8%; per 2026-05-17 audit domain-expert review)
             # DB-stats path takes precedence when available; this is fallback only.
             tiers={
-                1: {"size", "cruz", "lor", "shum", "fownes", "newnham", "lui"},
-                2: {"hall", "whyte", "hayes", "richards", "man", "yiu"},
+                1: {"size", "cruz", "shum", "fownes", "newnham", "lui"},
+                2: {"hall", "whyte", "hayes", "richards", "man", "yiu", "lor"},
                 3: {"ting", "eustace", "crawford", "yip", "tsui", "mo"},
             },
             tier_scores=(88.0, 75.0, 68.0),

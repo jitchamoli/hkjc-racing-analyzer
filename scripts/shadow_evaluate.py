@@ -214,8 +214,6 @@ def report():
 
     print(f"{'metric':<25} {'production (0.6)':>20} {'shadow (0.9)':>20}")
     print('-' * 70)
-    for label, prefix in [('Bets (quinella only)', None)]:
-        pass
 
     p_bets = sum(1 for r in rows if r['prod_pnl'] != '')
     s_bets = sum(1 for r in rows if r['shadow_pnl'] != '')

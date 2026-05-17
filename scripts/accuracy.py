@@ -10,9 +10,21 @@ Usage:
 import sys
 import os
 import argparse
+import math
 import sqlite3
 
 import numpy as np
+
+
+def _wilson_ci(hits: int, n: int, z: float = 1.96):
+    """Return (lower, upper) of Wilson 95% CI as percentages. None if n=0."""
+    if n <= 0:
+        return None
+    p = hits / n
+    denom = 1.0 + z * z / n
+    center = (p + z * z / (2 * n)) / denom
+    half = z * math.sqrt((p * (1 - p) + z * z / (4 * n)) / n) / denom
+    return (max(0.0, center - half) * 100, min(1.0, center + half) * 100)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -44,30 +56,53 @@ def print_summary(summary: dict):
         print(f"  Wins:                {summary['banker_wins']}")
         print(f"  Hit Rate:            {summary['banker_hit_rate']}%")
 
-    if summary.get('by_confidence'):
-        print(f"\n  --- By Confidence Level ---")
-        print(f"  {'tier':<10} {'#1 win':>10} {'bets':>5} {'hits':>5} {'hit%':>6} {'P&L':>8} {'ROI':>9}")
-        print(f"  {'-'*10} {'-'*10} {'-'*5} {'-'*5} {'-'*6} {'-'*8} {'-'*9}")
-        # Order tiers from strongest to weakest signal
-        tier_order = {'EDGE': 0, 'VERY_HIGH': 1, 'HIGH': 2, 'MEDIUM': 3, 'MED': 3,
-                      'LOW': 4, 'UNKNOWN': 5}
-        for conf, data in sorted(summary['by_confidence'].items(),
-                                  key=lambda kv: tier_order.get(kv[0], 99)):
-            if data['total'] == 0:
-                continue
-            r1_rate = data['wins'] / data['total'] * 100
-            r1_str = f"{data['wins']}/{data['total']} ({r1_rate:.0f}%)"
-            bets = data.get('bets', 0)
-            hits = data.get('hits', 0)
-            profit = data.get('profit', 0.0)
-            stake = data.get('stake', 0.0)
-            if bets > 0 and stake > 0:
-                hit_pct = hits / bets * 100
-                roi = profit / stake * 100
-                print(f"  {conf:<10} {r1_str:>10} {bets:>5} {hits:>5} {hit_pct:>5.1f}% "
-                      f"${profit:>+6.1f} {roi:>+7.1f}%")
+    # Order tiers from strongest to weakest signal — used by both breakdowns.
+    tier_order = {'EDGE': 0, 'VERY_HIGH': 1, 'HIGH': 2, 'MEDIUM': 3, 'MED': 3,
+                  'LOW': 4, 'UNKNOWN': 5}
+    _print_tier_table(
+        summary.get('by_confidence'),
+        title="By ML Confidence (model.combined_confidence)",
+        order=tier_order,
+    )
+    _print_tier_table(
+        summary.get('by_conviction'),
+        title="By Conviction Tier (strategy edge vs market)",
+        order=tier_order,
+    )
+
+
+def _print_tier_table(by_tier: dict, title: str, order: dict):
+    """Render a tier × {rank-1 win, bet hit%, P&L, ROI} table.
+
+    Adds Wilson 95% CI on bet hit% when bets < 30 to flag noisy buckets
+    (audit 2026-05-17: 0/8 HIGH read as -100% ROI but Wilson upper was 32%).
+    """
+    if not by_tier:
+        return
+    print(f"\n  --- {title} ---")
+    print(f"  {'tier':<10} {'#1 win':>10} {'bets':>5} {'hits':>5} {'hit%':>6} {'P&L':>8} {'ROI':>9} {'95% CI':>14}")
+    print(f"  {'-'*10} {'-'*10} {'-'*5} {'-'*5} {'-'*6} {'-'*8} {'-'*9} {'-'*14}")
+    for conf, data in sorted(by_tier.items(), key=lambda kv: order.get(kv[0], 99)):
+        if data['total'] == 0:
+            continue
+        r1_rate = data['wins'] / data['total'] * 100
+        r1_str = f"{data['wins']}/{data['total']} ({r1_rate:.0f}%)"
+        bets = data.get('bets', 0)
+        hits = data.get('hits', 0)
+        profit = data.get('profit', 0.0)
+        stake = data.get('stake', 0.0)
+        if bets > 0 and stake > 0:
+            hit_pct = hits / bets * 100
+            roi = profit / stake * 100
+            if bets < 30:
+                ci = _wilson_ci(hits, bets)
+                ci_str = f"[{ci[0]:.0f}-{ci[1]:.0f}%]" if ci else ""
             else:
-                print(f"  {conf:<10} {r1_str:>10} {bets:>5} {'-':>5} {'-':>6} {'-':>8} {'-':>9}")
+                ci_str = ""
+            print(f"  {conf:<10} {r1_str:>10} {bets:>5} {hits:>5} {hit_pct:>5.1f}% "
+                  f"${profit:>+6.1f} {roi:>+7.1f}% {ci_str:>14}")
+        else:
+            print(f"  {conf:<10} {r1_str:>10} {bets:>5} {'-':>5} {'-':>6} {'-':>8} {'-':>9} {'':>14}")
 
 
 def print_class_breakdown(classes: list):
