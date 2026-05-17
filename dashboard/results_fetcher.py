@@ -390,7 +390,37 @@ class ResultsFetcher:
         json_data = json.dumps(data)
         json_data = json_data.replace('</script>', r'<\/script>').replace('</Script>', r'<\/Script>')
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        html = generate_html(json_data, now, race_date, venue)
+
+        # Mirror generator.py: load accuracy_summary + edge_stats so the
+        # post-results dashboard render does not erase the trust footer or
+        # EDGE banner stats (bug 2026-05-17 — post_race regen left both
+        # panels empty because this call passed neither).
+        accuracy_summary = None
+        try:
+            from data.database import HorseDatabase
+            _db = HorseDatabase()
+            try:
+                accuracy_summary = _db.get_accuracy_summary(days=60)
+                if accuracy_summary and 'message' in accuracy_summary:
+                    accuracy_summary = None
+            finally:
+                _db.close() if hasattr(_db, 'close') else None
+        except Exception as e:
+            logger.warning(f"accuracy_summary load failed in results_fetcher: {e}")
+
+        edge_stats = None
+        try:
+            es_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                    'tracking_data', 'edge_stats.json')
+            if os.path.exists(es_path):
+                with open(es_path) as f:
+                    edge_stats = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+        html = generate_html(json_data, now, race_date, venue,
+                              accuracy_summary=accuracy_summary,
+                              edge_stats=edge_stats)
 
         # Atomic write — same pattern the generator uses.
         # try/finally ensures tmp is unlinked on write failure (disk full,

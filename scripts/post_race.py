@@ -77,6 +77,13 @@ def main():
     _run("5/6 track_edge (banner stats)",
          [sys.executable, '-m', 'scripts.track_edge', args.race_date])
 
+    # After track_edge updates stats, re-render the dashboard so the EDGE
+    # banner reflects this meeting's fires too (otherwise the banner stays
+    # at the prior-meeting count until the next generate.py call).
+    # Cheap (~5s) — no fresh odds fetch since we already have race_data.
+    _run("5a/6 regenerate dashboard with fresh edge_stats",
+         [sys.executable, 'scripts/generate.py', args.race_date])
+
     if args.skip_dump:
         print(f"\n  [6/6 DB dump] SKIPPED — run `bash scripts/auto_dump.sh` later")
     else:
