@@ -1314,9 +1314,13 @@ class HorseDatabase:
                     winner_ranks.append(h[3])
                     break
 
-            # By-confidence is rank-1 only
+            # By-confidence: rank-1 hit rate + per-tier 1u-stake ROI (added
+            # 2026-05-17 to surface the audit finding that HIGH-tier bets have
+            # negative edge correlation in backtest)
             conf = rank1[11] or 'UNKNOWN'
-            by_confidence.setdefault(conf, {'total': 0, 'wins': 0})
+            by_confidence.setdefault(conf, {'total': 0, 'wins': 0,
+                                            'bets': 0, 'hits': 0,
+                                            'profit': 0.0, 'stake': 0.0})
             by_confidence[conf]['total'] += 1
             if rank1[8]:
                 by_confidence[conf]['wins'] += 1
@@ -1369,6 +1373,13 @@ class HorseDatabase:
                 stake = 1.0
             total_profit += pnl
             total_stake += stake
+            # Per-tier bet aggregates (using same 1u-stake terms)
+            tier = by_confidence[conf]
+            tier['bets'] += 1
+            if hit:
+                tier['hits'] += 1
+            tier['profit'] += pnl
+            tier['stake'] += stake
 
         return {
             'period_days': days,
@@ -1390,31 +1401,85 @@ class HorseDatabase:
         }
 
     def get_accuracy_by_class(self, days: int = 30) -> list:
-        """Get accuracy breakdown by class type."""
+        """Get accuracy breakdown by class type with real exotic dividend P&L.
+
+        Same race-level P&L logic as get_accuracy_summary — 1-unit-stake terms,
+        real dividends for QIN/TRIO via _real_exotic_pnl, /10 normalization for
+        stored WIN/PLACE profit_loss.
+        """
         c = self.conn.cursor()
         cutoff = (datetime.now() - __import__('datetime').timedelta(days=days)).strftime('%Y/%m/%d')
 
         rows = c.execute("""
-            SELECT class_type,
-                   COUNT(DISTINCT race_date || '-' || race_number) as races,
-                   SUM(CASE WHEN predicted_rank = 1 AND actual_won = 1 THEN 1 ELSE 0 END) as rank1_wins,
-                   SUM(CASE WHEN predicted_rank <= 3 AND actual_top3 = 1 THEN 1 ELSE 0 END) as top3_hits,
-                   SUM(CASE WHEN bet_recommendation != 'SKIP' THEN profit_loss ELSE 0 END) as profit
+            SELECT race_date, race_number, class_type, horse_name, predicted_rank,
+                   bet_recommendation, actual_position, actual_won, actual_top3,
+                   profit_loss, horse_number
             FROM prediction_log
             WHERE results_filled = 1 AND race_date >= ?
-            GROUP BY class_type
-            ORDER BY races DESC
+            ORDER BY race_date, race_number, predicted_rank
         """, (cutoff,)).fetchall()
 
-        result = []
+        # Group by race
+        races = {}
         for r in rows:
-            races = r[1] or 1
+            races.setdefault(f"{r[0]}-{r[1]}", []).append(r)
+
+        # Aggregate by class
+        by_class = {}  # class → {'races','rank1_wins','top3_hits','profit'}
+        for horses in races.values():
+            horses.sort(key=lambda x: x[4])  # by predicted_rank
+            rank1 = horses[0]
+            klass = rank1[2] or 'Unknown'
+            d = by_class.setdefault(klass, {'races': 0, 'rank1_wins': 0,
+                                            'top3_hits': 0, 'profit': 0.0})
+            d['races'] += 1
+            if rank1[7]:  # actual_won
+                d['rank1_wins'] += 1
+            d['top3_hits'] += sum(1 for h in horses[:3] if h[8])  # actual_top3
+
+            bet = rank1[5]
+            if not bet or bet == 'SKIP':
+                continue
+
+            # Race-level hit + 1u-stake P&L (mirrors get_accuracy_summary)
+            top3 = horses[:3]
+            top3_in_top2 = sum(1 for h in top3 if h[6] in (1, 2))
+            top3_in_top3 = sum(1 for h in top3 if h[8])
+            if bet in ('WIN', 'BANKER WIN', 'BANKER'):
+                hit = bool(rank1[7])
+            elif bet == 'PLACE':
+                hit = bool(rank1[8])
+            elif bet == 'QIN':
+                hit = top3_in_top2 >= 2
+            elif bet == 'TRIO':
+                hit = top3_in_top3 >= 3
+            else:
+                hit = False
+
+            if bet in ('QIN', 'TRIO'):
+                leg_count = sum(1 for h in horses if h[5] == bet)
+                actual_top2 = [h[10] for h in horses if h[6] in (1, 2)]
+                actual_top3 = [h[10] for h in horses if h[8]]
+                pnl, _ = self._real_exotic_pnl(
+                    rank1[0], rank1[1], bet, leg_count, hit,
+                    actual_top2, actual_top3,
+                )
+                if pnl is None:
+                    pnl = (rank1[9] or 0) / 10.0
+            else:
+                pnl = (rank1[9] or 0) / 10.0
+            d['profit'] += pnl
+
+        # Render sorted by race count (most frequent class first)
+        result = []
+        for klass, d in sorted(by_class.items(), key=lambda kv: -kv[1]['races']):
+            n = d['races'] or 1
             result.append({
-                'class': r[0] or 'Unknown',
-                'races': races,
-                'rank1_win_rate': round(r[2] / races * 100, 1),
-                'top3_hit_rate': round(r[3] / (races * 3) * 100, 1),
-                'profit': round(r[4] or 0, 1),
+                'class': klass,
+                'races': n,
+                'rank1_win_rate': round(d['rank1_wins'] / n * 100, 1),
+                'top3_hit_rate': round(d['top3_hits'] / (n * 3) * 100, 1),
+                'profit': round(d['profit'], 1),
             })
         return result
 

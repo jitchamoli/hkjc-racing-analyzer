@@ -46,10 +46,28 @@ def print_summary(summary: dict):
 
     if summary.get('by_confidence'):
         print(f"\n  --- By Confidence Level ---")
-        for conf, data in sorted(summary['by_confidence'].items()):
-            if data['total'] > 0:
-                rate = round(data['wins'] / data['total'] * 100, 1)
-                print(f"  {conf:20s} {data['wins']}/{data['total']} ({rate}%)")
+        print(f"  {'tier':<10} {'#1 win':>10} {'bets':>5} {'hits':>5} {'hit%':>6} {'P&L':>8} {'ROI':>9}")
+        print(f"  {'-'*10} {'-'*10} {'-'*5} {'-'*5} {'-'*6} {'-'*8} {'-'*9}")
+        # Order tiers from strongest to weakest signal
+        tier_order = {'EDGE': 0, 'VERY_HIGH': 1, 'HIGH': 2, 'MEDIUM': 3, 'MED': 3,
+                      'LOW': 4, 'UNKNOWN': 5}
+        for conf, data in sorted(summary['by_confidence'].items(),
+                                  key=lambda kv: tier_order.get(kv[0], 99)):
+            if data['total'] == 0:
+                continue
+            r1_rate = data['wins'] / data['total'] * 100
+            r1_str = f"{data['wins']}/{data['total']} ({r1_rate:.0f}%)"
+            bets = data.get('bets', 0)
+            hits = data.get('hits', 0)
+            profit = data.get('profit', 0.0)
+            stake = data.get('stake', 0.0)
+            if bets > 0 and stake > 0:
+                hit_pct = hits / bets * 100
+                roi = profit / stake * 100
+                print(f"  {conf:<10} {r1_str:>10} {bets:>5} {hits:>5} {hit_pct:>5.1f}% "
+                      f"${profit:>+6.1f} {roi:>+7.1f}%")
+            else:
+                print(f"  {conf:<10} {r1_str:>10} {bets:>5} {'-':>5} {'-':>6} {'-':>8} {'-':>9}")
 
 
 def print_class_breakdown(classes: list):
