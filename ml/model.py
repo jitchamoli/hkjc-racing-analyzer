@@ -585,7 +585,7 @@ class CombinedRacingAnalyzer:
     def __init__(self):
         import sqlite3
         from ml.features import FeatureEngineering
-        from ml.training import build_training_data_from_db, generate_synthetic_training_data
+        from ml.training import build_training_data_from_db
 
         self.ml_model = HKJCRacingMLModel()
         self.feature_eng = FeatureEngineering()
@@ -612,12 +612,20 @@ class CombinedRacingAnalyzer:
                                             place_labels=y_place)
                 logger.info(f"Model trained on REAL data: accuracy={result['accuracy']:.2%}")
             else:
-                logger.info("Insufficient real data — training ML model with synthetic data...")
-                X, y = generate_synthetic_training_data()
-                # F-04: never save a synthetic-trained pickle to disk.
-                result = self.ml_model.train(X, y, save=False)
-                logger.info(f"Model trained on synthetic data (in-memory only, not persisted): "
-                            f"accuracy={result['accuracy']:.2%}")
+                # Audit fix 2026-05-17: refuse to swap in a synthetic in-memory
+                # model on a live process. The pickle on disk is protected by
+                # F-04 (save=False), but the in-memory swap silently corrupted
+                # predictions for the rest of the process life. If a long-running
+                # dashboard server saw the DB briefly unreachable here, every
+                # subsequent prediction came from a 500-sample synthetic blob
+                # while still reporting the production model_version. Fail loud.
+                rows = len(X_real) if X_real is not None else 0
+                raise RuntimeError(
+                    f"Auto-train fallback: only {rows} real samples available "
+                    f"(min={config.MIN_REAL_SAMPLES}). Refusing to fall back to "
+                    f"synthetic training data on a live process. Either fix the "
+                    f"DB connection or restore models/win_model.pkl from backup."
+                )
 
     def predict(self, horse_data: dict, all_results, venue: str) -> MLPrediction:
         features = self.feature_eng.extract_features(horse_data, all_results, venue,

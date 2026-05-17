@@ -13,7 +13,7 @@
 
 set -u
 
-PROJECT_ROOT="/Users/jitendrachamoli/Documents/Project_Hub/hkjc_racing_analyzer"
+PROJECT_ROOT="/Users/jitendrachamoli/Code/hkjc_racing_analyzer"
 LOG_DIR="$PROJECT_ROOT/logs"
 LOG="$LOG_DIR/auto_dump.log"
 

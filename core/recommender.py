@@ -274,8 +274,12 @@ def _choose_race_bet_type(*, has_live_odds, n, top_is_banker, market_prob_top,
         return "SKIP"
     if top_is_banker and market_prob_top >= 0.45 and gap_1_2 > 0.12:
         return "WIN"
-    if gap_1_2 < 0.025 and gap_2_3 < 0.025 and top_3_share > 0.32 and n >= 3:
-        return "TRIO"
+    # TRIO branch DISABLED 2026-05-17 (audit) — fired 0/5 hits in last 90d
+    # for -100% ROI. Race shape it targets (flat fields, gap_1_2<0.025) is
+    # exactly where the model has no edge. BOX Q4 below catches 60% of those
+    # same races via QIN-pool (top-2) instead of TRIO-pool (top-3).
+    # if gap_1_2 < 0.025 and gap_2_3 < 0.025 and top_3_share > 0.32 and n >= 3:
+    #     return "TRIO"
     if rank4_strong and rank3_strong and top_4_share >= min_top4:
         return "BOX Q4"
     if rank3_strong and top_3_share >= min_top3:

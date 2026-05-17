@@ -1061,13 +1061,16 @@ class HKJCPlaywrightFetcher:
             if race and not any(h.win_odds > 0 for h in race.horses):
                 await self._fetch_and_apply_odds(page, race, race_date, race_no, intercepted)
 
-            await page.close()
             return race
 
         except Exception as e:
             logger.error(f"Playwright fetch failed: {e}")
-            await page.close()
             return None
+        finally:
+            try:
+                await page.close()
+            except Exception:
+                pass
 
     async def fetch_live_odds(self, race_date: str, race_no: int) -> Dict[int, float]:
         """Fetch just the odds for a race (quick refresh)."""
@@ -1103,13 +1106,16 @@ class HKJCPlaywrightFetcher:
                 html = await page.content()
                 odds = HKJCParser.parse_odds(html)
 
-            await page.close()
             return odds
 
         except Exception as e:
             logger.error(f"Live odds fetch failed: {e}")
-            await page.close()
             return {}
+        finally:
+            try:
+                await page.close()
+            except Exception:
+                pass
 
     async def _fetch_and_apply_odds(
         self, page, race: RaceCard, race_date: str, race_no: int,
@@ -1225,13 +1231,25 @@ class HKJCDataFetcher:
         odds = await fetcher.get_live_odds("2026/04/12", 1)
     """
 
+    # Bounded horse-history/trial caches — race-day monitor runs 6+ hours
+    # fetching horses across multiple polling windows; uncapped dicts grow
+    # without bounds and never evict on stats refresh.
+    _CACHE_MAXSIZE = 512
+
     def __init__(self, use_playwright: bool = True):
+        from collections import OrderedDict
         self.api = HKJCApiClient()
         self.use_playwright = use_playwright
         self._pw_fetcher: Optional[HKJCPlaywrightFetcher] = None
         self._pw_lock = asyncio.Lock()
-        self._horse_history_cache: Dict[str, List[Dict]] = {}
-        self._horse_trial_cache: Dict[str, List[Dict]] = {}
+        self._horse_history_cache: "OrderedDict[str, List[Dict]]" = OrderedDict()
+        self._horse_trial_cache: "OrderedDict[str, List[Dict]]" = OrderedDict()
+
+    def _cache_set(self, cache, key, value):
+        """FIFO-evicting setter for the bounded per-horse caches."""
+        cache[key] = value
+        while len(cache) > self._CACHE_MAXSIZE:
+            cache.popitem(last=False)
 
     async def _get_pw(self) -> HKJCPlaywrightFetcher:
         # Lock guards the lazy-singleton init — without it, concurrent
@@ -1386,7 +1404,11 @@ class HKJCDataFetcher:
 
         html = self.api.fetch_horse_profile_html(horse_name)
         history = HKJCParser.parse_horse_history(html) if html else []
-        self._horse_history_cache[cache_key] = history
+        # Only cache successful fetches. Empty result = rate-limit or transient
+        # failure; caching [] would blind us for the rest of the session
+        # (audit fix 2026-05-17 — race-day blocker on 6h+ monitor runs).
+        if html and history:
+            self._cache_set(self._horse_history_cache, cache_key, history)
         return history[:num_races]
 
     async def get_barrier_trials(self, horse_name: str) -> List[Dict]:
@@ -1407,7 +1429,11 @@ class HKJCDataFetcher:
             t for t in all_trials
             if horse_name.upper() in t.get("horse_name", "").upper()
         ]
-        self._horse_trial_cache[cache_key] = horse_trials
+        # Cache only when the upstream fetch succeeded. Empty horse_trials is
+        # legitimate (horse may have no trials), but if html itself was None
+        # we shouldn't poison subsequent lookups with a forced [] (audit fix).
+        if html is not None:
+            self._cache_set(self._horse_trial_cache, cache_key, horse_trials)
         return horse_trials
 
     async def snapshot_odds(self, race_date: str, race_no: int):

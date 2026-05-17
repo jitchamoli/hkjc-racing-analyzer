@@ -294,6 +294,24 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     except Exception:
         integrity_ok = False
 
+    # Persist the just-fetched odds before computing age — otherwise
+    # _compute_odds_age_minutes returns None (no snapshot in DB) and G5
+    # fails for every EDGE candidate even though the dashboard is showing
+    # the freshest possible odds. This snapshot is only used downstream by
+    # the EDGE freshness gate; nothing else reads it on the predict path.
+    # Audit fix 2026-05-17.
+    try:
+        odds_horses = [
+            {'number': h.number, 'name': h.name,
+             'win_odds': h.win_odds or 0, 'place_odds': getattr(h, 'place_odds', 0) or 0}
+            for h in race.horses if (h.win_odds or 0) > 0
+        ]
+        if odds_horses:
+            odds_db.record_snapshot(race_date, race.race_number,
+                                    odds_horses, source='generator')
+    except Exception:
+        pass  # snapshot failure must not block prediction generation
+
     # G5 odds freshness — compute once for the race, reuse per-horse
     odds_age_min = _compute_odds_age_minutes(odds_db, race_date, race.race_number)
 
@@ -433,6 +451,16 @@ async def main():
 
     fetcher = HKJCDataFetcher()
     analyzer = CombinedRaceAnalyzer()
+    # Lazy-started Playwright browser sits on fetcher._pw_fetcher. Without an
+    # explicit close() at the end the chromium subprocess lingers and stacks
+    # across shadow runs that immediately follow (audit fix 2026-05-17).
+    try:
+        await _run_generation(fetcher, analyzer, race_date)
+    finally:
+        await fetcher.close()
+
+
+async def _run_generation(fetcher, analyzer, race_date: str):
 
     results_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'results')
     os.makedirs(results_dir, exist_ok=True)
@@ -507,6 +535,15 @@ async def main():
     model_ver = analyzer.ml_analyzer.ml_model.model_version if hasattr(analyzer, 'ml_analyzer') else ''
     db.log_predictions(race_date, all_races, model_version=model_ver)
 
+    # Snapshot 60-day accuracy for the dashboard's "Recent accuracy" panel +
+    # WhatsApp tier-trust footer. Safe-fallback to None when no results yet.
+    try:
+        accuracy_summary = db.get_accuracy_summary(days=60)
+        if 'message' in accuracy_summary:
+            accuracy_summary = None
+    except Exception:
+        accuracy_summary = None
+
     db.close()
 
     logger.info(f"Saved predictions to {json_file}")
@@ -520,7 +557,8 @@ async def main():
     # Detect venue from race data
     venue = "Happy Valley" if any(r.get("venue", "").startswith("Happy") for r in all_races) else "Sha Tin"
 
-    html = generate_html(json_data, now, race_date, venue)
+    html = generate_html(json_data, now, race_date, venue,
+                          accuracy_summary=accuracy_summary)
 
     html_file = os.path.join(results_dir, f"racing_dashboard_{date_str}.html")
     latest_file = os.path.join(results_dir, "racing_dashboard.html")

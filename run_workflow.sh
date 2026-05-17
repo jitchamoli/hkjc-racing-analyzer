@@ -2,7 +2,7 @@
 # HKJC Racing - Complete Workflow Script
 # Opens HKJC, takes screenshot, runs analysis
 
-SCRIPT_DIR="$HOME/Documents/project_hub/hkjc_racing_analyzer"
+SCRIPT_DIR="$HOME/Code/hkjc_racing_analyzer"
 
 echo ""
 echo "🏇 HKJC RACING - COMPLETE WORKFLOW"

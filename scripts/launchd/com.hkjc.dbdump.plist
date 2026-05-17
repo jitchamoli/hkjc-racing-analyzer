@@ -10,7 +10,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/jitendrachamoli/Documents/Project_Hub/hkjc_racing_analyzer/scripts/auto_dump.sh</string>
+        <string>/Users/jitendrachamoli/Code/hkjc_racing_analyzer/scripts/auto_dump.sh</string>
     </array>
 
     <!-- HK race days: Wed (HV) + Sun (ST). Run twice weekly the morning AFTER
@@ -46,8 +46,8 @@
     <!-- Stderr/stdout from python/git go here in case the wrapper itself
          can't open its own log (permissions, path issues, etc.) -->
     <key>StandardOutPath</key>
-    <string>/Users/jitendrachamoli/Documents/Project_Hub/hkjc_racing_analyzer/logs/launchd.out.log</string>
+    <string>/Users/jitendrachamoli/Code/hkjc_racing_analyzer/logs/launchd.out.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/jitendrachamoli/Documents/Project_Hub/hkjc_racing_analyzer/logs/launchd.err.log</string>
+    <string>/Users/jitendrachamoli/Code/hkjc_racing_analyzer/logs/launchd.err.log</string>
 </dict>
 </plist>
