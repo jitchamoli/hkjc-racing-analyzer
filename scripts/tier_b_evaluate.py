@@ -50,6 +50,34 @@ def _lookup_actual_top(conn, date: str, race_no: int) -> tuple[list[int], list[i
     return top2, top3
 
 
+def _lookup_win_dividend(conn, date: str, race_no: int, horse_number: int) -> float | None:
+    """Return WIN dividend (per 1u stake) for the given horse, or None if missed."""
+    row = conn.execute(
+        "SELECT dividend FROM race_dividends "
+        "WHERE race_date=? AND race_number=? AND pool='WIN' AND combination=?",
+        (date, race_no, str(horse_number)),
+    ).fetchone()
+    return float(row[0]) if row else None
+
+
+def _score_edge_shadow(conn, date: str, race_no: int,
+                        horse_number: int, actual_top2: list[int]) -> tuple[float, float, bool]:
+    """1u WIN stake on the EDGE candidate.
+
+    Returns (pnl, stake, hit). Hit iff horse finished 1st (WIN pool).
+    pnl = dividend - 1 on hit, -1 on miss. Stake = 1u always.
+    """
+    stake = 1.0
+    won = bool(actual_top2) and horse_number == actual_top2[0]
+    if not won:
+        return -stake, stake, False
+    dividend = _lookup_win_dividend(conn, date, race_no, horse_number)
+    if dividend is None:
+        # Hit but dividend missing — assume break-even (1u back) as honest fallback
+        return 0.0, stake, True
+    return dividend - stake, stake, True
+
+
 def _real_pnl(conn, date, race_no, bet_type, leg_count, hit,
                winning_nums) -> tuple[float | None, float]:
     """Same dividend-lookup contract as data/database._real_exotic_pnl."""
@@ -155,6 +183,24 @@ def report(filter_date: str | None = None) -> int:
 
         if r['bet_now'] != r['bet_old']:
             diff_rows.append((date, race_no, r['bet_old'], r['bet_now']))
+
+        # EDGE shadow — score 1u WIN bet on the candidate at each G3 cutoff.
+        # Production cutoff is +5pp; +3 and +2 are observation-only until
+        # we have N≥200 disagreements per the EDGE memory.
+        for thr_label, col in (('EDGE @+5pp (prod)', 'edge_5pp_horse'),
+                               ('EDGE @+3pp (shadow)', 'edge_3pp_horse'),
+                               ('EDGE @+2pp (shadow)', 'edge_2pp_horse')):
+            cand = (r.get(col) or '').strip()
+            if not cand:
+                continue
+            pnl, stake, hit = _score_edge_shadow(conn, date, race_no,
+                                                  int(cand), actual_top2)
+            totals[thr_label]['bets'] += 1
+            totals[thr_label]['pnl'] += pnl
+            totals[thr_label]['stake'] += stake
+            if hit:
+                totals[thr_label]['hits'] += 1
+
         races_scored += 1
     conn.close()
 
@@ -164,12 +210,18 @@ def report(filter_date: str | None = None) -> int:
         print(f"\nDisagreements:")
         for date, race_no, old, new in diff_rows:
             print(f"  {date} R{race_no}: OLD={old} → NEW={new}")
-    print(f"\n{'scheme':<18} {'bets':>5} {'hits':>5} {'hit%':>6} {'stake':>7} {'P&L':>9} {'ROI':>9}")
-    print('-' * 70)
-    for scheme, d in totals.items():
+    print(f"\n{'scheme':<22} {'bets':>5} {'hits':>5} {'hit%':>6} {'stake':>7} {'P&L':>9} {'ROI':>9}")
+    print('-' * 75)
+    # Render recommender bets first, then EDGE shadow scenarios
+    order = ['NEW (Tier B)', 'OLD (pre-audit)',
+             'EDGE @+5pp (prod)', 'EDGE @+3pp (shadow)', 'EDGE @+2pp (shadow)']
+    for scheme in order:
+        if scheme not in totals:
+            continue
+        d = totals[scheme]
         hit_pct = d['hits'] / d['bets'] * 100 if d['bets'] else 0
         roi = d['pnl'] / d['stake'] * 100 if d['stake'] else 0
-        print(f"  {scheme:<16} {d['bets']:>5} {d['hits']:>5} {hit_pct:>5.1f}% "
+        print(f"  {scheme:<20} {d['bets']:>5} {d['hits']:>5} {hit_pct:>5.1f}% "
               f"{f'${d['stake']:.0f}':>7} {f'${d['pnl']:+.1f}':>9} {roi:>+7.1f}%")
 
     if 'NEW (Tier B)' in totals and 'OLD (pre-audit)' in totals:
