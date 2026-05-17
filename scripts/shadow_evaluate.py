@@ -41,13 +41,19 @@ def _cost(bet_type: str) -> float:
             'BANKER WIN': 1.0, 'TRIO': 1.0}.get(bet_type, 0.0)
 
 
+def _name(leg) -> str:
+    # Production race_data uses 'name'; shadow race_data uses 'horse_name'.
+    # Single accessor lets the evaluator consume both shapes.
+    return leg.get('name') or leg.get('horse_name') or ''
+
+
 def _legs_for_bet(bet_type: str, ranked_legs):
-    """ranked_legs already sorted by rank. Return horse_names for the bet."""
-    if bet_type == 'BOX Q4': return {l['horse_name'] for l in ranked_legs[:4]}
-    if bet_type == 'BOX Q':  return {l['horse_name'] for l in ranked_legs[:3]}
-    if bet_type == 'QIN':    return {l['horse_name'] for l in ranked_legs[:2]}
-    if bet_type == 'TRIO':   return {l['horse_name'] for l in ranked_legs[:3]}
-    if bet_type in ('WIN', 'BANKER WIN'): return {ranked_legs[0]['horse_name']}
+    """ranked_legs already sorted by rank. Return horse names for the bet."""
+    if bet_type == 'BOX Q4': return {_name(l) for l in ranked_legs[:4]}
+    if bet_type == 'BOX Q':  return {_name(l) for l in ranked_legs[:3]}
+    if bet_type == 'QIN':    return {_name(l) for l in ranked_legs[:2]}
+    if bet_type == 'TRIO':   return {_name(l) for l in ranked_legs[:3]}
+    if bet_type in ('WIN', 'BANKER WIN'): return {_name(ranked_legs[0])}
     return set()
 
 

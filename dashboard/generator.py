@@ -36,6 +36,30 @@ def _atomic_write(path: str, content: str) -> None:
     os.replace(tmp, path)
 
 
+_OVERRIDES_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'tracking_data', 'manual_overrides.json',
+)
+
+
+def _load_manual_overrides() -> dict:
+    """Tactical per-race overrides for the rank-6 TRIO-6 swap. When the auto
+    rank-6 swap picks a poor candidate (e.g., horse off 168-day layoff) but
+    racing-API form/RPR signal flags a better hedge, the user can set the
+    TRIO-6 rank-6 horse here. Schema documented at the top of the JSON file.
+    Returns {} if file missing or unreadable so a misfiled override never
+    breaks dashboard generation.
+    """
+    if not os.path.exists(_OVERRIDES_PATH):
+        return {}
+    try:
+        with open(_OVERRIDES_PATH) as f:
+            return json.load(f) or {}
+    except (json.JSONDecodeError, IOError) as e:
+        logger.warning(f"manual_overrides.json unreadable, skipping: {e}")
+        return {}
+
+
 # Result fields set by results_fetcher that should survive prediction re-runs
 _RESULT_KEYS_RACE = {'results_available', 'actual_results', 'actual_winner', 'actual_top3', 'actual_win_odds', 'accuracy'}
 _RESULT_KEYS_HORSE = {'actual_position'}
@@ -55,7 +79,10 @@ _FROZEN_PREDICTION_KEYS_RACE = {'conviction_tier', 'has_edge', 'suggested_stake'
                                  # EDGE banner identifiers — must point at the
                                  # horse whose frozen edge_fires=True
                                  'edge_horse_rank', 'edge_horse_number',
-                                 'edge_horse_name'}
+                                 'edge_horse_name',
+                                 # Tactical manual override for TRIO-6 rank-6
+                                 # slot (set via tracking_data/manual_overrides.json)
+                                 'manual_trio6_horse', 'manual_trio6_reason'}
 _FROZEN_PREDICTION_KEYS_HORSE = {'rank', 'win_odds', 'calibrated_prob',
                                   'edge_pp', 'ev_win', 'overlay', 'edge_fires',
                                   'pure_prob', 'market_prob', 'model_rank',
@@ -399,6 +426,16 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
 
     race_data['has_edge'] = has_edge_race
     race_data['odds_age_minutes'] = odds_age_min
+
+    # Manual TRIO-6 rank-6 override — tactical hedge when racing-API form/RPR
+    # signal beats the auto rank-6 swap (e.g., auto-swap picks horse with
+    # 168-day layoff). Surface as race-level fields so the template can apply
+    # the override without recomputing form data client-side.
+    _overrides = _load_manual_overrides()
+    _race_overrides = (_overrides.get(race_date) or {}).get(str(race.race_number)) or {}
+    if _race_overrides.get('trio6_horse'):
+        race_data['manual_trio6_horse'] = _race_overrides['trio6_horse']
+        race_data['manual_trio6_reason'] = _race_overrides.get('reason', '')
 
     # Identify which horse fired EDGE — alert text was misleadingly hardcoded
     # to "the top pick", but G4 allows max_model_rank=2 so rank-2 can fire EDGE
