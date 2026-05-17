@@ -28,17 +28,29 @@ def _make_db():
 
 
 def _insert_race(conn, date, race_no, picks):
-    """picks = [(rank, horse_name, bet, actual_pos, actual_won, actual_top3, profit_loss), ...]"""
+    """picks = [(rank, horse_name, bet, actual_pos, actual_won, actual_top3, profit_loss), ...]
+
+    horse_number is set = rank for deterministic dividend-combo lookups in tests.
+    """
     for rank, horse, bet, pos, won, t3, pnl in picks:
         conn.execute("""
             INSERT INTO prediction_log
-            (race_date, race_number, horse_name, predicted_rank,
+            (race_date, race_number, horse_name, horse_number, predicted_rank,
              bet_recommendation, calibrated_prob, win_odds,
              actual_position, actual_won, actual_top3, profit_loss,
              confidence, results_filled, predicted_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,datetime('now'))
-        """, (date, race_no, horse, rank, bet, 0.1, 5.0,
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,datetime('now'))
+        """, (date, race_no, horse, rank, rank, bet, 0.1, 5.0,
               pos, won, t3, pnl, 'HIGH'))
+    conn.commit()
+
+
+def _insert_dividend(conn, date, race_no, pool, combination, dividend):
+    """Seed race_dividends so _real_exotic_pnl can look up exotic payouts."""
+    conn.execute("""
+        INSERT INTO race_dividends (race_date, race_number, pool, combination, dividend)
+        VALUES (?,?,?,?,?)
+    """, (date, race_no, pool, combination, dividend))
     conn.commit()
 
 
@@ -185,6 +197,115 @@ class TestRaceLevelHitDetection:
             assert by_type['QIN']['hits'] == 1
             assert by_type['TRIO']['count'] == 1
             assert by_type['TRIO']['hits'] == 1
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_qin_hit_pnl_uses_real_dividend(self):
+        """Hit QIN should credit (dividend - stake) using real race_dividends row."""
+        db, path = _make_db()
+        try:
+            conn = sqlite3.connect(str(path))
+            # Straight QIN (2 legs only) — rank 3 is SKIP, not part of bet
+            _insert_race(conn, '2026/02/15', 1, [
+                (1, 'A', 'QIN', 1, 1, 1, -10),
+                (2, 'B', 'QIN', 2, 0, 1, -10),
+                (3, 'C', 'SKIP', 7, 0, 0, 0),
+            ])
+            # QUINELLA combination is sorted "low,high" — picks were horse_numbers 1+2
+            _insert_dividend(conn, '2026/02/15', 1, 'QUINELLA', '1,2', 47.5)
+            conn.close()
+            s = db.get_accuracy_summary(days=9999)
+            # 1 bet (straight QIN, 2 legs → cost 1u), hit pays 47.5u, net +46.5u
+            assert s['bets_won'] == 1
+            assert abs(s['total_profit'] - 46.5) < 1e-6, f"got {s['total_profit']}"
+            assert abs(s['total_stake'] - 1.0) < 1e-6
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_qin_box_q3_uses_3u_stake(self):
+        """BOX QIN with 3 legs costs 3u (3 combos) and uses real dividend."""
+        db, path = _make_db()
+        try:
+            conn = sqlite3.connect(str(path))
+            _insert_race(conn, '2026/02/16', 1, [
+                (1, 'A', 'QIN', 1, 1, 1, -10),
+                (2, 'B', 'QIN', 2, 0, 1, -10),
+                (3, 'C', 'QIN', 8, 0, 0, -10),
+            ])
+            _insert_dividend(conn, '2026/02/16', 1, 'QUINELLA', '1,2', 60.0)
+            conn.close()
+            s = db.get_accuracy_summary(days=9999)
+            # Hit: dividend 60 - stake 3 = +57u
+            assert abs(s['total_profit'] - 57.0) < 1e-6
+            assert abs(s['total_stake'] - 3.0) < 1e-6
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_qin_miss_charges_stake(self):
+        """Missed QIN charges -stake regardless of dividend table contents."""
+        db, path = _make_db()
+        try:
+            conn = sqlite3.connect(str(path))
+            _insert_race(conn, '2026/02/17', 1, [
+                (1, 'A', 'QIN', 5, 0, 0, -10),
+                (2, 'B', 'QIN', 6, 0, 0, -10),
+            ])
+            # No dividend seeded; doesn't matter for a miss
+            conn.close()
+            s = db.get_accuracy_summary(days=9999)
+            assert abs(s['total_profit'] - (-1.0)) < 1e-6
+            assert abs(s['total_stake'] - 1.0) < 1e-6
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_qin_hit_no_dividend_falls_back_to_stored_pnl(self):
+        """If dividend lookup fails, fall back to stored profit_loss (/10 normalization)."""
+        db, path = _make_db()
+        try:
+            conn = sqlite3.connect(str(path))
+            _insert_race(conn, '2026/02/18', 1, [
+                (1, 'A', 'QIN', 1, 1, 1, 50),    # stored pnl in $10 units
+                (2, 'B', 'QIN', 2, 0, 1, 50),
+            ])
+            # No dividend seeded → fallback path
+            conn.close()
+            s = db.get_accuracy_summary(days=9999)
+            # rank1 stored profit_loss = 50 → normalized 5.0u
+            assert abs(s['total_profit'] - 5.0) < 1e-6
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_trio_hit_uses_real_dividend(self):
+        db, path = _make_db()
+        try:
+            conn = sqlite3.connect(str(path))
+            _insert_race(conn, '2026/02/19', 1, [
+                (1, 'A', 'TRIO', 1, 1, 1, -10),
+                (2, 'B', 'TRIO', 2, 0, 1, -10),
+                (3, 'C', 'TRIO', 3, 0, 1, -10),
+            ])
+            _insert_dividend(conn, '2026/02/19', 1, 'TRIO', '1,2,3', 500.0)
+            conn.close()
+            s = db.get_accuracy_summary(days=9999)
+            assert s['bets_won'] == 1
+            # Straight TRIO: 1 combo, dividend 500 - stake 1 = +499
+            assert abs(s['total_profit'] - 499.0) < 1e-6
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_win_pnl_normalized_to_1u(self):
+        """WIN bets: stored $10-stake pnl divided by 10 → 1u-stake pnl."""
+        db, path = _make_db()
+        try:
+            conn = sqlite3.connect(str(path))
+            # Hit WIN @ 5.0 odds: stored profit_loss = (5*10-10) = 40 → 1u: +4
+            _insert_race(conn, '2026/02/20', 1, [
+                (1, 'A', 'WIN', 1, 1, 1, 40),
+            ])
+            conn.close()
+            s = db.get_accuracy_summary(days=9999)
+            assert abs(s['total_profit'] - 4.0) < 1e-6
+            assert abs(s['total_stake'] - 1.0) < 1e-6
         finally:
             path.unlink(missing_ok=True)
 
