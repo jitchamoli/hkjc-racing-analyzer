@@ -507,6 +507,15 @@ async def main():
     model_ver = analyzer.ml_analyzer.ml_model.model_version if hasattr(analyzer, 'ml_analyzer') else ''
     db.log_predictions(race_date, all_races, model_version=model_ver)
 
+    # Snapshot 60-day accuracy for the dashboard's "Recent accuracy" panel +
+    # WhatsApp tier-trust footer. Safe-fallback to None when no results yet.
+    try:
+        accuracy_summary = db.get_accuracy_summary(days=60)
+        if 'message' in accuracy_summary:
+            accuracy_summary = None
+    except Exception:
+        accuracy_summary = None
+
     db.close()
 
     logger.info(f"Saved predictions to {json_file}")
@@ -520,7 +529,8 @@ async def main():
     # Detect venue from race data
     venue = "Happy Valley" if any(r.get("venue", "").startswith("Happy") for r in all_races) else "Sha Tin"
 
-    html = generate_html(json_data, now, race_date, venue)
+    html = generate_html(json_data, now, race_date, venue,
+                          accuracy_summary=accuracy_summary)
 
     html_file = os.path.join(results_dir, f"racing_dashboard_{date_str}.html")
     latest_file = os.path.join(results_dir, "racing_dashboard.html")
