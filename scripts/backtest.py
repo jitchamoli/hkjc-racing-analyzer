@@ -501,6 +501,22 @@ def simulate_bets(races, conn):
         elif q_dividend is not None:
             pnl_box4 = -6.0
 
+        # ── #3 test: select box members by PLACE probability, not win-rank.
+        # Box bets pay on PLACING, so the place model may pick better members
+        # than the win-blend rank the recommender currently uses.
+        _pl_sorted = sorted(
+            preds,
+            key=lambda t: (t[3].ml_prediction.place_probability
+                           if t[3].ml_prediction else 0.0),
+            reverse=True)
+        _pl = [t[0]['horse_name'] for t in _pl_sorted]
+        pl_top2, pl_top3, pl_top4, pl_top5 = (set(_pl[:2]), set(_pl[:3]),
+                                              set(_pl[:4]), set(_pl[:5]))
+        pl_straightq_hit = pl_top2 == actual_top2
+        pl_box3_hit = actual_top2.issubset(pl_top3)
+        pl_box4_hit = actual_top2.issubset(pl_top4)
+        pl_trio5_hit = len(actual_top3) == 3 and actual_top3.issubset(pl_top5)
+
         # ── Exotic box bets: TRIO (top-3 in any order) + FIRST 4 (top-4 any
         # order). One winning combo/race, so we collect the pool dividend when
         # the actual finishers fall inside our box. Strategies measured:
@@ -563,6 +579,10 @@ def simulate_bets(races, conn):
             'trio_dividend': trio_dividend,
             'f4_dividend': f4_dividend,
             'pure_ev_top': pure_ev_top,
+            'pl_straightq_hit': pl_straightq_hit,
+            'pl_box3_hit': pl_box3_hit,
+            'pl_box4_hit': pl_box4_hit,
+            'pl_trio5_hit': pl_trio5_hit,
             'rank1_in_top2': rank1_in_top2,
             'rank1_in_top3': rank1_in_top3,
             'banker_proxy': banker_proxy,
@@ -1101,6 +1121,15 @@ def main():
                 'f4box5_return': (r['f4_dividend'] if r.get('f4box5_hit') else 0.0) if r.get('f4_dividend') is not None else 0.0,
                 'f4box6_stake': 15.0 if r.get('f4_dividend') is not None else 0.0,
                 'f4box6_return': (r['f4_dividend'] if r.get('f4box6_hit') else 0.0) if r.get('f4_dividend') is not None else 0.0,
+                # #3: PLACE-ranked box selection (vs win-ranked above).
+                'plstraightq_stake': 1.0 if with_div else 0.0,
+                'plstraightq_return': (r['q_dividend'] if r.get('pl_straightq_hit') else 0.0) if with_div else 0.0,
+                'plbox3_stake': 3.0 if with_div else 0.0,
+                'plbox3_return': (r['q_dividend'] if r.get('pl_box3_hit') else 0.0) if with_div else 0.0,
+                'plbox4_stake': 6.0 if with_div else 0.0,
+                'plbox4_return': (r['q_dividend'] if r.get('pl_box4_hit') else 0.0) if with_div else 0.0,
+                'pltrio5_stake': 10.0 if r.get('trio_dividend') is not None else 0.0,
+                'pltrio5_return': (r['trio_dividend'] if r.get('pl_trio5_hit') else 0.0) if r.get('trio_dividend') is not None else 0.0,
             })
         with open(pnl_out_path, 'w') as f:
             json.dump(pnl_rows, f, indent=2)
