@@ -43,6 +43,7 @@ python3 -m scripts.track_spoilers '2026/05/17'            # log rank>5 horses th
 python3 -m scripts.track_edge '2026/05/17'                # log EDGE fires + outcomes → edge_stats.json (feeds dashboard banner)
 python3 -m scripts.track_longshot_trio '2026/05/17'       # PAPER experiment: top-5 + steamed rank 6-8 longshot → longshot_trio_log.csv
 python3 -m scripts.track_longshot_trio --report           # cumulative hit-rate + ROI + SHIP/KILL verdict (N≥6 gate). NOT wired to dashboard/WA
+python3 -m scripts.clv_report                             # REAL closing-line value (open→close odds move on rank-1 picks) — fast sharpness signal. Coverage grows via `raceday live`
 python3 -m scripts.eval_swap_rule --rank-out 6 --odds-ratio 0.5   # backtest a TRIO-6 swap rule before shipping (pre-ship gate)
 
 # Scrape historical results into database (Playwright required)
