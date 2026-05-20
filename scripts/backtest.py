@@ -320,6 +320,23 @@ def get_real_quinella_dividend(conn, race_date, race_no, horse_num_a, horse_num_
     return float(row[0]) if row else None
 
 
+def get_real_exotic_dividend(conn, race_date, race_no, pool):
+    """Look up the single winning dividend for a pool with one combo/race
+    (TRIO, FIRST 4). Returns dollars, or None if not present.
+
+    There is exactly one winning combination per race for these pools (the
+    actual top-3 / top-4 in any order), so we don't need to match the combo —
+    the lone row IS the winner. Used for box-bet P&L (we collect this dividend
+    when the actual finishers fall inside our box).
+    """
+    row = conn.execute(
+        "SELECT dividend FROM race_dividends "
+        "WHERE race_date = ? AND race_number = ? AND pool = ?",
+        (race_date, race_no, pool)
+    ).fetchone()
+    return float(row[0]) if row else None
+
+
 # ---------------------------------------------------------------------------
 # ML-only prediction (kept for --sweep mode only)
 # ---------------------------------------------------------------------------
@@ -399,16 +416,20 @@ def simulate_bets(races, conn):
                     ref.get('age'), ref.get('season_stakes')]):
             n_fallback_races += 1
 
-        # Rank 2-4 horse rows
+        # Rank 2-6 horse rows
         rank2_h_row = preds[1][0] if len(preds) >= 2 else None
         rank3_h_row = preds[2][0] if len(preds) >= 3 else None
         rank4_h_row = preds[3][0] if len(preds) >= 4 else None
+        rank5_h_row = preds[4][0] if len(preds) >= 5 else None
+        rank6_h_row = preds[5][0] if len(preds) >= 6 else None
 
         # Actual finishers
         actual_top2 = {h['horse_name'] for h in horses
                        if h.get('finish_position') in (1, 2)}
         actual_top3 = {h['horse_name'] for h in horses
                        if h.get('finish_position') in (1, 2, 3)}
+        actual_top4 = {h['horse_name'] for h in horses
+                       if h.get('finish_position') in (1, 2, 3, 4)}
 
         won = bool(top_h_row.get('is_winner'))
         ev = top_odds * top_prob - 1
@@ -431,6 +452,12 @@ def simulate_bets(races, conn):
         our_top4_names = set(our_top3_names)
         if rank4_h_row:
             our_top4_names.add(rank4_h_row['horse_name'])
+        our_top5_names = set(our_top4_names)
+        if rank5_h_row:
+            our_top5_names.add(rank5_h_row['horse_name'])
+        our_top6_names = set(our_top5_names)
+        if rank6_h_row:
+            our_top6_names.add(rank6_h_row['horse_name'])
 
         quinella_hit = our_top2_names == actual_top2
         trifecta_hit = our_top3_names == actual_top3
@@ -474,6 +501,17 @@ def simulate_bets(races, conn):
         elif q_dividend is not None:
             pnl_box4 = -6.0
 
+        # ── Exotic box bets: TRIO (top-3 in any order) + FIRST 4 (top-4 any
+        # order). One winning combo/race, so we collect the pool dividend when
+        # the actual finishers fall inside our box. Strategies measured:
+        #   TRIO-5 (10 combos), TRIO-6 (20), F4 BOX-5 (5), F4 BOX-6 (15).
+        trio5_hit = len(actual_top3) == 3 and actual_top3.issubset(our_top5_names)
+        trio6_hit = len(actual_top3) == 3 and actual_top3.issubset(our_top6_names)
+        f4box5_hit = len(actual_top4) == 4 and actual_top4.issubset(our_top5_names)
+        f4box6_hit = len(actual_top4) == 4 and actual_top4.issubset(our_top6_names)
+        trio_dividend = get_real_exotic_dividend(conn, date, race_no, 'TRIO')
+        f4_dividend = get_real_exotic_dividend(conn, date, race_no, 'FIRST 4')
+
         # Recommender-gated quinella P&L (F-03: what the dashboard actually bets)
         # Determine what the recommender chose for this race
         rec_bet_type = _infer_race_bet_type(preds)
@@ -506,6 +544,12 @@ def simulate_bets(races, conn):
             'trifecta_hit': trifecta_hit,
             'box3_q_hit': box3_q_hit,
             'box4_q_hit': box4_q_hit,
+            'trio5_hit': trio5_hit,
+            'trio6_hit': trio6_hit,
+            'f4box5_hit': f4box5_hit,
+            'f4box6_hit': f4box6_hit,
+            'trio_dividend': trio_dividend,
+            'f4_dividend': f4_dividend,
             'rank1_in_top2': rank1_in_top2,
             'rank1_in_top3': rank1_in_top3,
             'banker_proxy': banker_proxy,
@@ -1023,6 +1067,15 @@ def main():
                 'box4_return': (r['q_dividend'] if r.get('box4_q_hit') else 0.0) if with_div else 0.0,
                 'gated_stake': g_stake,
                 'gated_return': g_return,
+                # Exotic box bets — stake = #combos, return = pool dividend on hit.
+                'trio5_stake': 10.0 if r.get('trio_dividend') is not None else 0.0,
+                'trio5_return': (r['trio_dividend'] if r.get('trio5_hit') else 0.0) if r.get('trio_dividend') is not None else 0.0,
+                'trio6_stake': 20.0 if r.get('trio_dividend') is not None else 0.0,
+                'trio6_return': (r['trio_dividend'] if r.get('trio6_hit') else 0.0) if r.get('trio_dividend') is not None else 0.0,
+                'f4box5_stake': 5.0 if r.get('f4_dividend') is not None else 0.0,
+                'f4box5_return': (r['f4_dividend'] if r.get('f4box5_hit') else 0.0) if r.get('f4_dividend') is not None else 0.0,
+                'f4box6_stake': 15.0 if r.get('f4_dividend') is not None else 0.0,
+                'f4box6_return': (r['f4_dividend'] if r.get('f4box6_hit') else 0.0) if r.get('f4_dividend') is not None else 0.0,
             })
         with open(pnl_out_path, 'w') as f:
             json.dump(pnl_rows, f, indent=2)
