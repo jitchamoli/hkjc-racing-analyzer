@@ -769,6 +769,19 @@ function renderBetCard(race) {{
   // + F4 BOX-5) by combo-count, so the user sees how the $X splits.
   var ss = race.suggested_stake || {{}};
   var stakeHtml = '';
+  // Longshot paper bet — rendered in the ticket area on EVERY qualifying race
+  // (steamed rank 6-8 present), including SKIP races that have no stake table.
+  // Purple/dashed, explicitly NOT STAKED, never affects the real budget total.
+  var _lp = _longshotPick(race);
+  var paperBlock = _lp
+    ? '<div class="trust-block" style="margin-top:6px;border:1px dashed #5b21b6;border-radius:6px;padding:6px 10px;background:rgba(91,33,182,.10)">' +
+        '<span style="background:#5b21b6;color:#ede9fe;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">🧪 LONGSHOT-TRIO · PAPER · NOT STAKED</span>' +
+        (_lp.tag ? ' <span style="color:' + _lp.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _lp.tag + '</span>' : '') +
+        '<div style="color:var(--dim);font-size:.66rem;margin-top:3px">20-combo box · top-5 + ' +
+          '<span style="color:#c4b5fd;font-weight:700">#' + esc(_lp.best.number) + ' ' + esc(_lp.best.name) +
+          ' (rank ' + esc(_lp.best.rank) + ', @' + esc(_lp.best.win_odds) + ', -' + _lp.pct + '%)</span></div>' +
+      '</div>'
+    : '';
   if (ss.amount && ss.amount > 0) {{
     var br = race.bankroll || 0;
     // Enumerate firing MAIN bets and their combo counts
@@ -863,8 +876,10 @@ function renderBetCard(race) {{
           '<br><span style="color:var(--dim);font-size:.65rem">' + (ss.pct||0).toFixed(2) + '% of $' + br + ' · ' + esc(ss.method||'') + '</span>' +
           breakdownHtml +
         '</div>' +
-      '</div>';
+      '</div>' + paperBlock;
   }}
+  // SKIP / no-stake races still surface the paper experiment if one qualifies.
+  if (!stakeHtml) stakeHtml = paperBlock;
 
   // Bet type sub-label
   var betRec = topH.bet_recommendation || 'QIN';
@@ -1226,6 +1241,31 @@ function renderBetCard(race) {{
     addOns.forEach(function(a) {{ waLines.push('• ' + a); }});
   }}
 
+  // PAPER EXPERIMENT (2026-05-20): longshot-inclusive TRIO. Top-5 + most-steamed
+  // rank 6-8 horse. NOT a recommended bet — flagged explicitly so it never reads
+  // as a real add. Mirrors _select() in scripts/track_longshot_trio.py. Lives
+  // outside the *Optional adds* block on purpose, below it, with its own header.
+  if (race.horses && race.horses.length >= 8) {{
+    var _ltSorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
+    var _ltBest = null, _ltPct = -1;
+    for (var _li = 5; _li < 8; _li++) {{
+      var _lsm = _ltSorted[_li].steam_move || {{}};
+      if (!_lsm.is_steam) continue;
+      var _lm = (_lsm.label || '').match(/-(\\d+)%/);
+      var _lp = _lm ? parseInt(_lm[1], 10) : 0;
+      if (_lp > _ltPct) {{ _ltPct = _lp; _ltBest = _ltSorted[_li]; }}
+    }}
+    if (_ltBest) {{
+      var _ltNums = _ltSorted.slice(0, 5).map(function(h) {{ return '#' + h.number; }}).join(' ');
+      waLines.push('');
+      waLines.push('🧪 *PAPER EXPERIMENT — NOT A BET*');
+      waLines.push('Longshot-TRIO: ' + _ltNums + ' + #' + _ltBest.number + ' ' +
+                   (_ltBest.name || '') + ' (rank ' + _ltBest.rank + ', @$' +
+                   (_ltBest.win_odds || '?') + ', -' + _ltPct + '%)');
+      waLines.push('_Tracking only — do not stake until 6-meeting verdict._');
+    }}
+  }}
+
   // Why-strong block, italicised
   if (whyItems.length) {{
     waLines.push('');
@@ -1431,6 +1471,39 @@ function setStripView(view) {{
   if (topBetsView) topBetsView.style.display = 'none';
 
   renderHero();
+}}
+
+// ── PAPER EXPERIMENT (2026-05-20): longshot-inclusive TRIO ──────────────
+// Selection = model top-5 + most-steamed rank 6-8 horse. Rendered as a PAPER
+// row inside the bet-ticket stake breakdown — clearly labelled, never staked,
+// excluded from the budget total. Tracking only until the N>=6 ship gate.
+// Mirrors _select() in scripts/track_longshot_trio.py so dashboard == log.
+// Returns an object (best, pct, box6nums, tag, tagColor) or null when there is
+// no qualifying horse.
+function _longshotPick(race) {{
+  if (!race.horses || race.horses.length < 8) return null;
+  var sorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
+  var top5 = sorted.slice(0, 5);
+  var best = null, bestPct = -1;
+  for (var i = 5; i < 8; i++) {{
+    var sm = sorted[i].steam_move || {{}};
+    if (!sm.is_steam) continue;
+    var m = (sm.label || '').match(/-(\\d+)%/);
+    var pct = m ? parseInt(m[1], 10) : 0;
+    if (pct > bestPct) {{ bestPct = pct; best = sorted[i]; }}
+  }}
+  if (!best) return null;  // no qualifying steamed rank 6-8 horse → no paper bet
+  var top5nums = top5.map(function(h) {{ return h.number; }});
+  var box6nums = top5nums.concat([best.number]);
+  var tag = '', tagColor = '#94a3b8';
+  if (race.results_available && Array.isArray(race.actual_top3) && race.actual_top3.length) {{
+    var boxHit = race.actual_top3.every(function(n) {{ return box6nums.indexOf(n) !== -1; }});
+    var t5Hit = race.actual_top3.every(function(n) {{ return top5nums.indexOf(n) !== -1; }});
+    if (boxHit && !t5Hit) {{ tag = 'RESCUED ✓'; tagColor = '#22c55e'; }}
+    else if (boxHit) {{ tag = 'hit'; tagColor = '#94a3b8'; }}
+    else {{ tag = 'missed'; tagColor = '#ef4444'; }}
+  }}
+  return {{ best: best, pct: bestPct, box6nums: box6nums, tag: tag, tagColor: tagColor }};
 }}
 
 function renderTopBetsView() {{
