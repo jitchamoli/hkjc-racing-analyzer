@@ -525,6 +525,18 @@ def simulate_bets(races, conn):
         banker_proxy = (top_odds <= 3.5 and top_prob >= 0.25 and ev > 0)
         same_pick = (mkt_h_row['horse_name'] == top_h_row['horse_name'])
 
+        # Pre-blend overlay for the EV-gate test (#5). pure_prob is the
+        # PRE-market-blend prob (docs spec: edge uses pure_prob, not calibrated)
+        # built from rule_score + RAW ml_prob — same as dashboard/generator.
+        from betting.edge_calculator import compute_pure_probs
+        _edge_horses = [{
+            'rule_score': a.rule_score,
+            'ml_prob': (a.ml_prediction.raw_win_probability if a.ml_prediction else 0.0),
+            'win_odds': (h.get('win_odds') or 0.0),
+        } for (h, _, _, a) in preds]
+        _pure = compute_pure_probs(_edge_horses, field_size=len(_edge_horses))
+        pure_ev_top = (_pure[0] * top_odds - 1.0) if _pure and top_odds > 0 else None
+
         records.append({
             'race_key': f"{date}-R{race_no}",
             'horse': top_h_row['horse_name'],
@@ -550,6 +562,7 @@ def simulate_bets(races, conn):
             'f4box6_hit': f4box6_hit,
             'trio_dividend': trio_dividend,
             'f4_dividend': f4_dividend,
+            'pure_ev_top': pure_ev_top,
             'rank1_in_top2': rank1_in_top2,
             'rank1_in_top3': rank1_in_top3,
             'banker_proxy': banker_proxy,
@@ -1078,6 +1091,7 @@ def main():
                 'box4_return': (r['q_dividend'] if r.get('box4_q_hit') else 0.0) if with_div else 0.0,
                 'gated_stake': g_stake,
                 'gated_return': g_return,
+                'pure_ev_top': r.get('pure_ev_top'),
                 # Exotic box bets — stake = #combos, return = pool dividend on hit.
                 'trio5_stake': 10.0 if r.get('trio_dividend') is not None else 0.0,
                 'trio5_return': (r['trio_dividend'] if r.get('trio5_hit') else 0.0) if r.get('trio_dividend') is not None else 0.0,
