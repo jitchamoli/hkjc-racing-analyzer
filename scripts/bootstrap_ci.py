@@ -29,6 +29,10 @@ STRATEGIES = [
     ("box3",     "Box-3 quinella"),
     ("box4",     "Box-4 quinella"),
     ("gated",    "Recommender-gated"),
+    ("trio5",    "TRIO box-5 (10c)"),
+    ("trio6",    "TRIO box-6 (20c)"),
+    ("f4box5",   "First4 box-5 (5c)"),
+    ("f4box6",   "First4 box-6 (15c)"),
 ]
 
 DEFAULT_N_BOOT = 5000
