@@ -15,8 +15,14 @@ For deep history, version-by-version changelogs, full feature lists, and audit d
 python3 generate_predictions.py '2026/04/15'
 # Output: results/race_data_YYYYMMDD.json + results/racing_dashboard.html (always-latest) + results/racing_dashboard_YYYYMMDD.html (archive)
 
-# One-command race-day wrappers (recommended workflow)
-python3 -m scripts.race_day '2026/05/17'     # generate_predictions + shadow_generate
+# Race-day phase controller (PREFERRED — encodes the full rhythm so shadow
+# logging is never skipped by jumping straight to a live refresh):
+python3 -m scripts.raceday start  '2026/05/17'   # ONCE, AM: race_day (generate + shadow_generate + tier_b_shadow)
+python3 -m scripts.raceday live   '2026/05/17'   # REPEAT before/after each race: generate_predictions → results_fetcher
+python3 -m scripts.raceday finish '2026/05/17'   # ONCE, PM: post_race (forwards --skip-dump etc.)
+
+# Underlying one-command wrappers (raceday dispatches to these)
+python3 -m scripts.race_day '2026/05/17'     # generate_predictions + shadow_generate + tier_b_shadow
 python3 -m scripts.post_race '2026/05/17'    # 7+1 steps: results_fetcher --auto-learn →
                                              #   shadow_evaluate → tier_b_evaluate →
                                              #   track_spoilers → track_longshot_trio →
