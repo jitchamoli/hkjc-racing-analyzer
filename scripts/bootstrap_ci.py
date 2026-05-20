@@ -33,6 +33,11 @@ STRATEGIES = [
     ("trio6",    "TRIO box-6 (20c)"),
     ("f4box5",   "First4 box-5 (5c)"),
     ("f4box6",   "First4 box-6 (15c)"),
+    # #3: place-ranked box selection (compare to win-ranked straightq/box3/box4/trio5)
+    ("plstraightq", "PLACE straight-Q"),
+    ("plbox3",      "PLACE box-3"),
+    ("plbox4",      "PLACE box-4"),
+    ("pltrio5",     "PLACE TRIO-5"),
 ]
 
 DEFAULT_N_BOOT = 5000
