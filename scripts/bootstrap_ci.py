@@ -28,6 +28,7 @@ STRATEGIES = [
     ("straightq", "Straight quinella"),
     ("box3",     "Box-3 quinella"),
     ("box4",     "Box-4 quinella"),
+    ("gated",    "Recommender-gated"),
 ]
 
 DEFAULT_N_BOOT = 5000

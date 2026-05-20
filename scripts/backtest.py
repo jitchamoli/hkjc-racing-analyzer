@@ -1003,8 +1003,16 @@ def main():
         pnl_out_path = Path(args.pnl_json)
         pnl_out_path.parent.mkdir(parents=True, exist_ok=True)
         pnl_rows = []
+        # Recommender-gated stake/return re-derived from the per-race bet type +
+        # hit flags so the PRODUCTION strategy also gets a bootstrap CI.
+        _gated_cost = {'BOX Q4': 6.0, 'BOX Q': 3.0, 'QIN': 1.0}
+        _gated_hit_field = {'BOX Q4': 'box4_q_hit', 'BOX Q': 'box3_q_hit', 'QIN': 'quinella_hit'}
         for r in records:
             with_div = r.get('q_dividend') is not None
+            rec = r.get('rec_bet_type')
+            g_stake = _gated_cost.get(rec, 0.0) if (with_div and rec not in (None, 'SKIP')) else 0.0
+            g_hit = bool(r.get(_gated_hit_field.get(rec, ''), False))
+            g_return = (r['q_dividend'] if g_hit else 0.0) if g_stake > 0 else 0.0
             pnl_rows.append({
                 'race_key': r['race_key'],
                 'straightq_stake': 1.0 if with_div else 0.0,
@@ -1013,6 +1021,8 @@ def main():
                 'box3_return': (r['q_dividend'] if r.get('box3_q_hit') else 0.0) if with_div else 0.0,
                 'box4_stake': 6.0 if with_div else 0.0,
                 'box4_return': (r['q_dividend'] if r.get('box4_q_hit') else 0.0) if with_div else 0.0,
+                'gated_stake': g_stake,
+                'gated_return': g_return,
             })
         with open(pnl_out_path, 'w') as f:
             json.dump(pnl_rows, f, indent=2)
