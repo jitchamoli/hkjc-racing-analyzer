@@ -17,10 +17,11 @@ python3 generate_predictions.py '2026/04/15'
 
 # One-command race-day wrappers (recommended workflow)
 python3 -m scripts.race_day '2026/05/17'     # generate_predictions + shadow_generate
-python3 -m scripts.post_race '2026/05/17'    # 6+1 steps: results_fetcher --auto-learn →
+python3 -m scripts.post_race '2026/05/17'    # 7+1 steps: results_fetcher --auto-learn →
                                              #   shadow_evaluate → tier_b_evaluate →
-                                             #   track_spoilers → track_edge →
-                                             #   regen dashboard (fresh edge_stats) → auto_dump
+                                             #   track_spoilers → track_longshot_trio →
+                                             #   track_edge → regen dashboard
+                                             #   (fresh edge_stats) → auto_dump
 python3 -m scripts.post_race '2026/05/17' --skip-dump   # leave DB dump/push for later
 
 # Shadow logging — active forward-validation experiment for rule_w=0.9 (see
@@ -34,6 +35,8 @@ python3 -m scripts.tier_b_evaluate '2026/05/17'           # OLD vs NEW recommend
 python3 -m scripts.tier_b_evaluate --report               # cumulative tier B comparison
 python3 -m scripts.track_spoilers '2026/05/17'            # log rank>5 horses that placed top-3 → spoilers.csv
 python3 -m scripts.track_edge '2026/05/17'                # log EDGE fires + outcomes → edge_stats.json (feeds dashboard banner)
+python3 -m scripts.track_longshot_trio '2026/05/17'       # PAPER experiment: top-5 + steamed rank 6-8 longshot → longshot_trio_log.csv
+python3 -m scripts.track_longshot_trio --report           # cumulative hit-rate + ROI + SHIP/KILL verdict (N≥6 gate). NOT wired to dashboard/WA
 python3 -m scripts.eval_swap_rule --rank-out 6 --odds-ratio 0.5   # backtest a TRIO-6 swap rule before shipping (pre-ship gate)
 
 # Scrape historical results into database (Playwright required)
@@ -114,7 +117,8 @@ scripts/    — CLI entry points
               HK:  generate, scrape, train, monitor, backtest, accuracy,
                    race_day, post_race, shadow_generate/evaluate,
                    tier_b_evaluate, track_spoilers, track_edge,
-                   eval_swap_rule, dump_db/restore_db, ...
+                   track_longshot_trio, eval_swap_rule,
+                   dump_db/restore_db, ...
               UK:  ingest_uk, train_uk, backtest_uk, validate_uk
               FR:  ingest_fr, train_fr, backtest_fr, validate_fr
               AU:  ingest_au       (reference data only — no model)
