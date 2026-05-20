@@ -7,11 +7,11 @@
     "ci_high": 0.6576
   },
   "HIGH": {
-    "hit": 11,
-    "total": 44,
-    "rate": 0.25,
-    "ci_low": 0.1457,
-    "ci_high": 0.3944
+    "hit": 13,
+    "total": 46,
+    "rate": 0.2826,
+    "ci_low": 0.1732,
+    "ci_high": 0.4255
   },
   "LOW": {
     "hit": 0,
@@ -21,10 +21,10 @@
     "ci_high": 0.7935
   },
   "MED": {
-    "hit": 0,
-    "total": 4,
-    "rate": 0.0,
-    "ci_low": 0.0,
-    "ci_high": 0.4899
+    "hit": 2,
+    "total": 10,
+    "rate": 0.2,
+    "ci_low": 0.0567,
+    "ci_high": 0.5098
   }
 }

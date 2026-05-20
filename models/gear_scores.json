@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "baseline_win_rate": 0.082829,
-    "n_total_rows": 55403,
+    "baseline_win_rate": 0.082817,
+    "n_total_rows": 55411,
     "prior_strength": 200,
     "lift_to_score": 2.0
   },
@@ -14,8 +14,8 @@
   },
   "TT": {
     "score": 50,
-    "n": 25157,
-    "win_rate": 0.083,
+    "n": 25161,
+    "win_rate": 0.0829,
     "lift_pp": 0.01,
     "effective_lift_pp": 0.01
   },
@@ -28,8 +28,8 @@
   },
   "H": {
     "score": 51,
-    "n": 5585,
-    "win_rate": 0.0901,
+    "n": 5587,
+    "win_rate": 0.09,
     "lift_pp": 0.72,
     "effective_lift_pp": 0.7
   },
@@ -42,8 +42,8 @@
   },
   "CP": {
     "score": 49,
-    "n": 4706,
-    "win_rate": 0.0759,
+    "n": 4708,
+    "win_rate": 0.0758,
     "lift_pp": -0.7,
     "effective_lift_pp": -0.67
   },
