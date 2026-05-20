@@ -141,6 +141,12 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
         market_prob_top=market_prob_top, gap_1_2=gap_1_2, gap_2_3=gap_2_3,
         top_2_share=top_2_share, top_3_share=top_3_share, top_4_share=top_4_share,
         rank3_strong=rank3_strong, rank4_strong=rank4_strong,
+        # Read thresholds from module globals at CALL time (not def time) so
+        # backtest/sweep tooling can override them. Behaviour-identical to the
+        # def-time defaults in production (same constants).
+        min_top2=MIN_TOP2_CONVICTION,
+        min_top3=MIN_TOP3_CONVICTION,
+        min_top4=MIN_TOP4_CONVICTION,
     )
 
     # Assign per-horse recommendations

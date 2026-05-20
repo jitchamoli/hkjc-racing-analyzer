@@ -974,7 +974,18 @@ def main():
                         help='Path to write per-race P&L JSON (for bootstrap CI)')
     parser.add_argument('--no-cache', action='store_true',
                         help='Disable on-disk feature cache (forces fresh extraction)')
+    parser.add_argument('--qin-gate', type=float, default=None,
+                        help='Override the QIN bet-fire floor (MIN_TOP2_CONVICTION). '
+                             'A/B the selectivity fix without touching production default (0.30).')
     args = parser.parse_args()
+
+    # A/B the QIN selectivity gate (Tier-1 fix #1). Overrides the module global
+    # read at call time by assign_bet_recommendations — production default unchanged.
+    if args.qin_gate is not None:
+        import core.recommender as _rec
+        _rec.MIN_TOP2_CONVICTION = args.qin_gate
+        print(f"[A/B] QIN gate overridden: MIN_TOP2_CONVICTION = {args.qin_gate} "
+              f"(production default 0.30)")
 
     conn = sqlite3.connect(str(config.DB_PATH))
     conn.row_factory = sqlite3.Row
