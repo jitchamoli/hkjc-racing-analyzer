@@ -23,6 +23,25 @@ import config
 logger = logging.getLogger(__name__)
 
 
+def parse_age_int(age_raw):
+    """Parse a raw age (any of 5, '5', '5.0') to int years, or None.
+
+    Single source of truth for age int-parsing — handles the DB/Renavon
+    '5.0' vs race-card '5' format split that silently broke `.isdigit()`
+    callers (which return False on '5.0'). Returns None for missing or
+    out-of-range (2..15) ages.
+    """
+    age_raw = age_raw or 0
+    try:
+        age_int = int(float(str(age_raw).strip())) if age_raw else 0
+    except (ValueError, TypeError, OverflowError):
+        # OverflowError catches float('inf') / float('-inf'). Unlikely in
+        # normal data flow (DB stores age as TEXT) but the prior except
+        # tuple let inf propagate and crash the pipeline.
+        return None
+    return age_int if 2 <= age_int <= 15 else None
+
+
 def parse_age_score(age_raw) -> float:
     """Convert raw age (any of 5, '5', '5.0') into the v6.5 age feature.
 
@@ -35,15 +54,8 @@ def parse_age_score(age_raw) -> float:
     while inference parsed '5' correctly — train/predict mismatch
     masquerading as a dead feature.
     """
-    age_raw = age_raw or 0
-    try:
-        age_int = int(float(str(age_raw).strip())) if age_raw else 0
-    except (ValueError, TypeError, OverflowError):
-        # OverflowError catches float('inf') / float('-inf'). Unlikely in
-        # normal data flow (DB stores age as TEXT) but the prior except
-        # tuple let inf propagate and crash the pipeline.
-        age_int = 0
-    if age_int and 2 <= age_int <= 15:
+    age_int = parse_age_int(age_raw)
+    if age_int is not None:
         return max(0.0, min(1.0, (9 - age_int) / 6.0))
     return 0.5
 

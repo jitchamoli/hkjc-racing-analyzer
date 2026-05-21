@@ -175,3 +175,27 @@ class TestFeatureEngineering:
         assert abs(features[idx] - expected_score) < 1e-6, (
             f"age={age_raw!r} → {features[idx]}, expected {expected_score}"
         )
+
+    @pytest.mark.parametrize("age_raw,expected_int", [
+        ('5.0', 5),   # DB float-string — must NOT be dropped (the bug: '5.0'.isdigit() is False)
+        ('5',   5),   # race-card int-string
+        (5,     5),
+        ('3.0', 3),
+        ('-',   None),
+        ('',    None),
+        (None,  None),
+        ('1',   None),  # out of 2..15 range
+        ('16',  None),
+        (float('inf'), None),
+    ])
+    def test_parse_age_int_handles_db_and_card_formats(self, age_raw, expected_int):
+        """parse_age_int backs the rule-engine age-vs-field factor.
+
+        Regression: core/analyzer.py gated the age factor on
+        `horse.age.isdigit()`, which is False for the DB/Renavon '5.0'
+        format, so the factor was silently dropped for every DB-built
+        race (backtest, history). The rule engine now uses parse_age_int
+        so backtest matches live ('5').
+        """
+        from ml.features import parse_age_int
+        assert parse_age_int(age_raw) == expected_int

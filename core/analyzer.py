@@ -27,6 +27,7 @@ from core.predictor import (
 )
 from core.scorer import compute_weighted_score, BettingWeights
 from core.recommender import assign_bet_recommendations
+from ml.features import parse_age_int
 
 from betting.optimizer import BettingOptimizer, BettingReportGenerator
 
@@ -988,9 +989,10 @@ class CombinedRaceAnalyzer:
         # --- NEW: Age vs Field (pbovard63 approach) ---
         age_score = 0.0
         age_reason = ""
-        if horse.age and horse.age.isdigit():
-            horse_age = int(horse.age)
-            field_ages = [int(h.age) for h in (all_horses or []) if h.age and h.age.isdigit()]
+        horse_age = parse_age_int(horse.age)  # handles '5' and DB '5.0'
+        if horse_age is not None:
+            field_ages = [a for a in (parse_age_int(h.age) for h in (all_horses or []))
+                          if a is not None]
             if field_ages:
                 avg_age = sum(field_ages) / len(field_ages)
                 # In HK, 3-4yo = improving, 5-6 = peak, 7+ = declining
