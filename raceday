@@ -1,38 +1,49 @@
 #!/usr/bin/env bash
 # Friendly race-day command. Wraps `python3 -m scripts.raceday`.
 #
-#   raceday start            # AM, once   (date defaults to today)
-#   raceday live             # repeat before/after each race
-#   raceday finish           # PM, once
+#   raceday                  # interactive looping menu (pick date once, run phases)
+#   raceday start            # one-shot: AM setup     (date defaults to today)
+#   raceday live             # one-shot: fresh odds + results
+#   raceday finish           # one-shot: ingest + dump
 #   raceday live 2026/05/24  # explicit date (accepts / or - separators)
 #   raceday finish --skip-dump
-#   raceday                  # no phase → interactive menu
 #
 # Run any phase, in any order. Extra flags (e.g. --skip-dump) pass through.
 set -euo pipefail
 cd "$(dirname "$0")"   # repo root, so `python3 -m scripts.raceday` resolves
 
-phase="${1:-}"; [ $# -gt 0 ] && shift || true
-
-if [ -z "$phase" ]; then
-  echo "Race day — pick a phase:"
-  echo "  1) start    predictions + shadow + tier-B   (AM, once)"
-  echo "  2) live      fresh odds + results            (repeat each race)"
-  echo "  3) finish    ingest + auto-learn + dump      (PM, once)"
-  printf "Enter 1/2/3 (or name): "
-  read -r choice
-  case "$choice" in
-    1|start)  phase=start ;;
-    2|live)   phase=live ;;
-    3|finish) phase=finish ;;
-    *) echo "Unknown choice: $choice" >&2; exit 1 ;;
-  esac
+# ---- One-shot mode: an explicit phase was passed → run once and exit. ----
+if [ $# -gt 0 ]; then
+  phase="$1"; shift
+  date="$(date +%Y/%m/%d)"
+  if [ "${1:-}" ] && printf '%s' "$1" | grep -Eq '^[0-9]{4}[/-][0-9]{2}[/-][0-9]{2}$'; then
+    date="${1//-//}"; shift
+  fi
+  exec python3 -m scripts.raceday "$phase" "$date" "$@"
 fi
 
-# Optional date as the next arg (YYYY/MM/DD or YYYY-MM-DD); else today.
+# ---- Interactive looping menu: pick the date once, run phases repeatedly. ----
 date="$(date +%Y/%m/%d)"
-if [ "${1:-}" ] && printf '%s' "$1" | grep -Eq '^[0-9]{4}[/-][0-9]{2}[/-][0-9]{2}$'; then
-  date="${1//-//}"; shift
-fi
+printf "Meeting date [%s]: " "$date"
+read -r d || { echo; exit 0; }
+[ -n "$d" ] && date="${d//-//}"
 
-exec python3 -m scripts.raceday "$phase" "$date" "$@"
+while true; do
+  echo
+  echo "Race day — $date"
+  echo "  1) start    predictions + shadow + tier-B   (AM, once)"
+  echo "  2) live     fresh odds + results            (repeat each race)"
+  echo "  3) finish   ingest + auto-learn + dump       (PM, once)"
+  echo "  d) change date     q) quit"
+  printf "Choose: "
+  read -r choice || { echo; exit 0; }
+  case "$choice" in
+    1|start)  python3 -m scripts.raceday start  "$date" || echo "(start failed — see above)" ;;
+    2|live)   python3 -m scripts.raceday live   "$date" || echo "(live failed — see above)" ;;
+    3|finish) python3 -m scripts.raceday finish "$date" || echo "(finish failed — see above)" ;;
+    d|date)   printf "New date: "; read -r d || true; [ -n "$d" ] && date="${d//-//}" ;;
+    q|quit)   echo "Bye."; exit 0 ;;
+    "")       echo "Bye."; exit 0 ;;
+    *)        echo "Unknown choice: $choice" ;;
+  esac
+done
