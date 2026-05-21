@@ -24,7 +24,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import config
-from core.recommender import _rank_has_strong_history, _choose_race_bet_type
+from core.recommender import (
+    _rank_has_strong_history, _choose_race_bet_type, MIN_TOP4_CONVICTION,
+)
 from scripts.backtest import (
     load_held_out_races, group_by_race, predict_race_production,
     get_real_quinella_dividend, estimate_quinella_dividend,
@@ -153,13 +155,13 @@ def report_gate_sweep(rows):
     """#2b: replay the gate cascade at each candidate min_top4 threshold."""
     print("=" * 70)
     print("  #2b  BOX Q4 GATE SWEEP  (min_top4 threshold)")
-    print("       current production value = 0.36")
+    print(f"       current production value = {MIN_TOP4_CONVICTION:.2f}")
     print("=" * 70)
     print(f"  {'min_top4':>9} {'Bets':>6} {'BOXQ4':>7} {'Hits':>6} {'HitRate':>9} "
           f"{'Stake':>8} {'P&L':>11} {'ROI':>9}")
     print("  " + "-" * 68)
 
-    for thr in [0.30, 0.33, 0.36, 0.39, 0.42, 0.45, 0.48, 0.52]:
+    for thr in [0.36, 0.42, 0.48, 0.52, 0.55, 0.58, 0.62, 0.66]:
         n_bets = n_boxq4 = n_hits = 0
         stake = pnl = 0.0
         for r in rows:
@@ -191,7 +193,7 @@ def report_gate_sweep(rows):
             else:
                 pnl -= cost
         roi = pnl / stake * 100 if stake else 0
-        marker = "  <- current" if abs(thr - 0.36) < 1e-6 else ""
+        marker = "  <- current" if abs(thr - MIN_TOP4_CONVICTION) < 1e-6 else ""
         print(f"  {thr:>9.2f} {n_bets:>6} {n_boxq4:>7} {n_hits:>6} "
               f"{pct(n_hits, n_bets):>9} {stake:>8.0f} {pnl:>+11.0f} "
               f"{roi:>+8.1f}%{marker}")

@@ -148,15 +148,26 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
         # v6.4: per-row exponential recency weights computed post-loop with np.exp.
         # par_times precompute removed v6.4 — only adjusted_speed used it.
 
-        # Build per-horse chronological race history for PRIOR-only lookups
+        # Build per-horse chronological race history for PRIOR-only lookups.
+        # Query the FULL DB (no recency cutoff) so horses racing early in the
+        # training window still see their pre-cutoff starts. `rows` (the
+        # cutoff-filtered set) supplies the training LABELS; horse_history
+        # supplies PRIOR context only. Mirrors the Task #51 jockey/trainer
+        # fix — inference (extract_features) already queries the full DB, so
+        # a windowed horse_history was a train/predict mismatch at the window
+        # edge. Leakage-safe: prior lookups still filter race_date < current.
+        hist_rows = conn.execute("""
+            SELECT r.*
+            FROM race_results r
+            WHERE r.finish_position > 0
+            ORDER BY r.race_date, r.race_number
+        """).fetchall()
         horse_history = {}
-        for row in rows:
+        for row in hist_rows:
             r = dict(row)
             name = r.get('horse_name', '')
             if name:
-                if name not in horse_history:
-                    horse_history[name] = []
-                horse_history[name].append(r)
+                horse_history.setdefault(name, []).append(r)
         for name in horse_history:
             horse_history[name].sort(key=lambda x: x.get('race_date', ''))
 
