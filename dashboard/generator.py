@@ -510,7 +510,9 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
 
     # Exotic bet value detection
     if len(analyses) >= 4:
-        model_probs = [h['calibrated_prob'] for h in race_data['horses']]
+        # Edge math must use pure_prob (pre-blend); calibrated_prob is
+        # market-blended, which mechanically shrinks edge vs the market.
+        model_probs = [h['pure_prob'] for h in race_data['horses']]
         market_probs = []
         for h in race_data['horses']:
             wo = h.get('win_odds', 0)
