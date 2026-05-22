@@ -15,10 +15,10 @@
   },
   "LOW": {
     "hit": 0,
-    "total": 1,
+    "total": 2,
     "rate": 0.0,
     "ci_low": 0.0,
-    "ci_high": 0.7935
+    "ci_high": 0.6576
   },
   "MED": {
     "hit": 2,
