@@ -523,7 +523,13 @@ def _build_races_from_json(json_races: list, race_date: str) -> list:
                 'win_odds': res.get('win_odds') or pred.get('win_odds', 0),
                 'finish_time': '',
                 'running_position': '',
-                'margin': 0,
+                # Winner's margin is 0; non-winners' margin is unknown in this
+                # fallback so we pass None (intent: "unknown", not "0 lengths").
+                # NOTE: ingest_race_day currently coalesces None->0, and the
+                # beaten-margin queries skip both 0 and NULL (they filter
+                # `margin > 0`), so 0 vs None is functionally identical today —
+                # this is forward-looking intent, not a corruption fix.
+                'margin': 0 if res.get('position') == 1 else None,
             })
         out.append({
             'date': race_date,

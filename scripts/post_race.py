@@ -81,6 +81,12 @@ def main():
     _run("4a/6 track_longshot_trio (paper experiment)",
          [sys.executable, '-m', 'scripts.track_longshot_trio', args.race_date])
 
+    # Step 4b: HK forward-validation — appends this meeting (if after the frozen
+    # cutoff) to the un-burned forward log. The only honest, never-tuned-on
+    # evidence of real betting performance. Runs after step 1 fills results.
+    _run("4b/6 validate_hk (forward-validation log)",
+         [sys.executable, '-m', 'scripts.validate_hk'], required=False)
+
     # Step 5: EDGE tracker — logs EDGE fires + outcomes; feeds dashboard banner
     _run("5/6 track_edge (banner stats)",
          [sys.executable, '-m', 'scripts.track_edge', args.race_date])
