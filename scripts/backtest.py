@@ -308,7 +308,13 @@ def get_real_quinella_dividend(conn, race_date, race_no, horse_num_a, horse_num_
     """Look up actual HKJC quinella dividend from race_dividends table.
 
     HKJC stores quinella combo as sorted comma-separated horse numbers, e.g. "1,4".
-    Returns dividend in dollars, or None if not found.
+
+    Returns the payout PER $1 STAKED (HKJC declares dividends per HK$10, so we
+    divide by 10). This matches both the Harville fallback estimate_quinella_dividend
+    — which returns (1-takeout)/p, a per-$1 figure — and the $1-per-combo stake
+    basis used in the P&L (stake = number of combos). Without the /10, real-dividend
+    races were scored ~10x higher than Harville-fallback races on the same scale,
+    inflating every ROI that drew on real payouts.
     """
     lo, hi = sorted([int(horse_num_a), int(horse_num_b)])
     combo = f"{lo},{hi}"
@@ -317,7 +323,7 @@ def get_real_quinella_dividend(conn, race_date, race_no, horse_num_a, horse_num_
         "WHERE race_date = ? AND race_number = ? AND pool = 'QUINELLA' AND combination = ?",
         (race_date, race_no, combo)
     ).fetchone()
-    return float(row[0]) if row else None
+    return float(row[0]) / 10.0 if row else None
 
 
 def get_real_exotic_dividend(conn, race_date, race_no, pool):
@@ -328,13 +334,17 @@ def get_real_exotic_dividend(conn, race_date, race_no, pool):
     actual top-3 / top-4 in any order), so we don't need to match the combo —
     the lone row IS the winner. Used for box-bet P&L (we collect this dividend
     when the actual finishers fall inside our box).
+
+    Returns the payout PER $1 STAKED (HKJC declares per HK$10 → divide by 10),
+    consistent with the $1-per-combo stake basis used in the box-bet P&L
+    (trio5_stake=10 combos, etc.).
     """
     row = conn.execute(
         "SELECT dividend FROM race_dividends "
         "WHERE race_date = ? AND race_number = ? AND pool = ?",
         (race_date, race_no, pool)
     ).fetchone()
-    return float(row[0]) if row else None
+    return float(row[0]) / 10.0 if row else None
 
 
 # ---------------------------------------------------------------------------
