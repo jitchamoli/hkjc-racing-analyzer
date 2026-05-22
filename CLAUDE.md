@@ -135,7 +135,7 @@ scripts/    — CLI entry points
               FR:  ingest_fr, train_fr, backtest_fr, validate_fr
               AU:  ingest_au       (reference data only — no model)
               JP:  ingest_jp       (reference data only — no model)
-tests/      — pytest suite (435 collected, 433 pass + 2 skip as of 2026-05-21):
+tests/      — pytest suite (436 collected, 434 pass + 2 skip as of 2026-05-22):
               HK core + 8 UK + FR/AU/JP DB tests + accuracy regressions +
               backfill scripts + 28 for the 2026-05-17 tooling (eval_swap_rule,
               track_spoilers, today_improvements_integration)
@@ -218,7 +218,7 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 **Live trust panels (injected as JS consts, must survive every re-render)**:
 - **`EDGE_STATS`** — cumulative EDGE-tier fire history `{n_fires, n_placed, n_won, last_updated}` from `tracking_data/edge_stats.json` (written by `scripts/track_edge.py`). Feeds the EDGE banner text. Pattern so far (N=4): EDGE picks place top-3 but don't win — anchor TRIO, do not WIN-bet.
 - **`ACCURACY_SUMMARY`** — 60-day rolling rank-1 win rate / top-3 overlap (longitudinal trust footer).
-- **`suggested_stake`** — per-race stake banner. HIGH-tier bets scale 0.75–1.0× by `top_2_share` (weaker top-2 share = smaller stake; `betting/optimizer.py:_confidence_scale`). Both WA message and dashboard show per-bet allocation + unallocated budget hint.
+- **`suggested_stake`** — per-race stake banner; flat fraction by tier (EDGE 3% / HIGH 2% / MED 1% / LOW 0.5% of bankroll). The old within-tier `top_2_share` ramp (`betting/optimizer.py:_confidence_scale`) was **flattened to a no-op 2026-05-22** — it had no EV justification (per-tier exotic ROI doesn't separate; N=3 origin). Both WA message and dashboard show per-bet allocation + unallocated budget hint.
 - **CRITICAL**: `dashboard/results_fetcher.py` MUST load and pass `accuracy_summary` AND `edge_stats` into `generate_html()` — a 2026-05-17 bug (fixed `84603e1`) re-rendered the dashboard without them and wiped both panels on every results fetch. `dashboard/generator.py` and `dashboard/results_fetcher.py` are the two `generate_html()` call sites; keep them in sync.
 
 **Race-day live workflow** uses two persistent monitors:
@@ -289,6 +289,8 @@ Exotic pricing: conditional elimination for exacta/trifecta/quinella/first4.
 Market odds enter ONLY through the dynamic market blend. Blend weights are heavier on market for large sprint fields (sharp pool), heavier on model for small/long fields and exotics (thinner pool). **Edge math uses `pure_prob` (pre-blend) NOT `calibrated_prob` (post-blend)** — otherwise edge would be mechanically tiny because we'd be comparing market-influenced-us against market. This includes exotic value detection (`find_value_exotics` in `dashboard/generator.py`, which was passing `calibrated_prob` — fixed 2026-05-21).
 
 → Edge gates, conviction tiers, recommender logic, backtest history, exotic pricing math: `docs/betting-strategy.md`.
+
+> **⚠️ ROI-figure correction (2026-05-22).** A backtest bug scored HKJC dividends (declared **per HK$10**) against **$1** stakes, inflating every real-dividend ROI by **~10×**. Fixed in `scripts/backtest.py` (`get_real_quinella_dividend`/`get_real_exotic_dividend` now `/10`). **Treat every ROI figure dated before 2026-05-22 in this file, README, and docs/ as ~10× overstated.** Corrected held-out figures (668 races): straight QIN **+44%**, recommender-gated QIN **+19%**, TRIO-5 **+16%**, TRIO-6 **+29%**, F4 BOX-5 **+39%**. Relative ordering is preserved, so prior ship/kill decisions still hold — only the magnitudes were wrong. Also note: the model is now evaluated on **place / top-4 capture** (`print_place_calibration` in backtest — place ECE 0.0093 vs win 0.0527), NOT top-1 win Brier; the betting edge lives in top-N box capture, which is at its ceiling (speed_fig, sectional, is_top4, pace, marginal-slot all tested → no top-4 capture gain).
 
 ## DB Data Gaps (post-Renavon backfill, audited 2026-05-16)
 

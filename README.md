@@ -4,6 +4,16 @@ Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a
 
 > **Multi-jurisdiction expansion (2026-05-17):** HK remains the primary, production pipeline. Four additional jurisdictions ship as **isolated, experimental pipelines** sharing only the API client — see [Multi-jurisdiction pipelines](#multi-jurisdiction-pipelines-uk--fr--au--jp) below.
 
+## What's New (2026-05-22) — dividend-basis correction + place/top-4 reframe + expert-review fixes
+
+> **⚠️ ROI-figure correction.** A backtest bug scored HKJC dividends (declared **per HK$10**) against **$1** stakes — inflating every real-dividend ROI by **~10×**. Fixed (`scripts/backtest.py` `get_real_quinella_dividend`/`get_real_exotic_dividend` now `/10`). **Every ROI figure dated before 2026-05-22 in this README and the docs is ~10× overstated.** Corrected held-out figures (668 races): straight QIN **+44%**, recommender-gated QIN **+19%**, TRIO-5 **+16%**, TRIO-6 **+29%**, F4 BOX-5 **+39%** (vs a −22%/−28% random luck floor). Relative ordering is preserved, so prior ship/kill decisions still hold — only the magnitudes were wrong.
+
+**Evaluation reframe (the bigger change):** added a **place-model calibration** report (`print_place_calibration`) and made **top-4 / placing capture** the metric for judging model changes — *not* top-1 win Brier. This revealed our **place model is far better calibrated than our win model** (place ECE 0.0093 / BSS +0.100 vs win ECE 0.0527 / BSS +0.035). Since every production bet is a top-N set bet (QIN/TRIO/F4 boxes), the north star is now **top-4 ranking**, not winner prediction.
+
+**At the top-4 ceiling (5 experiments, all tested, all null):** speed_fig revival, sectional closing figure, `is_top4` head, pace/race-shape feature, and place-ranked box membership were each tested cheaply (test-first) and **none improved top-4 capture** — confirming win-rank is the discriminator and the HKJC market already prices the rest. The lever is *not* more features.
+
+**Fixes from a 10-expert review (all verified against source):** atomic write of the badge-restore JSON; blend-calibrator checksum hard-refusal; display-dividend unit consistency (was jumping 10× when real results landed); Kelly-branch case bug; QPL multi-combo parser; Playwright leak in ranking scrapers; monitor panel-wipe; post_race badge-wipe (step 5a → `fetch_results`); UK region lock; and **flattened the unjustified conviction stake-scaling** (`_confidence_scale` → no-op; no EV basis, N=3 origin). 434 tests pass (2 skip).
+
 ## What's New (2026-05-21) — multi-agent analyser audit + retrain
 
 A multi-agent code audit of the race-analyser module surfaced three confirmed bugs (and dismissed several false positives after source verification):
