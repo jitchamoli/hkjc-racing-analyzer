@@ -19,6 +19,13 @@ from datetime import date, datetime, timedelta
 from data.uk_database import UKHorseDatabase
 from data.uk_racing_api import MissingCredentialsError, UKRacingAPI
 
+# Locked region — this script is UK/IRE-only by design. Matches the locked
+# constants in ingest_au.py / ingest_jp.py. Without it, region=None pulled
+# EVERY region on the API plan (FR/AU/JP/IRE) into uk_history.db, contaminating
+# UK model training, backtest, and forward-validation. Strict jurisdiction
+# isolation is a documented critical rule.
+_REGION = "gb"
+
 
 def _today() -> str:
     return date.today().isoformat()
@@ -56,8 +63,9 @@ def main() -> int:
     p.add_argument("--end", help="Range end YYYY-MM-DD (use with --start)")
     p.add_argument("--since-last", action="store_true",
                    help="Auto-fill from last date in DB through today")
-    p.add_argument("--region", default=None,
-                   help="API region filter ('gb' = UK only). Default: all regions in plan.")
+    p.add_argument("--region", default=_REGION,
+                   help=f"API region filter (default '{_REGION}' = UK/IRE only). "
+                        "Override only if you know the DB-isolation implications.")
     args = p.parse_args()
 
     try:
