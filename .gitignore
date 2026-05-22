@@ -73,3 +73,6 @@ tracking_data/fr_history.db-wal
 # Tracked in git so the DB can be rebuilt via `python3 -m scripts.load_renavon_csvs`
 # after any local DB loss. Never updated (one-time HKJC export, no subscription).
 # See docs/renavon.md.
+
+# stray root-level DB (ingest_uk should write tracking_data/uk_history.db)
+/uk_history.db
