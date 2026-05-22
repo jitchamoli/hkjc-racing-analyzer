@@ -782,18 +782,18 @@ function renderBetCard(race) {{
           ' (rank ' + esc(_lp.best.rank) + ', @' + esc(_lp.best.win_odds) + ', -' + _lp.pct + '%)</span></div>' +
       '</div>'
     : '';
-  // EXPERIMENT (owner-only): top-2 + random 3rd straight TRIO. Amber/dashed,
-  // NOT STAKED, isolated from ML. See _luckyTrio().
-  var _lt = _luckyTrio(race);
-  var luckyBlock = _lt
+  // EXPERIMENT (owner-only): top-2 + market next-favourite, straight TRIO.
+  // Amber/dashed, NOT STAKED, isolated from ML. See _marketTrio().
+  var _mt = _marketTrio(race);
+  var marketBlock = _mt
     ? '<div class="trust-block" style="margin-top:6px;border:1px dashed #b45309;border-radius:6px;padding:6px 10px;background:rgba(180,83,9,.10)">' +
-        '<span style="background:#b45309;color:#fef3c7;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">\\uD83C\\uDFB2 LUCKY TRIO \\u00b7 EXPERIMENT \\u00b7 NOT STAKED</span>' +
-        (_lt.tag ? ' <span style="color:' + _lt.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _lt.tag + '</span>' : '') +
-        '<div style="color:var(--dim);font-size:.66rem;margin-top:3px">straight TRIO \\u00b7 top-2 + random 3rd: ' +
-          '<span style="color:#fcd34d;font-weight:700">' + _lt.nums.map(function(n) {{ return '#' + esc(n); }}).join('-') + '</span>' +
-          ' <span style="opacity:.75">(3rd = #' + esc(_lt.third.number) + ' ' + esc(_lt.third.name) +
-          ', rank ' + esc(_lt.third.rank) + ', @' + esc(_lt.third.win_odds) +
-          ', ' + Math.round((_lt.third.place_prob || 0) * 100) + '% place)</span></div>' +
+        '<span style="background:#b45309;color:#fef3c7;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">\\uD83D\\uDCCA MARKET TRIO \\u00b7 EXPERIMENT \\u00b7 NOT STAKED</span>' +
+        (_mt.tag ? ' <span style="color:' + _mt.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _mt.tag + '</span>' : '') +
+        '<div style="color:var(--dim);font-size:.66rem;margin-top:3px">straight TRIO \\u00b7 top-2 + market 3rd: ' +
+          '<span style="color:#fcd34d;font-weight:700">' + _mt.nums.map(function(n) {{ return '#' + esc(n); }}).join('-') + '</span>' +
+          ' <span style="opacity:.75">(3rd = #' + esc(_mt.third.number) + ' ' + esc(_mt.third.name) +
+          ', rank ' + esc(_mt.third.rank) + ', @' + esc(_mt.third.win_odds) +
+          ' \\u2014 shortest price outside top-2)</span></div>' +
       '</div>'
     : '';
   if (ss.amount && ss.amount > 0) {{
@@ -890,10 +890,10 @@ function renderBetCard(race) {{
           '<br><span style="color:var(--dim);font-size:.65rem">' + (ss.pct||0).toFixed(2) + '% of $' + br + ' · ' + esc(ss.method||'') + '</span>' +
           breakdownHtml +
         '</div>' +
-      '</div>' + paperBlock + luckyBlock;
+      '</div>' + paperBlock + marketBlock;
   }}
   // SKIP / no-stake races still surface the paper experiments if any qualify.
-  if (!stakeHtml) stakeHtml = paperBlock + luckyBlock;
+  if (!stakeHtml) stakeHtml = paperBlock + marketBlock;
 
   // Bet type sub-label
   var betRec = topH.bet_recommendation || 'QIN';
@@ -1521,37 +1521,22 @@ function _longshotPick(race) {{
 }}
 
 // EXPERIMENT (owner-requested, display-only): a straight 3-horse TRIO of our
-// top-2 + one "lucky" third drawn at random from the rest of the field but
-// WEIGHTED by place_prob (likelier placers favoured; a floor keeps every
-// runner possible). NOT staked, and completely isolated from the ML
-// pipeline (never a feature, never trained on, never fed to the recommender).
-// The pick is DETERMINISTIC per race (FNV-1a hash of the race number +
-// eligible horse numbers seeds the weighted draw) so the "lucky" horse stays
-// the same across dashboard refreshes — a placeable bet, not re-rolled each render.
-function _luckyTrio(race) {{
+// top-2 + the MARKET next-favourite (the shortest-priced runner outside our
+// top-2). Rationale from the held-out data: market odds strongly flag the
+// low-ranked horses that finish top-3 (a rank 7-9 horse places 31% at <$8 vs
+// 4% at $60+), while our own place model barely separates them. So we defer to
+// the market for the 3rd leg. Deterministic (lowest odds), stable across
+// refreshes. NOT staked, and completely isolated from the ML pipeline (never a
+// feature, never trained on, never fed to the recommender).
+function _marketTrio(race) {{
   if (race.conviction_tier === 'EDGE') return null;  // skip high-conviction EDGE races
   if (!race.horses || race.horses.length < 4) return null;
   var sorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
   var top2 = sorted.slice(0, 2);
   var rest = sorted.slice(2);
-  if (rest.length === 0) return null;
-  // Deterministic seed (FNV-1a hash of race + eligible horse numbers) → a
-  // stable u in [0,1), so the pick is identical across refreshes. Then a
-  // WEIGHTED draw by place_prob (the model top-3 estimate): likelier placers
-  // get proportionally more chance, but a 0.01 floor keeps every runner
-  // possible so a longshot can still come up. Significance plus randomness,
-  // not pure uniform.
-  var seedStr = String(race.race_number || '') + ':' + rest.map(function(h) {{ return h.number; }}).join(',');
-  var hsh = 2166136261;
-  for (var i = 0; i < seedStr.length; i++) {{ hsh ^= seedStr.charCodeAt(i); hsh = Math.imul(hsh, 16777619); }}
-  var u = (hsh >>> 0) / 4294967296;
-  var weights = rest.map(function(h) {{ return Math.max(0.01, h.place_prob || 0); }});
-  var total = weights.reduce(function(s, w) {{ return s + w; }}, 0);
-  var third = rest[rest.length - 1], acc = 0;
-  for (var k = 0; k < rest.length; k++) {{
-    acc += weights[k] / total;
-    if (u <= acc) {{ third = rest[k]; break; }}
-  }}
+  var priced = rest.filter(function(h) {{ return (h.win_odds || 0) > 0; }});
+  if (priced.length === 0) return null;  // need odds to pick the market favourite
+  var third = priced.reduce(function(best, h) {{ return (h.win_odds < best.win_odds) ? h : best; }});
   var nums = [top2[0].number, top2[1].number, third.number];
   var tag = '', tagColor = '#94a3b8';
   if (race.results_available && Array.isArray(race.actual_top3) && race.actual_top3.length === 3) {{
