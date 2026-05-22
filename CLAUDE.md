@@ -21,6 +21,11 @@ python3 -m scripts.raceday start  '2026/05/17'   # ONCE, AM: race_day (generate 
 python3 -m scripts.raceday live   '2026/05/17'   # REPEAT before/after each race: generate_predictions → results_fetcher
 python3 -m scripts.raceday finish '2026/05/17'   # ONCE, PM: post_race (forwards --skip-dump etc.)
 
+# Friendly wrapper (no python invocation). Date optional (defaults today).
+./raceday                  # bare → interactive LOOPING menu: pick date once, run phases repeatedly
+./raceday start            # one-shot phase; flags pass through (e.g. ./raceday finish --skip-dump)
+./raceday live 2026/05/17  # explicit date (accepts / or -)
+
 # Underlying one-command wrappers (raceday dispatches to these)
 python3 -m scripts.race_day '2026/05/17'     # generate_predictions + shadow_generate + tier_b_shadow
 python3 -m scripts.post_race '2026/05/17'    # 7+1 steps: results_fetcher --auto-learn →
@@ -130,7 +135,7 @@ scripts/    — CLI entry points
               FR:  ingest_fr, train_fr, backtest_fr, validate_fr
               AU:  ingest_au       (reference data only — no model)
               JP:  ingest_jp       (reference data only — no model)
-tests/      — pytest suite (424 collected, 422 pass + 2 skip as of 2026-05-20):
+tests/      — pytest suite (434 collected, 432 pass + 2 skip as of 2026-05-21):
               HK core + 8 UK + FR/AU/JP DB tests + accuracy regressions +
               backfill scripts + 28 for the 2026-05-17 tooling (eval_swap_rule,
               track_spoilers, today_improvements_integration)
@@ -244,7 +249,7 @@ These are timeless guidance — violations have caused multiple v6.x bugs.
 
 1. **No data leakage**: Every feature must use ONLY data available BEFORE the race. Never use finish_position, finish_time, running_position, or margin from the CURRENT race. For horse history features (C&D form, pace, speed), use strictly `prior_date < current_date`. `extract_features()` accepts `race_date` via `horse_data` and filters DB queries with `AND race_date < ?`. Track records in training are also date-aware (cumulative best-time lookup, not global).
 
-2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. `generate_synthetic_training_data()` must also match the same feature schema. The DB (race_results) has different fields than race cards. Both training and inference must use the SAME helpers (e.g. `extract_class_rank` for class strings, `parse_age_score` for ages, dslr fallback for freshness) — divergence between them caused multiple v6.x bugs. **Concrete pattern**: when adding a feature whose raw value can come in multiple formats (DB `'5.0'` vs race-card `'5'`), define a single `parse_X_score()` helper in `ml/features.py` and call it from both sites. Inline duplicates drift silently and degrade the feature.
+2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. `generate_synthetic_training_data()` must also match the same feature schema. The DB (race_results) has different fields than race cards. Both training and inference must use the SAME helpers (e.g. `extract_class_rank` for class strings, `parse_age_score` for ages, dslr fallback for freshness) — divergence between them caused multiple v6.x bugs. **Concrete pattern**: when adding a feature whose raw value can come in multiple formats (DB `'5.0'` vs race-card `'5'`), define a single `parse_X_score()` helper in `ml/features.py` and call it from both sites. Inline duplicates drift silently and degrade the feature. **PRIOR-history scoping**: training-time horse/jockey/trainer prior lookups must query the FULL DB, not the recency-windowed training rows — inference (`extract_features`) always queries the full DB, so a windowed history is a train/predict mismatch at the window edge. `build_training_data_from_db` builds `horse_history` from a full-DB query (fixed 2026-05-21; jockey/trainer fixed earlier in Task #51). The cutoff applies only to which rows become training LABELS.
 
 3. **No constant features**: If a feature has std < 0.01 in training data, it's wasted. Common cause: field is mostly null and falls back to 0.5. Check with `np.std()` after building features. Feature correlation matrix is logged after each training run — pairs with |r| > 0.7 are flagged.
 
@@ -281,14 +286,14 @@ overlay = pure_prob × win_odds
 Exotic pricing: conditional elimination for exacta/trifecta/quinella/first4.
 ```
 
-Market odds enter ONLY through the dynamic market blend. Blend weights are heavier on market for large sprint fields (sharp pool), heavier on model for small/long fields and exotics (thinner pool). **Edge math uses `pure_prob` (pre-blend) NOT `calibrated_prob` (post-blend)** — otherwise edge would be mechanically tiny because we'd be comparing market-influenced-us against market.
+Market odds enter ONLY through the dynamic market blend. Blend weights are heavier on market for large sprint fields (sharp pool), heavier on model for small/long fields and exotics (thinner pool). **Edge math uses `pure_prob` (pre-blend) NOT `calibrated_prob` (post-blend)** — otherwise edge would be mechanically tiny because we'd be comparing market-influenced-us against market. This includes exotic value detection (`find_value_exotics` in `dashboard/generator.py`, which was passing `calibrated_prob` — fixed 2026-05-21).
 
 → Edge gates, conviction tiers, recommender logic, backtest history, exotic pricing math: `docs/betting-strategy.md`.
 
 ## DB Data Gaps (post-Renavon backfill, audited 2026-05-16)
 
 - `rating`: 100% coverage. `rating_change`: 100%. `last_6`: 95.5%. `gear`: 93%. `age`: **68.4%** (was claimed 99.8% — coverage actually degrades back in time: 2021 = 20%, 2022 = 45%, 2023 = 79%, 2024 = 86%, 2025 = 95%, 2026 = 100%). `sectional_times`: 99.4% (Path B backfill, permanent — auto-captured forward).
-- `age` format gotcha: Renavon CSV writes `'5.0'`, live race-card scrape writes `'5'`. Both go through `parse_age_score()` (single source of truth in `ml/features.py`); never reimplement inline. Pre-fix the inline `int(str(age)[:2])` parser failed silently on `'5.0'` and 94% of training rows fell back to 0.5 — a real train/predict mismatch (ML rule #2 violation).
+- `age` format gotcha: Renavon CSV writes `'5.0'`, live race-card scrape writes `'5'`. The ML path goes through `parse_age_score()` and the **rule engine** through `parse_age_int()` — both single source of truth in `ml/features.py`; never reimplement inline. Two bugs from this: (1) the ML inline `int(str(age)[:2])` parser failed silently on `'5.0'` (94% of training rows fell back to 0.5); (2) the rule engine gated its age-vs-field factor on `horse.age.isdigit()` (False for `'5.0'`) so the factor was silently dropped for every DB-built race (backtest, history) while live `'5'` worked — a backtest≠live divergence. Both fixed 2026-05-21 (use the shared helpers).
 - `running_position` has two formats: space-separated (`"6 5 6"`) and concatenated (`"665"`). Always handle both when parsing.
 - `horse_weight` is in lbs (900-1350 range), `weight` is carried weight assignment (113-133 lbs).
 - `class_type`: 96% coverage; uses `extract_class_rank()` to handle G1/G2/G3/GRIFFIN/4YO. Missing/unparseable rows default to class 3 for class_change calculation.
