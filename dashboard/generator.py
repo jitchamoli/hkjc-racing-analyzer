@@ -213,6 +213,37 @@ def _compute_odds_age_minutes(odds_db, race_date: str, race_number: int):
     return None
 
 
+def apply_card_exposure_cap(all_races: list, bankroll: float,
+                            cap_frac: float = 0.10) -> float:
+    """Cap the day's TOTAL forward suggested-stake exposure at cap_frac of
+    bankroll, pro-rating every UNFINISHED race's stake down proportionally.
+
+    Per-race stakes are computed independently, so a busy card can put 15-20%
+    of bankroll at risk at once (and the box bets within a race are correlated
+    — they win/lose together). Settled races aren't at risk so they're excluded
+    from the cap. Mutates each capped race's 'suggested_stake' in place and
+    returns the applied scale factor (1.0 = no cap needed).
+    """
+    if not cap_frac or cap_frac <= 0:
+        return 1.0
+    pending = [r for r in all_races
+               if not r.get('results_available') and r.get('suggested_stake')]
+    total_stake = sum((r['suggested_stake'].get('amount') or 0.0) for r in pending)
+    cap_amount = bankroll * cap_frac
+    if not (total_stake > cap_amount > 0):
+        return 1.0
+    scale = cap_amount / total_stake
+    for r in pending:
+        s = r['suggested_stake']
+        s['amount'] = round((s.get('amount') or 0.0) * scale, -1)
+        if s.get('pct') is not None:
+            s['pct'] = round(s['pct'] * scale, 2)
+        s['card_capped'] = True
+        s['method'] = (s.get('method') or '') + \
+            f" · card-capped ×{scale:.2f} ({int(cap_frac*100)}% day limit)"
+    return scale
+
+
 def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     """Build the JSON-serializable race data dict from analyses.
 
@@ -625,6 +656,10 @@ async def _run_generation(fetcher, analyzer, race_date: str):
         )
         r['suggested_stake'] = stake
         r['bankroll'] = _cfg.BANKROLL
+
+    # Card-level exposure cap (see _apply_card_exposure_cap).
+    apply_card_exposure_cap(all_races, _cfg.BANKROLL,
+                            getattr(_cfg, 'CARD_EXPOSURE_CAP', 0.10))
 
     # Alerts — diff current vs previous race_data file
     from betting.alerts import compute_alerts, AlertState, load_alert_state, save_alert_state

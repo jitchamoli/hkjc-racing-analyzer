@@ -63,6 +63,56 @@ class TestStakeScalingIntegration:
         assert stake['amount'] == 200.0
 
 
+class TestCardExposureCap:
+    """Card-level exposure cap: total forward suggested-stake across a card is
+    capped at config.CARD_EXPOSURE_CAP of bankroll, pro-rated; settled races
+    excluded. Added 2026-05-22 (Risk-expert panel finding)."""
+
+    def _races(self, amounts, finished=None):
+        finished = finished or [False] * len(amounts)
+        return [{'results_available': fin,
+                 'suggested_stake': {'amount': a, 'pct': a / 100.0,
+                                     'method': 'tier-fraction'}}
+                for a, fin in zip(amounts, finished)]
+
+    def test_caps_when_total_exceeds(self):
+        from dashboard.generator import apply_card_exposure_cap
+        races = self._races([300, 200, 200, 300])  # total 1000 = 10% of 10k... push over
+        scale = apply_card_exposure_cap(races, bankroll=10000, cap_frac=0.05)  # cap=$500
+        total = sum(r['suggested_stake']['amount'] for r in races)
+        assert scale < 1.0
+        assert total <= 500 + 40  # ~$500 after $10 rounding
+        assert all(r['suggested_stake'].get('card_capped') for r in races)
+
+    def test_no_cap_when_under(self):
+        from dashboard.generator import apply_card_exposure_cap
+        races = self._races([100, 100, 100])  # total $300 < $1000 cap
+        scale = apply_card_exposure_cap(races, bankroll=10000, cap_frac=0.10)
+        assert scale == 1.0
+        assert all(r['suggested_stake']['amount'] in (100,) for r in races)
+        assert not any(r['suggested_stake'].get('card_capped') for r in races)
+
+    def test_settled_races_excluded_from_cap(self):
+        from dashboard.generator import apply_card_exposure_cap
+        # 3 finished ($900) + 2 pending ($600). Only pending count toward cap.
+        races = self._races([300, 300, 300, 300, 300],
+                            finished=[True, True, True, False, False])
+        apply_card_exposure_cap(races, bankroll=10000, cap_frac=0.05)  # cap=$500
+        pending_total = sum(r['suggested_stake']['amount']
+                            for r in races if not r['results_available'])
+        assert pending_total <= 500 + 20
+        # finished races untouched
+        assert all(r['suggested_stake']['amount'] == 300
+                   for r in races if r['results_available'])
+
+    def test_cap_disabled_when_zero(self):
+        from dashboard.generator import apply_card_exposure_cap
+        races = self._races([5000, 5000])
+        scale = apply_card_exposure_cap(races, bankroll=10000, cap_frac=0.0)
+        assert scale == 1.0
+        assert sum(r['suggested_stake']['amount'] for r in races) == 10000
+
+
 class TestManualOverrideRendering:
     """Gap 2: Manual override that differs from current rank-6 should render
     the 🛠 MANUAL badge in the dashboard HTML.
