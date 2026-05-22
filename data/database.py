@@ -433,8 +433,10 @@ class HorseDatabase:
                               horse_a: int, horse_b: int) -> Optional[float]:
         """Look up actual HKJC quinella dividend for an unordered pair.
 
-        Returns dividend per $1 stake, or None if not in DB (date not backfilled
-        or pair didn't win). Caller can fall back to Harville estimate.
+        Returns the raw HKJC dividend, declared PER HK$10 stake (the figure
+        punters see), or None if not in DB (date not backfilled or pair didn't
+        win). NOTE: this is per-$10, NOT per-$1 — used for DISPLAY. The backtest
+        P&L path uses its own get_real_quinella_dividend (per-$1) for stake math.
         """
         lo, hi = sorted([int(horse_a), int(horse_b)])
         combo = f"{lo},{hi}"
