@@ -782,6 +782,19 @@ function renderBetCard(race) {{
           ' (rank ' + esc(_lp.best.rank) + ', @' + esc(_lp.best.win_odds) + ', -' + _lp.pct + '%)</span></div>' +
       '</div>'
     : '';
+  // EXPERIMENT (owner-only): top-2 + random 3rd straight TRIO. Amber/dashed,
+  // NOT STAKED, isolated from ML. See _luckyTrio().
+  var _lt = _luckyTrio(race);
+  var luckyBlock = _lt
+    ? '<div class="trust-block" style="margin-top:6px;border:1px dashed #b45309;border-radius:6px;padding:6px 10px;background:rgba(180,83,9,.10)">' +
+        '<span style="background:#b45309;color:#fef3c7;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">\\uD83C\\uDFB2 LUCKY TRIO \\u00b7 EXPERIMENT \\u00b7 NOT STAKED</span>' +
+        (_lt.tag ? ' <span style="color:' + _lt.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _lt.tag + '</span>' : '') +
+        '<div style="color:var(--dim);font-size:.66rem;margin-top:3px">straight TRIO \\u00b7 top-2 + random 3rd: ' +
+          '<span style="color:#fcd34d;font-weight:700">' + _lt.nums.map(function(n) {{ return '#' + esc(n); }}).join('-') + '</span>' +
+          ' <span style="opacity:.75">(3rd = #' + esc(_lt.third.number) + ' ' + esc(_lt.third.name) +
+          ', rank ' + esc(_lt.third.rank) + ', @' + esc(_lt.third.win_odds) + ')</span></div>' +
+      '</div>'
+    : '';
   if (ss.amount && ss.amount > 0) {{
     var br = race.bankroll || 0;
     // Enumerate firing MAIN bets and their combo counts
@@ -876,10 +889,10 @@ function renderBetCard(race) {{
           '<br><span style="color:var(--dim);font-size:.65rem">' + (ss.pct||0).toFixed(2) + '% of $' + br + ' · ' + esc(ss.method||'') + '</span>' +
           breakdownHtml +
         '</div>' +
-      '</div>' + paperBlock;
+      '</div>' + paperBlock + luckyBlock;
   }}
-  // SKIP / no-stake races still surface the paper experiment if one qualifies.
-  if (!stakeHtml) stakeHtml = paperBlock;
+  // SKIP / no-stake races still surface the paper experiments if any qualify.
+  if (!stakeHtml) stakeHtml = paperBlock + luckyBlock;
 
   // Bet type sub-label
   var betRec = topH.bet_recommendation || 'QIN';
@@ -1504,6 +1517,33 @@ function _longshotPick(race) {{
     else {{ tag = 'missed'; tagColor = '#ef4444'; }}
   }}
   return {{ best: best, pct: bestPct, box6nums: box6nums, tag: tag, tagColor: tagColor }};
+}}
+
+// EXPERIMENT (owner-requested, display-only): a straight 3-horse TRIO of our
+// top-2 + one "lucky" RANDOM third drawn from the rest of the field. This is
+// NOT model-driven for the 3rd leg, NOT staked, and is completely isolated
+// from the ML pipeline (never a feature, never trained on, never fed to the
+// recommender). The pick is DETERMINISTIC per race (FNV-1a hash of the race
+// number + eligible horse numbers) so the "lucky" horse stays the same across
+// dashboard refreshes — a bet you can actually place, not re-rolled each render.
+function _luckyTrio(race) {{
+  if (!race.horses || race.horses.length < 4) return null;
+  var sorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
+  var top2 = sorted.slice(0, 2);
+  var rest = sorted.slice(2);
+  if (rest.length === 0) return null;
+  var seedStr = String(race.race_number || '') + ':' + rest.map(function(h) {{ return h.number; }}).join(',');
+  var hsh = 2166136261;
+  for (var i = 0; i < seedStr.length; i++) {{ hsh ^= seedStr.charCodeAt(i); hsh = Math.imul(hsh, 16777619); }}
+  var third = rest[(hsh >>> 0) % rest.length];
+  var nums = [top2[0].number, top2[1].number, third.number];
+  var tag = '', tagColor = '#94a3b8';
+  if (race.results_available && Array.isArray(race.actual_top3) && race.actual_top3.length === 3) {{
+    var hit = race.actual_top3.every(function(n) {{ return nums.indexOf(n) !== -1; }});
+    tag = hit ? 'HIT \\u2713' : 'missed';
+    tagColor = hit ? '#22c55e' : '#ef4444';
+  }}
+  return {{ legs: [top2[0], top2[1], third], nums: nums, third: third, tag: tag, tagColor: tagColor }};
 }}
 
 function renderTopBetsView() {{
