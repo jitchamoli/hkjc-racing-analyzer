@@ -287,8 +287,21 @@ class ResultsFetcher:
         }
         filepath = os.path.join(self.results_dir, f"race_data_{date_str}_with_results.json")
 
-        with open(filepath, 'w') as f:
-            json.dump(output, f, indent=2)
+        # Atomic write (tmp + os.replace), matching every other write in this
+        # pipeline. This file is the SOURCE _merge_with_existing reads to restore
+        # STRIKE/MISS badges + frozen prediction fields — a truncated write here
+        # would make the next merge silently drop all badges.
+        tmp = f"{filepath}.tmp.{os.getpid()}"
+        try:
+            with open(tmp, 'w') as f:
+                json.dump(output, f, indent=2)
+            os.replace(tmp, filepath)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
         logger.info(f"Saved merged data to {filepath}")
         return filepath

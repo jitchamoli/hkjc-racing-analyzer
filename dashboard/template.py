@@ -782,6 +782,20 @@ function renderBetCard(race) {{
           ' (rank ' + esc(_lp.best.rank) + ', @' + esc(_lp.best.win_odds) + ', -' + _lp.pct + '%)</span></div>' +
       '</div>'
     : '';
+  // EXPERIMENT (owner-only): top-2 + bolter (biggest price in rank 6-9), straight
+  // TRIO. Amber/dashed, NOT STAKED, isolated from ML. Lottery line. See _bolterTrio().
+  var _bt = _bolterTrio(race);
+  var bolterBlock = _bt
+    ? '<div class="trust-block" style="margin-top:6px;border:1px dashed #b45309;border-radius:6px;padding:6px 10px;background:rgba(180,83,9,.10)">' +
+        '<span style="background:#b45309;color:#fef3c7;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">\\uD83C\\uDF40 BOLTER TRIO \\u00b7 EXPERIMENT \\u00b7 NOT STAKED</span>' +
+        (_bt.tag ? ' <span style="color:' + _bt.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _bt.tag + '</span>' : '') +
+        '<div style="color:var(--dim);font-size:.66rem;margin-top:3px">straight TRIO \\u00b7 top-2 + bolter: ' +
+          '<span style="color:#fcd34d;font-weight:700">' + _bt.nums.map(function(n) {{ return '#' + esc(n); }}).join('-') + '</span>' +
+          ' <span style="opacity:.75">(3rd = #' + esc(_bt.third.number) + ' ' + esc(_bt.third.name) +
+          ', rank ' + esc(_bt.third.rank) + ', @' + esc(_bt.third.win_odds) +
+          ' \\u2014 biggest price in rank 6-9)</span></div>' +
+      '</div>'
+    : '';
   if (ss.amount && ss.amount > 0) {{
     var br = race.bankroll || 0;
     // Enumerate firing MAIN bets and their combo counts
@@ -876,10 +890,10 @@ function renderBetCard(race) {{
           '<br><span style="color:var(--dim);font-size:.65rem">' + (ss.pct||0).toFixed(2) + '% of $' + br + ' · ' + esc(ss.method||'') + '</span>' +
           breakdownHtml +
         '</div>' +
-      '</div>' + paperBlock;
+      '</div>' + paperBlock + bolterBlock;
   }}
-  // SKIP / no-stake races still surface the paper experiment if one qualifies.
-  if (!stakeHtml) stakeHtml = paperBlock;
+  // SKIP / no-stake races still surface the paper experiments if any qualify.
+  if (!stakeHtml) stakeHtml = paperBlock + bolterBlock;
 
   // Bet type sub-label
   var betRec = topH.bet_recommendation || 'QIN';
@@ -1504,6 +1518,33 @@ function _longshotPick(race) {{
     else {{ tag = 'missed'; tagColor = '#ef4444'; }}
   }}
   return {{ best: best, pct: bestPct, box6nums: box6nums, tag: tag, tagColor: tagColor }};
+}}
+
+// EXPERIMENT (owner-requested, display-only): a straight 3-horse TRIO of our
+// top-2 + a BOLTER — the biggest-priced runner in the rank 6-9 zone (the
+// live-but-underrated longshots, where the 51-1 #8 sat on 2026/05/20 R2).
+// Replicates the lose-lose-JACKPOT pattern: ~1% hit on the holdout, but it is
+// the only variant that can land a top-2 + big-longshot trio. Falls back to
+// the longest price outside the top-2 on short fields. Deterministic, stable
+// across refreshes. NOT staked, and completely isolated from the ML pipeline
+// (never a feature, never trained on, never fed to the recommender).
+function _bolterTrio(race) {{
+  if (race.conviction_tier === 'EDGE') return null;  // skip high-conviction EDGE races
+  if (!race.horses || race.horses.length < 4) return null;
+  var sorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
+  var top2 = sorted.slice(0, 2);
+  var band = sorted.slice(5, 9).filter(function(h) {{ return (h.win_odds || 0) > 0; }});  // rank 6-9
+  if (band.length === 0) band = sorted.slice(2).filter(function(h) {{ return (h.win_odds || 0) > 0; }});
+  if (band.length === 0) return null;  // need odds to pick a bolter
+  var third = band.reduce(function(best, h) {{ return (h.win_odds > best.win_odds) ? h : best; }});
+  var nums = [top2[0].number, top2[1].number, third.number];
+  var tag = '', tagColor = '#94a3b8';
+  if (race.results_available && Array.isArray(race.actual_top3) && race.actual_top3.length === 3) {{
+    var hit = race.actual_top3.every(function(n) {{ return nums.indexOf(n) !== -1; }});
+    tag = hit ? 'HIT \\u2713' : 'missed';
+    tagColor = hit ? '#22c55e' : '#ef4444';
+  }}
+  return {{ legs: [top2[0], top2[1], third], nums: nums, third: third, tag: tag, tagColor: tagColor }};
 }}
 
 function renderTopBetsView() {{

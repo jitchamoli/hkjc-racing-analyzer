@@ -162,15 +162,24 @@ def _load_blend_calibrator():
         return None
     try:
         raw = pkl.read_bytes()
-        if sha.exists():
-            expected = sha.read_text().strip()
-            actual = hashlib.sha256(raw).hexdigest()
-            if actual != expected:
-                logger.error(
-                    f"blend_calibrator checksum mismatch — pipeline running uncalibrated. "
-                    f"Expected {expected[:16]}..., got {actual[:16]}..."
-                )
-                return None
+        # Hard refusal on a missing sidecar, matching the main model's policy
+        # (ml/model.py): an unsigned calibrator is applied to every post-blend
+        # probability, so loading one unverified would silently distort edges,
+        # conviction tiers, and the bet ticket.
+        if not sha.exists():
+            logger.error(
+                "blend_calibrator .sha256 sidecar missing — refusing to load "
+                "unsigned calibrator; pipeline runs uncalibrated."
+            )
+            return None
+        expected = sha.read_text().strip()
+        actual = hashlib.sha256(raw).hexdigest()
+        if actual != expected:
+            logger.error(
+                f"blend_calibrator checksum mismatch — pipeline running uncalibrated. "
+                f"Expected {expected[:16]}..., got {actual[:16]}..."
+            )
+            return None
         payload = pickle.loads(raw)
         _BLEND_CALIBRATOR = payload.get('calibrator')
     except Exception as e:

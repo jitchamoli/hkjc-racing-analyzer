@@ -504,7 +504,13 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
             except Exception:
                 pass
         if top_div is None:
-            top_div = estimate_quinella_dividend(market_probs, qin_indices[0], qin_indices[1])
+            # estimate_quinella_dividend returns a per-$1 figure; the real-payout
+            # path (db.get_quinella_dividend) returns the raw per-HK$10 HKJC
+            # declaration. Scale the estimate ×10 so the DISPLAYED dividend is on
+            # the same per-$10 basis punters expect (was silently jumping 10×
+            # when real results replaced the estimate).
+            est = estimate_quinella_dividend(market_probs, qin_indices[0], qin_indices[1])
+            top_div = est * 10 if est else None
         race_data['qin_top_pair_dividend'] = round(top_div, 2) if top_div else None
         race_data['qin_dividend_source'] = top_div_source
 
