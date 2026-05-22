@@ -14,7 +14,7 @@ A multi-agent code audit of the race-analyser module surfaced three confirmed bu
 
 **Model retrain (#3):** on the 668-race real-dividend holdout, calibration improved materially (Brier 0.2067→0.2030, BSS +0.0148→+0.0352, ECE 0.0935→0.0527), hit rate 29.3%→31.6%, ROI within noise (+1114%→+1069%, inside bootstrap CI [+889%, +1258%]). Still v6.8 schema (24 features).
 
-**Race-day workflow:** `./raceday` friendly wrapper with a looping interactive menu (pick the date once, run `start`/`live`/`finish` repeatedly, no python invocation). **Measurement rigor:** re-baselined backtest on the real 668-race holdout, block-bootstrap CIs (`scripts/bootstrap_ci.py`), and a real closing-line-value report (`scripts/clv_report.py`). 434 tests pass (2 skip).
+**Race-day workflow:** `./raceday` friendly wrapper with a looping interactive menu (pick the date once, run `start`/`live`/`finish` repeatedly, no python invocation). **Measurement rigor:** re-baselined backtest on the real 668-race holdout, block-bootstrap CIs (`scripts/bootstrap_ci.py`), and a real closing-line-value report (`scripts/clv_report.py`). 433 tests pass (2 skip).
 
 ## What's New in v6.8 (2026-05-16) — health-check audit
 
@@ -285,7 +285,7 @@ hkjc_racing_analyzer/
     backfill_dividends.py · accuracy.py · serve.py · fetch_results.py
     race_day.py · post_race.py             # one-command race-day wrappers
     shadow_generate.py · shadow_evaluate.py # active rule_w=0.9 forward-validation
-  tests/                     # pytest suite — 434 tests (432 pass + 2 skip)
+  tests/                     # pytest suite — 435 tests (433 pass + 2 skip)
   config.py                  # Centralized constants
   models/                    # Trained ML models (pickle + .sha256 sidecar)
   results/                   # HTML dashboards and prediction JSON
@@ -352,7 +352,7 @@ python3 -m scripts.backtest --sweep      # grid over softmax temp × model weigh
 
 ```bash
 pytest tests/ -v
-# 434 tests total (432 pass + 2 skip):
+# 435 tests total (433 pass + 2 skip):
 #   - 9 accuracy regressions (race-level QIN/TRIO hit detection)
 #   - 24 FR/AU/JP DB tests (8 each, mirror UK pattern)
 #   - 11 backfill script tests (backfill_dividends + backfill_from_renavon)

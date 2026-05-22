@@ -617,7 +617,10 @@ class HKJCParser:
                 # the brand parenthetical so the name matches prediction_log
                 # (which stores 'PODIUM'). Without this, _fill_prediction_log
                 # silently UPDATEs 0 rows on every results fetch.
-                name = re.sub(r"\s*\([^)]+\)\s*$", "", raw_name).strip()
+                # Strip a trailing brand code (e.g. '(H173)') but NOT a
+                # country code like '(NZ)' — brand codes contain a digit,
+                # country codes are letters-only. 'STAR (NZ)(H173)' → 'STAR (NZ)'.
+                name = re.sub(r"\s*\([^)]*\d[^)]*\)\s*$", "", raw_name).strip()
                 if horse_no <= 0 or not name:
                     continue
                 key = (pos, horse_no)
@@ -889,7 +892,10 @@ class HKJCParser:
                 # Parity with parse_results — strip trailing brand parenthetical
                 # like 'PODIUM(H173)' so downstream consumers see clean names.
                 raw_name = texts[2] if len(texts) > 2 else ""
-                name = re.sub(r"\s*\([^)]+\)\s*$", "", raw_name).strip()
+                # Strip a trailing brand code (e.g. '(H173)') but NOT a
+                # country code like '(NZ)' — brand codes contain a digit,
+                # country codes are letters-only. 'STAR (NZ)(H173)' → 'STAR (NZ)'.
+                name = re.sub(r"\s*\([^)]*\d[^)]*\)\s*$", "", raw_name).strip()
                 if horse_no <= 0 or not name:
                     continue
 
