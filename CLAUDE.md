@@ -135,7 +135,7 @@ scripts/    — CLI entry points
               FR:  ingest_fr, train_fr, backtest_fr, validate_fr
               AU:  ingest_au       (reference data only — no model)
               JP:  ingest_jp       (reference data only — no model)
-tests/      — pytest suite (434 collected, 432 pass + 2 skip as of 2026-05-21):
+tests/      — pytest suite (435 collected, 433 pass + 2 skip as of 2026-05-21):
               HK core + 8 UK + FR/AU/JP DB tests + accuracy regressions +
               backfill scripts + 28 for the 2026-05-17 tooling (eval_swap_rule,
               track_spoilers, today_improvements_integration)

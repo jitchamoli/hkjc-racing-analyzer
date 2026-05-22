@@ -18,6 +18,8 @@ _RESULTS_HTML = """
   <tr><td>2</td><td>3</td><td>SETANTA(G095)</td><td>K Teetan</td><td>D J Hall</td><td>20.0</td></tr>
   <tr><td>3</td><td>12</td><td>WAH MAY WAI WAI(J193)</td><td>J Moreira</td><td>A S Cruz</td><td>13.0</td></tr>
   <tr><td>4</td><td>5</td><td>ALREADY CLEAN</td><td>Z Purton</td><td>J Size</td><td>3.6</td></tr>
+  <tr><td>5</td><td>7</td><td>KIWI STAR (NZ)(K123)</td><td>H Bowman</td><td>C Fownes</td><td>6.5</td></tr>
+  <tr><td>6</td><td>9</td><td>FRENCH FLYER (FR)</td><td>R Maia</td><td>P Yiu</td><td>9.0</td></tr>
 </table>
 </body></html>
 """
@@ -32,15 +34,26 @@ class TestParseResultsNameStripping:
         assert "WAH MAY WAI WAI" in names  # multi-word names preserved
 
     def test_no_brand_suffix_remains(self):
+        import re
         results = HKJCParser.parse_results(_RESULTS_HTML)
         for r in results:
-            assert "(" not in r["name"], f"brand suffix leaked: {r['name']!r}"
-            assert ")" not in r["name"]
+            # A brand suffix is a trailing paren containing a digit (e.g.
+            # '(H173)'); country codes like '(NZ)' are letters-only and kept.
+            assert not re.search(r"\([^)]*\d[^)]*\)", r["name"]), \
+                f"brand suffix leaked: {r['name']!r}"
 
     def test_clean_names_unchanged(self):
         results = HKJCParser.parse_results(_RESULTS_HTML)
         names = [r["name"] for r in results]
         assert "ALREADY CLEAN" in names
+
+    def test_country_code_preserved(self):
+        """Brand code (has a digit) is stripped; country code (letters
+        only) is kept — strip only trailing parens containing a digit."""
+        results = HKJCParser.parse_results(_RESULTS_HTML)
+        names = [r["name"] for r in results]
+        assert "KIWI STAR (NZ)" in names   # (K123) stripped, (NZ) kept
+        assert "FRENCH FLYER (FR)" in names  # no brand → country code intact
 
     def test_position_and_number_preserved(self):
         results = HKJCParser.parse_results(_RESULTS_HTML)
