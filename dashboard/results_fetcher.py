@@ -523,7 +523,10 @@ def _build_races_from_json(json_races: list, race_date: str) -> list:
                 'win_odds': res.get('win_odds') or pred.get('win_odds', 0),
                 'finish_time': '',
                 'running_position': '',
-                'margin': 0,
+                # Winner's margin is 0; for non-winners this fallback doesn't
+                # know the margin — write None (unknown), not 0, or every
+                # non-winner reads as "beaten 0 lengths" and corrupts beaten-margin.
+                'margin': 0 if res.get('position') == 1 else None,
             })
         out.append({
             'date': race_date,

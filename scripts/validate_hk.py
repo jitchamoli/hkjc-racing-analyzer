@@ -82,7 +82,7 @@ def _load_cutoff(conn) -> str:
         return CUTOFF_FILE.read_text().strip()
     row = conn.execute("SELECT MAX(race_date) FROM prediction_log WHERE results_filled=1").fetchone()
     cutoff = row[0] or "2026/05/20"
-    CUTOFF_FILE.write_text(cutoff)
+    _atomic_write_text(CUTOFF_FILE, cutoff)
     print(f"[init] froze forward-validation cutoff at {cutoff} "
           f"(meetings AFTER this date are the clean sample)")
     return cutoff
@@ -153,16 +153,30 @@ def _read_csv() -> list[dict]:
         return list(csv.DictReader(f))
 
 
+def _atomic_write_text(path, text):
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text)
+    tmp.replace(path)
+
+
 def _append_csv(date, acc):
-    new = not LOG_FILE.exists()
-    with open(LOG_FILE, "a", newline="") as f:
-        w = csv.writer(f)
-        if new:
-            w.writerow(CSV_COLS)
-        row = [date, acc["_races"]]
-        for s in STRATS:
-            row += [acc[s[0]][0], round(acc[s[0]][1], 2), acc[s[0]][2]]
-        w.writerow(row)
+    # Atomic read-modify-rewrite (NOT append): a torn append would corrupt the
+    # only un-burned evidence file, and a non-atomic write races backups/concurrent
+    # runs. Rebuild the full table and os.replace it in.
+    rows = _read_csv()
+    newrow = {"race_date": date, "races": acc["_races"]}
+    for s in STRATS:
+        newrow[f"{s[0]}_stake"] = acc[s[0]][0]
+        newrow[f"{s[0]}_ret"] = round(acc[s[0]][1], 2)
+        newrow[f"{s[0]}_hits"] = acc[s[0]][2]
+    rows.append(newrow)
+    tmp = LOG_FILE.with_suffix(".csv.tmp")
+    with open(tmp, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=CSV_COLS)
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: r.get(k, "") for k in CSV_COLS})
+    tmp.replace(LOG_FILE)
 
 
 def _report(logged: list[dict], title: str):
@@ -201,7 +215,7 @@ def main() -> int:
     conn.row_factory = sqlite3.Row
 
     if args.set_cutoff:
-        CUTOFF_FILE.write_text(args.set_cutoff.strip())
+        _atomic_write_text(CUTOFF_FILE, args.set_cutoff.strip())
         print(f"cutoff set to {args.set_cutoff.strip()}")
     cutoff = _load_cutoff(conn)
     print(f"forward cutoff: {cutoff}  (clean sample = meetings AFTER this)")

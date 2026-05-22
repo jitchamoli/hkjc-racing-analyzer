@@ -126,5 +126,9 @@ def save_alert_state(race_date: str, state: AlertState) -> None:
     date_str = race_date.replace('/', '')
     path = os.path.join(ALERTS_STATE_DIR, f'alerts_state_{date_str}.json')
     os.makedirs(ALERTS_STATE_DIR, exist_ok=True)
-    with open(path, 'w') as f:
+    # Atomic write: a kill mid-write leaves truncated JSON, which load_alert_state
+    # silently resets to empty → every already-emitted alert re-fires once.
+    tmp = path + '.tmp'
+    with open(tmp, 'w') as f:
         json.dump({'emitted': [list(item) for item in state.emitted]}, f, indent=2)
+    os.replace(tmp, path)
