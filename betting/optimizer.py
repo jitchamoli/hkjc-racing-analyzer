@@ -452,7 +452,7 @@ def compute_suggested_stake(*, conviction_tier: str, bet_type: str,
     if frac_cap == 0 or bankroll <= 0:
         return {'amount': 0.0, 'pct': 0.0, 'method': 'skip'}
 
-    if bet_type in ('WIN', 'BANKER WIN') and top_odds and top_odds > 1 and top_prob > 0:
+    if bt in ('WIN', 'BANKER WIN') and top_odds and top_odds > 1 and top_prob > 0:
         # Half-Kelly: f* = (b·p - q) / b, then × 0.5 for variance control.
         b = top_odds - 1
         p = max(0.0, min(1.0, top_prob))
