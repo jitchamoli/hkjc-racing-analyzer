@@ -109,16 +109,21 @@ def extract_class_rank(class_type: str) -> Optional[int]:
     s = str(class_type).strip().upper()
     if not s:
         return None
-    if s in ('G1', 'GROUP 1', 'G2', 'GROUP 2'):
+    if s in ('G1', 'GROUP 1', 'GROUP ONE', 'G2', 'GROUP 2', 'GROUP TWO'):
         return 0
-    if s in ('G3', 'GROUP 3'):
+    if s in ('G3', 'GROUP 3', 'GROUP THREE'):
         return 1
-    m = re.match(r'^(?:CLASS\s+)?(\d)$', s)
+    # Tolerate a trailing "(RESTRICTED)" qualifier, e.g. "Class 4 (Restricted)".
+    s_base = re.sub(r'\s*\(RESTRICTED\)\s*$', '', s)
+    m = re.match(r'^(?:CLASS\s+)?(\d)$', s_base)
+    if m:
+        return int(m.group(1))
+    m = re.match(r'^(\d)R$', s_base)   # restricted shorthand e.g. "4R", "3R"
     if m:
         return int(m.group(1))
     if 'GRIFFIN' in s or 'MAIDEN' in s:
         return 4
-    if '4YO' in s or 'AGE' in s or s.startswith('Y'):
+    if '4YO' in s or '4 YEAR' in s or 'AGE' in s or s.startswith('Y'):
         return 3
     return None
 
