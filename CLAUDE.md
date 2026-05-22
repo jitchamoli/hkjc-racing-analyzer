@@ -15,15 +15,41 @@ For deep history, version-by-version changelogs, full feature lists, and audit d
 python3 generate_predictions.py '2026/04/15'
 # Output: results/race_data_YYYYMMDD.json + results/racing_dashboard.html (always-latest) + results/racing_dashboard_YYYYMMDD.html (archive)
 
-# One-command race-day wrappers (recommended workflow)
-python3 -m scripts.race_day '2026/05/17'     # generate_predictions + shadow_generate
-python3 -m scripts.post_race '2026/05/17'    # results_fetcher --auto-learn + shadow_evaluate + auto_dump
+# Race-day phase controller (PREFERRED — encodes the full rhythm so shadow
+# logging is never skipped by jumping straight to a live refresh):
+python3 -m scripts.raceday start  '2026/05/17'   # ONCE, AM: race_day (generate + shadow_generate + tier_b_shadow)
+python3 -m scripts.raceday live   '2026/05/17'   # REPEAT before/after each race: generate_predictions → results_fetcher
+python3 -m scripts.raceday finish '2026/05/17'   # ONCE, PM: post_race (forwards --skip-dump etc.)
+
+# Friendly wrapper (no python invocation). Date optional (defaults today).
+./raceday                  # bare → interactive LOOPING menu: pick date once, run phases repeatedly
+./raceday start            # one-shot phase; flags pass through (e.g. ./raceday finish --skip-dump)
+./raceday live 2026/05/17  # explicit date (accepts / or -)
+
+# Underlying one-command wrappers (raceday dispatches to these)
+python3 -m scripts.race_day '2026/05/17'     # generate_predictions + shadow_generate + tier_b_shadow
+python3 -m scripts.post_race '2026/05/17'    # 7+1 steps: results_fetcher --auto-learn →
+                                             #   shadow_evaluate → tier_b_evaluate →
+                                             #   track_spoilers → track_longshot_trio →
+                                             #   track_edge → regen dashboard
+                                             #   (fresh edge_stats) → auto_dump
+python3 -m scripts.post_race '2026/05/17' --skip-dump   # leave DB dump/push for later
 
 # Shadow logging — active forward-validation experiment for rule_w=0.9 (see
 # memory/project_shadow_logging_rule_w_09.md). Production stays at 0.6.
 python3 -m scripts.shadow_generate '2026/05/17'           # writes shadow_race_data_YYYYMMDD.json
 python3 -m scripts.shadow_evaluate '2026/05/17'           # appends to tracking_data/shadow_log.csv
 python3 -m scripts.shadow_evaluate --report               # cumulative comparison after N≥6 meetings
+
+# Forward-validation experiments + empirical trackers (auto-run by post_race)
+python3 -m scripts.tier_b_evaluate '2026/05/17'           # OLD vs NEW recommender (tier_b_log.csv)
+python3 -m scripts.tier_b_evaluate --report               # cumulative tier B comparison
+python3 -m scripts.track_spoilers '2026/05/17'            # log rank>5 horses that placed top-3 → spoilers.csv
+python3 -m scripts.track_edge '2026/05/17'                # log EDGE fires + outcomes → edge_stats.json (feeds dashboard banner)
+python3 -m scripts.track_longshot_trio '2026/05/17'       # PAPER experiment: top-5 + steamed rank 6-8 longshot → longshot_trio_log.csv
+python3 -m scripts.track_longshot_trio --report           # cumulative hit-rate + ROI + SHIP/KILL verdict (N≥6 gate). NOT wired to dashboard/WA
+python3 -m scripts.clv_report                             # REAL closing-line value (open→close odds move on rank-1 picks) — fast sharpness signal. Coverage grows via `raceday live`
+python3 -m scripts.eval_swap_rule --rank-out 6 --odds-ratio 0.5   # backtest a TRIO-6 swap rule before shipping (pre-ship gate)
 
 # Scrape historical results into database (Playwright required)
 python3 scrape_history.py                    # Last 10 meeting dates
@@ -100,13 +126,19 @@ dashboard/  — prediction generator, edge-first HTML template                (H
 betting/    — edge_calculator, conviction tiers, alerts, tier_stats,        (HK only)
               dividends, exotic_calculator, optimizer
 scripts/    — CLI entry points
-              HK:  generate, scrape, train, monitor, backtest, accuracy, ...
+              HK:  generate, scrape, train, monitor, backtest, accuracy,
+                   race_day, post_race, shadow_generate/evaluate,
+                   tier_b_evaluate, track_spoilers, track_edge,
+                   track_longshot_trio, eval_swap_rule,
+                   dump_db/restore_db, ...
               UK:  ingest_uk, train_uk, backtest_uk, validate_uk
               FR:  ingest_fr, train_fr, backtest_fr, validate_fr
               AU:  ingest_au       (reference data only — no model)
               JP:  ingest_jp       (reference data only — no model)
-tests/      — pytest suite (366 total: 314 HK + 8 UK + 9 accuracy regressions
-              + 24 FR/AU/JP DB tests + 11 backfill script tests)
+tests/      — pytest suite (435 collected, 433 pass + 2 skip as of 2026-05-21):
+              HK core + 8 UK + FR/AU/JP DB tests + accuracy regressions +
+              backfill scripts + 28 for the 2026-05-17 tooling (eval_swap_rule,
+              track_spoilers, today_improvements_integration)
 ```
 
 Root-level shims exist for backwards compatibility (e.g., `hkjc_data_fetcher.py` re-exports from `core/fetcher.py`).
@@ -130,7 +162,7 @@ scripts/train.py → models/hkjc_racing_model.pkl
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
 - **Rule engine (60%)**: 25 dynamically-weighted factors (added `speed_fig` v6.6). Missing-data factors are excluded and remaining weights renormalize to 1.0. The rule_score (0-100) is converted to a probability via a base-rate-anchored sigmoid: `sigmoid(0.06 × (score - 50) + logit(1/field_size))`. `odds` and `odds_movement` are NOT in the rule engine — market info enters via the dynamic market blend only (prevents triple-counting). v6.6 (2026-05-09) audit purged 3 sites that violated this: `field_size` factor (used `1/win_odds`), no-form fallback (used `1/win_odds`), and BANKER signal #9 (used `1/win_odds`). All replaced with structural-only logic.
-- **ML model (40%)**: XGBoost classifier with **24 features** (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a separate place model (`is_top3`). Both use IsotonicRegression recency-weighted, trained on 50,733 real race results from a 5-year window. After the market blend, a second isotonic (`models/blend_calibrator.pkl`, fit by `scripts/calibrate_blend.py` on the 70-85% calibration fold ~8,271 production-pipeline pairs) recalibrates the post-blend distribution per-horse with renormalization. **Auto-learn refits the calibrator after every retrain** (gated on `retrain_ok` — won't refit against a stale model). 4-fold split: rows[0:60%] train, [60:70%] earlystop, [70:85%] calibrator, [85:100%] backtest holdout — strictly disjoint.
+- **ML model (40%)**: XGBoost classifier with **24 features** (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a separate place model (`is_top3`). Both use IsotonicRegression recency-weighted, trained on ~50,750 real race results from a 5-year window (grows ~146/meeting). After the market blend, a second isotonic (`models/blend_calibrator.pkl`, fit by `scripts/calibrate_blend.py` on the 70-85% calibration fold ~8,271 production-pipeline pairs) recalibrates the post-blend distribution per-horse with renormalization. **Auto-learn refits the calibrator after every retrain** (gated on `retrain_ok` — won't refit against a stale model). 4-fold split: rows[0:60%] train, [60:70%] earlystop, [70:85%] calibrator, [85:100%] backtest holdout — strictly disjoint.
 
 The 14 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change, speed figures, jockey form). `analytics/speed_figures.py` was wired into the rule engine in v6.6 (was previously orphaned). `analytics/gear_change.py` scores are now data-calibrated by `scripts/calibrate_gear.py` (auto-runs after each meeting via auto-learn) — `models/gear_scores.json` overrides hand-tuned defaults.
 
@@ -177,11 +209,17 @@ Place odds are fetched via `_apply_odds_via_requests()` using `fetch_odds_html(d
 4. **+ QIN PLACE BANKER** (blue) — only when top pick odds ≤ 1.8 (favorite + 3 bankers, 3 combos)
 5. **★ MAIN · F4 BOX-5** (purple→pink gradient) — top-5 model picks in a 5-combo F4 box (any order, top-4 finishers). Shipped 2026-05-06 after 60-race backtest: **+54% ROI vs TRIO-5's +8%** at half the stake ($50 vs $100). Median F4 dividend $1,227 (vs TRIO $605); per-hit return ~9× the stake. Same gates as F4 SAVER (skip heavy fav, LOW conv, field <8). Treated as MAIN bet alongside PRIMARY/TRIO-5 in WhatsApp.
 6. **+ BOX TRIO-5** (pink) — top-5 in 10-combo TRIO box (catches rank-5/6 spoilers). Kept as parallel MAIN with F4 BOX-5: TRIO-5 still hits when 4th finisher is outside top-5 (different miss profile). Treated as MAIN bet in the WhatsApp message (per 2026-05-03 user feedback).
-7. **+ BOX TRIO-6** (rose, OPTIONAL) — top-6 in 20-combo TRIO box. 6-meeting evidence (Apr 12-29, 60 races): TRIO-6 lifts strike rate +10pp at both venues (HV +2/18, ST +4/42) but doubles stake. Economic break-even vs TRIO-5: avg TRIO dividend must exceed ~$111. Per-race **TAKE/SKIP/YOUR CALL** recommendation rendered with a **CHAOS 0-4 score** (big field ≥11, competitive favorite $2.5-$5, ≥2 morning-steam horses, HIGH/MED conviction). Rules: SKIP if heavy favorite ($<2.5); TAKE if ≥2 steam OR (HIGH+field≥11+competitive fav); YOUR CALL otherwise. **Spoiler-swap (2026-05-03)**: when a horse ranked 7-12 has gear visible (B/TT/CP/etc) AND market odds ≥20% shorter than rank-6, it auto-swaps into rank-6 slot with a 🔁 SWAP badge. Validated retro on 2026-05-03 R4 (#14 SUNNY Q, 3rd) and R5 (#8 FLYING KNIGHT, won) — both would have hit TRIO-6 with the swap. Needs N≥6 meetings of forward validation per project rule.
+7. **+ BOX TRIO-6** (rose, OPTIONAL) — top-6 in 20-combo TRIO box. 6-meeting evidence (Apr 12-29, 60 races): TRIO-6 lifts strike rate +10pp at both venues (HV +2/18, ST +4/42) but doubles stake. Economic break-even vs TRIO-5: avg TRIO dividend must exceed ~$111. Per-race **TAKE/SKIP/YOUR CALL** recommendation rendered with a **CHAOS 0-4 score**. CHAOS factors (reworked 2026-05-17 to cut false-positive panic flags): big field **≥13**, competitive favorite $2.5-$5, ≥2 morning-steam horses, **top_2_share < 0.40** (flat top-2 = open race). The always-on HIGH/MED conviction factor was dropped. Rules: SKIP if heavy favorite ($<2.5); TAKE if ≥2 steam OR (HIGH+field≥11+competitive fav); YOUR CALL otherwise. **Auto spoiler-swap (rank-6 only)**: when a horse ranked 7-12 has gear visible (B/TT/CP/etc) AND market odds ≥20% shorter than rank-6, it auto-swaps into the rank-6 slot with a 🔁 SWAP badge. **NOTE — the rank-5 swap variant was shipped and killed on 2026-05-17** (failed its first forward test, turned a default HIT into a MISS; see `memory/project_rank5_swap_killed_2026-05-17.md`). Do not reintroduce any swap rule without ≥6-meeting backtest via `scripts/eval_swap_rule.py`. **Manual override**: `tracking_data/manual_overrides.json` lets you force a specific horse into the rank-6 TRIO-6 slot for one race — schema `{date: {race_no_str: {trio6_horse: N, reason: str}}}`. Renders a 🛠 MANUAL badge; the no-op case (override == current rank-6) is suppressed silently.
 
 **Strike-badge precedence**: STRIKE-WIN → STRIKE-QIN → STRIKE-BOX-4 → STRIKE-F4-5 → STRIKE-TRIO-5 → STRIKE-TRIO-6 → MISS. F4-5 is checked before TRIO-5 because an F4-5 hit always implies a TRIO-5 hit (top-3 are part of top-4); we display the stronger result.
 
 **Top Bets sub-toggle**: `Next` / `Past` filter — `Next` is default, auto-flips to `Past` at end-of-meeting. Past races render outcome badges: 🟡 STRIKE·WIN, 🟢 STRIKE·QIN, 🟢 STRIKE·BOX-4, 💜 STRIKE·F4-5, 🔴 STRIKE·TRIO-5, 🌹 STRIKE·TRIO-6, 🔴 MISS.
+
+**Live trust panels (injected as JS consts, must survive every re-render)**:
+- **`EDGE_STATS`** — cumulative EDGE-tier fire history `{n_fires, n_placed, n_won, last_updated}` from `tracking_data/edge_stats.json` (written by `scripts/track_edge.py`). Feeds the EDGE banner text. Pattern so far (N=4): EDGE picks place top-3 but don't win — anchor TRIO, do not WIN-bet.
+- **`ACCURACY_SUMMARY`** — 60-day rolling rank-1 win rate / top-3 overlap (longitudinal trust footer).
+- **`suggested_stake`** — per-race stake banner. HIGH-tier bets scale 0.75–1.0× by `top_2_share` (weaker top-2 share = smaller stake; `betting/optimizer.py:_confidence_scale`). Both WA message and dashboard show per-bet allocation + unallocated budget hint.
+- **CRITICAL**: `dashboard/results_fetcher.py` MUST load and pass `accuracy_summary` AND `edge_stats` into `generate_html()` — a 2026-05-17 bug (fixed `84603e1`) re-rendered the dashboard without them and wiped both panels on every results fetch. `dashboard/generator.py` and `dashboard/results_fetcher.py` are the two `generate_html()` call sites; keep them in sync.
 
 **Race-day live workflow** uses two persistent monitors:
 - **Pre-race refresh + results merge** at **T-6 min** (chains `generate_predictions.py` → `results_fetcher.py` so dashboard has fresh win/place odds AND past STRIKE/MISS badges persist).
@@ -211,7 +249,7 @@ These are timeless guidance — violations have caused multiple v6.x bugs.
 
 1. **No data leakage**: Every feature must use ONLY data available BEFORE the race. Never use finish_position, finish_time, running_position, or margin from the CURRENT race. For horse history features (C&D form, pace, speed), use strictly `prior_date < current_date`. `extract_features()` accepts `race_date` via `horse_data` and filters DB queries with `AND race_date < ?`. Track records in training are also date-aware (cumulative best-time lookup, not global).
 
-2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. `generate_synthetic_training_data()` must also match the same feature schema. The DB (race_results) has different fields than race cards. Both training and inference must use the SAME helpers (e.g. `extract_class_rank` for class strings, `parse_age_score` for ages, dslr fallback for freshness) — divergence between them caused multiple v6.x bugs. **Concrete pattern**: when adding a feature whose raw value can come in multiple formats (DB `'5.0'` vs race-card `'5'`), define a single `parse_X_score()` helper in `ml/features.py` and call it from both sites. Inline duplicates drift silently and degrade the feature.
+2. **Train/predict consistency**: Features in `build_training_data_from_db()` MUST match `extract_features()` exactly — same computation, same order, same fallback values. `generate_synthetic_training_data()` must also match the same feature schema. The DB (race_results) has different fields than race cards. Both training and inference must use the SAME helpers (e.g. `extract_class_rank` for class strings, `parse_age_score` for ages, dslr fallback for freshness) — divergence between them caused multiple v6.x bugs. **Concrete pattern**: when adding a feature whose raw value can come in multiple formats (DB `'5.0'` vs race-card `'5'`), define a single `parse_X_score()` helper in `ml/features.py` and call it from both sites. Inline duplicates drift silently and degrade the feature. **PRIOR-history scoping**: training-time horse/jockey/trainer prior lookups must query the FULL DB, not the recency-windowed training rows — inference (`extract_features`) always queries the full DB, so a windowed history is a train/predict mismatch at the window edge. `build_training_data_from_db` builds `horse_history` from a full-DB query (fixed 2026-05-21; jockey/trainer fixed earlier in Task #51). The cutoff applies only to which rows become training LABELS.
 
 3. **No constant features**: If a feature has std < 0.01 in training data, it's wasted. Common cause: field is mostly null and falls back to 0.5. Check with `np.std()` after building features. Feature correlation matrix is logged after each training run — pairs with |r| > 0.7 are flagged.
 
@@ -248,14 +286,14 @@ overlay = pure_prob × win_odds
 Exotic pricing: conditional elimination for exacta/trifecta/quinella/first4.
 ```
 
-Market odds enter ONLY through the dynamic market blend. Blend weights are heavier on market for large sprint fields (sharp pool), heavier on model for small/long fields and exotics (thinner pool). **Edge math uses `pure_prob` (pre-blend) NOT `calibrated_prob` (post-blend)** — otherwise edge would be mechanically tiny because we'd be comparing market-influenced-us against market.
+Market odds enter ONLY through the dynamic market blend. Blend weights are heavier on market for large sprint fields (sharp pool), heavier on model for small/long fields and exotics (thinner pool). **Edge math uses `pure_prob` (pre-blend) NOT `calibrated_prob` (post-blend)** — otherwise edge would be mechanically tiny because we'd be comparing market-influenced-us against market. This includes exotic value detection (`find_value_exotics` in `dashboard/generator.py`, which was passing `calibrated_prob` — fixed 2026-05-21).
 
 → Edge gates, conviction tiers, recommender logic, backtest history, exotic pricing math: `docs/betting-strategy.md`.
 
 ## DB Data Gaps (post-Renavon backfill, audited 2026-05-16)
 
 - `rating`: 100% coverage. `rating_change`: 100%. `last_6`: 95.5%. `gear`: 93%. `age`: **68.4%** (was claimed 99.8% — coverage actually degrades back in time: 2021 = 20%, 2022 = 45%, 2023 = 79%, 2024 = 86%, 2025 = 95%, 2026 = 100%). `sectional_times`: 99.4% (Path B backfill, permanent — auto-captured forward).
-- `age` format gotcha: Renavon CSV writes `'5.0'`, live race-card scrape writes `'5'`. Both go through `parse_age_score()` (single source of truth in `ml/features.py`); never reimplement inline. Pre-fix the inline `int(str(age)[:2])` parser failed silently on `'5.0'` and 94% of training rows fell back to 0.5 — a real train/predict mismatch (ML rule #2 violation).
+- `age` format gotcha: Renavon CSV writes `'5.0'`, live race-card scrape writes `'5'`. The ML path goes through `parse_age_score()` and the **rule engine** through `parse_age_int()` — both single source of truth in `ml/features.py`; never reimplement inline. Two bugs from this: (1) the ML inline `int(str(age)[:2])` parser failed silently on `'5.0'` (94% of training rows fell back to 0.5); (2) the rule engine gated its age-vs-field factor on `horse.age.isdigit()` (False for `'5.0'`) so the factor was silently dropped for every DB-built race (backtest, history) while live `'5'` worked — a backtest≠live divergence. Both fixed 2026-05-21 (use the shared helpers).
 - `running_position` has two formats: space-separated (`"6 5 6"`) and concatenated (`"665"`). Always handle both when parsing.
 - `horse_weight` is in lbs (900-1350 range), `weight` is carried weight assignment (113-133 lbs).
 - `class_type`: 96% coverage; uses `extract_class_rank()` to handle G1/G2/G3/GRIFFIN/4YO. Missing/unparseable rows default to class 3 for class_change calculation.
@@ -280,7 +318,7 @@ Added 2026-05-17. All non-HK racing data flows from **theracingapi.com** (HTTP B
 
 | Jurisdiction | DB | Model | Status | 12mo volume |
 |---|---|---|---|---|
-| **HK** | `horse_history.db` | v6.8 production | Production. Untouched by this expansion. | 55,157 race results |
+| **HK** | `horse_history.db` | v6.8 production | Production. Untouched by this expansion. | 55,303 race results |
 | **UK** | `uk_history.db` | `uk_racing_model.pkl` (15-feature XGB) | MVP — forward-validating | 81,975 runners |
 | **FR** | `fr_history.db` | `fr_racing_model.pkl` (15-feature XGB) | MVP — forward-validating, **beats market favourite** in backtest | 21,267 runners |
 | **AU** | `au_history.db` | none | Reference data only — too sparse on standard tier | 4,444 runners |
