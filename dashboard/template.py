@@ -1527,6 +1527,7 @@ function _longshotPick(race) {{
 // number + eligible horse numbers) so the "lucky" horse stays the same across
 // dashboard refreshes — a bet you can actually place, not re-rolled each render.
 function _luckyTrio(race) {{
+  if (race.conviction_tier === 'EDGE') return null;  // skip high-conviction EDGE races
   if (!race.horses || race.horses.length < 4) return null;
   var sorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
   var top2 = sorted.slice(0, 2);
