@@ -792,7 +792,8 @@ function renderBetCard(race) {{
         '<div style="color:var(--dim);font-size:.66rem;margin-top:3px">straight TRIO \\u00b7 top-2 + random 3rd: ' +
           '<span style="color:#fcd34d;font-weight:700">' + _lt.nums.map(function(n) {{ return '#' + esc(n); }}).join('-') + '</span>' +
           ' <span style="opacity:.75">(3rd = #' + esc(_lt.third.number) + ' ' + esc(_lt.third.name) +
-          ', rank ' + esc(_lt.third.rank) + ', @' + esc(_lt.third.win_odds) + ')</span></div>' +
+          ', rank ' + esc(_lt.third.rank) + ', @' + esc(_lt.third.win_odds) +
+          ', ' + Math.round((_lt.third.place_prob || 0) * 100) + '% place)</span></div>' +
       '</div>'
     : '';
   if (ss.amount && ss.amount > 0) {{
@@ -1520,12 +1521,13 @@ function _longshotPick(race) {{
 }}
 
 // EXPERIMENT (owner-requested, display-only): a straight 3-horse TRIO of our
-// top-2 + one "lucky" RANDOM third drawn from the rest of the field. This is
-// NOT model-driven for the 3rd leg, NOT staked, and is completely isolated
-// from the ML pipeline (never a feature, never trained on, never fed to the
-// recommender). The pick is DETERMINISTIC per race (FNV-1a hash of the race
-// number + eligible horse numbers) so the "lucky" horse stays the same across
-// dashboard refreshes — a bet you can actually place, not re-rolled each render.
+// top-2 + one "lucky" third drawn at random from the rest of the field but
+// WEIGHTED by place_prob (likelier placers favoured; a floor keeps every
+// runner possible). NOT staked, and completely isolated from the ML
+// pipeline (never a feature, never trained on, never fed to the recommender).
+// The pick is DETERMINISTIC per race (FNV-1a hash of the race number +
+// eligible horse numbers seeds the weighted draw) so the "lucky" horse stays
+// the same across dashboard refreshes — a placeable bet, not re-rolled each render.
 function _luckyTrio(race) {{
   if (race.conviction_tier === 'EDGE') return null;  // skip high-conviction EDGE races
   if (!race.horses || race.horses.length < 4) return null;
@@ -1533,10 +1535,23 @@ function _luckyTrio(race) {{
   var top2 = sorted.slice(0, 2);
   var rest = sorted.slice(2);
   if (rest.length === 0) return null;
+  // Deterministic seed (FNV-1a hash of race + eligible horse numbers) → a
+  // stable u in [0,1), so the pick is identical across refreshes. Then a
+  // WEIGHTED draw by place_prob (the model top-3 estimate): likelier placers
+  // get proportionally more chance, but a 0.01 floor keeps every runner
+  // possible so a longshot can still come up. Significance plus randomness,
+  // not pure uniform.
   var seedStr = String(race.race_number || '') + ':' + rest.map(function(h) {{ return h.number; }}).join(',');
   var hsh = 2166136261;
   for (var i = 0; i < seedStr.length; i++) {{ hsh ^= seedStr.charCodeAt(i); hsh = Math.imul(hsh, 16777619); }}
-  var third = rest[(hsh >>> 0) % rest.length];
+  var u = (hsh >>> 0) / 4294967296;
+  var weights = rest.map(function(h) {{ return Math.max(0.01, h.place_prob || 0); }});
+  var total = weights.reduce(function(s, w) {{ return s + w; }}, 0);
+  var third = rest[rest.length - 1], acc = 0;
+  for (var k = 0; k < rest.length; k++) {{
+    acc += weights[k] / total;
+    if (u <= acc) {{ third = rest[k]; break; }}
+  }}
   var nums = [top2[0].number, top2[1].number, third.number];
   var tag = '', tagColor = '#94a3b8';
   if (race.results_available && Array.isArray(race.actual_top3) && race.actual_top3.length === 3) {{
