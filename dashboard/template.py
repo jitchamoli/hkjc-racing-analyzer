@@ -782,18 +782,18 @@ function renderBetCard(race) {{
           ' (rank ' + esc(_lp.best.rank) + ', @' + esc(_lp.best.win_odds) + ', -' + _lp.pct + '%)</span></div>' +
       '</div>'
     : '';
-  // EXPERIMENT (owner-only): top-2 + market next-favourite, straight TRIO.
-  // Amber/dashed, NOT STAKED, isolated from ML. See _marketTrio().
-  var _mt = _marketTrio(race);
-  var marketBlock = _mt
+  // EXPERIMENT (owner-only): top-2 + bolter (biggest price in rank 6-9), straight
+  // TRIO. Amber/dashed, NOT STAKED, isolated from ML. Lottery line. See _bolterTrio().
+  var _bt = _bolterTrio(race);
+  var bolterBlock = _bt
     ? '<div class="trust-block" style="margin-top:6px;border:1px dashed #b45309;border-radius:6px;padding:6px 10px;background:rgba(180,83,9,.10)">' +
-        '<span style="background:#b45309;color:#fef3c7;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">\\uD83D\\uDCCA MARKET TRIO \\u00b7 EXPERIMENT \\u00b7 NOT STAKED</span>' +
-        (_mt.tag ? ' <span style="color:' + _mt.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _mt.tag + '</span>' : '') +
-        '<div style="color:var(--dim);font-size:.66rem;margin-top:3px">straight TRIO \\u00b7 top-2 + market 3rd: ' +
-          '<span style="color:#fcd34d;font-weight:700">' + _mt.nums.map(function(n) {{ return '#' + esc(n); }}).join('-') + '</span>' +
-          ' <span style="opacity:.75">(3rd = #' + esc(_mt.third.number) + ' ' + esc(_mt.third.name) +
-          ', rank ' + esc(_mt.third.rank) + ', @' + esc(_mt.third.win_odds) +
-          ' \\u2014 shortest price outside top-2)</span></div>' +
+        '<span style="background:#b45309;color:#fef3c7;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">\\uD83C\\uDF40 BOLTER TRIO \\u00b7 EXPERIMENT \\u00b7 NOT STAKED</span>' +
+        (_bt.tag ? ' <span style="color:' + _bt.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _bt.tag + '</span>' : '') +
+        '<div style="color:var(--dim);font-size:.66rem;margin-top:3px">straight TRIO \\u00b7 top-2 + bolter: ' +
+          '<span style="color:#fcd34d;font-weight:700">' + _bt.nums.map(function(n) {{ return '#' + esc(n); }}).join('-') + '</span>' +
+          ' <span style="opacity:.75">(3rd = #' + esc(_bt.third.number) + ' ' + esc(_bt.third.name) +
+          ', rank ' + esc(_bt.third.rank) + ', @' + esc(_bt.third.win_odds) +
+          ' \\u2014 biggest price in rank 6-9)</span></div>' +
       '</div>'
     : '';
   if (ss.amount && ss.amount > 0) {{
@@ -890,10 +890,10 @@ function renderBetCard(race) {{
           '<br><span style="color:var(--dim);font-size:.65rem">' + (ss.pct||0).toFixed(2) + '% of $' + br + ' · ' + esc(ss.method||'') + '</span>' +
           breakdownHtml +
         '</div>' +
-      '</div>' + paperBlock + marketBlock;
+      '</div>' + paperBlock + bolterBlock;
   }}
   // SKIP / no-stake races still surface the paper experiments if any qualify.
-  if (!stakeHtml) stakeHtml = paperBlock + marketBlock;
+  if (!stakeHtml) stakeHtml = paperBlock + bolterBlock;
 
   // Bet type sub-label
   var betRec = topH.bet_recommendation || 'QIN';
@@ -1521,22 +1521,22 @@ function _longshotPick(race) {{
 }}
 
 // EXPERIMENT (owner-requested, display-only): a straight 3-horse TRIO of our
-// top-2 + the MARKET next-favourite (the shortest-priced runner outside our
-// top-2). Rationale from the held-out data: market odds strongly flag the
-// low-ranked horses that finish top-3 (a rank 7-9 horse places 31% at <$8 vs
-// 4% at $60+), while our own place model barely separates them. So we defer to
-// the market for the 3rd leg. Deterministic (lowest odds), stable across
-// refreshes. NOT staked, and completely isolated from the ML pipeline (never a
-// feature, never trained on, never fed to the recommender).
-function _marketTrio(race) {{
+// top-2 + a BOLTER — the biggest-priced runner in the rank 6-9 zone (the
+// live-but-underrated longshots, where the 51-1 #8 sat on 2026/05/20 R2).
+// Replicates the lose-lose-JACKPOT pattern: ~1% hit on the holdout, but it is
+// the only variant that can land a top-2 + big-longshot trio. Falls back to
+// the longest price outside the top-2 on short fields. Deterministic, stable
+// across refreshes. NOT staked, and completely isolated from the ML pipeline
+// (never a feature, never trained on, never fed to the recommender).
+function _bolterTrio(race) {{
   if (race.conviction_tier === 'EDGE') return null;  // skip high-conviction EDGE races
   if (!race.horses || race.horses.length < 4) return null;
   var sorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
   var top2 = sorted.slice(0, 2);
-  var rest = sorted.slice(2);
-  var priced = rest.filter(function(h) {{ return (h.win_odds || 0) > 0; }});
-  if (priced.length === 0) return null;  // need odds to pick the market favourite
-  var third = priced.reduce(function(best, h) {{ return (h.win_odds < best.win_odds) ? h : best; }});
+  var band = sorted.slice(5, 9).filter(function(h) {{ return (h.win_odds || 0) > 0; }});  // rank 6-9
+  if (band.length === 0) band = sorted.slice(2).filter(function(h) {{ return (h.win_odds || 0) > 0; }});
+  if (band.length === 0) return null;  // need odds to pick a bolter
+  var third = band.reduce(function(best, h) {{ return (h.win_odds > best.win_odds) ? h : best; }});
   var nums = [top2[0].number, top2[1].number, third.number];
   var tag = '', tagColor = '#94a3b8';
   if (race.results_available && Array.isArray(race.actual_top3) && race.actual_top3.length === 3) {{
