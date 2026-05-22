@@ -342,16 +342,25 @@ def _parse_dividends(table_data):
         # Skip header rows, start parsing from row 1
         current_pool = None
         for row in table[1:]:
-            if len(row) < 3:
+            if len(row) >= 3:
+                pool_raw, combo_raw, div_raw = row[0].strip(), row[1].strip(), row[2].strip()
+                # Strip " 1st" / " 2nd" / " 3rd" suffix from old pool labels
+                pool_upper = re.sub(r"\s+(1ST|2ND|3RD)$", "", pool_raw.upper()).strip()
+                if pool_upper and pool_upper in _KNOWN_POOLS:
+                    current_pool = pool_upper
+                elif pool_upper:
+                    # Unknown pool label — still track to avoid misattribution
+                    current_pool = pool_upper
+            elif len(row) == 2:
+                # Continuation row for a multi-combo pool (PLACE, QUINELLA PLACE,
+                # the DOUBLE legs…): HKJC omits the pool cell entirely, so the row
+                # is [combination, dividend] and inherits the current pool. The
+                # prior `len(row) < 3: continue` silently dropped these — keeping
+                # only the FIRST combo of every multi-row pool (so QUINELLA PLACE
+                # and PLACE were ~⅓ complete).
+                combo_raw, div_raw = row[0].strip(), row[1].strip()
+            else:
                 continue
-            pool_raw, combo_raw, div_raw = row[0].strip(), row[1].strip(), row[2].strip()
-            # Strip " 1st" / " 2nd" / " 3rd" suffix from old pool labels
-            pool_upper = re.sub(r"\s+(1ST|2ND|3RD)$", "", pool_raw.upper()).strip()
-            if pool_upper and pool_upper in _KNOWN_POOLS:
-                current_pool = pool_upper
-            elif pool_upper:
-                # Unknown pool label — still track to avoid misattribution
-                current_pool = pool_upper if pool_upper else current_pool
             if not current_pool or not combo_raw:
                 continue
             try:

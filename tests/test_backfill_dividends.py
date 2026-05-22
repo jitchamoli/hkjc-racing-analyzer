@@ -182,3 +182,42 @@ def test_backfill_skips_invalid_dividend_entries(db):
     assert n == 1
     count = db.conn.execute("SELECT COUNT(*) FROM race_dividends").fetchone()[0]
     assert count == 1
+
+
+def test_parse_dividends_captures_multi_combo_continuation_rows():
+    """Multi-combo pools (PLACE, QUINELLA PLACE) emit continuation rows with
+    only 2 cells — HKJC omits the pool cell. They inherit the current pool.
+
+    Regression (2026-05-22): the prior `len(row) < 3: continue` dropped every
+    2-cell row, so only the FIRST combo of PLACE/QUINELLA PLACE was stored
+    (e.g. 2026/05/20 R2 kept QPL 2-10 but lost 8-10 and 2-8 @ $405). Layout
+    below is the real 0520 R2 dividend table.
+    """
+    from data.scraper import _parse_dividends
+    table = [
+        ['Dividend'],
+        ['Pool', 'Winning Combination', 'Dividend (HK$)'],
+        ['WIN', '10', '19.50'],
+        ['PLACE', '10', '12.00'],
+        ['2', '20.50'],
+        ['8', '102.50'],
+        ['QUINELLA', '2,10', '73.50'],
+        ['QUINELLA PLACE', '2,10', '27.50'],
+        ['8,10', '200.00'],
+        ['2,8', '405.00'],
+        ['FORECAST', '10,2', '107.00'],
+        ['TIERCE', '10,2,8', '2,720.00'],
+        ['TRIO', '2,8,10', '816.00'],
+    ]
+    divs = _parse_dividends([table])
+    by_pool = {}
+    for d in divs:
+        by_pool.setdefault(d['pool'], {})[d['combination']] = d['dividend']
+
+    # All 3 PLACE combos
+    assert by_pool['PLACE'] == {'10': 12.0, '2': 20.5, '8': 102.5}
+    # All 3 QUINELLA PLACE pairs — including the friend's 2-8 @ $405
+    assert by_pool['QUINELLA PLACE'] == {'2,10': 27.5, '8,10': 200.0, '2,8': 405.0}
+    # Single-combo pools still correct
+    assert by_pool['QUINELLA'] == {'2,10': 73.5}
+    assert by_pool['TRIO'] == {'2,8,10': 816.0}
