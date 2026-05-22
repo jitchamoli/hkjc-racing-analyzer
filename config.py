@@ -44,6 +44,13 @@ MAX_INVESTMENT = 200
 # betting/optimizer.compute_suggested_stake.
 BANKROLL = 10000
 
+# Card-level exposure cap: per-race stakes are computed independently, so a
+# busy card can sum to 15-20% of bankroll at risk at once (and the box bets
+# within a race are correlated — they win/lose together). Cap the day's TOTAL
+# forward exposure at this fraction of bankroll; the dashboard pro-rates every
+# unfinished race's stake down proportionally if the sum exceeds it.
+CARD_EXPOSURE_CAP = 0.10
+
 # Monitor
 POLL_INTERVAL = 300  # seconds
 PRE_RACE_WINDOW = 360  # seconds
