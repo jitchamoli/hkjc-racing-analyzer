@@ -916,8 +916,10 @@ class HorseDatabase:
         if not row:
             return 0
         try:
-            last = datetime.strptime(row['race_date'], '%Y/%m/%d')
-            curr = datetime.strptime(current_date, '%Y/%m/%d')
+            # DB dates are YYYY/MM/DD, but normalize '-' too (some legacy /
+            # Renavon rows) so a format mismatch doesn't silently return 0.
+            last = datetime.strptime(row['race_date'].replace('-', '/'), '%Y/%m/%d')
+            curr = datetime.strptime(current_date.replace('-', '/'), '%Y/%m/%d')
             return (curr - last).days
         except Exception:
             return 0

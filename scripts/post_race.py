@@ -6,6 +6,9 @@ Runs in sequence:
   2. scripts.shadow_evaluate <date>           — prod vs rule_w=0.9 shadow
   3. scripts.tier_b_evaluate <date>           — OLD vs NEW recommender
   4. scripts.track_spoilers <date>            — log outside-top-5 placers
+  4a. scripts.track_longshot_trio <date>      — paper experiment: top-5 +
+                                                steamed rank 6-8 longshot
+                                                (NOT wired to dashboard/WA)
   5. scripts.track_edge <date>                — log EDGE fires + outcomes
                                                 (feeds dashboard banner)
   6. bash scripts/auto_dump.sh                — refresh DB snapshot, push
@@ -73,6 +76,11 @@ def main():
     _run("4/6 track_spoilers",
          [sys.executable, '-m', 'scripts.track_spoilers', args.race_date])
 
+    # Step 4a: longshot-TRIO paper experiment — accrues toward N>=6 ship gate.
+    # Paper-only: nothing rendered to dashboard/WA until the report says SHIP.
+    _run("4a/6 track_longshot_trio (paper experiment)",
+         [sys.executable, '-m', 'scripts.track_longshot_trio', args.race_date])
+
     # Step 5: EDGE tracker — logs EDGE fires + outcomes; feeds dashboard banner
     _run("5/6 track_edge (banner stats)",
          [sys.executable, '-m', 'scripts.track_edge', args.race_date])
@@ -98,6 +106,7 @@ def main():
     print(f"  Cumulative tier B forward:    python3 -m scripts.tier_b_evaluate --report")
     print(f"  Spoiler dataset:              tracking_data/spoilers.csv")
     print(f"  EDGE history:                 tracking_data/edge_log.csv + edge_stats.json")
+    print(f"  Longshot-TRIO experiment:     python3 -m scripts.track_longshot_trio --report")
     return 0
 
 

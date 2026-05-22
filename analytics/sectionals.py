@@ -53,10 +53,12 @@ class SectionalAnalyzer:
             score = 40.0
             label = f"Slow finisher ({avg_time:.1f}s avg)"
 
-        # Bonus for improving trend (last 3 times getting faster)
+        # Bonus for improving trend (last 3 times getting faster).
+        # sectional_history is most-recent-first (HKJC convention), so
+        # times[0] is the latest run; improving = latest faster than oldest.
         if len(times) >= 3:
-            recent = times[-3:]
-            if recent[-1] < recent[0]:
+            recent = times[:3]
+            if recent[0] < recent[-1]:
                 score = min(100.0, score + 8)
                 label += " [improving]"
 

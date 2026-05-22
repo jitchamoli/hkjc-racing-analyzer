@@ -4,6 +4,18 @@ Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a
 
 > **Multi-jurisdiction expansion (2026-05-17):** HK remains the primary, production pipeline. Four additional jurisdictions ship as **isolated, experimental pipelines** sharing only the API client — see [Multi-jurisdiction pipelines](#multi-jurisdiction-pipelines-uk--fr--au--jp) below.
 
+## What's New (2026-05-21) — multi-agent analyser audit + retrain
+
+A multi-agent code audit of the race-analyser module surfaced three confirmed bugs (and dismissed several false positives after source verification):
+
+1. **Rule-engine age factor dropped on `'5.0'`** — the age-vs-field factor was gated on `.isdigit()`, `False` for the DB/Renavon `'5.0'` format, so it was silently dropped for every DB-built race (backtest, history) while live (`'5'`) worked — a backtest≠live divergence. Added `parse_age_int` as the single source of truth for the rule engine (mirrors `parse_age_score`).
+2. **Exotic value detection used `calibrated_prob`** — violated the "edge math uses `pure_prob` (pre-blend)" invariant, mechanically shrinking detected exotic edge. One-line fix in `dashboard/generator.py`.
+3. **Training `horse_history` was recency-windowed** — horses racing early in the training window saw only within-window priors while inference queries the full DB (train/predict mismatch at the window edge). Now built from the full DB; labels stay cutoff-filtered. Mirrors the earlier Task #51 jockey/trainer fix.
+
+**Model retrain (#3):** on the 668-race real-dividend holdout, calibration improved materially (Brier 0.2067→0.2030, BSS +0.0148→+0.0352, ECE 0.0935→0.0527), hit rate 29.3%→31.6%, ROI within noise (+1114%→+1069%, inside bootstrap CI [+889%, +1258%]). Still v6.8 schema (24 features).
+
+**Race-day workflow:** `./raceday` friendly wrapper with a looping interactive menu (pick the date once, run `start`/`live`/`finish` repeatedly, no python invocation). **Measurement rigor:** re-baselined backtest on the real 668-race holdout, block-bootstrap CIs (`scripts/bootstrap_ci.py`), and a real closing-line-value report (`scripts/clv_report.py`). 433 tests pass (2 skip).
+
 ## What's New in v6.8 (2026-05-16) — health-check audit
 
 A general health check on the locked v6.8 engine surfaced **4 production bugs** that had been silently degrading the pipeline. All shipped in PR #26.
@@ -182,7 +194,7 @@ cp .env.example .env                 # then paste API credentials
 | Tips Index page | Live odds, Initial Tips Index, Race Day Tips Index, top picks per race |
 | Horse Profile page | Running positions, sectional times, class history, C&D record |
 | Results page | Finishing positions, margins, odds, real dividend payouts (WIN/PLACE/QIN/QPL/FORECAST/TRIO/TIERCE/FIRST 4/QUARTET) |
-| Horse Database (local) | 50,692 training rows (5y window, ~4,200 winners), 6,005+ dividend rows across 63 recent meetings, jockey/trainer season stats sourced from Renavon rankings |
+| Horse Database (local) | ~50,752 training rows (5y window, grows ~146/meeting), ~668-race real-dividend holdout (100% QIN/TRIO/First-4 coverage), jockey/trainer season stats sourced from Renavon rankings |
 
 ### Prediction Pipeline
 
@@ -193,10 +205,11 @@ combined_prob = rule + ml (uncalibrated, pre-blend)
 → softmax (temp=1.5, mild normalization)
 → pure_prob (our independent opinion)
 → dynamic blend: model × (30-60%) + market × (40-70%)
+→ post-blend isotonic calibrator (models/blend_calibrator.pkl, lazy-loaded; refit after every retrain)
 → normalize to sum = 1.0
 → calibrated_prob, expected_return = odds × prob - 1
 
-Edge math (additive, post-calibration):
+Edge math (additive, pre-blend pure_prob):
 edge_pp = (pure - market) × 100
 ev_win  = pure × win_odds - 1
 overlay = pure × win_odds
@@ -208,9 +221,9 @@ The 60/40 rule+ML blend forms the model's "independent opinion" (`pure_prob`); t
 ### Bet Recommendation Logic (`core/recommender.py`)
 
 - **★ EDGE → WIN bet** when all 6 gates pass (rare — ~1-2 races per card on average)
-- **HIGH → BOX Q4** when `top_2_share ≥ 0.33` OR `top_3_share ≥ 0.42` AND rank-3/4 have strong history
-- **MED → BOX Q3** fallback when `top_2_share ≥ 0.27` OR `top_3_share ≥ 0.35`
-- **straight QIN** when `top_2_share ≥ 0.25` and tier is at least MED
+- **BOX Q4** when `top_4_share ≥ 0.58` AND rank-3/4 have strong history
+- **BOX Q3** fallback when `top_3_share ≥ 0.33`
+- **straight QIN** when `top_2_share ≥ 0.30`
 - **TRIO** when top 3 are tightly bunched (gap_1_2 < 0.02 AND gap_2_3 < 0.02)
 - **PLACE** when top pick has strong place model probability
 - **SKIP** when no live odds, field < 2, or no conviction gate met
@@ -220,8 +233,8 @@ The 60/40 rule+ML blend forms the model's "independent opinion" (`pure_prob`); t
 | Tier | Condition | Treatment |
 |------|-----------|-----------|
 | **★ EDGE** | All 6 EDGE gates pass | Single-horse WIN, hero placement |
-| **HIGH** | `top_2_share ≥ 0.33` OR `top_3_share ≥ 0.42` | QIN/BOX-3/BOX-4 hero |
-| **MED** | `top_2_share ≥ 0.27` OR `top_3_share ≥ 0.35` | Hero, smaller stake |
+| **HIGH** | `top_2_share ≥ 0.40` OR `top_3_share ≥ 0.55` | QIN/BOX-3/BOX-4 hero |
+| **MED** | `top_2_share ≥ 0.30` OR `top_3_share ≥ 0.42` | Hero, smaller stake |
 | **LOW** | `top_2_share ≥ 0.22` | Strip only, not hero |
 | **SKIP** | else | Strip greyed, no recommendation |
 
@@ -233,12 +246,12 @@ EDGE takes precedence over pair-conviction tiers.
 hkjc_racing_analyzer/
   core/                      # Core modules
     fetcher.py               #   Real-time data layer (HKJC API + parser)
-    analyzer.py              #   Main analyzer — 24-factor engine + ML blend
+    analyzer.py              #   Main analyzer — 25-factor engine + ML blend
     scorer.py                #   Score combination + probability calibration
     recommender.py           #   Bet recommendation engine
     predictor.py             #   ML predictor shim
   ml/                        # ML pipeline
-    feature_schema.py        #   19-feature schema
+    feature_schema.py        #   24-feature schema (v6.8)
     features.py              #   Feature extraction + extract_class_rank helper
     model.py                 #   XGBoost — isotonic-calibrated, integrity-checked
     training.py              #   Training data builders (5y default, exp recency)
@@ -272,7 +285,7 @@ hkjc_racing_analyzer/
     backfill_dividends.py · accuracy.py · serve.py · fetch_results.py
     race_day.py · post_race.py             # one-command race-day wrappers
     shadow_generate.py · shadow_evaluate.py # active rule_w=0.9 forward-validation
-  tests/                     # pytest suite — 366 tests (314 HK + 8 UK + 44 new)
+  tests/                     # pytest suite — 435 tests (433 pass + 2 skip)
   config.py                  # Centralized constants
   models/                    # Trained ML models (pickle + .sha256 sidecar)
   results/                   # HTML dashboards and prediction JSON
@@ -339,31 +352,30 @@ python3 -m scripts.backtest --sweep      # grid over softmax temp × model weigh
 
 ```bash
 pytest tests/ -v
-# 366 tests total (322 + 44 from 2026-05-17 audit-driven additions):
+# 435 tests total (433 pass + 2 skip):
 #   - 9 accuracy regressions (race-level QIN/TRIO hit detection)
 #   - 24 FR/AU/JP DB tests (8 each, mirror UK pattern)
 #   - 11 backfill script tests (backfill_dividends + backfill_from_renavon)
 # Coverage: edge math, gates, tier assignment, alerts dedup, Wilson CI,
 # template rendering, JS-syntax validation, end-to-end integration,
-# age parser contract (15 cases incl. inf/nan), HKJC results brand-strip,
-# all 4 jurisdiction DB schemas + ingestion idempotency.
+# age parser contract (parse_age_score + parse_age_int, incl. inf/nan),
+# HKJC results brand-strip, all 4 jurisdiction DB schemas + idempotency.
 ```
 
-## Performance (last 500 races with real HKJC dividends)
+## Performance (668-race holdout, 100% real HKJC dividends)
 
-41 races in this window have full real-dividend metadata; the rest backtest with the Harville-estimated quinella payouts.
+The 85-100% chronological holdout is now ~668 races with real QIN/TRIO/First-4 dividends (the old "73-race / 41-real" framing was stale). With honest block-bootstrap CIs, **all quinella strategies tie** (~+850% to +1500%, overlapping) — bet-type ROI differences sit below the noise floor, though every lower CI bound is well above +850% (the edge is real but un-rankable on ROI). Current recommender-gated point estimate: **+1069%** (CI [+889%, +1258%]) after the 2026-05-21 retrain.
 
-| Strategy | Bets | Hit Rate | ROI |
-|----------|------|----------|-----|
-| Recommender-gated (v6.4) | 38 | 39.5% | **+1433%** |
-| Straight quinella | 41 | — | +1813% |
-| Box-3 quinella | 41 | — | +1918% |
-| Box-4 quinella | 41 | — | +1283% |
+| Strategy | ROI (point) | by-date 95% CI |
+|----------|-------------|----------------|
+| Recommender-gated | +1069% | [+889%, +1258%] |
+| Straight quinella | +1343% | [+960%, +1761%] |
+| Box-4 quinella | +944% | [+795%, +1103%] |
 
 ### Calibration
 
-- **Brier score (top-pick): 0.108** (was 0.176 in v6.3; UK ML benchmark ~0.18)
-- **All 16 features have 4–16% importance** — no dead weight after schema cuts
+- **Brier score (top-pick): ~0.203** on the current 668-race real-dividend holdout (BSS +0.035, ECE 0.053 after the 2026-05-21 retrain)
+- **24 features**; `last_start_margin` leads (~15%), all but `speed_fig_norm` carry non-zero importance (`speed_fig` contributes via the rule engine)
 
 ### Strategy Decision
 
