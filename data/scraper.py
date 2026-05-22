@@ -130,7 +130,9 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
     if not table_data:
         return None
 
-    venue = "Sha Tin"
+    venue = ""   # unknown until the header proves it — do NOT silently assume
+                 # Sha Tin (a parse miss was mislabeling every HV meeting as ST,
+                 # poisoning venue/draw/C&D features). Empty degrades gracefully.
     distance = 1200
     going = "Good"
     class_type = ""
@@ -170,6 +172,10 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
         if header_parsed:
             break
 
+    if not venue:
+        logger.warning("Venue not detected in race header — storing UNKNOWN "
+                       "(was previously defaulting to 'Sha Tin', mislabeling HV meetings)")
+
     # --- Parse results table ---
     entries = []
     for table in table_data:
@@ -201,10 +207,13 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
                 continue
             horse_num = int(num_text)
 
-            # Horse name — strip brand number e.g. "ZOUPER FELLOW\xa0(K284)"
-            raw_name = row[2].strip() if len(row) > 2 else ""
-            name = re.sub(r"\s*\(.*?\)\s*", "", raw_name).strip().upper()
-            name = name.replace("\xa0", " ").strip()
+            # Horse name — strip ONLY the trailing brand code (contains a digit,
+            # e.g. "(K284)"), NOT a country code like "(NZ)". MUST match
+            # core/fetcher.py's strip so the same horse keys identically across
+            # ingest paths — otherwise "STAR (NZ)" vs "STAR" fragments history
+            # for overseas runners. (CLAUDE.md "HKJC parser gotchas".)
+            raw_name = (row[2].strip() if len(row) > 2 else "").replace("\xa0", " ")
+            name = re.sub(r"\s*\([^)]*\d[^)]*\)\s*$", "", raw_name).strip().upper()
             if not name or len(name) < 2:
                 continue
 
