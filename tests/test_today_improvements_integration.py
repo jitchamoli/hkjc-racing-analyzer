@@ -24,9 +24,12 @@ sys.path.insert(0, str(REPO_ROOT))
 class TestStakeScalingIntegration:
     """Gap 1: Direct verification that top_2_share flows through to suggested_stake."""
 
-    def test_high_at_weak_top2_gets_scaled_down(self):
+    def test_high_at_weak_top2_no_longer_scaled_down(self):
+        # FLATTENED 2026-05-22: the within-tier top_2_share ramp was removed
+        # (no EV justification — per-tier exotic ROI doesn't separate; N=3
+        # origin). A weak-HIGH race now gets the FULL HIGH stake, not a shaved
+        # one. See _confidence_scale + project_conviction_gate_wrong_for_exotics.
         from betting.optimizer import compute_suggested_stake
-        # Simulate generator's call site
         stake = compute_suggested_stake(
             conviction_tier='HIGH',
             bet_type='QIN',
@@ -35,11 +38,10 @@ class TestStakeScalingIntegration:
             bankroll=10000,
             top_2_share=0.42,  # weak HIGH (close to threshold)
         )
-        # Expect ~0.80 scale: scale = 0.75 + (0.42-0.40)/0.10 * 0.25 = 0.80
-        # Full HIGH = 2% × $10000 = $200; scaled = $200 × 0.80 = $160
-        assert stake['amount'] == pytest.approx(160, abs=10), \
-            f"Expected ~$160 at top_2=0.42, got ${stake['amount']}"
-        assert '×0.80' in stake['method']
+        # Full HIGH = 2% × $10000 = $200, no scaling regardless of top_2_share.
+        assert stake['amount'] == 200.0, \
+            f"Expected full $200 (flattened), got ${stake['amount']}"
+        assert '×' not in stake['method']
 
     def test_high_at_strong_top2_unchanged(self):
         from betting.optimizer import compute_suggested_stake

@@ -308,7 +308,13 @@ def get_real_quinella_dividend(conn, race_date, race_no, horse_num_a, horse_num_
     """Look up actual HKJC quinella dividend from race_dividends table.
 
     HKJC stores quinella combo as sorted comma-separated horse numbers, e.g. "1,4".
-    Returns dividend in dollars, or None if not found.
+
+    Returns the payout PER $1 STAKED (HKJC declares dividends per HK$10, so we
+    divide by 10). This matches both the Harville fallback estimate_quinella_dividend
+    — which returns (1-takeout)/p, a per-$1 figure — and the $1-per-combo stake
+    basis used in the P&L (stake = number of combos). Without the /10, real-dividend
+    races were scored ~10x higher than Harville-fallback races on the same scale,
+    inflating every ROI that drew on real payouts.
     """
     lo, hi = sorted([int(horse_num_a), int(horse_num_b)])
     combo = f"{lo},{hi}"
@@ -317,7 +323,7 @@ def get_real_quinella_dividend(conn, race_date, race_no, horse_num_a, horse_num_
         "WHERE race_date = ? AND race_number = ? AND pool = 'QUINELLA' AND combination = ?",
         (race_date, race_no, combo)
     ).fetchone()
-    return float(row[0]) if row else None
+    return float(row[0]) / 10.0 if row else None
 
 
 def get_real_exotic_dividend(conn, race_date, race_no, pool):
@@ -328,13 +334,17 @@ def get_real_exotic_dividend(conn, race_date, race_no, pool):
     actual top-3 / top-4 in any order), so we don't need to match the combo —
     the lone row IS the winner. Used for box-bet P&L (we collect this dividend
     when the actual finishers fall inside our box).
+
+    Returns the payout PER $1 STAKED (HKJC declares per HK$10 → divide by 10),
+    consistent with the $1-per-combo stake basis used in the box-bet P&L
+    (trio5_stake=10 combos, etc.).
     """
     row = conn.execute(
         "SELECT dividend FROM race_dividends "
         "WHERE race_date = ? AND race_number = ? AND pool = ?",
         (race_date, race_no, pool)
     ).fetchone()
-    return float(row[0]) if row else None
+    return float(row[0]) / 10.0 if row else None
 
 
 # ---------------------------------------------------------------------------
@@ -553,12 +563,25 @@ def simulate_bets(races, conn):
         _pure = compute_pure_probs(_edge_horses, field_size=len(_edge_horses))
         pure_ev_top = (_pure[0] * top_odds - 1.0) if _pure and top_odds > 0 else None
 
+        # Place-model calibration pairs (place_prob, actual is_top3) for EVERY
+        # horse — the MULTI-HORSE dimension our QIN/TRIO/F4 bets actually ride
+        # on, distinct from the top-1 WIN calibration in print_calibration().
+        place_pairs = [
+            ((a.ml_prediction.place_probability if a.ml_prediction else None),
+             1 if hr.get('finish_position') in (1, 2, 3) else 0)
+            for (hr, _, _, a) in preds
+        ]
+        place_pairs = [(p, t) for (p, t) in place_pairs if p is not None]
+
         records.append({
             'race_key': f"{date}-R{race_no}",
             'horse': top_h_row['horse_name'],
-            # Top-pick conviction tier (HIGH/MED/LOW) — used for the
-            # tier-conditional edge-correlation breakdown in print_clv.
-            'conviction_tier': getattr(top_analysis, 'combined_confidence', '') or '',
+            # NOTE: this is the TOP-1 horse's win-confidence (combined_confidence),
+            # NOT the race conviction gate (which is top_2/top_3-share based in
+            # betting/conviction.py). Named top1_confidence to avoid the mislabel
+            # that conflates win-confidence with the QIN/TRIO gate.
+            'top1_confidence': getattr(top_analysis, 'combined_confidence', '') or '',
+            'place_pairs': place_pairs,
             'final_prob': top_prob,
             'market_prob': top_mkt,
             'odds': top_odds,
@@ -870,6 +893,56 @@ def print_calibration(records):
     print(f"    (single-number calibration metric — lower is better, 0 = perfectly calibrated)")
 
 
+def print_place_calibration(records):
+    """PLACE-model calibration — Brier/BSS/ECE on place_prob vs actual top-3,
+    across EVERY horse. This is the MULTI-HORSE dimension our QIN/TRIO/F4 bets
+    depend on; print_calibration above only measures TOP-1 WIN calibration, so
+    judging a model change on that alone is the top-1 bias we want to avoid.
+    """
+    pairs = [pp for r in records for pp in r.get('place_pairs', [])]
+    if not pairs:
+        return
+    probs = np.array([p for p, _ in pairs])
+    top3 = np.array([t for _, t in pairs], dtype=float)
+    n_total = len(top3)
+    brier = float(np.mean((probs - top3) ** 2))
+    p_bar = float(top3.mean())
+    brier_climatology = p_bar * (1 - p_bar)
+    bss = 1.0 - brier / brier_climatology if brier_climatology > 0 else float('nan')
+
+    print("\n" + "=" * 70)
+    print("  PLACE-MODEL CALIBRATION (multi-horse — what QIN/TRIO/F4 ride on)")
+    print("=" * 70)
+    print(f"  horses scored: {n_total}")
+    print(f"  Brier score (place/top-3): {brier:.4f}   base rate p̄={p_bar:.4f}")
+    print(f"  Brier Skill Score:         {bss:+.4f}   (>0 beats 'always predict p̄')")
+
+    bins = [0.0, 0.15, 0.25, 0.35, 0.50, 1.0]
+    MIN_BIN_N = 30
+    print(f"\n  {'bin':<14}{'n':<7}{'predicted':<12}{'actual':<10}{'diff':<10}{'note'}")
+    ece_num = 0.0
+    ece_denom = 0
+    for i in range(len(bins) - 1):
+        lo, hi = bins[i], bins[i + 1]
+        mask = (probs >= lo) & (probs < hi)
+        k = int(mask.sum())
+        if k == 0:
+            continue
+        pred = float(probs[mask].mean())
+        act = float(top3[mask].mean())
+        diff = act - pred
+        note = ""
+        if k >= MIN_BIN_N:
+            ece_num += abs(diff) * k
+            ece_denom += k
+        else:
+            note = f"[thin: n<{MIN_BIN_N}, noisy]"
+        print(f"  [{lo*100:4.1f}-{hi*100:4.1f}%] "
+              f"{k:<7}{pred*100:5.2f}%{'':<6}{act*100:5.2f}%{'':<4}{diff*100:+5.2f}pp   {note}")
+    ece = ece_num / ece_denom if ece_denom > 0 else float('nan')
+    print(f"\n  Place ECE (thick bins only): {ece:.4f}   (lower = better)")
+
+
 def print_clv(records):
     probs = np.array([r['final_prob'] for r in records])
     mkt = np.array([r['market_prob'] for r in records])
@@ -894,12 +967,12 @@ def print_clv(records):
     # Tier-conditional breakdown. Answers "is the negative correlation
     # structural OR concentrated in low-conviction races?" Stats people
     # always want this when the headline correlation looks bad.
-    print(f"\n  ── by conviction tier (top-pick) ──")
+    print(f"\n  ── by TOP-1 win-confidence (NOT the QIN/TRIO gate) ──")
     print(f"  {'tier':<10}{'n':<7}{'corr(edge, win)':<20}{'mean edge':<14}{'win rate'}")
     print(f"  {'-'*10}{'-'*7}{'-'*20}{'-'*14}{'-'*10}")
-    tiers = sorted({r.get('conviction_tier', '') or 'NONE' for r in records})
+    tiers = sorted({r.get('top1_confidence', '') or 'NONE' for r in records})
     for tier in tiers:
-        t_idx = np.array([(r.get('conviction_tier') or 'NONE') == tier for r in records])
+        t_idx = np.array([(r.get('top1_confidence') or 'NONE') == tier for r in records])
         m_t = mask & t_idx
         k = int(m_t.sum())
         if k < 10:
@@ -1085,6 +1158,7 @@ def main():
     print_exotic_hits(records)
     print_clv(records)
     print_calibration(records)
+    print_place_calibration(records)
 
     # Emit per-race P&L JSON for bootstrap CI computation
     if args.pnl_json:
@@ -1103,6 +1177,9 @@ def main():
             g_return = (r['q_dividend'] if g_hit else 0.0) if g_stake > 0 else 0.0
             pnl_rows.append({
                 'race_key': r['race_key'],
+                # top-1 win-confidence (NOT the QIN/TRIO gate) + chosen bet type
+                'top1_confidence': r.get('top1_confidence') or '',
+                'rec_bet_type': rec,
                 'straightq_stake': 1.0 if with_div else 0.0,
                 'straightq_return': (r['q_dividend'] if r.get('quinella_hit') else 0.0) if with_div else 0.0,
                 'box3_stake': 3.0 if with_div else 0.0,

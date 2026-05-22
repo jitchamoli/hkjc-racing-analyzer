@@ -403,15 +403,15 @@ def _confidence_scale(tier: str, top_2_share: float) -> float:
     Bands chosen to keep current-meeting stakes within ±25% so we do not
     suddenly chop bets in half without forward validation.
     """
-    if tier != 'HIGH' or top_2_share is None or top_2_share <= 0:
-        return 1.0
-    if top_2_share >= 0.50:
-        return 1.0
-    # Linear from (0.40, 0.75) to (0.50, 1.0).
-    # Floor at 0.75 — HIGH tier sometimes fires below top_2=0.40 due to
-    # tier-escalation rules; do not let stake collapse below 75%.
-    scale = 0.75 + (top_2_share - 0.40) / 0.10 * 0.25
-    return max(0.75, scale)
+    # FLATTENED 2026-05-22 — return 1.0 (no within-tier scaling).
+    # The ramp above was born from an N=3 same-day reaction (R8/R9/R10) and has
+    # no EV justification: on the 668-race holdout, per-tier exotic ROI does NOT
+    # separate (HIGH +8.9% <= MEDIUM +21.8%, CIs overlap), because dominated
+    # races hit more but pay less — the effects cancel. Scaling stakes by
+    # top_2_share within HIGH therefore shaved the wrong races for no measured
+    # gain. Kept as a no-op (vs deleted) to preserve the call sites/signature.
+    # See memory: project_conviction_gate_wrong_for_exotics.
+    return 1.0
 
 
 def compute_suggested_stake(*, conviction_tier: str, bet_type: str,
@@ -452,7 +452,7 @@ def compute_suggested_stake(*, conviction_tier: str, bet_type: str,
     if frac_cap == 0 or bankroll <= 0:
         return {'amount': 0.0, 'pct': 0.0, 'method': 'skip'}
 
-    if bet_type in ('WIN', 'BANKER WIN') and top_odds and top_odds > 1 and top_prob > 0:
+    if bt in ('WIN', 'BANKER WIN') and top_odds and top_odds > 1 and top_prob > 0:
         # Half-Kelly: f* = (b·p - q) / b, then × 0.5 for variance control.
         b = top_odds - 1
         p = max(0.0, min(1.0, top_prob))

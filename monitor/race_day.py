@@ -144,8 +144,28 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
             race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)
             all_races.append(race_data)
 
+        # Snapshot the live trust panels BEFORE closing the DB. Without these,
+        # generate_html() defaults both to None and the monitor re-render wipes
+        # the EDGE banner + 60-day accuracy footer on every pre-race refresh
+        # (same class as the results_fetcher panel-wipe bug, commit 84603e1).
+        try:
+            accuracy_summary = db.get_accuracy_summary(days=60)
+            if isinstance(accuracy_summary, dict) and 'message' in accuracy_summary:
+                accuracy_summary = None
+        except Exception:
+            accuracy_summary = None
+
         if owns_db:
             db.conn.close()
+
+        edge_stats = None
+        try:
+            es_path = results_dir.parent / 'tracking_data' / 'edge_stats.json'
+            if es_path.exists():
+                with open(es_path) as f:
+                    edge_stats = json.load(f)
+        except (json.JSONDecodeError, IOError, OSError):
+            pass
 
         date_str = race_date.replace('/', '')
         json_data = json.dumps(all_races)
@@ -153,7 +173,8 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         venue = "Happy Valley" if any(r.get("venue", "").startswith("Happy") for r in all_races) else "Sha Tin"
 
-        html = generate_html(json_data, now, race_date, venue, auto_refresh=True)
+        html = generate_html(json_data, now, race_date, venue, auto_refresh=True,
+                             accuracy_summary=accuracy_summary, edge_stats=edge_stats)
 
         html_file = results_dir / f"racing_dashboard_{date_str}.html"
         latest_file = results_dir / "racing_dashboard.html"

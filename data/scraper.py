@@ -341,17 +341,28 @@ def _parse_dividends(table_data):
             continue
         # Skip header rows, start parsing from row 1
         current_pool = None
+        combo_raw = ''
+        div_raw = ''
         for row in table[1:]:
-            if len(row) < 3:
+            if len(row) >= 3:
+                pool_raw, combo_raw, div_raw = row[0].strip(), row[1].strip(), row[2].strip()
+                # Strip " 1st" / " 2nd" / " 3rd" suffix from old pool labels
+                pool_upper = re.sub(r"\s+(1ST|2ND|3RD)$", "", pool_raw.upper()).strip()
+                if pool_upper and pool_upper in _KNOWN_POOLS:
+                    current_pool = pool_upper
+                elif pool_upper:
+                    # Unknown pool label — still track to avoid misattribution
+                    current_pool = pool_upper
+            elif len(row) == 2:
+                # Continuation row for a multi-combo pool (PLACE, QUINELLA PLACE,
+                # the DOUBLE legs…): HKJC omits the pool cell entirely, so the row
+                # is [combination, dividend] and inherits the current pool. The
+                # prior `len(row) < 3: continue` silently dropped these — keeping
+                # only the FIRST combo of every multi-row pool (so QUINELLA PLACE
+                # and PLACE were ~⅓ complete).
+                combo_raw, div_raw = row[0].strip(), row[1].strip()
+            else:
                 continue
-            pool_raw, combo_raw, div_raw = row[0].strip(), row[1].strip(), row[2].strip()
-            # Strip " 1st" / " 2nd" / " 3rd" suffix from old pool labels
-            pool_upper = re.sub(r"\s+(1ST|2ND|3RD)$", "", pool_raw.upper()).strip()
-            if pool_upper and pool_upper in _KNOWN_POOLS:
-                current_pool = pool_upper
-            elif pool_upper:
-                # Unknown pool label — still track to avoid misattribution
-                current_pool = pool_upper if pool_upper else current_pool
             if not current_pool or not combo_raw:
                 continue
             try:
@@ -456,6 +467,7 @@ async def scrape_jockey_rankings() -> List[Dict]:
     results = []
 
     pw = await async_playwright().start()
+    browser = None
     try:
         browser = await pw.chromium.launch(headless=True)
         context = await browser.new_context(
@@ -532,10 +544,16 @@ async def scrape_jockey_rankings() -> List[Dict]:
                 except (ValueError, IndexError):
                     continue
 
-        await browser.close()
     except Exception as e:
         logger.error(f"Jockey ranking scrape failed: {e}")
     finally:
+        # close() must run even when the try body raised mid-scrape, otherwise
+        # the headless Chromium process is orphaned (a prior real leak bug).
+        if browser is not None:
+            try:
+                await browser.close()
+            except Exception:
+                pass
         await pw.stop()
 
     logger.info(f"Scraped {len(results)} jockey rankings")
@@ -550,6 +568,7 @@ async def scrape_trainer_rankings() -> List[Dict]:
     results = []
 
     pw = await async_playwright().start()
+    browser = None
     try:
         browser = await pw.chromium.launch(headless=True)
         context = await browser.new_context(
@@ -623,10 +642,16 @@ async def scrape_trainer_rankings() -> List[Dict]:
                 except (ValueError, IndexError):
                     continue
 
-        await browser.close()
     except Exception as e:
         logger.error(f"Trainer ranking scrape failed: {e}")
     finally:
+        # close() must run even when the try body raised mid-scrape, otherwise
+        # the headless Chromium process is orphaned (a prior real leak bug).
+        if browser is not None:
+            try:
+                await browser.close()
+            except Exception:
+                pass
         await pw.stop()
 
     logger.info(f"Scraped {len(results)} trainer rankings")
