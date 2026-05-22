@@ -341,6 +341,8 @@ def _parse_dividends(table_data):
             continue
         # Skip header rows, start parsing from row 1
         current_pool = None
+        combo_raw = ''
+        div_raw = ''
         for row in table[1:]:
             if len(row) >= 3:
                 pool_raw, combo_raw, div_raw = row[0].strip(), row[1].strip(), row[2].strip()
@@ -465,6 +467,7 @@ async def scrape_jockey_rankings() -> List[Dict]:
     results = []
 
     pw = await async_playwright().start()
+    browser = None
     try:
         browser = await pw.chromium.launch(headless=True)
         context = await browser.new_context(
@@ -541,10 +544,16 @@ async def scrape_jockey_rankings() -> List[Dict]:
                 except (ValueError, IndexError):
                     continue
 
-        await browser.close()
     except Exception as e:
         logger.error(f"Jockey ranking scrape failed: {e}")
     finally:
+        # close() must run even when the try body raised mid-scrape, otherwise
+        # the headless Chromium process is orphaned (a prior real leak bug).
+        if browser is not None:
+            try:
+                await browser.close()
+            except Exception:
+                pass
         await pw.stop()
 
     logger.info(f"Scraped {len(results)} jockey rankings")
@@ -559,6 +568,7 @@ async def scrape_trainer_rankings() -> List[Dict]:
     results = []
 
     pw = await async_playwright().start()
+    browser = None
     try:
         browser = await pw.chromium.launch(headless=True)
         context = await browser.new_context(
@@ -632,10 +642,16 @@ async def scrape_trainer_rankings() -> List[Dict]:
                 except (ValueError, IndexError):
                     continue
 
-        await browser.close()
     except Exception as e:
         logger.error(f"Trainer ranking scrape failed: {e}")
     finally:
+        # close() must run even when the try body raised mid-scrape, otherwise
+        # the headless Chromium process is orphaned (a prior real leak bug).
+        if browser is not None:
+            try:
+                await browser.close()
+            except Exception:
+                pass
         await pw.stop()
 
     logger.info(f"Scraped {len(results)} trainer rankings")
