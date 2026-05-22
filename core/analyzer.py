@@ -289,7 +289,8 @@ class BettingStrategy:
                               table: str, count_field: str,
                               tiers: dict, tier_scores: tuple,
                               thresholds: list, score_cap: tuple,
-                              place_bonuses: list, default_score: float) -> tuple:
+                              place_bonuses: list, default_score: float,
+                              before_date: str = '') -> tuple:
         """Shared scoring logic for jockeys and trainers.
 
         Args:
@@ -299,7 +300,10 @@ class BettingStrategy:
         """
         if db and name:
             stats = stats_getter(name)
-            if not stats:
+            # The surname-LIKE fallback reads the season-aggregate table, which
+            # includes future races — skip it in backtest (before_date set) to
+            # avoid re-introducing the leak the asof getter just closed.
+            if not stats and not before_date:
                 try:
                     c = db.conn.cursor()
                     c.execute(f"SELECT * FROM {table} WHERE name LIKE ?",
@@ -345,11 +349,13 @@ class BettingStrategy:
         return default_score, f"{role.title()}: {name}"
 
     @staticmethod
-    def analyze_jockey(jockey: str, db=None) -> tuple:
-        """Score jockey using real DB stats when available, else fallback."""
+    def analyze_jockey(jockey: str, db=None, before_date: str = '') -> tuple:
+        """Score jockey using real DB stats when available, else fallback.
+        before_date: backtest-leak guard — computes season-to-date stats."""
         return BettingStrategy._score_person_from_db(
-            name=jockey, role="jockey", db=db,
-            stats_getter=db.get_jockey_stats if db else lambda x: None,
+            name=jockey, role="jockey", db=db, before_date=before_date,
+            stats_getter=(lambda n: db.get_jockey_stats(n, before_date=before_date))
+                         if db else (lambda x: None),
             table="jockey_stats", count_field="rides",
             # Tiers refreshed 2026-05-17 against current-season DB stats:
             # - "atzeni" promoted tier 2 → tier 1 (527 rides at 10.8% wr)
@@ -377,11 +383,13 @@ class BettingStrategy:
         )
 
     @staticmethod
-    def analyze_trainer(trainer: str, db=None) -> tuple:
-        """Score trainer using real DB stats when available, else fallback."""
+    def analyze_trainer(trainer: str, db=None, before_date: str = '') -> tuple:
+        """Score trainer using real DB stats when available, else fallback.
+        before_date: backtest-leak guard — computes season-to-date stats."""
         return BettingStrategy._score_person_from_db(
-            name=trainer, role="trainer", db=db,
-            stats_getter=db.get_trainer_stats if db else lambda x: None,
+            name=trainer, role="trainer", db=db, before_date=before_date,
+            stats_getter=(lambda n: db.get_trainer_stats(n, before_date=before_date))
+                         if db else (lambda x: None),
             table="trainer_stats", count_field="runners",
             # Tiers refreshed 2026-05-17 against current-season DB stats:
             # - "shum" promoted tier 2 → tier 1 (445 runners at 12.1% wr,
@@ -608,11 +616,13 @@ class CombinedRaceAnalyzer:
         else:
             reasoning.append("No live odds available")
 
-        jockey_score, jockey_reason = self.strategy.analyze_jockey(horse.jockey, db=self._horse_db)
+        jockey_score, jockey_reason = self.strategy.analyze_jockey(
+            horse.jockey, db=self._horse_db, before_date=race.date if race.date else '')
         factors["jockey"] = jockey_score
         reasoning.append(jockey_reason)
 
-        trainer_score, trainer_reason = self.strategy.analyze_trainer(horse.trainer, db=self._horse_db)
+        trainer_score, trainer_reason = self.strategy.analyze_trainer(
+            horse.trainer, db=self._horse_db, before_date=race.date if race.date else '')
         factors["trainer"] = trainer_score
         reasoning.append(trainer_reason)
 
@@ -660,7 +670,8 @@ class CombinedRaceAnalyzer:
         cd_score, cd_reason = 0.0, ""
         if self._horse_db:
             cd_history = self._horse_db.get_horse_cd_history(
-                horse.name, race.venue or '', int(race.distance or 1200))
+                horse.name, race.venue or '', int(race.distance or 1200),
+                before_date=race.date if race.date else '')
             if cd_history:
                 cd_score, cd_reason = self.cd_analyzer.analyze_cd_form(
                     cd_history, race.venue or '', int(race.distance or 1200),
