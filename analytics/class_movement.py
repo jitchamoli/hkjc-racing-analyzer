@@ -1,7 +1,8 @@
 """Class movement analyzer — class drop/rise detection."""
 
-import re
 import logging
+
+from ml.features import extract_class_rank
 
 logger = logging.getLogger(__name__)
 
@@ -9,35 +10,19 @@ logger = logging.getLogger(__name__)
 class ClassMovementAnalyzer:
     """Detect class drop/rise advantage.
 
-    HKJC classes: 1 (top) → 5 (bottom), plus Griffin (debut).
-    A horse dropping from Class 3 to Class 4 races weaker opposition.
-    A horse rising from Class 5 to Class 4 faces tougher competition.
+    HKJC tier ladder (high → low): Group 1/2 → 0, Group 3/Class 1 → 1, …
+    Class 5 → 5, GRIFFIN/MAIDEN → 4. A horse dropping from Class 3 to Class 4
+    races weaker opposition; rising from Class 5 to Class 4 faces tougher.
     """
 
-    CLASS_RANK = {
-        "1": 1, "class 1": 1,
-        "2": 2, "class 2": 2,
-        "3": 3, "class 3": 3,
-        "4": 4, "class 4": 4,
-        "5": 5, "class 5": 5,
-        "griffin": 6,
-    }
-
     @staticmethod
-    def _parse_class(class_str: str) -> int:
-        if not class_str:
-            return 0
-        cl = class_str.strip().lower()
-        if cl in ClassMovementAnalyzer.CLASS_RANK:
-            return ClassMovementAnalyzer.CLASS_RANK[cl]
-        m = re.search(r"(\d)", cl)
-        if m:
-            rank = int(m.group(1))
-            if 1 <= rank <= 5:
-                return rank
-        if "griffin" in cl:
-            return 6
-        return 0
+    def _parse_class(class_str: str):
+        """Return the canonical class rank (0-5, lower = higher class) or None
+        if unparseable. Delegates to ml.features.extract_class_rank — the
+        single source of truth — so the rule engine and ML agree on every
+        class string (previously this had a local ladder that mis-parsed G1/G2/
+        G3 as Class 1/2/3 and put GRIFFIN at 6 instead of 4)."""
+        return extract_class_rank(class_str)
 
     @staticmethod
     def analyze_class_movement(
@@ -50,18 +35,18 @@ class ClassMovementAnalyzer:
         Higher score = bigger advantage from class drop.
         """
         current_rank = ClassMovementAnalyzer._parse_class(current_class)
-        if current_rank == 0:
+        if current_rank is None:
             return 50.0, "Class info unavailable"
 
-        prev_rank = 0
+        prev_rank = None
         for race in horse_history:
             rc = race.get("class", "") or race.get("class_type", "")
             rank = ClassMovementAnalyzer._parse_class(rc)
-            if rank > 0:
+            if rank is not None:
                 prev_rank = rank
                 break
 
-        if prev_rank == 0:
+        if prev_rank is None:
             return 50.0, "No previous class data"
 
         diff = prev_rank - current_rank  # positive = rising, negative = dropping

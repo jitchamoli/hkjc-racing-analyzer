@@ -545,7 +545,8 @@ class CombinedRaceAnalyzer:
         # Normalize distance to string (some paths pass int, some str)
         distance = str(race.distance) if race.distance else "1200"
         # Cache horse record once — used by going_pref and career_place sections
-        horse_record = self._horse_db.get_horse_record(horse.name) if self._horse_db else None
+        horse_record = self._horse_db.get_horse_record(
+            horse.name, before_date=race.date if race.date else '') if self._horse_db else None
 
         # --- Core factors (same as before) ---
 
@@ -697,7 +698,8 @@ class CombinedRaceAnalyzer:
         class_score = 50.0
         class_reason = "No previous class data"
         if self._horse_db and race.class_type:
-            horse_hist = self._horse_db.get_horse_history(horse.name, limit=5)
+            horse_hist = self._horse_db.get_horse_history(
+                horse.name, limit=5, before_date=race.date if race.date else '')
             if horse_hist:
                 class_score, class_reason = self.class_analyzer.analyze_class_movement(
                     horse_hist, race.class_type
@@ -710,7 +712,8 @@ class CombinedRaceAnalyzer:
         prior_gear = ""
         is_debutant = False
         if self._horse_db:
-            history = self._horse_db.get_horse_history(horse.name, limit=1)
+            history = self._horse_db.get_horse_history(
+                horse.name, limit=1, before_date=race.date if race.date else '')
             if not history:
                 is_debutant = True
             else:
@@ -737,7 +740,8 @@ class CombinedRaceAnalyzer:
                         before_date=race.date if race.date else None,
                     )
                     self._par_times_by_date[cache_key] = par_times
-                last_race = self._horse_db.get_horse_history(horse.name, limit=1)
+                last_race = self._horse_db.get_horse_history(
+                    horse.name, limit=1, before_date=race.date if race.date else '')
                 if last_race:
                     lr = last_race[0]
                     sf = adjusted_speed_figure(
@@ -844,7 +848,8 @@ class CombinedRaceAnalyzer:
         going_score = 0.0
         going_reason = ""
         if race.going and self._horse_db:
-            going_record = self._horse_db.get_horse_going_record(horse.name, race.going)
+            going_record = self._horse_db.get_horse_going_record(
+                horse.name, race.going, before_date=race.date if race.date else '')
             total_runs = horse_record.get('total_starts', 0) if horse_record else 0
             going_score, going_reason = self.going_analyzer.analyze_going_preference(
                 going_record, race.going, total_runs
@@ -857,7 +862,8 @@ class CombinedRaceAnalyzer:
         rolling_score = 0.0
         rolling_reason = ""
         if self._horse_db:
-            rolling_stats = self._horse_db.get_rolling_stats(horse.name, n_races=5)
+            rolling_stats = self._horse_db.get_rolling_stats(
+                horse.name, n_races=5, before_date=race.date if race.date else '')
             if rolling_stats.get('runs', 0) >= 2:
                 rolling_score, rolling_reason = self.rolling_analyzer.analyze_rolling_form(rolling_stats)
         factors["rolling_form"] = rolling_score
@@ -868,7 +874,8 @@ class CombinedRaceAnalyzer:
         margin_score = 0.0
         margin_reason = ""
         if self._horse_db:
-            margin_stats = self._horse_db.get_beaten_margins(horse.name, n_races=5)
+            margin_stats = self._horse_db.get_beaten_margins(
+                horse.name, n_races=5, before_date=race.date if race.date else '')
             if margin_stats.get('runs', 0) > 0:
                 margin_score, margin_reason = self.margin_analyzer.analyze_margins(margin_stats)
         factors["margin"] = margin_score
@@ -879,7 +886,8 @@ class CombinedRaceAnalyzer:
         jc_score = 0.0
         jc_reason = ""
         if self._horse_db:
-            last_jockey = self._horse_db.get_last_jockey(horse.name)
+            last_jockey = self._horse_db.get_last_jockey(
+                horse.name, before_date=race.date if race.date else '')
             if last_jockey:
                 jc_score, jc_reason = self.jockey_change_analyzer.analyze_jockey_change(
                     horse.jockey, last_jockey
@@ -892,7 +900,8 @@ class CombinedRaceAnalyzer:
         jf_score = 0.0
         jf_reason = ""
         if self._horse_db and horse.jockey:
-            jf = self._horse_db.get_jockey_recent_form(horse.jockey, n_rides=10)
+            jf = self._horse_db.get_jockey_recent_form(
+                horse.jockey, n_rides=10, before_date=race.date if race.date else '')
             if jf.get('rides', 0) >= 3:
                 wr = jf['win_rate']
                 pr = jf['place_rate']
@@ -916,7 +925,8 @@ class CombinedRaceAnalyzer:
         tf_score = 0.0
         tf_reason = ""
         if self._horse_db and horse.trainer:
-            tf = self._horse_db.get_trainer_recent_form(horse.trainer, n_runners=10)
+            tf = self._horse_db.get_trainer_recent_form(
+                horse.trainer, n_runners=10, before_date=race.date if race.date else '')
             if tf.get('runners', 0) >= 3:
                 wr = tf['win_rate']
                 if tf['hot']:
