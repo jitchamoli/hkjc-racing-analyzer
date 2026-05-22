@@ -33,9 +33,11 @@ def db(tmp_path):
     for date, rno, fin, win, top3, margin in runs:
         d.conn.execute(
             "INSERT INTO race_results (race_date, race_number, horse_name, jockey, "
-            "trainer, finish_position, is_winner, is_top3, margin, win_odds, going) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (date, rno, "TESTER", "J WIN", "T WIN", fin, win, top3, margin, 4.0, "Good"),
+            "trainer, finish_position, is_winner, is_top3, margin, win_odds, going, "
+            "venue, distance) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (date, rno, "TESTER", "J WIN", "T WIN", fin, win, top3, margin, 4.0, "Good",
+             "Sha Tin", 1200),
         )
     d.conn.commit()
     return d
@@ -73,6 +75,24 @@ def test_get_last_jockey_is_prior_not_current(db):
     # all rides are 'J WIN' here; the point is the count/window excludes current
     clean_hist = db.get_horse_history("TESTER", limit=1, before_date=CUR)
     assert clean_hist[0]["race_date"] == "2026/02/01"  # not 03/01
+
+
+def test_get_horse_cd_history_excludes_current(db):
+    # 3rd-round leak: C&D history counted the current race's own result.
+    leaked = db.get_horse_cd_history("TESTER", "Sha Tin", 1200)
+    clean = db.get_horse_cd_history("TESTER", "Sha Tin", 1200, before_date=CUR)
+    assert len(leaked) == 3 and len(clean) == 2
+    assert all(r["date"] < CUR for r in clean)
+
+
+def test_season_aggregate_stats_accept_before_date(db):
+    # season-aggregate leak: get_jockey_stats/get_trainer_stats read tables
+    # rebuilt over the whole season incl. future; before_date computes
+    # season-to-date from race_results (current race 03/01 excluded).
+    j = db.get_jockey_stats("J WIN", before_date=CUR)
+    t = db.get_trainer_stats("T WIN", before_date=CUR)
+    assert j["rides"] == 2 and j["wins"] == 1      # 02/01 win counted, 03/01 excluded
+    assert t["runners"] == 2 and t["wins"] == 1
 
 
 def test_recent_form_methods_accept_before_date(db):

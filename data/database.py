@@ -587,23 +587,61 @@ class HorseDatabase:
         return [dict(r) for r in c.fetchall()]
 
     def get_horse_cd_history(self, horse_name: str, venue: str,
-                              distance: int, tolerance: int = 100) -> list:
-        """Get horse's race-by-race C&D history with dates for winning trip detection."""
+                              distance: int, tolerance: int = 100,
+                              before_date: str = '') -> list:
+        """Get horse's race-by-race C&D history with dates for winning trip detection.
+
+        before_date: backtest-leak guard — without it the horse's CURRENT race
+        (same venue+distance) is counted into its own C&D win/place record.
+        Live passes none (race not yet in DB). See get_horse_history.
+        """
         c = self.conn.cursor()
         venue_norm = self._normalize_venue(venue)
-        c.execute("""
+        df = ' AND race_date < ?' if before_date else ''
+        params = ([horse_name, venue_norm, distance, tolerance, before_date]
+                  if before_date else [horse_name, venue_norm, distance, tolerance])
+        c.execute(f"""
             SELECT race_date, venue, distance, finish_position
             FROM race_results
             WHERE horse_name = ?
               AND venue = ?
-              AND ABS(distance - ?) <= ?
+              AND ABS(distance - ?) <= ?{df}
             ORDER BY race_date
-        """, (horse_name, venue_norm, distance, tolerance))
+        """, params)
         return [{'date': r[0], 'venue': r[1], 'distance': r[2], 'position': r[3]}
                 for r in c.fetchall()]
 
-    def get_jockey_stats(self, jockey_name: str) -> Optional[Dict]:
-        """Get jockey's season statistics."""
+    @staticmethod
+    def _season_start_for(date_str: str) -> str:
+        """First day of the HK season containing date_str (Jul 1 - Jun 30)."""
+        y, m = int(date_str[:4]), int(date_str[5:7])
+        return f"{y if m >= 7 else y - 1}/07/01"
+
+    def _person_stats_asof(self, col: str, name: str, before_date: str) -> Optional[Dict]:
+        """Compute a jockey/trainer's CURRENT-SEASON-to-date win/place rate from
+        race_results with race_date < before_date — the leak-free equivalent of
+        the pre-aggregated season tables (which include future races). Used by
+        the rule engine in backtest. Returns rides AND runners keys so it serves
+        both jockey (count_field='rides') and trainer ('runners')."""
+        season_start = self._season_start_for(before_date)
+        row = self.conn.execute(
+            f"SELECT COUNT(*) AS n, COALESCE(SUM(is_winner),0) AS wins, "
+            f"COALESCE(SUM(is_top3),0) AS places FROM race_results "
+            f"WHERE {col} = ? AND race_date >= ? AND race_date < ? AND finish_position > 0",
+            (name, season_start, before_date)).fetchone()
+        n = row['n'] or 0
+        if not n:
+            return None
+        wins, places = row['wins'] or 0, row['places'] or 0
+        return {'name': name, 'rides': n, 'runners': n, 'wins': wins, 'places': places,
+                'win_rate': wins / n, 'place_rate': places / n}
+
+    def get_jockey_stats(self, jockey_name: str, before_date: str = '') -> Optional[Dict]:
+        """Get jockey's season statistics. before_date: backtest-leak guard —
+        the season table is rebuilt over the whole season incl. future races, so
+        in backtest pass before_date to compute season-to-date from race_results."""
+        if before_date:
+            return self._person_stats_asof('jockey', jockey_name, before_date)
         c = self.conn.cursor()
         c.execute("SELECT * FROM jockey_stats WHERE name = ?", (jockey_name,))
         row = c.fetchone()
@@ -677,8 +715,11 @@ class HorseDatabase:
             'hot': win_rate >= 0.20,  # 20%+ recent win rate = hot streak
         }
 
-    def get_trainer_stats(self, trainer_name: str) -> Optional[Dict]:
-        """Get trainer's season statistics."""
+    def get_trainer_stats(self, trainer_name: str, before_date: str = '') -> Optional[Dict]:
+        """Get trainer's season statistics. before_date: backtest-leak guard
+        (see get_jockey_stats) — computes season-to-date from race_results."""
+        if before_date:
+            return self._person_stats_asof('trainer', trainer_name, before_date)
         c = self.conn.cursor()
         c.execute("SELECT * FROM trainer_stats WHERE name = ?", (trainer_name,))
         row = c.fetchone()
