@@ -1113,6 +1113,9 @@ def main():
             g_return = (r['q_dividend'] if g_hit else 0.0) if g_stake > 0 else 0.0
             pnl_rows.append({
                 'race_key': r['race_key'],
+                # tier + chosen bet type, for per-tier ROI analysis of the gate
+                'conviction_tier': r.get('conviction_tier') or '',
+                'rec_bet_type': rec,
                 'straightq_stake': 1.0 if with_div else 0.0,
                 'straightq_return': (r['q_dividend'] if r.get('quinella_hit') else 0.0) if with_div else 0.0,
                 'box3_stake': 3.0 if with_div else 0.0,
