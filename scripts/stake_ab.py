@@ -369,11 +369,19 @@ def _append_log(rows, race_date):
     # Atomic read-modify-rewrite: write to a tmp sibling then os.replace.
     # A SIGKILL/disk-full between truncate and rewrite of LOG_PATH directly
     # would zero the only forward A/B record. Mirrors validate_hk._append_csv.
+    #
+    # Dedup is on (race_date, variant) restricted to the variants being
+    # written, so a partial backfill (e.g. running only flat_min_pre_chaos
+    # for a historical date) doesn't strip sibling-variant rows that are
+    # not being re-run.
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    new_variants = {r['variant'] for r in rows}
     existing = []
     if LOG_PATH.exists():
         with open(LOG_PATH) as f:
-            existing = [r for r in csv.DictReader(f) if r['race_date'] != race_date]
+            existing = [r for r in csv.DictReader(f)
+                        if not (r['race_date'] == race_date
+                                and r['variant'] in new_variants)]
     tmp = LOG_PATH.with_suffix(LOG_PATH.suffix + '.tmp')
     with open(tmp, 'w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=LOG_HEADERS)

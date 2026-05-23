@@ -73,10 +73,16 @@ def _quin_div(conn, d, rno, a, b):
     return float(row[0]) / 10.0 if row else None
 
 
-def _exotic_div(conn, d, rno, pool):
+def _exotic_div(conn, d, rno, pool, combination):
+    # combination is the winning permutation/set as stored in race_dividends:
+    # TRIO + FIRST 4 = sorted horse-numbers comma-joined ("1,3,7", "1,3,7,8");
+    # TIERCE + QUARTET = finish-order comma-joined ("7,8,1", "7,8,1,3").
+    # Without this filter, fetchone() picks whichever row SQLite returns first
+    # — fine today (one row per race/pool) but the May-22 dividend-basis bug
+    # was the same family of silent-fetch mistake. Filter explicitly.
     row = conn.execute(
-        "SELECT dividend FROM race_dividends WHERE race_date=? AND race_number=? AND pool=?",
-        (d, rno, pool)).fetchone()
+        "SELECT dividend FROM race_dividends WHERE race_date=? AND race_number=? "
+        "AND pool=? AND combination=?", (d, rno, pool, combination)).fetchone()
     return float(row[0]) / 10.0 if row else None
 
 
@@ -146,10 +152,20 @@ def _score_meeting(conn, date) -> dict:
                 hit = a3 is not None and a3 <= our[box]
             else:
                 hit = a4 is not None and a4 <= our[box]
-            if pool == "QUINELLA":
-                div = _quin_div(conn, date, rno, *top2_nums)
-            else:
-                div = _exotic_div(conn, date, rno, pool)
+            # Fetch dividend only on hit — saves SQL round-trips and avoids
+            # needing top-3/top-4 finishers in the no-hit branch.
+            div = None
+            if hit:
+                if pool == "QUINELLA":
+                    div = _quin_div(conn, date, rno, *top2_nums)
+                elif pool == "TRIO":
+                    combo = ",".join(str(n) for n in sorted(
+                        int(finishers[p][0]["horse_number"]) for p in (1, 2, 3)))
+                    div = _exotic_div(conn, date, rno, pool, combo)
+                elif pool == "FIRST 4":
+                    combo = ",".join(str(n) for n in sorted(
+                        int(finishers[p][0]["horse_number"]) for p in (1, 2, 3, 4)))
+                    div = _exotic_div(conn, date, rno, pool, combo)
             if hit and div is None:
                 continue  # can't price a win — skip (rare; ~99.6% coverage)
             acc[label][0] += ncombo
@@ -200,7 +216,7 @@ def _report(logged: list[dict], title: str):
     dates = sorted(r["race_date"] for r in logged)
     n_m = len(dates)
     print(f"  meetings: {n_m}  ({dates[0]} .. {dates[-1]})")
-    gate = "" if n_m >= 6 else "   ⚠ N<6 — DIRECTIONAL ONLY (not a ship/kill signal yet)"
+    gate = "" if n_m >= 6 else "   [WARN] N<6 — DIRECTIONAL ONLY (not a ship/kill signal yet)"
     print(f"  {'strategy':<14}{'hits':>6}{'stake':>9}{'P&L':>11}{'ROI':>9}{gate}")
     print("  " + "-" * 50)
     for label, *_ in [(s[0],) for s in STRATS]:
