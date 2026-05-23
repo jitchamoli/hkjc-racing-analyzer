@@ -86,6 +86,16 @@ def firing_bets(race: dict) -> dict[str, int]:
     this race. Mirrors the template.py logic so the A/B reflects what the
     user actually sees on their dashboard."""
     horses = race.get('horses', [])
+    # CHAOS suppression — applied retrospectively so historical race_data
+    # JSONs (generated before the filter shipped) compare apples-to-apples
+    # with current production behavior.
+    from betting.conviction import detect_chaos
+    is_chaos, _ = detect_chaos(
+        going=race.get('going', ''), horses=horses,
+        class_type=race.get('class_type', ''),
+    )
+    if is_chaos:
+        return {}
     bet_horse_counts = defaultdict(int)
     for h in horses:
         b = (h.get('bet_recommendation') or '').strip()

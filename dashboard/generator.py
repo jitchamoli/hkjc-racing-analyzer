@@ -500,7 +500,7 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     market_probs = normalize_market_probs(win_odds_list)
 
     # Conviction tier (replaces strategy_confidence — spec §4)
-    from betting.conviction import assign_conviction_tier
+    from betting.conviction import assign_conviction_tier, detect_chaos
     sorted_probs = sorted(model_probs, reverse=True)
     top_2_share = sum(sorted_probs[:2]) if len(sorted_probs) >= 2 else 0
     top_3_share = sum(sorted_probs[:3]) if len(sorted_probs) >= 3 else 0
@@ -511,6 +511,20 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     )
     race_data['top_2_share'] = round(top_2_share, 4)
     race_data['top_3_share'] = round(top_3_share, 4)
+
+    # CHAOS no-bet override (sits above SKIP). Empirically: soft-going races
+    # returned −10.9% ROI vs +34.8% on clean going across 10 backfilled meetings
+    # (Bayesian posterior 0.996). Filter suppresses ALL bets — not just exotics.
+    is_chaos, chaos_reason = detect_chaos(
+        going=race_data.get('going', ''),
+        horses=horses_json,
+        class_type=race_data.get('class_type', ''),
+    )
+    if is_chaos:
+        race_data['conviction_tier'] = 'CHAOS'
+        race_data['chaos_reason'] = chaos_reason
+        for h in horses_json:
+            h['bet_recommendation'] = None
 
     # Quinella dividend estimate + EV (only when QIN bet is active)
     if len(qin_indices) >= 2:
