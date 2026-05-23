@@ -826,8 +826,13 @@ function renderBetCard(race) {{
     // BOX TRIO-5 and F4 BOX-5 also fire as MAIN tier when top5 length is 5
     var top5len = race.horses.slice(0, 5).length;
     if (top5len === 5) {{
-      betLines.push({{lbl: 'BOX TRIO-5', combos: 10}});
-      totalCombos += 10;
+      // SKIP-tier gate (shipped 2026-05-23 from stake_ab backfill: BOX TRIO-5
+      // auto-firing on SKIP-tier races returned -75.6% ROI / lost ~$1,656 over
+      // 10 meetings). When the recommender said SKIP, BOX TRIO-5 follows.
+      if (tier !== 'SKIP') {{
+        betLines.push({{lbl: 'BOX TRIO-5', combos: 10}});
+        totalCombos += 10;
+      }}
       // F4 BOX-5 has its own gate (mirrors logic at line ~915)
       var f4top1 = (race.horses[0] && race.horses[0].win_odds) || 0;
       var f4field = race.horses.length;
@@ -1108,7 +1113,10 @@ function renderBetCard(race) {{
   // for trio coverage and should never be buried as an "optional add".
   // Inserted into the lines array directly above the addOns block below.
   var t5MainBlock = null;
-  if (top5wa.length === 5) {{
+  // SKIP-tier gate (shipped 2026-05-23 — see template.py:828 + stake_ab finding).
+  // BOX TRIO-5 historically auto-fired on every 5+horse race; on SKIP-tier
+  // races that pattern lost -75.6% ROI across 10 backfilled meetings.
+  if (top5wa.length === 5 && tier !== 'SKIP') {{
     var t5Nums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
     var t5Stake = waUnit > 0 ? (' · $' + (10 * waUnit)) : '';
     var t5SwapAnno = top5waSwap
@@ -2030,18 +2038,33 @@ function _buildRaceDetailPanel(race) {{
   // 5th model pick to expand placing-pool coverage beyond the QIN-4
   // box. 10 combos at 1 unit = 10-unit stake. Uses the swapped top-5
   // (same rank-5 swap as F4 BOX-5) for consistency.
+  // SKIP-tier gate: shipped 2026-05-23 after stake_ab backfill showed
+  // BOX TRIO-5 on SKIP-tier races returned -75.6% ROI (-$1,656 over 10
+  // meetings). When the recommender said SKIP, BOX TRIO-5 now follows.
   var top5 = top5_eff;
   if (top5.length === 5) {{
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
-        '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
-          '+ BOX TRIO-5 · 10 combos' +
-        '</span>' +
-        swapBadge +
-        top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
-        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
-      '</div>'
-    );
+    var t5DetailTier = race.conviction_tier || '';
+    if (t5DetailTier === 'SKIP') {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.72rem;color:var(--dim)">' +
+          '<span style="display:inline-block;background:rgba(71,85,105,.4);color:var(--dim);font-weight:700;padding:2px 8px;border-radius:3px;font-size:.65rem;margin-right:8px">' +
+            'BOX TRIO-5 · SKIPPED' +
+          '</span>' +
+          'SKIP conviction — recommender said no bet on this race' +
+        '</div>'
+      );
+    }} else {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+          '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+            '+ BOX TRIO-5 · 10 combos' +
+          '</span>' +
+          swapBadge +
+          top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
+          '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
+        '</div>'
+      );
+    }}
   }}
 
   // BOX TRIO-6 — OPTIONAL high-cost protection layer.

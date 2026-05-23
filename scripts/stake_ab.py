@@ -111,9 +111,13 @@ def firing_bets(race: dict) -> dict[str, int]:
 
     # MAIN-tier auto-fires when top-5 exists (mirrors template.py:826+)
     if len(horses) >= 5:
-        out['BOX TRIO-5'] = 10
-        top1_odds = horses[0].get('win_odds') or 0
         tier = (race.get('conviction_tier') or 'SKIP').upper()
+        # BOX TRIO-5 SKIP-tier gate (shipped 2026-05-23) — matches new
+        # dashboard behavior. Prior to this gate, BOX TRIO-5 auto-fired on
+        # SKIP races and returned -75.6% ROI over the 10-meeting backfill.
+        if tier != 'SKIP':
+            out['BOX TRIO-5'] = 10
+        top1_odds = horses[0].get('win_odds') or 0
         field_size = len(horses)
         f4_skip = ((top1_odds > 0 and top1_odds < 2.5) or
                    tier not in ('EDGE', 'HIGH', 'MED') or
