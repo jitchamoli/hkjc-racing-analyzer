@@ -45,18 +45,29 @@ DEFAULT_BANKROLL = float(getattr(config, 'BANKROLL', 10000.0))
 # Variant definitions. Extend by adding a new entry — the rest is generic.
 VARIANTS = {
     'flat_min':   {'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
+                   'skip_tiers': set(),
                    'label': 'flat HK$10/combo (user habit)'},
+    'flat_min_skip_aware': {
+                   'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
+                   # Mirrors production's implicit "no bet on SKIP-tier races"
+                   # without copying its tier ramp. Isolates whether
+                   # production's edge is the RAMP or the SKIP filter.
+                   'skip_tiers': {'SKIP'},
+                   'label': 'flat HK$10/combo + skip SKIP-tier'},
     'production': {'mode': 'race_ramp_split',
                    'ramp': {'EDGE': 0.030, 'HIGH': 0.020, 'MED': 0.010,
                             'LOW': 0.005, 'SKIP': 0.000},
+                   'skip_tiers': set(),
                    'label': 'production ramp 3/2/1/0.5%'},
     'flat_1pct':  {'mode': 'race_ramp_split',
                    'ramp': {'EDGE': 0.010, 'HIGH': 0.010, 'MED': 0.010,
                             'LOW': 0.010, 'SKIP': 0.000},
+                   'skip_tiers': set(),
                    'label': 'flat 1% × bankroll'},
     'invert':     {'mode': 'race_ramp_split',
                    'ramp': {'EDGE': 0.005, 'HIGH': 0.010, 'MED': 0.020,
                             'LOW': 0.030, 'SKIP': 0.000},
+                   'skip_tiers': set(),
                    'label': 'inverted 0.5/1/2/3%'},
 }
 
@@ -121,12 +132,19 @@ def variant_stakes(variant: str, race: dict, fires: dict[str, int],
                    bankroll: float) -> dict[str, float]:
     """Return {bet_label: total_stake_HKD} for this variant on this race."""
     cfg = VARIANTS[variant]
+    tier = (race.get('conviction_tier') or 'SKIP').upper()
+
+    # Tier-level skip filter (applies to any variant). Used by
+    # flat_min_skip_aware to mirror production's SKIP-on-SKIP-tier behavior
+    # without copying its tier ramp.
+    if tier in cfg.get('skip_tiers', set()):
+        return {bt: 0.0 for bt in fires}
+
     if cfg['mode'] == 'flat_per_combo':
         per = cfg['stake_per_combo']
         return {bt: combos * per for bt, combos in fires.items()}
 
     # race_ramp_split: race-level stake from tier × bankroll, split by combo
-    tier = (race.get('conviction_tier') or 'SKIP').upper()
     race_stake = bankroll * cfg['ramp'].get(tier, 0.0)
     if race_stake <= 0 or not fires:
         return {bt: 0.0 for bt in fires}
