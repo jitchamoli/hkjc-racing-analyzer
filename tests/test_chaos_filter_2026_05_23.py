@@ -96,3 +96,42 @@ def test_firing_bets_does_not_suppress_on_firm_going():
 def test_firing_bets_suppresses_all_soft_going_variants(going):
     race = _race(going=going)
     assert firing_bets(race) == {}
+
+
+# ---------------------------------------------------------------------------
+# Counterfactual A/B: apply_chaos=False bypasses the filter so we can
+# forward-validate the CHAOS filter at N≥6 meetings via stake_ab.py.
+# ---------------------------------------------------------------------------
+
+def test_firing_bets_apply_chaos_false_does_not_suppress_soft_going():
+    """The pre-CHAOS counterfactual — bets fire on soft going so we can
+    measure what we WOULD have done without the filter, for forward A/B."""
+    race = _race(going='YIELDING')
+    fires_default = firing_bets(race)
+    fires_pre_chaos = firing_bets(race, apply_chaos=False)
+    assert fires_default == {}, "Default should still suppress (production)"
+    assert len(fires_pre_chaos) > 0, (
+        "apply_chaos=False should fire bets so the counterfactual is logged"
+    )
+
+
+def test_firing_bets_apply_chaos_false_matches_firm_going_behavior():
+    """Sanity: with apply_chaos=False on a soft-going race, the fires should
+    match what a firm-going version of the same race would fire."""
+    soft = _race(going='YIELDING')
+    firm = _race(going='GOOD')
+    assert firing_bets(soft, apply_chaos=False) == firing_bets(firm)
+
+
+def test_stake_ab_pre_chaos_variant_registered():
+    """The flat_min_pre_chaos variant must exist with apply_chaos=False
+    so forward-validation logs the counterfactual."""
+    from scripts.stake_ab import VARIANTS
+    assert 'flat_min_pre_chaos' in VARIANTS
+    assert VARIANTS['flat_min_pre_chaos']['apply_chaos'] is False
+    # All other variants stay at apply_chaos=True (production behavior)
+    for name, cfg in VARIANTS.items():
+        if name != 'flat_min_pre_chaos':
+            assert cfg.get('apply_chaos', True) is True, (
+                f"Variant {name} should keep apply_chaos=True"
+            )
