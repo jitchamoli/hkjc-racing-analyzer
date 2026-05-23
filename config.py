@@ -33,6 +33,13 @@ TRAINING_DATA_PATH = TRAINING_DATA_DIR / "historical_races.json"
 RULE_WEIGHT = 0.60
 ML_WEIGHT = 0.40
 
+# Minimum rides for the jockey_form factor to fire. Production = 3 (current
+# behavior). The shadow_generate jockey_form variant patches this to 15 to
+# effectively disable the factor — n_rides SQL LIMIT is 10, so >=15 never
+# fires. Backtest 2026-05-23 found disabling improves straight QIN +6.24pp
+# and top-pick Brier; shadow-logging to forward-validate before shipping.
+JOCKEY_FORM_RIDES_MIN = 3
+
 # Betting thresholds
 MIN_EXPECTED_RETURN = 0.05
 MIN_INVESTMENT = 10

@@ -14,6 +14,7 @@ from typing import List, Optional, Dict
 from datetime import datetime
 import logging
 
+import config
 from core.fetcher import HKJCDataFetcher, HorseEntry, RaceCard
 from core.ports import HorseHistoryStore
 
@@ -886,7 +887,9 @@ class CombinedRaceAnalyzer:
         if self._horse_db and horse.jockey:
             jf = self._horse_db.get_jockey_recent_form(
                 horse.jockey, n_rides=10, before_date=race.date if race.date else '')
-            if jf.get('rides', 0) >= 3:
+            # Threshold is config-driven so shadow_generate jockey_form variant
+            # can disable the factor (patches min to 15; n_rides LIMIT is 10).
+            if jf.get('rides', 0) >= config.JOCKEY_FORM_RIDES_MIN:
                 wr = jf['win_rate']
                 pr = jf['place_rate']
                 if jf['hot']:

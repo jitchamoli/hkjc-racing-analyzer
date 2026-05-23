@@ -56,17 +56,29 @@ def main():
         print(f"\nABORT: results_fetcher failed. Fix and rerun.", file=sys.stderr)
         return rc
 
-    # Step 2: shadow eval — skip cleanly if shadow file missing
+    # Step 2: shadow eval — skip cleanly if shadow file missing.
+    # Two variants share this step: rule_w (legacy) and jockey_form.
     date_str = args.race_date.replace('/', '')
-    shadow_path = REPO_ROOT / 'results' / f'shadow_race_data_{date_str}.json'
-    if not shadow_path.exists():
-        print(f"\n  [2/6 shadow_evaluate] SKIPPED — no shadow file at {shadow_path}")
+    rule_w_shadow = REPO_ROOT / 'results' / f'shadow_race_data_{date_str}.json'
+    if not rule_w_shadow.exists():
+        print(f"\n  [2a/6 shadow_evaluate rule_w] SKIPPED — no file at {rule_w_shadow}")
     else:
-        rc = _run("2/6 shadow_evaluate",
+        rc = _run("2a/6 shadow_evaluate (rule_w)",
                   [sys.executable, '-m', 'scripts.shadow_evaluate', args.race_date])
         if rc != 0:
-            print(f"\nWARN: shadow_evaluate failed but results were ingested. "
-                  f"Continuing to remaining steps.", file=sys.stderr)
+            print(f"\nWARN: shadow_evaluate rule_w failed but results were ingested.",
+                  file=sys.stderr)
+
+    jockey_shadow = REPO_ROOT / 'results' / f'shadow_jockey_race_data_{date_str}.json'
+    if not jockey_shadow.exists():
+        print(f"\n  [2b/6 shadow_evaluate jockey_form] SKIPPED — no file at {jockey_shadow}")
+    else:
+        rc = _run("2b/6 shadow_evaluate (jockey_form)",
+                  [sys.executable, '-m', 'scripts.shadow_evaluate', args.race_date,
+                   '--variant', 'jockey_form'])
+        if rc != 0:
+            print(f"\nWARN: shadow_evaluate jockey_form failed but results were ingested.",
+                  file=sys.stderr)
 
     # Step 3: tier B eval — always safe (skips internally if no rows)
     _run("3/6 tier B evaluate (OLD vs NEW recommender)",
@@ -110,7 +122,8 @@ def main():
                   file=sys.stderr)
 
     print(f"\n{'='*70}\n  POST-RACE COMPLETE — {args.race_date}\n{'='*70}")
-    print(f"  Cumulative shadow comparison: python3 -m scripts.shadow_evaluate --report")
+    print(f"  Cumulative shadow rule_w:     python3 -m scripts.shadow_evaluate --report")
+    print(f"  Cumulative shadow jockey_form:python3 -m scripts.shadow_evaluate --report --variant jockey_form")
     print(f"  Cumulative tier B forward:    python3 -m scripts.tier_b_evaluate --report")
     print(f"  Spoiler dataset:              tracking_data/spoilers.csv")
     print(f"  EDGE history:                 tracking_data/edge_log.csv + edge_stats.json")

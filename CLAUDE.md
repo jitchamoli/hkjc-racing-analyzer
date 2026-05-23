@@ -35,11 +35,16 @@ python3 -m scripts.post_race '2026/05/17'    # 7+1 steps: results_fetcher --auto
                                              #   (fresh edge_stats) → auto_dump
 python3 -m scripts.post_race '2026/05/17' --skip-dump   # leave DB dump/push for later
 
-# Shadow logging — active forward-validation experiment for rule_w=0.9 (see
-# memory/project_shadow_logging_rule_w_09.md). Production stays at 0.6.
-python3 -m scripts.shadow_generate '2026/05/17'           # writes shadow_race_data_YYYYMMDD.json
-python3 -m scripts.shadow_evaluate '2026/05/17'           # appends to tracking_data/shadow_log.csv
-python3 -m scripts.shadow_evaluate --report               # cumulative comparison after N≥6 meetings
+# Shadow logging — two active forward-validation experiments. Production unchanged.
+#   rule_w (default): rule_w=0.9 vs prod 0.6. memory/project_shadow_logging_rule_w_09.md
+#   jockey_form:       jockey_form factor disabled. memory/project_jockey_form_shadow_2026-05-23.md
+python3 -m scripts.shadow_generate '2026/05/17'                              # rule_w (writes shadow_race_data_*.json)
+python3 -m scripts.shadow_generate '2026/05/17' --variant jockey_form        # jockey_form (writes shadow_jockey_race_data_*.json)
+python3 -m scripts.shadow_evaluate '2026/05/17'                              # rule_w → tracking_data/shadow_log.csv
+python3 -m scripts.shadow_evaluate '2026/05/17' --variant jockey_form        # jockey_form → tracking_data/shadow_jockey_log.csv
+python3 -m scripts.shadow_evaluate --report                                  # cumulative rule_w
+python3 -m scripts.shadow_evaluate --report --variant jockey_form            # cumulative jockey_form
+# Both shadows auto-run via scripts.race_day; both eval auto-run via scripts.post_race.
 
 # Forward-validation experiments + empirical trackers (auto-run by post_race)
 python3 -m scripts.tier_b_evaluate '2026/05/17'           # OLD vs NEW recommender (tier_b_log.csv)
