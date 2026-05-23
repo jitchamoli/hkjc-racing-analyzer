@@ -5,13 +5,16 @@ intentionally simpler:
 - No place model
 - No isotonic calibration (XGBoost outputs are reasonably calibrated for
   ranking; calibration is a Phase 2B add if the model proves useful)
-- No SHA256 sidecar (HK pattern, can be added if/when UK ships to prod)
 
 Save format: pickle dict with model + feature_names + trained_date so
-inference code can sanity-check the schema hasn't drifted.
+inference code can sanity-check the schema hasn't drifted. A `.sha256`
+sidecar is written on save() and verified on load() — `load()` hard-refuses
+to unpickle if the sidecar is missing or the checksum doesn't match.
 """
 from __future__ import annotations
 
+import hashlib
+import logging
 import pickle
 from datetime import datetime
 from pathlib import Path
@@ -24,7 +27,13 @@ import xgboost as xgb
 import config
 from ml.uk_features import FEATURE_COLS
 
+logger = logging.getLogger(__name__)
+
 MODEL_PATH = config.MODEL_DIR / "uk_racing_model.pkl"
+
+
+def _checksum_path(path: Path) -> Path:
+    return path.with_suffix('.sha256')
 
 
 # Same hyper-param family as HK but smaller (less data, simpler target)
@@ -110,15 +119,35 @@ class UKRacingModel:
             "n_train_samples": self.n_train_samples,
             "training_metrics": self.training_metrics,
         }
-        with open(path, "wb") as f:
-            pickle.dump(payload, f)
+        model_bytes = pickle.dumps(payload)
+        path.write_bytes(model_bytes)
+        _checksum_path(path).write_text(hashlib.sha256(model_bytes).hexdigest())
         return path
 
     @classmethod
     def load(cls, path: Optional[Path] = None) -> "UKRacingModel":
         path = Path(path or MODEL_PATH)
-        with open(path, "rb") as f:
-            payload = pickle.load(f)
+        model_bytes = path.read_bytes()
+
+        # Verify-then-load: refuse to unpickle without a valid SHA256 sidecar.
+        # Mirrors the HK pattern in ml/model.py — pickle.load on untrusted
+        # bytes is RCE; the sidecar is the only thing standing between an
+        # accidental/malicious file swap and arbitrary code execution.
+        checksum_file = _checksum_path(path)
+        if not checksum_file.exists():
+            raise RuntimeError(
+                f"Model checksum file missing at {checksum_file} — refusing to "
+                f"load unsigned model. Retrain with: python3 -m scripts.train_uk"
+            )
+        expected = checksum_file.read_text().strip()
+        actual = hashlib.sha256(model_bytes).hexdigest()
+        if actual != expected:
+            raise RuntimeError(
+                f"Model checksum mismatch at {path} — file may be corrupted or "
+                f"tampered. Expected {expected[:16]}..., got {actual[:16]}..."
+            )
+
+        payload = pickle.loads(model_bytes)
         inst = cls()
         inst.model = payload["model"]
         inst.feature_names = payload["feature_names"]
