@@ -366,18 +366,23 @@ def evaluate_date(race_date: str, bankroll: float) -> int:
 
 
 def _append_log(rows, race_date):
+    # Atomic read-modify-rewrite: write to a tmp sibling then os.replace.
+    # A SIGKILL/disk-full between truncate and rewrite of LOG_PATH directly
+    # would zero the only forward A/B record. Mirrors validate_hk._append_csv.
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     existing = []
     if LOG_PATH.exists():
         with open(LOG_PATH) as f:
             existing = [r for r in csv.DictReader(f) if r['race_date'] != race_date]
-    with open(LOG_PATH, 'w', newline='') as f:
+    tmp = LOG_PATH.with_suffix(LOG_PATH.suffix + '.tmp')
+    with open(tmp, 'w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=LOG_HEADERS)
         w.writeheader()
         for r in existing:
             w.writerow(r)
         for r in rows:
             w.writerow(r)
+    tmp.replace(LOG_PATH)
 
 
 # ---------------------------------------------------------------------------

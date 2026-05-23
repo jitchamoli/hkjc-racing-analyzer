@@ -41,12 +41,15 @@ Usage:
 from __future__ import annotations
 import argparse
 import csv
+import re
 import sqlite3
 import sys
 from collections import defaultdict
 from pathlib import Path
 
 import config
+
+CUTOFF_RE = re.compile(r'^\d{4}/\d{2}/\d{2}$')
 
 CUTOFF_FILE = Path(config.DB_PATH).parent / "hk_forward_cutoff.txt"
 LOG_FILE = Path(config.DB_PATH).parent / "hk_forward_validation.csv"
@@ -79,7 +82,17 @@ def _exotic_div(conn, d, rno, pool):
 
 def _load_cutoff(conn) -> str:
     if CUTOFF_FILE.exists():
-        return CUTOFF_FILE.read_text().strip()
+        cutoff = CUTOFF_FILE.read_text().strip()
+        # An empty/whitespace/corrupted cutoff would silently make every
+        # row pass `race_date > ''`, contaminating un-burned evidence with
+        # all burned data. Refuse to proceed.
+        if not CUTOFF_RE.match(cutoff):
+            raise SystemExit(
+                f"refusing to run: {CUTOFF_FILE} contains {cutoff!r}, "
+                f"not a YYYY/MM/DD date. Fix the file or re-init with "
+                f"`python3 -m scripts.validate_hk --set-cutoff YYYY/MM/DD`."
+            )
+        return cutoff
     row = conn.execute("SELECT MAX(race_date) FROM prediction_log WHERE results_filled=1").fetchone()
     cutoff = row[0] or "2026/05/20"
     _atomic_write_text(CUTOFF_FILE, cutoff)
@@ -215,8 +228,13 @@ def main() -> int:
     conn.row_factory = sqlite3.Row
 
     if args.set_cutoff:
-        _atomic_write_text(CUTOFF_FILE, args.set_cutoff.strip())
-        print(f"cutoff set to {args.set_cutoff.strip()}")
+        new_cutoff = args.set_cutoff.strip()
+        if not CUTOFF_RE.match(new_cutoff):
+            raise SystemExit(
+                f"--set-cutoff expects YYYY/MM/DD, got {new_cutoff!r}"
+            )
+        _atomic_write_text(CUTOFF_FILE, new_cutoff)
+        print(f"cutoff set to {new_cutoff}")
     cutoff = _load_cutoff(conn)
     print(f"forward cutoff: {cutoff}  (clean sample = meetings AFTER this)")
 
