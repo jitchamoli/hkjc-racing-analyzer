@@ -417,33 +417,6 @@ class BettingStrategy:
         )
 
     @staticmethod
-    def analyze_draw(draw: int, distance: str) -> tuple:
-        dist = int(distance) if distance and distance.isdigit() else 1200
-
-        if dist <= 1000:
-            ideal_range = (1, 4)
-        elif dist <= 1400:
-            ideal_range = (1, 6)
-        else:
-            ideal_range = (4, 10)
-
-        if draw == 0:
-            return 50.0, "No draw data"
-
-        if ideal_range[0] <= draw <= ideal_range[1]:
-            # Within ideal range — score based on closeness to center
-            center = (ideal_range[0] + ideal_range[1]) / 2
-            dist_from_center = abs(draw - center) / max(1, (ideal_range[1] - ideal_range[0]) / 2)
-            score = 95 - dist_from_center * 15  # 95 at center, ~80 at edges
-            return score, f"Good barrier ({draw})"
-        elif draw > 12:
-            return 45.0, f"Wide draw ({draw})"
-        elif draw > ideal_range[1]:
-            return 60.0, f"Outside ideal range ({draw})"
-        else:
-            return 65.0, f"Average barrier ({draw})"
-
-    @staticmethod
     def analyze_tips(horse: "Horse", all_horses: List["Horse"]) -> tuple:
         """Score horse based on HKJC Tips Index data.
         Lower tips index = more favoured by experts.
