@@ -11,7 +11,11 @@
 #
 # Manual run: bash scripts/auto_dump.sh
 
-set -u
+# -e: fail on any unchecked non-zero exit (incl. git add / commit / push).
+#     Previously, a `git add` failure logged "OK: pushed" because the script
+#     ran straight through. -o pipefail makes pipelines (none yet, defensive)
+#     return the first failing exit code.
+set -euo pipefail
 
 PROJECT_ROOT="/Users/jitendrachamoli/Code/hkjc_racing_analyzer"
 LOG_DIR="$PROJECT_ROOT/logs"
