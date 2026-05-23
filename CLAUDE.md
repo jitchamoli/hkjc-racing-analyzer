@@ -28,11 +28,18 @@ python3 -m scripts.raceday finish '2026/05/17'   # ONCE, PM: post_race (forwards
 
 # Underlying one-command wrappers (raceday dispatches to these)
 python3 -m scripts.race_day '2026/05/17'     # generate_predictions + shadow_generate + tier_b_shadow
-python3 -m scripts.post_race '2026/05/17'    # 7+1 steps: results_fetcher --auto-learn →
-                                             #   shadow_evaluate → tier_b_evaluate →
-                                             #   track_spoilers → track_longshot_trio →
-                                             #   track_edge → regen dashboard
-                                             #   (fresh edge_stats) → auto_dump
+python3 -m scripts.post_race '2026/05/17'    # 10+1 steps:
+                                             #   1   results_fetcher --auto-learn
+                                             #   2a  shadow_evaluate (rule_w)
+                                             #   2b  shadow_evaluate (jockey_form)
+                                             #   2c  stake_ab (staking variants)
+                                             #   3   tier_b_evaluate
+                                             #   4   track_spoilers
+                                             #   4a  track_longshot_trio
+                                             #   4b  validate_hk
+                                             #   5   track_edge → regen dashboard
+                                             #   5b  gate_impact (BOX TRIO-5 OLD vs NEW)
+                                             #   6   auto_dump
 python3 -m scripts.post_race '2026/05/17' --skip-dump   # leave DB dump/push for later
 
 # Shadow logging — two active forward-validation experiments. Production unchanged.
@@ -52,6 +59,13 @@ python3 -m scripts.shadow_evaluate --report --variant jockey_form            # c
 # forward. Auto-runs in scripts.post_race step 2c.
 python3 -m scripts.stake_ab '2026/05/20'                                     # log one meeting
 python3 -m scripts.stake_ab --report                                         # cumulative + Bayesian verdict per variant
+
+# "Bayesian verdict" (used by shadow_evaluate + stake_ab) — Beta-Binomial
+# posterior P(variant beats baseline | per-meeting cumulative-ROI wins) under
+# a flat Beta(1,1) prior. SHIP if posterior ≥ 0.95, KILL if ≤ 0.05, else
+# WATCH. Optional-stopping safe: you can check the report after every meeting
+# without inflating Type I error (unlike the older arbitrary "N≥6 meetings"
+# heuristic still used by track_longshot_trio + tier_b_evaluate).
 
 # Forward-validation experiments + empirical trackers (auto-run by post_race)
 python3 -m scripts.tier_b_evaluate '2026/05/17'           # OLD vs NEW recommender (tier_b_log.csv)
@@ -91,6 +105,14 @@ python3 -m scripts.fetch_results '2026/04/16'
 python3 -m scripts.backtest              # Held-out last 20% of DB (default)
 python3 -m scripts.backtest --sweep      # Grid over softmax temp × model weight
 python3 -m scripts.backtest --exclude-date 2026/04/19
+python3 -m scripts.backtest --production-stakes   # Re-run holdout with production tier-ramped stakes (vs default flat-1u) — diagnose whether the conviction-tier staking ramp is itself the ROI leak. See memory: project_production_stakes_leak_2026-05-23.
+
+# Gate impact — OLD-vs-NEW BOX TRIO-5 triple gate (shipped 2026-05-23) over
+# the last N meetings, using same picks + real HKJC dividends. Auto-runs in
+# scripts.post_race step 5b after every meeting.
+python3 -m scripts.gate_impact             # last 8 meetings (default)
+python3 -m scripts.gate_impact --last 12   # last 12
+python3 -m scripts.gate_impact --all       # every available meeting
 
 # Backfill real HKJC dividends into race_dividends table
 python3 -m scripts.backfill_dividends              # All missing dates
