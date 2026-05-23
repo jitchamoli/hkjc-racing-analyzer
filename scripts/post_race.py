@@ -117,6 +117,12 @@ def main():
     _run("5/6 track_edge (banner stats)",
          [sys.executable, '-m', 'scripts.track_edge', args.race_date])
 
+    # Step 5b: gate impact — compares BOX TRIO-5 OLD-vs-NEW gate P&L over the
+    # last 8 meetings so user sees the cumulative effect of the gate ship every
+    # meeting. Read-only diagnostic; never blocks.
+    _run("5b/6 gate_impact (BOX TRIO-5 OLD vs NEW)",
+         [sys.executable, '-m', 'scripts.gate_impact'], required=False)
+
     # After track_edge updates stats, re-render the dashboard so the EDGE
     # banner reflects this meeting's fires too. Use fetch_results (the
     # results-overlay path) NOT generate.py: generate.py rebuilds from a fresh
@@ -139,6 +145,7 @@ def main():
     print(f"  Cumulative shadow rule_w:     python3 -m scripts.shadow_evaluate --report")
     print(f"  Cumulative shadow jockey_form:python3 -m scripts.shadow_evaluate --report --variant jockey_form")
     print(f"  Cumulative stake A/B:         python3 -m scripts.stake_ab --report")
+    print(f"  Gate impact (BOX TRIO-5):     python3 -m scripts.gate_impact")
     print(f"  Cumulative tier B forward:    python3 -m scripts.tier_b_evaluate --report")
     print(f"  Spoiler dataset:              tracking_data/spoilers.csv")
     print(f"  EDGE history:                 tracking_data/edge_log.csv + edge_stats.json")
