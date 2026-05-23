@@ -57,15 +57,14 @@ class ClassMovementAnalyzer:
             return 50.0, "No previous class data"
 
         # AU-school multi-race drop: dropping after a sequence of losses at a
-        # higher grade is a recognised value angle. Fires only when the drop
-        # survives a 3-race window (not just the immediate prior).
-        # Rank is INVERTED: lower number = higher class (G1=0, Class 5=5),
-        # so a class DROP means current_rank > prior ranks.
-        if len(recent) >= 3:
-            median_rank = sorted(r for r, _ in recent)[1]
+        # higher grade. ALL three priors must be at a strictly higher class
+        # than today — median was wrong because `[Class 1, 3, 3] → 4` would
+        # fire even though two priors were at the same class as today's drop.
+        # Rank inverted: lower number = higher class (G1=0, Class 5=5).
+        if len(recent) >= 3 and all(rank < current_rank for rank, _ in recent):
             valid_fps = [fp for _, fp in recent if fp > 0]
             avg_fp = sum(valid_fps) / len(valid_fps) if valid_fps else 0
-            if current_rank > median_rank and avg_fp >= 6:
+            if avg_fp >= 6:
                 return 92.0, (
                     f"DROP AFTER POOR FORM: avg finish {avg_fp:.1f} over 3 prior at "
                     f"higher class → Class {current_rank}"
