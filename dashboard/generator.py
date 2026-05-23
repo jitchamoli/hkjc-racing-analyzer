@@ -30,10 +30,19 @@ def _atomic_write(path: str, content: str) -> None:
     # Write to a sibling temp file then os.replace so concurrent readers
     # (the dashboard server, a browser polling the file) never see a
     # half-written file. os.replace is atomic on POSIX and Windows ≥ Vista.
+    # try/finally cleans up the tmp on write failure so .tmp.{pid} files
+    # don't accumulate after disk-full / SIGKILL / etc.
     tmp = f"{path}.tmp.{os.getpid()}"
-    with open(tmp, 'w') as f:
-        f.write(content)
-    os.replace(tmp, path)
+    try:
+        with open(tmp, 'w') as f:
+            f.write(content)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 _OVERRIDES_PATH = os.path.join(
