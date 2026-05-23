@@ -439,6 +439,21 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 )
             )
 
+            # Feature 25 (v6.9): mid-race sectional pace.
+            # Same helper as inference for train/predict parity.
+            feat_mid_pace = FeatureEngineering.calculate_mid_race_pace(
+                r.get('horse_name', '') or '',
+                conn=conn, before_date=race_date,
+            )
+
+            # Feature 26 (v6.10): sire's top-3 rate on this race's going.
+            # Same helper as inference for train/predict parity.
+            feat_sire_going = FeatureEngineering.calculate_sire_top3_on_going(
+                r.get('horse_name', '') or '',
+                r.get('going', '') or '',
+                conn=conn, before_date=race_date,
+            )
+
             features = [
                 feat_form_proxy, feat_form, feat_draw,
                 feat_jockey, feat_trainer, feat_field_size,
@@ -450,6 +465,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 feat_age, feat_rating_change, feat_jockey_30d,
                 feat_jt_pair, feat_speed_fig,
                 feat_early, feat_late, feat_style,
+                feat_mid_pace, feat_sire_going,
             ]
             assert len(features) == NUM_FEATURES, f"Expected {NUM_FEATURES} features, got {len(features)}"
             X.append(features)
@@ -548,6 +564,11 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         early_speed_feat = float(np.random.uniform(0.05, 0.95))
         late_kick_feat = float(np.clip(np.random.normal(0.5, 0.15), 0.0, 1.0))
         running_style_feat = float(np.random.choice([0.0, 0.5, 1.0]))
+        # v6.9 feature 25 (mid-race pace / "unspent finisher")
+        mid_pace_feat = float(np.clip(np.random.normal(0.5, 0.10), 0.0, 1.0))
+        # v6.10 feature 26 (sire top-3 rate on going). Beta(2, 8) yields a
+        # distribution roughly matching the smoothed real-data shape.
+        sire_going_feat = float(np.random.beta(2, 8))
 
         features = [
             prior_win_rate, form_score / 100, draw_adv,
@@ -561,6 +582,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             horse_age_feat, rating_change_feat, jockey_form_30d_feat,
             jt_pair_feat, speed_fig_feat,
             early_speed_feat, late_kick_feat, running_style_feat,
+            mid_pace_feat, sire_going_feat,
         ]
         assert len(features) == NUM_FEATURES
         X.append(features)
@@ -600,6 +622,12 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             # so synthetic doesn't bias toward any style.
             - 0.3 * (early_speed_feat - 0.5)  # lower position = better, so negative coef
             + 0.5 * (late_kick_feat - 0.5)
+            # v6.9: mid-race pace ("unspent finisher"). Positive coefficient
+            # matches the diagnostic finding r(mid_minus_late, is_top3)=+0.084
+            + 0.4 * (mid_pace_feat - 0.5)
+            # v6.10: sire top-3 on going. Positive coef matches the diagnostic
+            # finding r=+0.0772 — 80% of horse_prior_win_rate's signal strength.
+            + 1.0 * (sire_going_feat - 0.20)
             - 2.8
         )
         win_prob = 1.0 / (1.0 + np.exp(-win_logit))
