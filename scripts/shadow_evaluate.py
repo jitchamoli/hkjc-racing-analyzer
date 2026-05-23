@@ -246,51 +246,7 @@ def _append_log(rows, race_date, log_path: Path):
         for r in rows: w.writerow(r)
 
 
-def _bayesian_verdict(meeting_winners: list[int]) -> dict:
-    """Beta-Binomial posterior P(shadow beats production) over per-meeting
-    binary outcomes. Replaces the arbitrary N>=6 heuristic with a rule that
-    controls Type I/II error under optional stopping.
-
-    Args:
-        meeting_winners: 1 if shadow cumulative ROI > prod cumulative ROI at
-            that meeting, else 0. One entry per meeting in chronological order.
-
-    Returns dict with:
-        n_meetings: int
-        wins: int (shadow beats prod count)
-        posterior: float in [0, 1] = P(shadow > prod | data) under Beta(1,1)
-            prior, treating each meeting as a Bernoulli trial of "shadow wins"
-        verdict: 'SHIP' (>=0.95) / 'KILL' (<=0.05) / 'WATCH' (in between)
-
-    Rationale: Bayesian posteriors are invariant to optional stopping under
-    the likelihood principle — you can check after every meeting without
-    inflating Type I error (unlike sequential frequentist tests). Beta(1,1)
-    is uniform; the posterior IS the proportion of meetings shadow wins.
-    """
-    n = len(meeting_winners)
-    if n == 0:
-        return {'n_meetings': 0, 'wins': 0, 'posterior': 0.5, 'verdict': 'WATCH'}
-    wins = sum(meeting_winners)
-    losses = n - wins
-    # Beta(1+wins, 1+losses) posterior. P(p > 0.5) computed via the survival
-    # function of Beta evaluated at 0.5. Use closed-form regularized incomplete
-    # beta function from math.lgamma if scipy not available — but mean is a
-    # cheap-and-correct point estimate for ship/kill at extreme posteriors.
-    try:
-        from scipy.stats import beta as _beta
-        posterior = float(1.0 - _beta.cdf(0.5, 1 + wins, 1 + losses))
-    except ImportError:
-        # Fallback: use sample proportion as posterior approximation. Crude
-        # but conservative — only ships when sample proportion is extreme.
-        posterior = wins / n if n else 0.5
-
-    if posterior >= 0.95:
-        verdict = 'SHIP'
-    elif posterior <= 0.05:
-        verdict = 'KILL'
-    else:
-        verdict = 'WATCH'
-    return {'n_meetings': n, 'wins': wins, 'posterior': posterior, 'verdict': verdict}
+from scripts.forward_common import bayesian_verdict
 
 
 def _per_meeting_winners(rows) -> list[int]:
@@ -362,7 +318,7 @@ def report(variant: str) -> int:
     # Optional-stopping safe: you can check after every meeting without
     # inflating Type I error.
     winners = _per_meeting_winners(rows)
-    v = _bayesian_verdict(winners)
+    v = bayesian_verdict(winners)
     print(f"  Per-meeting outcomes (1=shadow cum ROI > prod): {winners}")
     print(f"  Bayesian posterior P(shadow > prod): {v['posterior']:.3f}  "
           f"({v['wins']}/{v['n_meetings']} meetings)")
