@@ -1,6 +1,6 @@
-# HKJC Horse Racing Analyzer v6.8
+# HKJC Horse Racing Analyzer v6.10
 
-Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 25-factor rule-based engine with an XGBoost ML model (24 features, isotonic-calibrated, post-blend recalibrated, calibrator auto-refit on every retrain) to surface bets the public may be underestimating. The dashboard renders every race as a clickable card stack with two views — **Race Order** (all 11 chronological) and **Top Bets** (curated tier-sorted) — plus a sticky live alerts rail.
+Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 25-factor rule-based engine with an XGBoost ML model (26 features, isotonic-calibrated, post-blend recalibrated, calibrator auto-refit on every retrain) to surface bets the public may be underestimating. The dashboard renders every race as a clickable card stack with two views — **Race Order** (all 11 chronological) and **Top Bets** (curated tier-sorted) — plus a sticky live alerts rail.
 
 > **Multi-jurisdiction expansion (2026-05-17):** HK remains the primary, production pipeline. Four additional jurisdictions ship as **isolated, experimental pipelines** sharing only the API client — see [Multi-jurisdiction pipelines](#multi-jurisdiction-pipelines-uk--fr--au--jp) below.
 
@@ -167,7 +167,7 @@ Shipped 2026-05-17 as completely isolated pipelines — separate DBs, separate m
 
 | Jurisdiction | Status | 12-month data | Model? |
 |---|---|---|---|
-| 🇭🇰 **HK** | Production (this README's primary subject) | 55,157 race results | v6.8 — 24 features, isotonic-calibrated |
+| 🇭🇰 **HK** | Production (this README's primary subject) | 55,411 race results | v6.10 — 26 features, isotonic-calibrated |
 | 🇬🇧 **UK** | MVP — forward-validating | 81,975 runners | 15-feature XGBoost (AUC tied with market) |
 | 🇫🇷 **FR** | MVP — forward-validating | 21,267 runners | 15-feature XGBoost, **beats market favourite +4.64% ROI on test fold** |
 | 🇦🇺 **AU** | Reference data only | 4,444 runners | none — stakes-only at this plan tier |
@@ -263,7 +263,7 @@ hkjc_racing_analyzer/
     recommender.py           #   Bet recommendation engine
     predictor.py             #   ML predictor shim
   ml/                        # ML pipeline
-    feature_schema.py        #   24-feature schema (v6.8)
+    feature_schema.py        #   26-feature schema (v6.10 — adds mid_race_pace + sire_top3_rate_on_going)
     features.py              #   Feature extraction + extract_class_rank helper
     model.py                 #   XGBoost — isotonic-calibrated, integrity-checked
     training.py              #   Training data builders (5y default, exp recency)

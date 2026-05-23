@@ -79,6 +79,13 @@ python3 -m scripts.validate_hk                            # HK FORWARD-VALIDATIO
 
 python3 -m scripts.eval_swap_rule --rank-out 6 --odds-ratio 0.5   # backtest a TRIO-6 swap rule before shipping (pre-ship gate)
 
+# Feature candidate diagnostics (cheap → re-rank → direct A/B → ship — the v6.9/v6.10 pipeline)
+python3 -m scripts.diagnose_mid_race_sectional      # Gate A/B for the jockey's mid-race 800-400 segment feature (n≈47k)
+python3 -m scripts.test_mid_race_rerank             # Signal-additivity on burned last 6 meetings — measures λ-sweep top-N capture
+python3 -m scripts.diagnose_sire_going              # Gate A1/A2/B for the handicap expert's sire-on-going feature (n≈55k)
+python3 -m scripts.test_sire_going_rerank           # Same signal-additivity probe for sire candidate
+python3 -m scripts.compare_v6_9_v6_10               # Direct trained-model A/B: v6.9 (25 features) vs v6.10 (26) on last 6 burned meetings, ML head only
+
 # Scrape historical results into database (Playwright required)
 python3 scrape_history.py                    # Last 10 meeting dates
 python3 scrape_history.py --date 2026/04/09  # Specific date
@@ -148,7 +155,7 @@ python3 -m scripts.validate_fr --since-cutoff # forward-validation (true OOS)
 
 ```
 core/       — fetcher, analyzer, scorer, recommender, ML predictor          (HK)
-ml/         — feature schema (24 features, v6.8), feature extraction,       (HK)
+ml/         — feature schema (26 features, v6.10), feature extraction,      (HK)
               model, training, integrity, experiments
               + uk_features.py, uk_model.py                                   (UK MVP)
               + fr_features.py, fr_model.py                                   (FR MVP)
@@ -198,11 +205,21 @@ scripts/train.py → models/hkjc_racing_model.pkl
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
 - **Rule engine (60%)**: 25 dynamically-weighted factors (added `speed_fig` v6.6). Missing-data factors are excluded and remaining weights renormalize to 1.0. The rule_score (0-100) is converted to a probability via a base-rate-anchored sigmoid: `sigmoid(0.06 × (score - 50) + logit(1/field_size))`. `odds` and `odds_movement` are NOT in the rule engine — market info enters via the dynamic market blend only (prevents triple-counting). v6.6 (2026-05-09) audit purged 3 sites that violated this: `field_size` factor (used `1/win_odds`), no-form fallback (used `1/win_odds`), and BANKER signal #9 (used `1/win_odds`). All replaced with structural-only logic.
-- **ML model (40%)**: XGBoost classifier with **24 features** (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a separate place model (`is_top3`). Both use IsotonicRegression recency-weighted, trained on ~50,750 real race results from a 5-year window (grows ~146/meeting). After the market blend, a second isotonic (`models/blend_calibrator.pkl`, fit by `scripts/calibrate_blend.py` on the 70-85% calibration fold ~8,271 production-pipeline pairs) recalibrates the post-blend distribution per-horse with renormalization. **Auto-learn refits the calibrator after every retrain** (gated on `retrain_ok` — won't refit against a stale model). 4-fold split: rows[0:60%] train, [60:70%] earlystop, [70:85%] calibrator, [85:100%] backtest holdout — strictly disjoint.
+- **ML model (40%)**: XGBoost classifier with **26 features** (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a separate place model (`is_top3`). Both use IsotonicRegression recency-weighted, trained on ~50,750 real race results from a 5-year window (grows ~146/meeting). After the market blend, a second isotonic (`models/blend_calibrator.pkl`, fit by `scripts/calibrate_blend.py` on the 70-85% calibration fold ~8,271 production-pipeline pairs) recalibrates the post-blend distribution per-horse with renormalization. **Auto-learn refits the calibrator after every retrain** (gated on `retrain_ok` — won't refit against a stale model). 4-fold split: rows[0:60%] train, [60:70%] earlystop, [70:85%] calibrator, [85:100%] backtest holdout — strictly disjoint.
 
 The 14 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change, speed figures, jockey form). `analytics/speed_figures.py` was wired into the rule engine in v6.6 (was previously orphaned). `analytics/gear_change.py` scores are now data-calibrated by `scripts/calibrate_gear.py` (auto-runs after each meeting via auto-learn) — `models/gear_scores.json` overrides hand-tuned defaults.
 
 → Full feature list, importance table, removed-features history, training pipeline detail: `docs/ml-model.md`.
+
+**v6.9 + v6.10 (2026-05-24)** added two features from the PR #52 multi-expert review (handicap expert, racing pro, former jockey, strict code review). Both shipped after passing the cheap-diagnostic → re-rank signal-additivity → direct trained A/B pipeline:
+
+- **#25 `mid_race_pace`** (v6.9, former jockey rec): race-mean-normalized (800-400 split) minus (last-400 split), averaged across the horse's last 3 prior runs with 3+ sectionals. Captures the "unspent finisher" signal (held up mid-race then sprinted late). Importance 0.028, orthogonal to `late_kick` (positions-based, r=0.23). Source: `race_results.sectional_times` (99.4% Path B coverage).
+
+- **#26 `sire_top3_rate_on_going`** (v6.10, handicap expert rec): sire's smoothed top-3 rate on TODAY's going bucket, Beta(2, 8) prior, leak-free `before_date` filter. Strongest cheap-diagnostic pass in 6+ weeks: r=+0.0772 with `is_top3` (80% of `horse_prior_win_rate`'s signal strength), orthogonal to per-horse going history (r=0.45). Source: `renavon_horses` (frozen 2026/04/22, 99.7% sire coverage of currently-active HK horses). Going bucketed FIRM/GY/YIELDING/SOFT/WET-FAST via `_GOING_REVERSE` map.
+
+**Diagnostic discipline used (reusable pattern):** for every new feature candidate, run `scripts/diagnose_<feature>.py` (correlation gates A1/A2/B) → `scripts/test_<feature>_rerank.py` (signal-additivity on burned holdout) → train + run `scripts/compare_v6_x_v6_y.py` (direct trained A/B). Ship if pipeline is strictly positive on TOP-N capture; expect WIN to drop because the model rebalances toward TOP-N when given a place-rate feature. Forward log via `scripts/validate_hk.py` is the only honest measure.
+
+**Backups for instant revert**: `models/hkjc_racing_model.pkl.pre-sire` (=v6.9) and `models/hkjc_racing_model.pkl.pre-mid-race-pace` (=v6.8). One `cp` reverts.
 
 ### Database
 
@@ -359,7 +376,7 @@ Added 2026-05-17. All non-HK racing data flows from **theracingapi.com** (HTTP B
 
 | Jurisdiction | DB | Model | Status | 12mo volume |
 |---|---|---|---|---|
-| **HK** | `horse_history.db` | v6.8 production | Production. Untouched by this expansion. | 55,303 race results |
+| **HK** | `horse_history.db` | v6.10 production | Production. Untouched by this expansion. | 55,303 race results |
 | **UK** | `uk_history.db` | `uk_racing_model.pkl` (15-feature XGB) | MVP — forward-validating | 81,975 runners |
 | **FR** | `fr_history.db` | `fr_racing_model.pkl` (15-feature XGB) | MVP — forward-validating, **beats market favourite** in backtest | 21,267 runners |
 | **AU** | `au_history.db` | none | Reference data only — too sparse on standard tier | 4,444 runners |
