@@ -53,10 +53,13 @@ def compute_par_times(conn: sqlite3.Connection, before_date: str = None) -> Dict
         conn: SQLite connection to horse_history.db
         before_date: Only use races before this date (prevents leakage in training)
     """
+    # Note: parse_finish_time() handles both 'M:SS.ss' (live tables, ~15%)
+    # AND 'M.SS.ss' (LocalResults dump, ~85%). The old `LIKE '%:%'` filter
+    # silently dropped 85% of the corpus, starving par_times.
     query = """
         SELECT distance, going, class_type, finish_time
         FROM race_results
-        WHERE finish_time LIKE '%:%' AND distance > 0
+        WHERE finish_time != '' AND distance > 0
     """
     params = []
     if before_date:

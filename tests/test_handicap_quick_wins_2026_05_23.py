@@ -234,6 +234,38 @@ def test_class_drop_single_race_history_falls_back_to_old_logic():
     assert score == 72.0  # single-race drop, existing logic
 
 
+def test_class_drop_with_one_prior_at_same_class_does_not_fire():
+    """[Class 2, Class 3, Class 4] → Class 4 must NOT fire DROP AFTER POOR FORM.
+    One prior was at the SAME class as today (Class 4), so this isn't a clean
+    "all priors at higher class" sequence. Previous median-rank logic over-fired
+    (median(2,3,4)=3 < 4), but the all() fix correctly rejects."""
+    history = [
+        {'class_type': 'Class 2', 'finish_position': 8},
+        {'class_type': 'Class 3', 'finish_position': 7},
+        {'class_type': 'Class 4', 'finish_position': 9},
+    ]
+    score, reason = ClassMovementAnalyzer.analyze_class_movement(history, 'Class 4')
+    assert 'DROP AFTER POOR FORM' not in reason, (
+        f"[2,3,4]→4 over-fired; one prior is at same class as today, "
+        f"not a clean drop. Got: {reason}"
+    )
+
+
+def test_class_drop_all_higher_class_does_fire():
+    """[Class 1, Class 3, Class 3] → Class 4: all priors at strictly higher
+    class than today → IS a legitimate multi-race drop and should fire."""
+    history = [
+        {'class_type': 'Class 1', 'finish_position': 7},
+        {'class_type': 'Class 3', 'finish_position': 8},
+        {'class_type': 'Class 3', 'finish_position': 6},
+    ]
+    score, reason = ClassMovementAnalyzer.analyze_class_movement(history, 'Class 4')
+    assert 'DROP AFTER POOR FORM' in reason, (
+        f"[1,3,3]→4: all priors at strictly higher class, avg_fp=7, "
+        f"should fire DROP AFTER POOR FORM. Got: {reason}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Fix #6: classify_style_from_db returns '' on missing data
 # ---------------------------------------------------------------------------
