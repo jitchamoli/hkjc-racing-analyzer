@@ -39,6 +39,36 @@ position-at-each-call). All rank-normalized for distance independence.
   fading <0.5). Captures finishing kick that last_start_margin misses.
 - running_style: categorical front/stalker/closer based on avg call position
   in last race {0.0, 0.5, 1.0}. Pace-map fit signal for THIS race.
+
+v6.9 adds (2026-05-24): mid-race sectional pace from sectional_times
+(99.4% Path B backfill). From the PR #52 former-jockey review:
+"trip-trouble and unspent finishers live in the 800m→400m segment". Cheap
+diagnostic on n=47,931 horse-race observations showed:
+- r(mid_minus_late, is_top3) = +0.084 (real, weak, in the predicted direction)
+- r(mid_minus_late, late_kick) = +0.23 (orthogonal — late_kick is positions-
+  based, mid_race_pace is time-based; they measure different things)
+- mid_race_pace: race-mean-normalized (800-400 split) minus (last-400 split),
+  averaged across the horse's last 3 prior runs with 3+ sectionals. Mapped
+  to [0,1] via 0.5 + clamp(raw, -0.2, 0.2) / 0.4. Positive (>0.5) = slow in
+  mid-race then fast late = "unspent finisher". Defaults to 0.5 when <2
+  prior sectional runs available.
+
+v6.10 adds (2026-05-24): sire_top3_rate_on_going from PR #52 handicap-expert
+review ("biggest single missing feature; HK is a closed gene pool so per-sire
+sample is large enough where per-horse-going is too sparse"). Cheap diagnostic
+on n=55,387 rows: strongest pass in 6+ weeks.
+- r(sire_top3_rate_on_going, is_top3) = +0.0772 (80% of the signal strength
+  of horse_prior_win_rate)
+- r vs horse_prior_win_rate = +0.29  (orthogonal)
+- r vs per-horse going_performance = +0.45 (orthogonal — sire prior carries
+  info that horse's own going history can't, because horse has ~25 starts
+  total while sire has 500-3,000 progeny starts)
+- Source: renavon_horses (99.7% sire coverage of currently-active HK horses)
+- Beta(2, 8) Bayesian smoothing — shrinks rare-sires (<10 progeny starts on
+  going) toward 20% base top-3 rate. Going bucketed FIRM/GY/YIELDING/SOFT/WET-FAST
+  to avoid tiny per-going-string buckets.
+- Re-rank test on burned 6-meeting holdout (60 races): at λ=0.05, QIN +4 hits,
+  TOP-5 +1, WIN/TOP-4 unchanged — strictly no regressions.
 """
 
 import numpy as np
@@ -68,6 +98,8 @@ FEATURE_SCHEMA = [
     {"name": "early_speed", "default": 0.5, "range": (0.0, 1.0)},          # 22 (1st-call rank, front=0.0 closer=1.0; default avg)
     {"name": "late_kick", "default": 0.5, "range": (0.0, 1.0)},            # 23 (closing rate; >0.5=closing, <0.5=fading)
     {"name": "running_style", "default": 0.5, "range": (0.0, 1.0)},        # 24 (front=0.0, stalker=0.5, closer=1.0)
+    {"name": "mid_race_pace", "default": 0.5, "range": (0.0, 1.0)},        # 25 (mid_minus_late: race-mean-normalized 800-400 split minus last-400 split, mean of last 3 prior sectional runs)
+    {"name": "sire_top3_rate_on_going", "default": 0.20, "range": (0.0, 1.0)},  # 26 (Beta(2,8)-smoothed top-3 rate of horse's sire on TODAY's going bucket, all prior progeny starts; default = base top-3 rate)
 ]
 
 FEATURE_NAMES = [f["name"] for f in FEATURE_SCHEMA]

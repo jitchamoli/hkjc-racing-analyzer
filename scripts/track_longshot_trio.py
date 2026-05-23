@@ -37,8 +37,13 @@ import json
 import re
 import sqlite3
 import sys
+from collections import defaultdict
 from itertools import combinations
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from scripts.forward_common import bayesian_verdict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOG_PATH = REPO_ROOT / 'tracking_data' / 'longshot_trio_log.csv'
@@ -244,6 +249,39 @@ def report() -> int:
               "(run scripts.backfill_dividends).")
 
     print("\nVERDICT:", _verdict(len(meetings), box_roi, base_roi))
+
+    # Bayesian per-meeting verdict (added 2026-05-23 — replaces the aggregate
+    # N>=6 + ROI-compare heuristic above with optional-stopping-safe SHIP/KILL/
+    # WATCH on per-meeting cumulative-ROI binary outcomes). Both verdicts are
+    # printed so the older heuristic stays interpretable in the historical log.
+    by_meeting = defaultdict(lambda: {'box_stake': 0.0, 'box_pay': 0.0,
+                                       'base_stake': 0.0, 'base_pay': 0.0})
+    for r in rows:
+        div = _trio_dividend(r['race_date'], int(r['race_number']))
+        if div is None:
+            continue
+        m = by_meeting[r['race_date']]
+        m['box_stake'] += 20 * 10
+        m['base_stake'] += 10 * 10
+        if int(r['box6_hit']): m['box_pay'] += div
+        if int(r['trio5_hit']): m['base_pay'] += div
+
+    winners: list[int] = []
+    box_cum = base_cum = box_stake_cum = base_stake_cum = 0.0
+    for md in sorted(by_meeting):
+        m = by_meeting[md]
+        box_cum += (m['box_pay'] - m['box_stake'])
+        base_cum += (m['base_pay'] - m['base_stake'])
+        box_stake_cum += m['box_stake']
+        base_stake_cum += m['base_stake']
+        box_roi_cum = box_cum / box_stake_cum if box_stake_cum else 0
+        base_roi_cum = base_cum / base_stake_cum if base_stake_cum else 0
+        winners.append(1 if box_roi_cum > base_roi_cum else 0)
+
+    v = bayesian_verdict(winners)
+    print(f"\nBayesian (per-meeting cum-ROI, longshot-box vs baseline TRIO-5):")
+    print(f"  meetings-won={v['wins']}/{v['n_meetings']}  "
+          f"posterior={v['posterior']:.3f}  → {v['verdict']}")
     return 0
 
 

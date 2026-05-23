@@ -30,10 +30,19 @@ def _atomic_write(path: str, content: str) -> None:
     # Write to a sibling temp file then os.replace so concurrent readers
     # (the dashboard server, a browser polling the file) never see a
     # half-written file. os.replace is atomic on POSIX and Windows ≥ Vista.
+    # try/finally cleans up the tmp on write failure so .tmp.{pid} files
+    # don't accumulate after disk-full / SIGKILL / etc.
     tmp = f"{path}.tmp.{os.getpid()}"
-    with open(tmp, 'w') as f:
-        f.write(content)
-    os.replace(tmp, path)
+    try:
+        with open(tmp, 'w') as f:
+            f.write(content)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 _OVERRIDES_PATH = os.path.join(
@@ -211,6 +220,37 @@ def _compute_odds_age_minutes(odds_db, race_date: str, race_number: int):
     except Exception:
         pass
     return None
+
+
+def apply_card_exposure_cap(all_races: list, bankroll: float,
+                            cap_frac: float = 0.10) -> float:
+    """Cap the day's TOTAL forward suggested-stake exposure at cap_frac of
+    bankroll, pro-rating every UNFINISHED race's stake down proportionally.
+
+    Per-race stakes are computed independently, so a busy card can put 15-20%
+    of bankroll at risk at once (and the box bets within a race are correlated
+    — they win/lose together). Settled races aren't at risk so they're excluded
+    from the cap. Mutates each capped race's 'suggested_stake' in place and
+    returns the applied scale factor (1.0 = no cap needed).
+    """
+    if not cap_frac or cap_frac <= 0:
+        return 1.0
+    pending = [r for r in all_races
+               if not r.get('results_available') and r.get('suggested_stake')]
+    total_stake = sum((r['suggested_stake'].get('amount') or 0.0) for r in pending)
+    cap_amount = bankroll * cap_frac
+    if not (total_stake > cap_amount > 0):
+        return 1.0
+    scale = cap_amount / total_stake
+    for r in pending:
+        s = r['suggested_stake']
+        s['amount'] = round((s.get('amount') or 0.0) * scale, -1)
+        if s.get('pct') is not None:
+            s['pct'] = round(s['pct'] * scale, 2)
+        s['card_capped'] = True
+        s['method'] = (s.get('method') or '') + \
+            f" · card-capped ×{scale:.2f} ({int(cap_frac*100)}% day limit)"
+    return scale
 
 
 def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
@@ -460,7 +500,7 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     market_probs = normalize_market_probs(win_odds_list)
 
     # Conviction tier (replaces strategy_confidence — spec §4)
-    from betting.conviction import assign_conviction_tier
+    from betting.conviction import assign_conviction_tier, detect_chaos
     sorted_probs = sorted(model_probs, reverse=True)
     top_2_share = sum(sorted_probs[:2]) if len(sorted_probs) >= 2 else 0
     top_3_share = sum(sorted_probs[:3]) if len(sorted_probs) >= 3 else 0
@@ -471,6 +511,20 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     )
     race_data['top_2_share'] = round(top_2_share, 4)
     race_data['top_3_share'] = round(top_3_share, 4)
+
+    # CHAOS no-bet override (sits above SKIP). Empirically: soft-going races
+    # returned −10.9% ROI vs +34.8% on clean going across 10 backfilled meetings
+    # (Bayesian posterior 0.996). Filter suppresses ALL bets — not just exotics.
+    is_chaos, chaos_reason = detect_chaos(
+        going=race_data.get('going', ''),
+        horses=horses_json,
+        class_type=race_data.get('class_type', ''),
+    )
+    if is_chaos:
+        race_data['conviction_tier'] = 'CHAOS'
+        race_data['chaos_reason'] = chaos_reason
+        for h in horses_json:
+            h['bet_recommendation'] = None
 
     # Quinella dividend estimate + EV (only when QIN bet is active)
     if len(qin_indices) >= 2:
@@ -625,6 +679,10 @@ async def _run_generation(fetcher, analyzer, race_date: str):
         )
         r['suggested_stake'] = stake
         r['bankroll'] = _cfg.BANKROLL
+
+    # Card-level exposure cap (see _apply_card_exposure_cap).
+    apply_card_exposure_cap(all_races, _cfg.BANKROLL,
+                            getattr(_cfg, 'CARD_EXPOSURE_CAP', 0.10))
 
     # Alerts — diff current vs previous race_data file
     from betting.alerts import compute_alerts, AlertState, load_alert_state, save_alert_state

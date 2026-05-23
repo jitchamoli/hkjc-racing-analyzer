@@ -33,6 +33,13 @@ TRAINING_DATA_PATH = TRAINING_DATA_DIR / "historical_races.json"
 RULE_WEIGHT = 0.60
 ML_WEIGHT = 0.40
 
+# Minimum rides for the jockey_form factor to fire. Production = 3 (current
+# behavior). The shadow_generate jockey_form variant patches this to 15 to
+# effectively disable the factor — n_rides SQL LIMIT is 10, so >=15 never
+# fires. Backtest 2026-05-23 found disabling improves straight QIN +6.24pp
+# and top-pick Brier; shadow-logging to forward-validate before shipping.
+JOCKEY_FORM_RIDES_MIN = 3
+
 # Betting thresholds
 MIN_EXPECTED_RETURN = 0.05
 MIN_INVESTMENT = 10
@@ -43,6 +50,13 @@ MAX_INVESTMENT = 200
 # Conservative default. Per-tier fractions are defined in
 # betting/optimizer.compute_suggested_stake.
 BANKROLL = 10000
+
+# Card-level exposure cap: per-race stakes are computed independently, so a
+# busy card can sum to 15-20% of bankroll at risk at once (and the box bets
+# within a race are correlated — they win/lose together). Cap the day's TOTAL
+# forward exposure at this fraction of bankroll; the dashboard pro-rates every
+# unfinished race's stake down proportionally if the sum exceeds it.
+CARD_EXPOSURE_CAP = 0.10
 
 # Monitor
 POLL_INTERVAL = 300  # seconds

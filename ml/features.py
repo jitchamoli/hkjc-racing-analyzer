@@ -72,6 +72,24 @@ _jt_pair_cache: dict = {}        # keyed by (jockey, trainer, before_date)
 _speed_fig_cache: dict = {}      # keyed by (horse_name, before_date)
 _par_times_cache: dict = {}      # keyed by before_date — par_times is O(N) to compute
 _running_pos_cache: dict = {}    # keyed by (horse_name, before_date) — v6.8 Features 22-24
+_mid_race_cache: dict = {}       # keyed by (horse_name, before_date) — v6.9 Feature 25
+_sire_going_cache: dict = {}     # keyed by (sire, going_bucket, before_date) — v6.10 Feature 26
+_horse_sire_map: dict = {}       # one-shot horse_name → sire from renavon_horses (lazy)
+_daily_variant_cache: dict = {}  # keyed by (race_date, before_race_no, before_date)
+
+
+# v6.10: going bucket → list of raw going strings to match in SQL.
+# Hardcoded (no user input) — used by calculate_sire_top3_on_going.
+_GOING_REVERSE = {
+    'FIRM': ['GOOD', 'GOOD TO FIRM', 'FIRM', 'FAST',
+             'GD', 'G', 'GF', 'FT'],
+    'GY':       ['GOOD TO YIELDING', 'GY'],
+    'YIELDING': ['YIELDING', 'Y', 'YIELDING TO SOFT', 'YS'],
+    'SOFT':     ['SOFT', 'HEAVY', 'S', 'H',
+                 'WET-SLOW', 'WET SLOW', 'WS',
+                 'RAIN AFFECTED', 'RA'],
+    'WET-FAST': ['WET-FAST', 'WET FAST', 'WF'],
+}
 
 
 def clear_feature_caches() -> None:
@@ -83,6 +101,10 @@ def clear_feature_caches() -> None:
     _speed_fig_cache.clear()
     _par_times_cache.clear()
     _running_pos_cache.clear()
+    _mid_race_cache.clear()
+    _sire_going_cache.clear()
+    _horse_sire_map.clear()
+    _daily_variant_cache.clear()
 
 
 def extract_class_rank(class_type: str) -> Optional[int]:
@@ -109,16 +131,21 @@ def extract_class_rank(class_type: str) -> Optional[int]:
     s = str(class_type).strip().upper()
     if not s:
         return None
-    if s in ('G1', 'GROUP 1', 'G2', 'GROUP 2'):
+    if s in ('G1', 'GROUP 1', 'GROUP ONE', 'G2', 'GROUP 2', 'GROUP TWO'):
         return 0
-    if s in ('G3', 'GROUP 3'):
+    if s in ('G3', 'GROUP 3', 'GROUP THREE'):
         return 1
-    m = re.match(r'^(?:CLASS\s+)?(\d)$', s)
+    # Tolerate a trailing "(RESTRICTED)" qualifier, e.g. "Class 4 (Restricted)".
+    s_base = re.sub(r'\s*\(RESTRICTED\)\s*$', '', s)
+    m = re.match(r'^(?:CLASS\s+)?(\d)$', s_base)
+    if m:
+        return int(m.group(1))
+    m = re.match(r'^(\d)R$', s_base)   # restricted shorthand e.g. "4R", "3R"
     if m:
         return int(m.group(1))
     if 'GRIFFIN' in s or 'MAIDEN' in s:
         return 4
-    if '4YO' in s or 'AGE' in s or s.startswith('Y'):
+    if '4YO' in s or '4 YEAR' in s or 'AGE' in s or s.startswith('Y'):
         return 3
     return None
 
@@ -493,6 +520,187 @@ class FeatureEngineering:
         return early, late, style
 
     @staticmethod
+    def calculate_mid_race_pace(horse_name: str, conn=None,
+                                before_date: str = None) -> float:
+        """v6.9 Feature 25: mid-race sectional pace ("unspent finisher" signal).
+
+        For each of the horse's last 3 prior runs with 3+ sectionals, computes
+        race-mean-normalized (800-400 split) − (last-400 split). Positive =
+        slow in mid-race then fast late = the jockey-flagged "held up then
+        sprinted" signal. Mean across the priors is mapped to [0,1] via
+        0.5 + clamp(raw, -0.2, 0.2) / 0.4.
+
+        Returns 0.5 (neutral) when <2 prior runs with ≥3 sectionals.
+        Orthogonal to late_kick (positions-based) per the cheap diagnostic.
+        """
+        if not horse_name:
+            return 0.5
+        cache_key = (horse_name, before_date)
+        if cache_key in _mid_race_cache:
+            return _mid_race_cache[cache_key]
+        result = FeatureEngineering._compute_mid_race_pace(
+            horse_name, conn, before_date,
+        )
+        _mid_race_cache[cache_key] = result
+        return result
+
+    @staticmethod
+    def _compute_mid_race_pace(horse_name, conn, before_date):
+        c = None
+        owns = conn is None
+        try:
+            if owns and config.DB_PATH.exists():
+                c = sqlite3.connect(str(config.DB_PATH))
+                c.row_factory = sqlite3.Row
+            else:
+                c = conn
+            if c is None:
+                return 0.5
+            if before_date:
+                rows = c.execute(
+                    "SELECT sectional_times FROM race_results "
+                    "WHERE horse_name = ? AND race_date < ? "
+                    "  AND sectional_times != '' "
+                    "ORDER BY race_date DESC, race_number DESC LIMIT 3",
+                    (horse_name, before_date),
+                ).fetchall()
+            else:
+                rows = c.execute(
+                    "SELECT sectional_times FROM race_results "
+                    "WHERE horse_name = ? AND sectional_times != '' "
+                    "ORDER BY race_date DESC, race_number DESC LIMIT 3",
+                    (horse_name,),
+                ).fetchall()
+            mml_vals = []
+            for r in rows:
+                try:
+                    splits = [float(x) for x in (r['sectional_times'] or '').split()]
+                except (ValueError, TypeError):
+                    continue
+                if len(splits) < 3:
+                    continue
+                race_mean = sum(splits) / len(splits)
+                if race_mean <= 0:
+                    continue
+                mml_vals.append(splits[-2] / race_mean - splits[-1] / race_mean)
+            if len(mml_vals) < 2:
+                return 0.5
+            raw = sum(mml_vals) / len(mml_vals)
+            clamped = max(-0.2, min(0.2, raw))
+            return 0.5 + clamped / 0.4
+        except Exception as e:
+            logger.warning(f"mid_race_pace lookup failed for {horse_name}: {e}")
+            return 0.5
+        finally:
+            if owns and c is not None:
+                c.close()
+
+    @staticmethod
+    def _going_bucket(g: str) -> str:
+        """Standardise HKJC going strings (mixes short codes + long forms)
+        into 5 buckets so per-(sire, going) sample sizes stay meaningful.
+        Mirrors the one in scripts/diagnose_sire_going for parity."""
+        if not g:
+            return ''
+        u = g.strip().upper()
+        return {
+            'GOOD': 'FIRM', 'GOOD TO FIRM': 'FIRM', 'FIRM': 'FIRM',
+            'FAST': 'FIRM', 'GD': 'FIRM', 'G': 'FIRM', 'GF': 'FIRM',
+            'FT': 'FIRM',
+            'GOOD TO YIELDING': 'GY', 'GY': 'GY',
+            'YIELDING': 'YIELDING', 'Y': 'YIELDING',
+            'YIELDING TO SOFT': 'YIELDING', 'YS': 'YIELDING',
+            'SOFT': 'SOFT', 'HEAVY': 'SOFT', 'S': 'SOFT', 'H': 'SOFT',
+            'WET-SLOW': 'SOFT', 'WET SLOW': 'SOFT', 'WS': 'SOFT',
+            'RAIN AFFECTED': 'SOFT', 'RA': 'SOFT',
+            'WET-FAST': 'WET-FAST', 'WET FAST': 'WET-FAST', 'WF': 'WET-FAST',
+        }.get(u, u)
+
+    @staticmethod
+    def _sire_for_horse(horse_name: str, conn) -> str:
+        """Look up sire from renavon_horses (the frozen 2026/04/22 snapshot,
+        99.7% sire coverage of currently-active HK horses). Caches the full
+        horse→sire map on first call to amortise the read across N horses."""
+        if not _horse_sire_map:
+            try:
+                rows = conn.execute(
+                    "SELECT horse_name, sire FROM renavon_horses "
+                    "WHERE sire IS NOT NULL AND sire != ''"
+                ).fetchall()
+                for r in rows:
+                    _horse_sire_map[r['horse_name']] = r['sire']
+            except Exception as e:
+                logger.warning(f"sire map load failed: {e}")
+                _horse_sire_map[''] = ''  # sentinel so we don't retry
+        return _horse_sire_map.get(horse_name, '')
+
+    @staticmethod
+    def calculate_sire_top3_on_going(horse_name: str, going: str, conn=None,
+                                     before_date: str = None) -> float:
+        """v6.10 Feature 26: sire's top-3 rate on the current race's going.
+
+        Bayesian-smoothed Beta(2, 8) — prior weight 10, base rate 20%.
+        Returns the smoothed rate; defaults to 0.20 (base) when sire unknown
+        or going unrecognised. Leak-free: only counts progeny races strictly
+        before `before_date`.
+
+        Cached per (sire, going_bucket, before_date) — the bucket is small
+        (≤5 strings) so cache hits dominate after the first race of a meeting.
+        """
+        if not horse_name or not going:
+            return 0.20
+        bucket = FeatureEngineering._going_bucket(going)
+        if not bucket:
+            return 0.20
+        c = None
+        owns = conn is None
+        try:
+            if owns and config.DB_PATH.exists():
+                c = sqlite3.connect(str(config.DB_PATH))
+                c.row_factory = sqlite3.Row
+            else:
+                c = conn
+            if c is None:
+                return 0.20
+            sire = FeatureEngineering._sire_for_horse(horse_name, c)
+            if not sire:
+                return 0.20
+            cache_key = (sire, bucket, before_date)
+            if cache_key in _sire_going_cache:
+                return _sire_going_cache[cache_key]
+            # Aggregate sire's progeny outcomes on matching going strings,
+            # only counting prior races. _GOING_REVERSE maps bucket → list
+            # of accepted raw going strings (hardcoded, no user input).
+            going_strs = _GOING_REVERSE.get(bucket, [])
+            if not going_strs:
+                return 0.20
+            placeholders = ",".join("?" * len(going_strs))
+            params = [sire] + list(going_strs)
+            sql = (
+                "SELECT COUNT(*) AS n_starts, "
+                "  COALESCE(SUM(is_top3), 0) AS n_top3 "
+                "FROM race_results rr "
+                "JOIN renavon_horses rh ON rr.horse_name = rh.horse_name "
+                "WHERE rh.sire = ? AND rr.finish_position > 0 "
+                f"  AND UPPER(COALESCE(rr.going, '')) IN ({placeholders})"
+            )
+            if before_date:
+                sql += " AND rr.race_date < ?"
+                params.append(before_date)
+            row = c.execute(sql, params).fetchone()
+            n_starts = row['n_starts'] or 0
+            n_top3 = row['n_top3'] or 0
+            rate = (n_top3 + 2) / (n_starts + 10)
+            _sire_going_cache[cache_key] = rate
+            return rate
+        except Exception as e:
+            logger.warning(f"sire_top3_on_going lookup failed for {horse_name}: {e}")
+            return 0.20
+        finally:
+            if owns and c is not None:
+                c.close()
+
+    @staticmethod
     def calculate_running_position_features(horse_name: str, conn=None,
                                             before_date: str = None):
         """v6.8 Features 22-24: running-position proxies for sectional speed.
@@ -589,7 +797,8 @@ class FeatureEngineering:
     @staticmethod
     def _compute_speed_fig_norm(horse_name, conn, before_date):
         from analytics.speed_figures import (
-            compute_par_times, adjusted_speed_figure, normalize_speed_figure,
+            compute_par_times, compute_daily_variant,
+            adjusted_speed_figure, normalize_speed_figure,
         )
         c = None
         owns = conn is None
@@ -604,14 +813,16 @@ class FeatureEngineering:
             # Look up the horse's most recent prior race
             if before_date:
                 row = c.execute(
-                    "SELECT finish_time, distance, going, class_type, weight "
+                    "SELECT finish_time, distance, going, class_type, weight, "
+                    "race_date, race_number "
                     "FROM race_results WHERE horse_name = ? AND race_date < ? "
                     "ORDER BY race_date DESC, race_number DESC LIMIT 1",
                     (horse_name, before_date),
                 ).fetchone()
             else:
                 row = c.execute(
-                    "SELECT finish_time, distance, going, class_type, weight "
+                    "SELECT finish_time, distance, going, class_type, weight, "
+                    "race_date, race_number "
                     "FROM race_results WHERE horse_name = ? "
                     "ORDER BY race_date DESC, race_number DESC LIMIT 1",
                     (horse_name,),
@@ -625,10 +836,19 @@ class FeatureEngineering:
             if par_times is None:
                 par_times = compute_par_times(c, before_date=before_date)
                 _par_times_cache[before_date] = par_times
+            # Daily track variant — adjust par for the conditions on the day
+            # of the horse's prior race (median earlier-card winner vs par).
+            v_key = (row['race_date'], row['race_number'], before_date)
+            variant = _daily_variant_cache.get(v_key)
+            if variant is None:
+                variant = compute_daily_variant(
+                    c, row['race_date'], row['race_number'], par_times,
+                )
+                _daily_variant_cache[v_key] = variant
             sf = adjusted_speed_figure(
                 row['finish_time'], row['distance'] or 0,
                 row['going'] or '', row['class_type'] or '',
-                row['weight'] or 120, par_times,
+                row['weight'] or 120, par_times, daily_variant=variant,
             )
             if sf is None:
                 return 0.5
@@ -998,6 +1218,24 @@ class FeatureEngineering:
         features.append(early_speed)
         features.append(late_kick)
         features.append(running_style)
+
+        # Feature 25 (v6.9): mid-race sectional pace ("unspent finisher").
+        # Time-based — orthogonal to late_kick (positions-based). Same helper
+        # at training site for train/predict parity.
+        mid_pace = FeatureEngineering.calculate_mid_race_pace(
+            horse_name, conn=conn, before_date=race_date or None,
+        )
+        features.append(mid_pace)
+
+        # Feature 26 (v6.10): sire's top-3 rate on TODAY's going. Bayesian-
+        # smoothed Beta(2, 8). Orthogonal to per-horse going history (r=0.45);
+        # carries information the horse's own form can't because per-sire
+        # samples are 50-200× larger than per-horse samples on rare goings.
+        # `going` was already pulled at line 909.
+        sire_t3 = FeatureEngineering.calculate_sire_top3_on_going(
+            horse_name, going, conn=conn, before_date=race_date or None,
+        )
+        features.append(sire_t3)
 
         if owns_conn and conn is not None:
             conn.close()

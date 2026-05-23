@@ -314,9 +314,9 @@ button { font-family:inherit; cursor:pointer; }
   </div>
   <div class="topbar-meta">
     <span class="live-dot"></span>
-    <span id="clock">2026-05-20 23:24:50</span>
+    <span id="clock">2026-05-23 12:18:44</span>
     <span style="margin-left:8px">|</span>
-    <span style="margin-left:8px">Last refresh 2026-05-20 23:24:50</span>
+    <span style="margin-left:8px">Last refresh 2026-05-23 12:18:44</span>
     <button id="refresh-btn" onclick="refreshDashboard()" style="display:none;margin-left:12px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.75rem;font-weight:700;cursor:pointer;">
       ↻ Refresh
     </button>
@@ -345,7 +345,7 @@ button { font-family:inherit; cursor:pointer; }
     <div id="race-detail"></div>
     <details class="accuracy-panel" style="margin:10px 0;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px"><summary style="cursor:pointer;font-weight:600;font-size:.85rem">Recent accuracy — last 60d · 60 races · <span style="color:var(--green)">$+932 (+564.5% ROI)</span> · 10/57 bets hit</summary><div style="font-size:.75rem;color:var(--dim);margin-top:6px">1u-stake terms (WIN 1u, BOX Q3 3u, BOX Q4 6u). Wilson 95% CI shown when N&lt;30.</div><div style="margin-top:8px"><div style="font-size:.75rem;color:var(--dim);margin-bottom:4px">By ML Confidence</div><table class="acc-table"><thead><tr><th>tier</th><th>bets</th><th>hits</th><th>hit%</th><th>P&amp;L (1u)</th><th>ROI</th></tr></thead><tbody><tr><td>VERY_HIGH</td><td>4</td><td>2</td><td>50.0% <span style="color:var(--dim);font-size:.7rem">[CI 15-85%]</span></td><td>$+135</td><td style="color:var(--green)">+642.9%</td></tr><tr><td>HIGH</td><td>10</td><td>0</td><td>0.0% <span style="color:var(--dim);font-size:.7rem">[CI 0-28%]</span></td><td>$-28</td><td style="color:var(--red)">-100.0%</td></tr><tr><td>MEDIUM</td><td>40</td><td>8</td><td>20.0%</td><td>$+832</td><td style="color:var(--green)">+770.8%</td></tr><tr><td>LOW</td><td>3</td><td>0</td><td>0.0% <span style="color:var(--dim);font-size:.7rem">[CI 0-56%]</span></td><td>$-8</td><td style="color:var(--red)">-100.0%</td></tr></tbody></table></div><div style="margin-top:8px"><div style="font-size:.75rem;color:var(--dim);margin-bottom:4px">By Conviction Tier (strategy edge)</div><table class="acc-table"><thead><tr><th>tier</th><th>bets</th><th>hits</th><th>hit%</th><th>P&amp;L (1u)</th><th>ROI</th></tr></thead><tbody><tr><td>EDGE</td><td>2</td><td>0</td><td>0.0% <span style="color:var(--dim);font-size:.7rem">[CI 0-66%]</span></td><td>$-12</td><td style="color:var(--red)">-100.0%</td></tr><tr><td>HIGH</td><td>46</td><td>8</td><td>17.4%</td><td>$+821</td><td style="color:var(--green)">+667.5%</td></tr><tr><td>MED</td><td>8</td><td>2</td><td>25.0% <span style="color:var(--dim);font-size:.7rem">[CI 7-59%]</span></td><td>$+128</td><td style="color:var(--green)">+535.4%</td></tr><tr><td>LOW</td><td>1</td><td>0</td><td>0.0% <span style="color:var(--dim);font-size:.7rem">[CI 0-79%]</span></td><td>$-6</td><td style="color:var(--red)">-100.0%</td></tr></tbody></table></div></details>
     <div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>
-    <div class="footer">HKJC Racing Analyzer v6.6 — Generated: 2026-05-20 23:24:50</div>
+    <div class="footer">HKJC Racing Analyzer v6.6 — Generated: 2026-05-23 12:18:44</div>
   </div>
   <div class="alerts-rail" id="alerts-rail"></div>
 </div>
@@ -371,7 +371,7 @@ const RACES = [{"race_number": 1, "venue": "Happy Valley", "time": "18:40", "dis
 const ACCURACY_SUMMARY = {"period_days": 60, "total_races": 60, "rank1_win_rate": 25.0, "rank1_wins": 15, "top3_overlap_rate": 45.6, "avg_winner_rank": 4.0, "bets_placed": 57, "bets_won": 10, "bet_hit_rate": 17.5, "total_profit": 931.5, "total_stake": 165.0, "roi_percent": 564.5, "banker_count": 2, "banker_wins": 0, "banker_hit_rate": 0.0, "by_confidence": {"LOW": {"total": 3, "wins": 0, "bets": 3, "hits": 0, "profit": -8.0, "stake": 8.0}, "MEDIUM": {"total": 42, "wins": 13, "bets": 40, "hits": 8, "profit": 832.5, "stake": 108.0}, "HIGH": {"total": 11, "wins": 2, "bets": 10, "hits": 0, "profit": -28.0, "stake": 28.0}, "VERY_HIGH": {"total": 4, "wins": 0, "bets": 4, "hits": 2, "profit": 135.0, "stake": 21.0}}, "by_conviction": {"HIGH": {"total": 46, "wins": 13, "bets": 46, "hits": 8, "profit": 821.0, "stake": 123.0}, "MED": {"total": 10, "wins": 2, "bets": 8, "hits": 2, "profit": 128.5, "stake": 24.0}, "LOW": {"total": 2, "wins": 0, "bets": 1, "hits": 0, "profit": -6.0, "stake": 6.0}, "EDGE": {"total": 2, "wins": 0, "bets": 2, "hits": 0, "profit": -12.0, "stake": 12.0}}};
 const EDGE_STATS = {"n_fires": 2, "n_placed": 2, "n_won": 0, "last_updated": "2026/05/17"};
 const RACE_DATE = "2026/05/20";
-const GENERATED = "2026-05-20 23:24:50";
+const GENERATED = "2026-05-23 12:18:44";
 
 // ─────────────────────────────────────────────────────────────
 // Tier colours (mirrors Python TIER_COLORS)
@@ -579,6 +579,20 @@ function renderBetCard(race) {
           ' (rank ' + esc(_lp.best.rank) + ', @' + esc(_lp.best.win_odds) + ', -' + _lp.pct + '%)</span></div>' +
       '</div>'
     : '';
+  // EXPERIMENT (owner-only): top-2 + bolter (biggest price in rank 6-9), straight
+  // TRIO. Amber/dashed, NOT STAKED, isolated from ML. Lottery line. See _bolterTrio().
+  var _bt = _bolterTrio(race);
+  var bolterBlock = _bt
+    ? '<div class="trust-block" style="margin-top:6px;border:1px dashed #b45309;border-radius:6px;padding:6px 10px;background:rgba(180,83,9,.10)">' +
+        '<span style="background:#b45309;color:#fef3c7;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">\uD83C\uDF40 BOLTER TRIO \u00b7 EXPERIMENT \u00b7 NOT STAKED</span>' +
+        (_bt.tag ? ' <span style="color:' + _bt.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _bt.tag + '</span>' : '') +
+        '<div style="color:var(--dim);font-size:.66rem;margin-top:3px">straight TRIO \u00b7 top-2 + bolter: ' +
+          '<span style="color:#fcd34d;font-weight:700">' + _bt.nums.map(function(n) { return '#' + esc(n); }).join('-') + '</span>' +
+          ' <span style="opacity:.75">(3rd = #' + esc(_bt.third.number) + ' ' + esc(_bt.third.name) +
+          ', rank ' + esc(_bt.third.rank) + ', @' + esc(_bt.third.win_odds) +
+          ' \u2014 biggest price in rank 6-9)</span></div>' +
+      '</div>'
+    : '';
   if (ss.amount && ss.amount > 0) {
     var br = race.bankroll || 0;
     // Enumerate firing MAIN bets and their combo counts
@@ -609,11 +623,22 @@ function renderBetCard(race) {
     // BOX TRIO-5 and F4 BOX-5 also fire as MAIN tier when top5 length is 5
     var top5len = race.horses.slice(0, 5).length;
     if (top5len === 5) {
-      betLines.push({lbl: 'BOX TRIO-5', combos: 10});
-      totalCombos += 10;
+      // BOX TRIO-5 F4-style triple gate (widened 2026-05-23 from SKIP-only
+      // to match the F4 BOX-5 gate). Backtest on 668-race burned holdout:
+      // ungated ROI -45.4% vs triple-gated -33.6% (+11.8pp). Heavy fav alone
+      // does 70% of the work — TRIO pools collapse around dominant favs.
+      var t5top1 = (race.horses[0] && race.horses[0].win_odds) || 0;
+      var t5field = race.horses.length;
+      var t5Skip = (t5top1 > 0 && t5top1 < 2.5) ||
+                    (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+                    (t5field < 8);
+      if (!t5Skip) {
+        betLines.push({lbl: 'BOX TRIO-5', combos: 10});
+        totalCombos += 10;
+      }
       // F4 BOX-5 has its own gate (mirrors logic at line ~915)
-      var f4top1 = (race.horses[0] && race.horses[0].win_odds) || 0;
-      var f4field = race.horses.length;
+      var f4top1 = t5top1;
+      var f4field = t5field;
       var f4Skip = (f4top1 > 0 && f4top1 < 2.5) ||
                     (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
                     (f4field < 8);
@@ -673,10 +698,10 @@ function renderBetCard(race) {
           '<br><span style="color:var(--dim);font-size:.65rem">' + (ss.pct||0).toFixed(2) + '% of $' + br + ' · ' + esc(ss.method||'') + '</span>' +
           breakdownHtml +
         '</div>' +
-      '</div>' + paperBlock;
+      '</div>' + paperBlock + bolterBlock;
   }
-  // SKIP / no-stake races still surface the paper experiment if one qualifies.
-  if (!stakeHtml) stakeHtml = paperBlock;
+  // SKIP / no-stake races still surface the paper experiments if any qualify.
+  if (!stakeHtml) stakeHtml = paperBlock + bolterBlock;
 
   // Bet type sub-label
   var betRec = topH.bet_recommendation || 'QIN';
@@ -891,7 +916,16 @@ function renderBetCard(race) {
   // for trio coverage and should never be buried as an "optional add".
   // Inserted into the lines array directly above the addOns block below.
   var t5MainBlock = null;
-  if (top5wa.length === 5) {
+  // F4-style triple gate (widened 2026-05-23, mirrors F4 BOX-5 below).
+  // Backtest 668-race holdout: ungated TRIO-5 ROI -45.4% vs gated -33.6%
+  // (+11.8pp). Heavy fav alone accounts for ~70% of the saved losses —
+  // dominant favs collapse the TRIO pool.
+  var t5Top1OddsWa = (race.horses[0] && race.horses[0].win_odds) || 0;
+  var t5FieldWa = race.horses.length;
+  var t5SkipWa = (t5Top1OddsWa > 0 && t5Top1OddsWa < 2.5) ||
+                  (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+                  (t5FieldWa < 8);
+  if (top5wa.length === 5 && !t5SkipWa) {
     var t5Nums = top5wa.map(function(h) { return '#' + h.number; }).join(' + ');
     var t5Stake = waUnit > 0 ? (' · $' + (10 * waUnit)) : '';
     var t5SwapAnno = top5waSwap
@@ -1301,6 +1335,33 @@ function _longshotPick(race) {
     else { tag = 'missed'; tagColor = '#ef4444'; }
   }
   return { best: best, pct: bestPct, box6nums: box6nums, tag: tag, tagColor: tagColor };
+}
+
+// EXPERIMENT (owner-requested, display-only): a straight 3-horse TRIO of our
+// top-2 + a BOLTER — the biggest-priced runner in the rank 6-9 zone (the
+// live-but-underrated longshots, where the 51-1 #8 sat on 2026/05/20 R2).
+// Replicates the lose-lose-JACKPOT pattern: ~1% hit on the holdout, but it is
+// the only variant that can land a top-2 + big-longshot trio. Falls back to
+// the longest price outside the top-2 on short fields. Deterministic, stable
+// across refreshes. NOT staked, and completely isolated from the ML pipeline
+// (never a feature, never trained on, never fed to the recommender).
+function _bolterTrio(race) {
+  if (race.conviction_tier === 'EDGE') return null;  // skip high-conviction EDGE races
+  if (!race.horses || race.horses.length < 4) return null;
+  var sorted = race.horses.slice().sort(function(a, b) { return (a.rank || 99) - (b.rank || 99); });
+  var top2 = sorted.slice(0, 2);
+  var band = sorted.slice(5, 9).filter(function(h) { return (h.win_odds || 0) > 0; });  // rank 6-9
+  if (band.length === 0) band = sorted.slice(2).filter(function(h) { return (h.win_odds || 0) > 0; });
+  if (band.length === 0) return null;  // need odds to pick a bolter
+  var third = band.reduce(function(best, h) { return (h.win_odds > best.win_odds) ? h : best; });
+  var nums = [top2[0].number, top2[1].number, third.number];
+  var tag = '', tagColor = '#94a3b8';
+  if (race.results_available && Array.isArray(race.actual_top3) && race.actual_top3.length === 3) {
+    var hit = race.actual_top3.every(function(n) { return nums.indexOf(n) !== -1; });
+    tag = hit ? 'HIT \u2713' : 'missed';
+    tagColor = hit ? '#22c55e' : '#ef4444';
+  }
+  return { legs: [top2[0], top2[1], third], nums: nums, third: third, tag: tag, tagColor: tagColor };
 }
 
 function renderTopBetsView() {
@@ -1786,18 +1847,44 @@ function _buildRaceDetailPanel(race) {
   // 5th model pick to expand placing-pool coverage beyond the QIN-4
   // box. 10 combos at 1 unit = 10-unit stake. Uses the swapped top-5
   // (same rank-5 swap as F4 BOX-5) for consistency.
+  // F4-style triple gate (shipped 2026-05-23, widened from SKIP-only).
+  // 668-race holdout backtest: ungated -45.4% vs gated -33.6% (+11.8pp).
+  // Heavy fav alone does 70% of the work — TRIO pool collapses on dominant
+  // favorites. Mirrors the F4 BOX-5 gate at line ~1996.
   var top5 = top5_eff;
   if (top5.length === 5) {
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
-        '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
-          '+ BOX TRIO-5 · 10 combos' +
-        '</span>' +
-        swapBadge +
-        top5.map(function(h) { return '#' + esc(h.number); }).join('  +  ') +
-        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
-      '</div>'
-    );
+    var t5Top1Odds = (race.horses[0] && race.horses[0].win_odds) || 0;
+    var t5Tier = race.conviction_tier || '';
+    var t5Field = race.horses.length;
+    var t5SkipReason = '';
+    if (t5Top1Odds > 0 && t5Top1Odds < 2.5) {
+      t5SkipReason = 'heavy fav $' + t5Top1Odds.toFixed(1) + ' — TRIO pool collapses';
+    } else if (t5Tier !== 'EDGE' && t5Tier !== 'HIGH' && t5Tier !== 'MED') {
+      t5SkipReason = t5Tier + ' conviction — top-5 coverage unreliable';
+    } else if (t5Field < 8) {
+      t5SkipReason = 'small field ' + t5Field + ' — TRIO pool too thin';
+    }
+    if (!t5SkipReason) {
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+          '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+            '+ BOX TRIO-5 · 10 combos' +
+          '</span>' +
+          swapBadge +
+          top5.map(function(h) { return '#' + esc(h.number); }).join('  +  ') +
+          '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
+        '</div>'
+      );
+    } else {
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.72rem;color:var(--dim)">' +
+          '<span style="display:inline-block;background:rgba(71,85,105,.4);color:var(--dim);font-weight:700;padding:2px 8px;border-radius:3px;font-size:.65rem;margin-right:8px">' +
+            'BOX TRIO-5 · SKIPPED' +
+          '</span>' +
+          esc(t5SkipReason) +
+        '</div>'
+      );
+    }
   }
 
   // BOX TRIO-6 — OPTIONAL high-cost protection layer.

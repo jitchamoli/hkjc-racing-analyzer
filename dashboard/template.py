@@ -11,7 +11,7 @@ for field hygiene verdicts.
 
 TIER_COLORS = {
     'EDGE': '#fbbf24', 'HIGH': '#10b981', 'MED': '#f59e0b',
-    'LOW': '#64748b', 'SKIP': '#475569',
+    'LOW': '#64748b', 'SKIP': '#475569', 'CHAOS': '#dc2626',
 }
 
 ALERT_COLORS = {
@@ -184,12 +184,15 @@ def _build_strip_tiles(races_list: list) -> str:
     for r in races_list:
         num = r.get('race_number', '?')
         tier = r.get('conviction_tier') or 'SKIP'
-        if tier not in ('EDGE', 'HIGH', 'MED', 'LOW', 'SKIP'):
+        if tier not in ('EDGE', 'HIGH', 'MED', 'LOW', 'SKIP', 'CHAOS'):
             tier = 'SKIP'
-        label = 'R' + str(num) + (' ★' if tier == 'EDGE' else '')
+        label = 'R' + str(num) + (' ★' if tier == 'EDGE' else
+                                   ' ⚠' if tier == 'CHAOS' else '')
         horses = r.get('horses') or []
         sub = ''
-        if horses:
+        if tier == 'CHAOS':
+            sub = 'no play'
+        elif horses:
             bet = horses[0].get('bet_recommendation', '') or ''
             sub = 'skip' if tier == 'SKIP' else bet
         tiles.append(
@@ -364,6 +367,7 @@ button {{ font-family:inherit; cursor:pointer; }}
 .tier-MED  {{ background:rgba(245,158,11,.15); border-color:rgba(245,158,11,.35); }}
 .tier-LOW  {{ background:rgba(100,116,139,.18); }}
 .tier-SKIP {{ background:rgba(71,85,105,.18); opacity:.6; }}
+.tier-CHAOS {{ background:rgba(220,38,38,.22); border:1px solid rgba(220,38,38,.4); }}
 .strip-num {{ font-size:.72rem; font-weight:700; }}
 .strip-sub {{ font-size:.58rem; color:var(--dim); margin-top:1px; }}
 .strip-chevron {{ font-size:.6rem; color:var(--dim); margin-top:2px; transition:transform .15s; }}
@@ -580,7 +584,7 @@ const GENERATED = "{now}";
 // Tier colours (mirrors Python TIER_COLORS)
 // ─────────────────────────────────────────────────────────────
 const TIER_COLORS = {{
-  EDGE:'#fbbf24', HIGH:'#10b981', MED:'#f59e0b', LOW:'#64748b', SKIP:'#475569'
+  EDGE:'#fbbf24', HIGH:'#10b981', MED:'#f59e0b', LOW:'#64748b', SKIP:'#475569', CHAOS:'#dc2626'
 }};
 const ALERT_COLORS = {{
   EDGE_OPENED:'#fbbf24', EDGE_WIDENED:'#fbbf24', EDGE_CLOSED:'#94a3b8',
@@ -826,11 +830,22 @@ function renderBetCard(race) {{
     // BOX TRIO-5 and F4 BOX-5 also fire as MAIN tier when top5 length is 5
     var top5len = race.horses.slice(0, 5).length;
     if (top5len === 5) {{
-      betLines.push({{lbl: 'BOX TRIO-5', combos: 10}});
-      totalCombos += 10;
+      // BOX TRIO-5 F4-style triple gate (widened 2026-05-23 from SKIP-only
+      // to match the F4 BOX-5 gate). Backtest on 668-race burned holdout:
+      // ungated ROI -45.4% vs triple-gated -33.6% (+11.8pp). Heavy fav alone
+      // does 70% of the work — TRIO pools collapse around dominant favs.
+      var t5top1 = (race.horses[0] && race.horses[0].win_odds) || 0;
+      var t5field = race.horses.length;
+      var t5Skip = (t5top1 > 0 && t5top1 < 2.5) ||
+                    (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+                    (t5field < 8);
+      if (!t5Skip) {{
+        betLines.push({{lbl: 'BOX TRIO-5', combos: 10}});
+        totalCombos += 10;
+      }}
       // F4 BOX-5 has its own gate (mirrors logic at line ~915)
-      var f4top1 = (race.horses[0] && race.horses[0].win_odds) || 0;
-      var f4field = race.horses.length;
+      var f4top1 = t5top1;
+      var f4field = t5field;
       var f4Skip = (f4top1 > 0 && f4top1 < 2.5) ||
                     (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
                     (f4field < 8);
@@ -1053,7 +1068,12 @@ function renderBetCard(race) {{
     }});
   }} else {{
     waLines.push('');
-    waLines.push('*SKIP* — no bet recommended');
+    if (tier === 'CHAOS') {{
+      var reason = race.chaos_reason || 'chaos race';
+      waLines.push('*CHAOS — NO PLAY* (' + reason + ')');
+    }} else {{
+      waLines.push('*SKIP* — no bet recommended');
+    }}
   }}
 
   // Optional add-on layers (BOX QIN-4, F4, TRIO-5, TRIO-6, QPL BANKER)
@@ -1108,7 +1128,16 @@ function renderBetCard(race) {{
   // for trio coverage and should never be buried as an "optional add".
   // Inserted into the lines array directly above the addOns block below.
   var t5MainBlock = null;
-  if (top5wa.length === 5) {{
+  // F4-style triple gate (widened 2026-05-23, mirrors F4 BOX-5 below).
+  // Backtest 668-race holdout: ungated TRIO-5 ROI -45.4% vs gated -33.6%
+  // (+11.8pp). Heavy fav alone accounts for ~70% of the saved losses —
+  // dominant favs collapse the TRIO pool.
+  var t5Top1OddsWa = (race.horses[0] && race.horses[0].win_odds) || 0;
+  var t5FieldWa = race.horses.length;
+  var t5SkipWa = (t5Top1OddsWa > 0 && t5Top1OddsWa < 2.5) ||
+                  (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+                  (t5FieldWa < 8);
+  if (top5wa.length === 5 && !t5SkipWa) {{
     var t5Nums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
     var t5Stake = waUnit > 0 ? (' · $' + (10 * waUnit)) : '';
     var t5SwapAnno = top5waSwap
@@ -2030,18 +2059,44 @@ function _buildRaceDetailPanel(race) {{
   // 5th model pick to expand placing-pool coverage beyond the QIN-4
   // box. 10 combos at 1 unit = 10-unit stake. Uses the swapped top-5
   // (same rank-5 swap as F4 BOX-5) for consistency.
+  // F4-style triple gate (shipped 2026-05-23, widened from SKIP-only).
+  // 668-race holdout backtest: ungated -45.4% vs gated -33.6% (+11.8pp).
+  // Heavy fav alone does 70% of the work — TRIO pool collapses on dominant
+  // favorites. Mirrors the F4 BOX-5 gate at line ~1996.
   var top5 = top5_eff;
   if (top5.length === 5) {{
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
-        '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
-          '+ BOX TRIO-5 · 10 combos' +
-        '</span>' +
-        swapBadge +
-        top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
-        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
-      '</div>'
-    );
+    var t5Top1Odds = (race.horses[0] && race.horses[0].win_odds) || 0;
+    var t5Tier = race.conviction_tier || '';
+    var t5Field = race.horses.length;
+    var t5SkipReason = '';
+    if (t5Top1Odds > 0 && t5Top1Odds < 2.5) {{
+      t5SkipReason = 'heavy fav $' + t5Top1Odds.toFixed(1) + ' — TRIO pool collapses';
+    }} else if (t5Tier !== 'EDGE' && t5Tier !== 'HIGH' && t5Tier !== 'MED') {{
+      t5SkipReason = t5Tier + ' conviction — top-5 coverage unreliable';
+    }} else if (t5Field < 8) {{
+      t5SkipReason = 'small field ' + t5Field + ' — TRIO pool too thin';
+    }}
+    if (!t5SkipReason) {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+          '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+            '+ BOX TRIO-5 · 10 combos' +
+          '</span>' +
+          swapBadge +
+          top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
+          '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
+        '</div>'
+      );
+    }} else {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.72rem;color:var(--dim)">' +
+          '<span style="display:inline-block;background:rgba(71,85,105,.4);color:var(--dim);font-weight:700;padding:2px 8px;border-radius:3px;font-size:.65rem;margin-right:8px">' +
+            'BOX TRIO-5 · SKIPPED' +
+          '</span>' +
+          esc(t5SkipReason) +
+        '</div>'
+      );
+    }}
   }}
 
   // BOX TRIO-6 — OPTIONAL high-cost protection layer.

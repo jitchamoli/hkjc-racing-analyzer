@@ -1,12 +1,14 @@
-# HKJC Horse Racing Analyzer v6.8
+# HKJC Horse Racing Analyzer v6.10
 
-Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 25-factor rule-based engine with an XGBoost ML model (24 features, isotonic-calibrated, post-blend recalibrated, calibrator auto-refit on every retrain) to surface bets the public may be underestimating. The dashboard renders every race as a clickable card stack with two views — **Race Order** (all 11 chronological) and **Top Bets** (curated tier-sorted) — plus a sticky live alerts rail.
+Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a 25-factor rule-based engine with an XGBoost ML model (26 features, isotonic-calibrated, post-blend recalibrated, calibrator auto-refit on every retrain) to surface bets the public may be underestimating. The dashboard renders every race as a clickable card stack with two views — **Race Order** (all 11 chronological) and **Top Bets** (curated tier-sorted) — plus a sticky live alerts rail.
 
 > **Multi-jurisdiction expansion (2026-05-17):** HK remains the primary, production pipeline. Four additional jurisdictions ship as **isolated, experimental pipelines** sharing only the API client — see [Multi-jurisdiction pipelines](#multi-jurisdiction-pipelines-uk--fr--au--jp) below.
 
 ## What's New (2026-05-22) — dividend-basis correction + place/top-4 reframe + expert-review fixes
 
-> **⚠️ ROI-figure correction.** A backtest bug scored HKJC dividends (declared **per HK$10**) against **$1** stakes — inflating every real-dividend ROI by **~10×**. Fixed (`scripts/backtest.py` `get_real_quinella_dividend`/`get_real_exotic_dividend` now `/10`). **Every ROI figure dated before 2026-05-22 in this README and the docs is ~10× overstated.** Corrected held-out figures (668 races): straight QIN **+44%**, recommender-gated QIN **+19%**, TRIO-5 **+16%**, TRIO-6 **+29%**, F4 BOX-5 **+39%** (vs a −22%/−28% random luck floor). Relative ordering is preserved, so prior ship/kill decisions still hold — only the magnitudes were wrong.
+> **🚨 LEAK CORRECTION (2026-05-22) — SUPERSEDES every ROI figure in this README and the docs.** A three-round expert audit found **10 date-leaking rule-engine DB lookups** with no `before_date` filter: in BACKTEST they read the scored race's own (and future) results. All 10 fixed (`before_date` + `race_date < ?`, threaded from `core/analyzer.py`); live was never affected (the race isn't in the DB at predict time). **Fully leak-free held-out figures (668 races) — EVERY bet type is NEGATIVE:** straight QIN **−10.7%**, gated QIN **−27.0%**, Box-4 QIN **−23.0%**, TRIO-5 **−45.4%**, F4 BOX-5 **−44.8%**. ~~Earlier "corrected" figures (straight QIN +44%, gated +19%, TRIO-5 +16%, TRIO-6 +29%, F4 BOX-5 +39%)~~ were themselves still leak-inflated. The 668-race holdout is also BURNED (dozens of prior comparisons), so even the negatives are noisy — but there is **ZERO evidence of a positive-EV bet**. The **PLACE MODEL is unaffected** (ML, not rule engine): BSS **+0.10**, ECE **0.0093** — it genuinely discriminates (rank-1 top-3 54.9% ≈ 2.2× random) but that skill does **not** beat the market + takeout on any bet type. **HONEST POSTURE: no demonstrated betting edge; treat the tool as a ranking/screening aid, PAPER-ONLY, until the forward-validation log (`scripts/validate_hk.py`) shows a positive lower-CI-bound over N≥250 bets.** Detail: `memory/project_7expert_panel_2026-05-22.md`.
+>
+> **⚠️ Separate ROI-basis bug (2026-05-22).** A backtest bug also scored HKJC dividends (declared **per HK$10**) against **$1** stakes — inflating every real-dividend ROI by **~10×** (`scripts/backtest.py` now `/10`). **Every ROI figure dated before 2026-05-22 in this README and the docs is ~10× overstated** — and, per the leak correction above, was measured on the leaking analyzer regardless.
 
 **Evaluation reframe (the bigger change):** added a **place-model calibration** report (`print_place_calibration`) and made **top-4 / placing capture** the metric for judging model changes — *not* top-1 win Brier. This revealed our **place model is far better calibrated than our win model** (place ECE 0.0093 / BSS +0.100 vs win ECE 0.0527 / BSS +0.035). Since every production bet is a top-N set bet (QIN/TRIO/F4 boxes), the north star is now **top-4 ranking**, not winner prediction.
 
@@ -165,7 +167,7 @@ Shipped 2026-05-17 as completely isolated pipelines — separate DBs, separate m
 
 | Jurisdiction | Status | 12-month data | Model? |
 |---|---|---|---|
-| 🇭🇰 **HK** | Production (this README's primary subject) | 55,157 race results | v6.8 — 24 features, isotonic-calibrated |
+| 🇭🇰 **HK** | Production (this README's primary subject) | 55,411 race results | v6.10 — 26 features, isotonic-calibrated |
 | 🇬🇧 **UK** | MVP — forward-validating | 81,975 runners | 15-feature XGBoost (AUC tied with market) |
 | 🇫🇷 **FR** | MVP — forward-validating | 21,267 runners | 15-feature XGBoost, **beats market favourite +4.64% ROI on test fold** |
 | 🇦🇺 **AU** | Reference data only | 4,444 runners | none — stakes-only at this plan tier |
@@ -261,7 +263,7 @@ hkjc_racing_analyzer/
     recommender.py           #   Bet recommendation engine
     predictor.py             #   ML predictor shim
   ml/                        # ML pipeline
-    feature_schema.py        #   24-feature schema (v6.8)
+    feature_schema.py        #   26-feature schema (v6.10 — adds mid_race_pace + sire_top3_rate_on_going)
     features.py              #   Feature extraction + extract_class_rank helper
     model.py                 #   XGBoost — isotonic-calibrated, integrity-checked
     training.py              #   Training data builders (5y default, exp recency)
@@ -374,13 +376,15 @@ pytest tests/ -v
 
 ## Performance (668-race holdout, 100% real HKJC dividends)
 
-The 85-100% chronological holdout is now ~668 races with real QIN/TRIO/First-4 dividends (the old "73-race / 41-real" framing was stale). With honest block-bootstrap CIs, **all quinella strategies tie** (~+850% to +1500%, overlapping) — bet-type ROI differences sit below the noise floor, though every lower CI bound is well above +850% (the edge is real but un-rankable on ROI). Current recommender-gated point estimate: **+1069%** (CI [+889%, +1258%]) after the 2026-05-21 retrain.
+> **🚨 The ROI table below is SUPERSEDED by the leak correction at the top of this README — it was measured on the leaking rule engine and is NOT valid. Kept only as an audit trail of what the leak inflated.** On the fully leak-free analyzer, EVERY bet type is NEGATIVE (straight QIN −10.7%, gated QIN −27.0%, Box-4 QIN −23.0%, TRIO-5 −45.4%, F4 BOX-5 −44.8%). There is no demonstrated positive-EV bet. The honest evidence path is the forward-validation log (`scripts/validate_hk.py --report`), not this burned holdout.
 
-| Strategy | ROI (point) | by-date 95% CI |
+The 85-100% chronological holdout is ~668 races with real QIN/TRIO/First-4 dividends. The figures below were the pre-leak-correction estimates (leak-inflated AND ~10× overstated by the dividend-basis bug) — retained for the record only:
+
+| Strategy | ROI (point) — SUPERSEDED, leaking | by-date 95% CI |
 |----------|-------------|----------------|
-| Recommender-gated | +1069% | [+889%, +1258%] |
-| Straight quinella | +1343% | [+960%, +1761%] |
-| Box-4 quinella | +944% | [+795%, +1103%] |
+| Recommender-gated | ~~+1069%~~ | ~~[+889%, +1258%]~~ |
+| Straight quinella | ~~+1343%~~ | ~~[+960%, +1761%]~~ |
+| Box-4 quinella | ~~+944%~~ | ~~[+795%, +1103%]~~ |
 
 ### Calibration
 

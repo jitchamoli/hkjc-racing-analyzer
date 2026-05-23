@@ -164,15 +164,17 @@ class TestRebuildStatsCurrentSeasonFilter:
 
 
 # ---------------------------------------------------------------------------
-# 6. v6.6 + v6.8 schema: 24 features, all named additions present
+# 6. v6.6 + v6.8 + v6.9 + v6.10 schema: 26 features, all named additions present
 # ---------------------------------------------------------------------------
 
 class TestV66Schema:
-    def test_has_24_features(self):
+    def test_has_26_features(self):
         from ml.feature_schema import NUM_FEATURES, FEATURE_NAMES
-        assert NUM_FEATURES == 24
+        assert NUM_FEATURES == 26
         assert "jt_pair_win_rate" in FEATURE_NAMES
         assert "speed_fig_norm" in FEATURE_NAMES
+        assert "mid_race_pace" in FEATURE_NAMES  # v6.9
+        assert "sire_top3_rate_on_going" in FEATURE_NAMES  # v6.10
         # v6.8 additions
         assert "early_speed" in FEATURE_NAMES
         assert "late_kick" in FEATURE_NAMES

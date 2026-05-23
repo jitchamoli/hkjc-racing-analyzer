@@ -28,6 +28,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 import config
+from scripts.forward_common import bayesian_verdict
 
 LOG_PATH = REPO_ROOT / "tracking_data" / "tier_b_log.csv"
 
@@ -157,6 +158,11 @@ def report(filter_date: str | None = None) -> int:
 
     conn = sqlite3.connect(str(config.DB_PATH))
     totals = defaultdict(lambda: {'bets': 0, 'hits': 0, 'pnl': 0.0, 'stake': 0.0})
+    # Per-meeting NEW vs OLD totals — feeds the Bayesian verdict at end.
+    per_meeting = defaultdict(lambda: {
+        'new_pnl': 0.0, 'new_stake': 0.0,
+        'old_pnl': 0.0, 'old_stake': 0.0,
+    })
     # Marginal EDGE totals — only races where the LOWER threshold caught
     # a candidate that the HIGHER threshold did NOT. Answers "what does
     # +3pp catch above +5pp?" (audit fix 2026-05-17, ML expert finding LOW).
@@ -184,6 +190,10 @@ def report(filter_date: str | None = None) -> int:
             totals[scheme]['stake'] += stake
             if hit:
                 totals[scheme]['hits'] += 1
+            # Also accumulate per-meeting NEW/OLD for the Bayesian verdict.
+            mkey = 'new' if scheme == 'NEW (Tier B)' else 'old'
+            per_meeting[date][f'{mkey}_pnl'] += pnl
+            per_meeting[date][f'{mkey}_stake'] += stake
 
         if r['bet_now'] != r['bet_old']:
             diff_rows.append((date, race_no, r['bet_old'], r['bet_now']))
@@ -254,6 +264,25 @@ def report(filter_date: str | None = None) -> int:
         n_diff = len(diff_rows)
         if n_diff < 10:
             print(f"  ⚠️  Only {n_diff} disagreement(s) so far — collect ≥10 before drawing conclusions.")
+
+        # Bayesian per-meeting verdict (added 2026-05-23) — optional-stopping
+        # safe SHIP/KILL/WATCH on cumulative-ROI per meeting. Replaces the
+        # aggregate "NEW wins / OLD wins / tie" verdict above as the primary
+        # decision rule; that line stays for context.
+        winners: list[int] = []
+        new_cum_pnl = old_cum_pnl = 0.0
+        new_cum_stake = old_cum_stake = 0.0
+        for md in sorted(per_meeting):
+            m = per_meeting[md]
+            new_cum_pnl += m['new_pnl']; new_cum_stake += m['new_stake']
+            old_cum_pnl += m['old_pnl']; old_cum_stake += m['old_stake']
+            new_roi = new_cum_pnl / new_cum_stake if new_cum_stake else 0
+            old_roi = old_cum_pnl / old_cum_stake if old_cum_stake else 0
+            winners.append(1 if new_roi > old_roi else 0)
+        v = bayesian_verdict(winners)
+        print(f"\nBayesian (per-meeting cum-ROI, NEW vs OLD):")
+        print(f"  meetings-won={v['wins']}/{v['n_meetings']}  "
+              f"posterior={v['posterior']:.3f}  → {v['verdict']}")
 
     # Marginal EDGE table — only rows where lower threshold caught a horse
     # the higher one did not. Shows the incremental value of lowering G3.

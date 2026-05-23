@@ -1,18 +1,26 @@
 """Evaluate production vs shadow bets against actual results for a race date.
 
-Run AFTER `results_fetcher.py` has filled in real finishes. Reads:
-  - results/race_data_YYYYMMDD.json   (production, rule_w=0.6)
-  - results/shadow_race_data_YYYYMMDD.json (shadow, rule_w=0.9)
-  - race_results + race_dividends from horse_history.db
+Two variants supported (mirror of scripts/shadow_generate.py):
 
-Computes hit + P&L for both variants using real HKJC dividends. Appends
-one row per race to tracking_data/shadow_log.csv so we accumulate data
-across meetings. After ~6 meetings (~60 races), run with --report for
-the cumulative comparison.
+  rule_w       (default, legacy):
+               Reads results/shadow_race_data_YYYYMMDD.json (rule_w=0.9)
+               Logs to tracking_data/shadow_log.csv
+
+  jockey_form:
+               Reads results/shadow_jockey_race_data_YYYYMMDD.json
+                                                  (jockey_form factor disabled)
+               Logs to tracking_data/shadow_jockey_log.csv
+
+Run AFTER `results_fetcher.py` has filled in real finishes. Computes hit + P&L
+for both prod + shadow variants using real HKJC dividends. Appends one row
+per race to the variant's CSV log so we accumulate data across meetings.
+After ~6 meetings (~60 races), run with --report for cumulative comparison.
 
 Usage:
     python3 -m scripts.shadow_evaluate '2026/05/17'
-    python3 -m scripts.shadow_evaluate --report          # cumulative
+    python3 -m scripts.shadow_evaluate '2026/05/17' --variant jockey_form
+    python3 -m scripts.shadow_evaluate --report                            # rule_w
+    python3 -m scripts.shadow_evaluate --report --variant jockey_form
 """
 from __future__ import annotations
 
@@ -27,7 +35,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config
 
-LOG_PATH = Path(__file__).resolve().parent.parent / "tracking_data" / "shadow_log.csv"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+VARIANTS = {
+    'rule_w': {
+        'shadow_basename': 'shadow_race_data',
+        'log_path': REPO_ROOT / 'tracking_data' / 'shadow_log.csv',
+        'prod_label': 'production (rule_w=0.6)',
+        'shadow_label': 'shadow (rule_w=0.9)',
+        'ship_hint': 'Consider shipping RULE_WEIGHT=0.9.',
+        'keep_hint': 'Keep RULE_WEIGHT=0.6.',
+    },
+    'jockey_form': {
+        'shadow_basename': 'shadow_jockey_race_data',
+        'log_path': REPO_ROOT / 'tracking_data' / 'shadow_jockey_log.csv',
+        'prod_label': 'production (jockey_form on)',
+        'shadow_label': 'shadow (jockey_form OFF)',
+        'ship_hint': 'Consider shipping JOCKEY_FORM_RIDES_MIN=15 (disable factor).',
+        'keep_hint': 'Keep JOCKEY_FORM_RIDES_MIN=3 (factor enabled).',
+    },
+}
+
 LOG_HEADERS = [
     'race_date', 'race_number',
     'prod_bet', 'prod_legs', 'prod_hit', 'prod_pnl', 'prod_stake',
@@ -78,17 +106,19 @@ def _pnl(bet_type: str, hit: bool, q_dividend: float | None) -> tuple[float | No
     return None, 0.0
 
 
-def evaluate_date(race_date: str) -> int:
+def evaluate_date(race_date: str, variant: str) -> int:
+    cfg = VARIANTS[variant]
     date_str = race_date.replace('/', '')
-    results_dir = Path(__file__).resolve().parent.parent / "results"
+    results_dir = REPO_ROOT / "results"
     prod_path = results_dir / f"race_data_{date_str}.json"
-    shadow_path = results_dir / f"shadow_race_data_{date_str}.json"
+    shadow_path = results_dir / f"{cfg['shadow_basename']}_{date_str}.json"
 
     if not prod_path.exists():
         print(f"ERROR: production file missing: {prod_path}", file=sys.stderr)
         return 1
     if not shadow_path.exists():
-        print(f"ERROR: shadow file missing: {shadow_path}. Run scripts.shadow_generate first.",
+        print(f"ERROR: shadow file missing: {shadow_path}. "
+              f"Run scripts.shadow_generate --variant {variant} first.",
               file=sys.stderr)
         return 1
 
@@ -100,6 +130,7 @@ def evaluate_date(race_date: str) -> int:
     conn.row_factory = sqlite3.Row
 
     rows_to_append = []
+    print(f"Variant: {variant} ({cfg['prod_label']} vs {cfg['shadow_label']})")
     print(f"Race  | prod_bet  prod_hit prod_pnl  | shadow_bet shadow_hit shadow_pnl | dividend")
     print('-' * 90)
 
@@ -175,8 +206,8 @@ def evaluate_date(race_date: str) -> int:
         })
 
     conn.close()
-    _append_log(rows_to_append, race_date)
-    print(f"\nAppended {len(rows_to_append)} rows to {LOG_PATH}")
+    _append_log(rows_to_append, race_date, cfg['log_path'])
+    print(f"\nAppended {len(rows_to_append)} rows to {cfg['log_path']}")
     return 0
 
 
@@ -200,38 +231,67 @@ def _infer_bet_type_from_horses(horses_sorted) -> str:
     return 'SKIP'
 
 
-def _append_log(rows, race_date):
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+def _append_log(rows, race_date, log_path: Path):
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     # Dedupe: drop any existing rows for this race_date first
     existing = []
-    if LOG_PATH.exists():
-        with open(LOG_PATH) as f:
+    if log_path.exists():
+        with open(log_path) as f:
             reader = csv.DictReader(f)
             existing = [r for r in reader if r['race_date'] != race_date]
-    with open(LOG_PATH, 'w', newline='') as f:
+    with open(log_path, 'w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=LOG_HEADERS)
         w.writeheader()
         for r in existing: w.writerow(r)
         for r in rows: w.writerow(r)
 
 
-def report():
-    if not LOG_PATH.exists():
-        print("No shadow_log.csv yet. Run scripts.shadow_evaluate <date> after each meeting.")
+from scripts.forward_common import bayesian_verdict
+
+
+def _per_meeting_winners(rows) -> list[int]:
+    """Compute per-meeting binary outcomes from the shadow CSV rows.
+
+    For each meeting in chronological order, returns 1 if shadow CUMULATIVE
+    ROI (across all meetings up to and including this one) beats prod
+    cumulative ROI, else 0. Cumulative ROI is used (vs per-meeting ROI) so
+    early variance from a single noisy meeting doesn't flip the verdict.
+    """
+    meetings = sorted(set(r['race_date'] for r in rows))
+    out = []
+    for end_date in meetings:
+        through = [r for r in rows if r['race_date'] <= end_date]
+        p_stake = sum(float(r['prod_stake'] or 0) for r in through)
+        s_stake = sum(float(r['shadow_stake'] or 0) for r in through)
+        p_pnl = sum(float(r['prod_pnl']) for r in through if r['prod_pnl'] != '')
+        s_pnl = sum(float(r['shadow_pnl']) for r in through if r['shadow_pnl'] != '')
+        p_roi = (p_pnl / p_stake) if p_stake else 0
+        s_roi = (s_pnl / s_stake) if s_stake else 0
+        out.append(1 if s_roi > p_roi else 0)
+    return out
+
+
+def report(variant: str) -> int:
+    cfg = VARIANTS[variant]
+    log_path = cfg['log_path']
+    if not log_path.exists():
+        print(f"No {log_path.name} yet. Run scripts.shadow_evaluate --variant {variant} "
+              f"<date> after each meeting.")
         return 0
-    with open(LOG_PATH) as f:
+    with open(log_path) as f:
         rows = list(csv.DictReader(f))
     if not rows:
         print("Log empty.")
         return 0
 
     meetings = sorted(set(r['race_date'] for r in rows))
-    print(f"Cumulative shadow comparison — {len(meetings)} meetings, {len(rows)} races")
+    print(f"Cumulative shadow comparison — variant={variant} — "
+          f"{len(meetings)} meetings, {len(rows)} races")
     print(f"Meetings: {', '.join(meetings)}")
     print()
 
-    print(f"{'metric':<25} {'production (0.6)':>20} {'shadow (0.9)':>20}")
-    print('-' * 70)
+    print(f"{'metric':<25} {cfg['prod_label']:>25} {cfg['shadow_label']:>25}")
+    print('-' * 80)
 
     p_bets = sum(1 for r in rows if r['prod_pnl'] != '')
     s_bets = sum(1 for r in rows if r['shadow_pnl'] != '')
@@ -244,22 +304,32 @@ def report():
     p_roi = (p_pnl / p_stake * 100) if p_stake else 0
     s_roi = (s_pnl / s_stake * 100) if s_stake else 0
 
-    print(f"{'Bets':<25} {p_bets:>20} {s_bets:>20}")
-    print(f"{'Hits':<25} {p_hits:>20} {s_hits:>20}")
-    print(f"{'Hit rate':<25} {p_hits/p_bets*100 if p_bets else 0:>19.1f}% {s_hits/s_bets*100 if s_bets else 0:>19.1f}%")
-    print(f"{'Stake':<25} {f'${p_stake:.0f}':>20} {f'${s_stake:.0f}':>20}")
-    print(f"{'P&L':<25} {f'{p_pnl:+.1f}u':>20} {f'{s_pnl:+.1f}u':>20}")
-    print(f"{'ROI':<25} {f'{p_roi:+.1f}%':>20} {f'{s_roi:+.1f}%':>20}")
+    print(f"{'Bets':<25} {p_bets:>25} {s_bets:>25}")
+    print(f"{'Hits':<25} {p_hits:>25} {s_hits:>25}")
+    print(f"{'Hit rate':<25} {p_hits/p_bets*100 if p_bets else 0:>24.1f}% {s_hits/s_bets*100 if s_bets else 0:>24.1f}%")
+    print(f"{'Stake':<25} {f'${p_stake:.0f}':>25} {f'${s_stake:.0f}':>25}")
+    print(f"{'P&L':<25} {f'{p_pnl:+.1f}u':>25} {f'{s_pnl:+.1f}u':>25}")
+    print(f"{'ROI':<25} {f'{p_roi:+.1f}%':>25} {f'{s_roi:+.1f}%':>25}")
     print()
     print(f"Delta (shadow - production):  P&L {s_pnl-p_pnl:+.1f}u  |  ROI {s_roi-p_roi:+.1f}pp")
     print()
-    n_meetings = len(meetings)
-    if n_meetings < 6:
-        print(f"  → Need {6-n_meetings} more meeting(s) for N≥6 forward validation. Inconclusive so far.")
-    elif s_roi > p_roi:
-        print(f"  → Shadow beats production over {n_meetings} meetings. Consider shipping RULE_WEIGHT=0.9.")
+
+    # Bayesian Beta-Binomial posterior — replaces the arbitrary N>=6 heuristic.
+    # Optional-stopping safe: you can check after every meeting without
+    # inflating Type I error.
+    winners = _per_meeting_winners(rows)
+    v = bayesian_verdict(winners)
+    print(f"  Per-meeting outcomes (1=shadow cum ROI > prod): {winners}")
+    print(f"  Bayesian posterior P(shadow > prod): {v['posterior']:.3f}  "
+          f"({v['wins']}/{v['n_meetings']} meetings)")
+    if v['verdict'] == 'SHIP':
+        print(f"  → SHIP. {cfg['ship_hint']}  (posterior >= 0.95)")
+    elif v['verdict'] == 'KILL':
+        print(f"  → KILL. {cfg['keep_hint']}  (posterior <= 0.05)")
     else:
-        print(f"  → Shadow underperforms over {n_meetings} meetings. Keep RULE_WEIGHT=0.6.")
+        print(f"  → WATCH. Posterior is in [0.05, 0.95] — keep accruing meetings.")
+        if v['n_meetings'] < 3:
+            print(f"     (Posterior is noisy below ~3 meetings; current N={v['n_meetings']})")
     return 0
 
 
@@ -267,14 +337,16 @@ def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('race_date', nargs='?', help='YYYY/MM/DD (omit if using --report)')
+    p.add_argument('--variant', choices=list(VARIANTS), default='rule_w',
+                   help='Which shadow experiment to evaluate (default: rule_w)')
     p.add_argument('--report', action='store_true',
-                   help='Print cumulative comparison from shadow_log.csv')
+                   help='Print cumulative comparison from the variant log')
     args = p.parse_args()
     if args.report:
-        return report()
+        return report(args.variant)
     if not args.race_date:
         p.error('race_date required unless --report')
-    return evaluate_date(args.race_date)
+    return evaluate_date(args.race_date, args.variant)
 
 
 if __name__ == '__main__':
