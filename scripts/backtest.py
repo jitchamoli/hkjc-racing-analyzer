@@ -45,6 +45,7 @@ import config
 from ml.model import HKJCRacingMLModel
 from ml.features import FeatureEngineering
 from core.scorer import _dynamic_blend_weights
+from betting.optimizer import compute_suggested_stake
 
 logger = logging.getLogger(__name__)
 
@@ -842,6 +843,102 @@ def print_exotic_hits(records):
         print(f"    SIMULATED ROI: {roi:+.2f}%")
 
 
+def print_production_stake_pnl(records, bankroll: float):
+    """Re-compute gated-QIN + exotic ROI at PRODUCTION tier-staking instead
+    of flat 1u. Tests whether the staking ramp (EDGE 3% / HIGH 2% / MED 1% /
+    LOW 0.5% of bankroll) is itself the ROI leak — flagged by the Kelly
+    auditor 2026-05-23 as never-backtested.
+
+    Conviction tier proxy: uses each record's top1_confidence (per-horse
+    model confidence) rather than the race-level top_2_share gate.
+    They correlate strongly (both surface as 'HIGH' on the same concentrated
+    races) so the aggregate ROI swing is informative; exact production
+    replication would need recomputing top_2_share per record.
+    """
+    print("\n" + "=" * 70)
+    print("  PRODUCTION-STAKE P&L vs flat-1u baseline")
+    print(f"  bankroll={bankroll:.0f} HKD; EDGE 3% / HIGH 2% / MED 1% / LOW 0.5%")
+    print("  (top1_confidence used as conviction-tier proxy)")
+    print("=" * 70)
+
+    by_type = defaultdict(lambda: {'stake': 0.0, 'pnl': 0.0, 'hits': 0, 'n': 0})
+
+    # (flat_cost, hit_field, dividend_field, bet_type_for_sizing)
+    bet_specs = [
+        ('BOX Q4',  6.0,  'box4_q_hit',  'q_dividend',    'QIN'),
+        ('BOX Q',   3.0,  'box3_q_hit',  'q_dividend',    'QIN'),
+        ('STRAIGHT Q', 1.0, 'quinella_hit', 'q_dividend', 'QIN'),
+        ('TRIO-5', 10.0,  'trio5_hit',   'trio_dividend', 'TRIO'),
+        ('TRIO-6', 20.0,  'trio6_hit',   'trio_dividend', 'TRIO'),
+        ('F4 BOX-5', 5.0, 'f4box5_hit',  'f4_dividend',   'QIN'),
+        ('F4 BOX-6', 15.0,'f4box6_hit',  'f4_dividend',   'QIN'),
+    ]
+
+    # Also model the recommender-gated path: stake only when recommender's
+    # rec_bet_type fires (not on every race), mirroring production behavior.
+    _gated_hit_field = {'BOX Q4': 'box4_q_hit', 'BOX Q': 'box3_q_hit', 'QIN': 'quinella_hit'}
+    _gated_cost = {'BOX Q4': 6.0, 'BOX Q': 3.0, 'QIN': 1.0}
+
+    for r in records:
+        tier = r.get('top1_confidence') or 'SKIP'
+        top_prob = r.get('final_prob') or 0.0
+        top_odds = r.get('odds') or 0.0
+
+        # 1) Recommender-gated QIN — production's actual bet path
+        rec = r.get('rec_bet_type')
+        div = r.get('q_dividend')
+        if rec in _gated_cost and div is not None:
+            si = compute_suggested_stake(
+                conviction_tier=tier, bet_type=rec,
+                top_prob=top_prob, top_odds=top_odds, bankroll=bankroll,
+            )
+            amount = si['amount']
+            if amount > 0:
+                cost = _gated_cost[rec]
+                hit = bool(r.get(_gated_hit_field[rec], False))
+                pnl = (amount * (div / cost - 1)) if hit else -amount
+                e = by_type['GATED-QIN']
+                e['stake'] += amount; e['pnl'] += pnl
+                e['hits'] += int(hit); e['n'] += 1
+
+        # 2) Unconditional per-bet-type strategies (mirror flat-1u table)
+        for label, flat_cost, hit_field, div_field, sizing_type in bet_specs:
+            d = r.get(div_field)
+            if d is None:
+                continue
+            si = compute_suggested_stake(
+                conviction_tier=tier, bet_type=sizing_type,
+                top_prob=top_prob, top_odds=top_odds, bankroll=bankroll,
+            )
+            amount = si['amount']
+            if amount <= 0:
+                continue
+            hit = bool(r.get(hit_field, False))
+            pnl = (amount * (d / flat_cost - 1)) if hit else -amount
+            e = by_type[label]
+            e['stake'] += amount; e['pnl'] += pnl
+            e['hits'] += int(hit); e['n'] += 1
+
+    print(f"\n  {'Bet type':<14}{'N':>5}{'Hits':>7}{'Hit%':>8}"
+          f"{'Stake HKD':>12}{'P&L HKD':>12}{'ROI':>9}")
+    print("  " + "-" * 67)
+    for label in ('GATED-QIN', 'STRAIGHT Q', 'BOX Q', 'BOX Q4',
+                  'TRIO-5', 'TRIO-6', 'F4 BOX-5', 'F4 BOX-6'):
+        e = by_type.get(label)
+        if not e or e['stake'] <= 0:
+            continue
+        roi = e['pnl'] / e['stake'] * 100
+        hr = e['hits'] / e['n'] * 100 if e['n'] else 0
+        print(f"  {label:<14}{e['n']:>5}{e['hits']:>7}{hr:>7.1f}%"
+              f"{e['stake']:>12.0f}{e['pnl']:>+12.0f}{roi:>+8.1f}%")
+
+    print("\n  Interpretation: compare these ROIs to the flat-1u figures above.")
+    print("  If production-stake ROI is materially WORSE, the tier-ramp staking")
+    print("  is itself the leak — it stakes UP on HIGH-conviction races that pay")
+    print("  LESS (memory: project_conviction_gate_wrong_for_exotics).")
+    print("  If they MATCH, the leak is in pick selection or pool choice, not sizing.")
+
+
 def print_calibration(records):
     """Calibration report — Brier, BSS, ECE, and per-bin diff.
 
@@ -1083,6 +1180,12 @@ def main():
     parser.add_argument('--qin-gate', type=float, default=None,
                         help='Override the QIN bet-fire floor (MIN_TOP2_CONVICTION). '
                              'A/B the selectivity fix without touching production default (0.30).')
+    parser.add_argument('--production-stakes', action='store_true',
+                        help='Also report ROI at production tier-staking (EDGE 3% / HIGH 2% / '
+                             'MED 1% / LOW 0.5% of bankroll) alongside the flat-1u baseline. '
+                             'Tests whether the staking ramp is itself the ROI leak.')
+    parser.add_argument('--bankroll', type=float, default=10000.0,
+                        help='Bankroll for --production-stakes simulation (default: 10000 HKD).')
     args = parser.parse_args()
 
     # A/B the QIN selectivity gate (Tier-1 fix #1). Overrides the module global
@@ -1156,6 +1259,8 @@ def main():
 
     print_strategies(records, args.min_ev)
     print_exotic_hits(records)
+    if args.production_stakes:
+        print_production_stake_pnl(records, args.bankroll)
     print_clv(records)
     print_calibration(records)
     print_place_calibration(records)
