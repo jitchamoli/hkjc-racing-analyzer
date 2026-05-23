@@ -11,7 +11,7 @@ for field hygiene verdicts.
 
 TIER_COLORS = {
     'EDGE': '#fbbf24', 'HIGH': '#10b981', 'MED': '#f59e0b',
-    'LOW': '#64748b', 'SKIP': '#475569',
+    'LOW': '#64748b', 'SKIP': '#475569', 'CHAOS': '#dc2626',
 }
 
 ALERT_COLORS = {
@@ -184,12 +184,15 @@ def _build_strip_tiles(races_list: list) -> str:
     for r in races_list:
         num = r.get('race_number', '?')
         tier = r.get('conviction_tier') or 'SKIP'
-        if tier not in ('EDGE', 'HIGH', 'MED', 'LOW', 'SKIP'):
+        if tier not in ('EDGE', 'HIGH', 'MED', 'LOW', 'SKIP', 'CHAOS'):
             tier = 'SKIP'
-        label = 'R' + str(num) + (' ★' if tier == 'EDGE' else '')
+        label = 'R' + str(num) + (' ★' if tier == 'EDGE' else
+                                   ' ⚠' if tier == 'CHAOS' else '')
         horses = r.get('horses') or []
         sub = ''
-        if horses:
+        if tier == 'CHAOS':
+            sub = 'no play'
+        elif horses:
             bet = horses[0].get('bet_recommendation', '') or ''
             sub = 'skip' if tier == 'SKIP' else bet
         tiles.append(
@@ -364,6 +367,7 @@ button {{ font-family:inherit; cursor:pointer; }}
 .tier-MED  {{ background:rgba(245,158,11,.15); border-color:rgba(245,158,11,.35); }}
 .tier-LOW  {{ background:rgba(100,116,139,.18); }}
 .tier-SKIP {{ background:rgba(71,85,105,.18); opacity:.6; }}
+.tier-CHAOS {{ background:rgba(220,38,38,.22); border:1px solid rgba(220,38,38,.4); }}
 .strip-num {{ font-size:.72rem; font-weight:700; }}
 .strip-sub {{ font-size:.58rem; color:var(--dim); margin-top:1px; }}
 .strip-chevron {{ font-size:.6rem; color:var(--dim); margin-top:2px; transition:transform .15s; }}
@@ -580,7 +584,7 @@ const GENERATED = "{now}";
 // Tier colours (mirrors Python TIER_COLORS)
 // ─────────────────────────────────────────────────────────────
 const TIER_COLORS = {{
-  EDGE:'#fbbf24', HIGH:'#10b981', MED:'#f59e0b', LOW:'#64748b', SKIP:'#475569'
+  EDGE:'#fbbf24', HIGH:'#10b981', MED:'#f59e0b', LOW:'#64748b', SKIP:'#475569', CHAOS:'#dc2626'
 }};
 const ALERT_COLORS = {{
   EDGE_OPENED:'#fbbf24', EDGE_WIDENED:'#fbbf24', EDGE_CLOSED:'#94a3b8',
@@ -1064,7 +1068,12 @@ function renderBetCard(race) {{
     }});
   }} else {{
     waLines.push('');
-    waLines.push('*SKIP* — no bet recommended');
+    if (tier === 'CHAOS') {{
+      var reason = race.chaos_reason || 'chaos race';
+      waLines.push('*CHAOS — NO PLAY* (' + reason + ')');
+    }} else {{
+      waLines.push('*SKIP* — no bet recommended');
+    }}
   }}
 
   // Optional add-on layers (BOX QIN-4, F4, TRIO-5, TRIO-6, QPL BANKER)
