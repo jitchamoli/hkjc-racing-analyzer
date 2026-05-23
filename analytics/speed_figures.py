@@ -131,24 +131,51 @@ def get_par_time(par_times: Dict, distance: int, going: str, class_type: str) ->
     return par_times.get((distance, '', ''))
 
 
+def compute_daily_variant(conn: sqlite3.Connection, race_date: str,
+                          before_race_no: int, par_times: Dict) -> float:
+    """Median (winner_actual − par) over races 1..before_race_no−1 on race_date.
+
+    A negative variant means the track ran faster than par that day (rail in
+    true, dry, watered light, etc.); positive means slower. Adjusts par for
+    daily conditions a static corpus-median can't see. Uses ONLY earlier races
+    on the same card, so this is safe at predict time.
+    """
+    if not race_date or before_race_no <= 1:
+        return 0.0
+    try:
+        rows = conn.execute(
+            """SELECT distance, going, class_type, finish_time
+               FROM race_results
+               WHERE race_date = ? AND race_number < ? AND finish_position = 1
+                 AND finish_time != ''""",
+            (race_date, before_race_no),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return 0.0
+    diffs = []
+    for r in rows:
+        actual = parse_finish_time(r['finish_time'])
+        if actual is None:
+            continue
+        par = get_par_time(par_times, r['distance'] or 0,
+                           r['going'] or '', r['class_type'] or '')
+        if par is None:
+            continue
+        diffs.append(actual - par)
+    if not diffs:
+        return 0.0
+    return sorted(diffs)[len(diffs) // 2]
+
+
 def adjusted_speed_figure(finish_time_str: str, distance: int, going: str,
                           class_type: str, weight: int,
-                          par_times: Dict) -> Optional[float]:
+                          par_times: Dict,
+                          daily_variant: float = 0.0) -> Optional[float]:
     """Compute adjusted speed figure for a single performance.
 
     Returns value where 0 = par, positive = faster than par, negative = slower.
-    Adjusts for carried weight using Benter's approximation.
-
-    Args:
-        finish_time_str: 'M:SS.ss' format
-        distance: race distance in meters
-        going: track condition
-        class_type: race class
-        weight: carried weight in lbs
-        par_times: precomputed par time dict
-
-    Returns:
-        Adjusted speed figure (roughly -5 to +5 range), or None if can't compute
+    Adjusts for carried weight using Benter's approximation, and optionally
+    for the day's track variant (median earlier-card winning time vs par).
     """
     actual_secs = parse_finish_time(finish_time_str)
     if actual_secs is None:
@@ -157,6 +184,7 @@ def adjusted_speed_figure(finish_time_str: str, distance: int, going: str,
     par = get_par_time(par_times, distance, going, class_type)
     if par is None:
         return None
+    par = par + daily_variant
 
     # Weight adjustment: credit heavier horses (they ran that time with more weight)
     # Symmetric around baseline — lighter horses are debited, heavier credited

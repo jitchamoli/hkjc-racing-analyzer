@@ -117,6 +117,10 @@ class HorseDatabase:
             # sectional page, e.g. "27.84 23.69 24.22 24.10". Last token
             # is the last-400m time. Mirrors the running_position pattern.
             "sectional_times TEXT DEFAULT ''",
+            # Race-day weather text from the HKJC meeting page (e.g.
+            # "Fine", "Cloudy", "Rain"). Captured to start collecting a year
+            # of data — not yet read by any feature.
+            "weather TEXT DEFAULT ''",
         ]:
             try:
                 c.execute(f"ALTER TABLE race_results ADD COLUMN {col_def}")
@@ -755,41 +759,69 @@ class HorseDatabase:
         row = c.fetchone()
         return dict(row) if row else {'runners': 0, 'wins': 0, 'places': 0}
 
+    @staticmethod
+    def _going_surface_class(going: str) -> str:
+        """Bucket going into FIRM-side (GOOD/FIRM/FAST) vs SOFT-side
+        (YIELDING/SOFT/HEAVY/WET-SLOW). Prior LIKE 'GOOD%' pattern leaked
+        'GOOD TO YIELDING' into firm queries — credited soft-side runs as
+        firm-side experience."""
+        g = (going or '').upper()
+        if any(kw in g for kw in ('YIELDING', 'SOFT', 'HEAVY', 'WET-SLOW', 'WET SLOW')):
+            return 'SOFT'
+        return 'FIRM'
+
     def get_horse_going_record(self, horse_name: str, going: str,
                                before_date: str = '') -> Dict:
         """Get horse's record on a specific going (track condition).
 
-        Single query: exact match OR primary keyword match (e.g. 'Good' matches 'Good To Firm').
+        Filters prior runs by FIRM vs SOFT surface class so a 'GOOD TO YIELDING'
+        prior doesn't get credited as firm-side experience.
         before_date: if set, only count races STRICTLY before this date — same
         backtest-leak fix as get_horse_history (live passes no filter).
         """
         c = self.conn.cursor()
-        going_upper = going.upper().strip() if going else ''
-        if not going_upper:
+        if not (going and going.strip()):
             return {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
 
-        primary = going_upper.split(' TO ')[0].split()[0] if going_upper else going_upper
-        if before_date:
-            c.execute("""
-                SELECT
-                    COUNT(*) as runs,
-                    SUM(is_winner) as wins,
-                    SUM(is_top3) as places,
-                    AVG(CASE WHEN finish_position > 0 THEN finish_position END) as avg_pos
-                FROM race_results
-                WHERE horse_name = ? AND (UPPER(going) = ? OR UPPER(going) LIKE ?)
-                  AND race_date < ?
-            """, (horse_name, going_upper, f'{primary}%', before_date))
+        if self._going_surface_class(going) == 'SOFT':
+            class_filter = (
+                "(UPPER(going) LIKE '%YIELDING%' "
+                "OR UPPER(going) LIKE '%SOFT%' "
+                "OR UPPER(going) LIKE '%HEAVY%' "
+                "OR UPPER(going) LIKE '%WET%')"
+            )
         else:
-            c.execute("""
+            class_filter = (
+                "UPPER(going) NOT LIKE '%YIELDING%' "
+                "AND UPPER(going) NOT LIKE '%SOFT%' "
+                "AND UPPER(going) NOT LIKE '%HEAVY%' "
+                "AND UPPER(going) NOT LIKE '%WET%' "
+                "AND (UPPER(going) LIKE '%GOOD%' "
+                "OR UPPER(going) LIKE '%FIRM%' "
+                "OR UPPER(going) LIKE '%FAST%')"
+            )
+
+        if before_date:
+            c.execute(f"""
                 SELECT
                     COUNT(*) as runs,
                     SUM(is_winner) as wins,
                     SUM(is_top3) as places,
                     AVG(CASE WHEN finish_position > 0 THEN finish_position END) as avg_pos
                 FROM race_results
-                WHERE horse_name = ? AND (UPPER(going) = ? OR UPPER(going) LIKE ?)
-            """, (horse_name, going_upper, f'{primary}%'))
+                WHERE horse_name = ? AND {class_filter}
+                  AND race_date < ?
+            """, (horse_name, before_date))
+        else:
+            c.execute(f"""
+                SELECT
+                    COUNT(*) as runs,
+                    SUM(is_winner) as wins,
+                    SUM(is_top3) as places,
+                    AVG(CASE WHEN finish_position > 0 THEN finish_position END) as avg_pos
+                FROM race_results
+                WHERE horse_name = ? AND {class_filter}
+            """, (horse_name,))
         row = c.fetchone()
         return dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
 
@@ -971,12 +1003,29 @@ class HorseDatabase:
         row = c.fetchone()
         return row['jockey'] if row else None
 
+    # Class-rank multipliers for beaten-margin adjustment. Lower rank = higher
+    # class (G1=0, Class 5=5). Dividing raw margin by these maps "1L beaten in
+    # Class 1" to a smaller effective margin (more impressive) than "1L beaten
+    # in Class 5", which is what professional handicappers want.
+    _CLASS_MARGIN_DIVISOR = {0: 1.30, 1: 1.15, 2: 1.05, 3: 1.00,
+                             4: 0.95, 5: 0.85}
+
+    @staticmethod
+    def _class_adjust_margin(margin, class_type: str) -> float:
+        if not margin or margin <= 0:
+            return 0.0
+        from ml.features import extract_class_rank
+        rank = extract_class_rank(class_type or '')
+        if rank is None:
+            return float(margin)
+        return float(margin) / HorseDatabase._CLASS_MARGIN_DIVISOR.get(rank, 1.0)
+
     def get_beaten_margins(self, horse_name: str, n_races: int = 5,
                            before_date: str = '') -> Dict:
         """Get beaten margin stats for recent races.
 
-        Margins < 2.75 lengths behind winner = strong next-out signal.
-        This is a key feature in professional handicapping.
+        Margins are class-adjusted before bucketing (1L in Class 1 is a
+        different beating than 1L in Class 5).
 
         before_date: backtest-leak guard (see get_horse_history) — without it
         this reads the current race's own margin/finish.
@@ -984,7 +1033,7 @@ class HorseDatabase:
         c = self.conn.cursor()
         df = ' AND race_date < ?' if before_date else ''
         c.execute(f"""
-            SELECT finish_position, margin
+            SELECT finish_position, margin, class_type
             FROM race_results
             WHERE horse_name = ? AND finish_position > 0{df}
             ORDER BY race_date DESC, race_number DESC
@@ -994,17 +1043,18 @@ class HorseDatabase:
         if not rows:
             return {'runs': 0, 'close_finishes': 0, 'avg_margin': 0, 'last_margin': 0}
 
-        margins = [r['margin'] for r in rows if r['margin'] and r['margin'] > 0]
-        # Close finishes: within 2.75 lengths of winner (non-winners)
-        close = [m for m in margins if m <= 2.75]
-        last_margin = margins[0] if margins else 0
-        # Distinguish winner (margin=0, position=1) from missing margin data
+        adj_margins = [
+            self._class_adjust_margin(r['margin'], r['class_type'])
+            for r in rows if r['margin'] and r['margin'] > 0
+        ]
+        close = [m for m in adj_margins if m <= 2.75]
+        last_margin = adj_margins[0] if adj_margins else 0
         last_winner = rows[0]['finish_position'] == 1 if rows else False
 
         return {
             'runs': len(rows),
             'close_finishes': len(close),
-            'avg_margin': round(sum(margins) / len(margins), 2) if margins else 0,
+            'avg_margin': round(sum(adj_margins) / len(adj_margins), 2) if adj_margins else 0,
             'last_margin': round(last_margin, 2),
             'last_winner': last_winner,
         }
