@@ -173,3 +173,46 @@ def test_append_log_idempotent_re_run_drops_prior_rows_for_date(tmp_path, monkey
     with open(log_path) as f:
         rows = list(csv.DictReader(f))
     assert len(rows) == 1, f'expected idempotent re-run, got {len(rows)} rows'
+
+
+def test_append_log_partial_backfill_preserves_other_variants(tmp_path, monkeypatch):
+    """If a single variant is re-run for an old date (e.g. backfilling
+    flat_min_pre_chaos after it was added), the existing rows for OTHER
+    variants on that date must survive. Drop only rows where (date, variant)
+    matches the new rows."""
+    log_path = tmp_path / 'stake_ab_log.csv'
+    monkeypatch.setattr('scripts.stake_ab.LOG_PATH', log_path)
+    _append_log([
+        _row(date='2026/05/24', variant='flat_min'),
+        _row(date='2026/05/24', variant='flat_1pct'),
+        _row(date='2026/05/24', variant='invert'),
+    ], '2026/05/24')
+
+    # Partial backfill: only flat_min_pre_chaos for the same date.
+    _append_log([_row(date='2026/05/24', variant='flat_min_pre_chaos')],
+                '2026/05/24')
+
+    with open(log_path) as f:
+        rows = list(csv.DictReader(f))
+    variants = sorted(r['variant'] for r in rows)
+    assert variants == ['flat_1pct', 'flat_min', 'flat_min_pre_chaos', 'invert'], (
+        f'partial backfill stripped sibling variants; got {variants!r}'
+    )
+
+
+def test_append_log_full_rerun_still_replaces_same_variant(tmp_path, monkeypatch):
+    """The full-rerun case (same set of variants for same date) must still
+    overwrite — otherwise duplicate rows accumulate."""
+    log_path = tmp_path / 'stake_ab_log.csv'
+    monkeypatch.setattr('scripts.stake_ab.LOG_PATH', log_path)
+    _append_log([
+        _row(date='2026/05/24', variant='flat_min'),
+        _row(date='2026/05/24', variant='flat_1pct'),
+    ], '2026/05/24')
+    _append_log([
+        _row(date='2026/05/24', variant='flat_min'),
+        _row(date='2026/05/24', variant='flat_1pct'),
+    ], '2026/05/24')
+    with open(log_path) as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 2, f'expected 2 rows after full re-run, got {len(rows)}'
