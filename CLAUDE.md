@@ -46,6 +46,13 @@ python3 -m scripts.shadow_evaluate --report                                  # c
 python3 -m scripts.shadow_evaluate --report --variant jockey_form            # cumulative jockey_form
 # Both shadows auto-run via scripts.race_day; both eval auto-run via scripts.post_race.
 
+# Stake A/B — same picks, different stake sizes (flat-$10 vs production ramp
+# vs flat-1% vs invert). User typically bets HK$10/combo (memory:
+# user_stake_habit_10hkd_minimum); this measures which strategy actually wins
+# forward. Auto-runs in scripts.post_race step 2c.
+python3 -m scripts.stake_ab '2026/05/20'                                     # log one meeting
+python3 -m scripts.stake_ab --report                                         # cumulative + Bayesian verdict per variant
+
 # Forward-validation experiments + empirical trackers (auto-run by post_race)
 python3 -m scripts.tier_b_evaluate '2026/05/17'           # OLD vs NEW recommender (tier_b_log.csv)
 python3 -m scripts.tier_b_evaluate --report               # cumulative tier B comparison

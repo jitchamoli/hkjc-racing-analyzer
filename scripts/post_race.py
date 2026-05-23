@@ -80,6 +80,20 @@ def main():
             print(f"\nWARN: shadow_evaluate jockey_form failed but results were ingested.",
                   file=sys.stderr)
 
+    # Step 2c: stake A/B — compares ROI under flat-$10/combo (user habit),
+    # production tier-ramp, flat-1%, and inverted ramp. Same picks, different
+    # stakes. Reads results/race_data_*_with_results.json so it must run AFTER
+    # step 1 (which writes that file). See scripts/stake_ab.py for variants.
+    merged_path = REPO_ROOT / 'results' / f'race_data_{date_str}_with_results.json'
+    if not merged_path.exists():
+        print(f"\n  [2c/6 stake_ab] SKIPPED — no merged race_data at {merged_path}")
+    else:
+        rc = _run("2c/6 stake_ab (staking variants on same picks)",
+                  [sys.executable, '-m', 'scripts.stake_ab', args.race_date])
+        if rc != 0:
+            print(f"\nWARN: stake_ab failed but results were ingested.",
+                  file=sys.stderr)
+
     # Step 3: tier B eval — always safe (skips internally if no rows)
     _run("3/6 tier B evaluate (OLD vs NEW recommender)",
          [sys.executable, '-m', 'scripts.tier_b_evaluate', args.race_date])
@@ -124,6 +138,7 @@ def main():
     print(f"\n{'='*70}\n  POST-RACE COMPLETE — {args.race_date}\n{'='*70}")
     print(f"  Cumulative shadow rule_w:     python3 -m scripts.shadow_evaluate --report")
     print(f"  Cumulative shadow jockey_form:python3 -m scripts.shadow_evaluate --report --variant jockey_form")
+    print(f"  Cumulative stake A/B:         python3 -m scripts.stake_ab --report")
     print(f"  Cumulative tier B forward:    python3 -m scripts.tier_b_evaluate --report")
     print(f"  Spoiler dataset:              tracking_data/spoilers.csv")
     print(f"  EDGE history:                 tracking_data/edge_log.csv + edge_stats.json")
