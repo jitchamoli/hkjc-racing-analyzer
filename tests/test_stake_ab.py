@@ -4,7 +4,10 @@ Test-engineer expert review 2026-05-23 priority #1: this is the core P&L
 math for every forward-validation stake variant. Dividend-indexing bugs
 (div-per-$10 vs div-per-$1) would silently 10×-scale every ROI.
 """
-from scripts.stake_ab import _pnl, firing_bets
+import csv
+from unittest.mock import patch
+
+from scripts.stake_ab import _append_log, _pnl, firing_bets
 
 
 # ---------------------------------------------------------------------------
@@ -116,3 +119,57 @@ def test_firing_bets_edge_tier_fires():
 def test_firing_bets_high_tier_fires():
     fires = firing_bets(_race(top1_odds=5.0, tier='HIGH', n_horses=10))
     assert 'BOX TRIO-5' in fires
+
+
+# ---------------------------------------------------------------------------
+# _append_log — atomic write (no torn file on crash mid-rewrite)
+# ---------------------------------------------------------------------------
+
+def _row(date='2026/05/24', variant='flat_min'):
+    return {
+        'race_date': date, 'race_number': 1, 'variant': variant,
+        'bet_label': 'BOX TRIO-5', 'combos': 10, 'stake_hkd': 100,
+        'hit': 0, 'dividend_per_1': 0, 'pnl_hkd': -100,
+    }
+
+
+def test_append_log_writes_via_tmp_then_replace(tmp_path, monkeypatch):
+    """Atomic-write contract: the function must write to a .tmp sibling
+    and then os.replace it, so a crash mid-rewrite cannot zero the file."""
+    log_path = tmp_path / 'stake_ab_log.csv'
+    monkeypatch.setattr('scripts.stake_ab.LOG_PATH', log_path)
+
+    captured_tmp_paths = []
+    real_replace = type(log_path).replace
+
+    def spy_replace(self, target):
+        captured_tmp_paths.append(str(self))
+        return real_replace(self, target)
+
+    monkeypatch.setattr(type(log_path), 'replace', spy_replace)
+    _append_log([_row()], '2026/05/24')
+
+    assert log_path.exists(), 'final log file should exist after _append_log'
+    assert any(p.endswith('.csv.tmp') for p in captured_tmp_paths), (
+        f'expected a .csv.tmp intermediate; got {captured_tmp_paths!r}. '
+        f'A direct open(LOG_PATH, "w") truncates before write — non-atomic.'
+    )
+
+
+def test_append_log_no_tmp_left_behind_on_success(tmp_path, monkeypatch):
+    log_path = tmp_path / 'stake_ab_log.csv'
+    monkeypatch.setattr('scripts.stake_ab.LOG_PATH', log_path)
+    _append_log([_row()], '2026/05/24')
+    assert not (tmp_path / 'stake_ab_log.csv.tmp').exists(), (
+        'tmp file should be moved into place, not left as a sibling'
+    )
+
+
+def test_append_log_idempotent_re_run_drops_prior_rows_for_date(tmp_path, monkeypatch):
+    log_path = tmp_path / 'stake_ab_log.csv'
+    monkeypatch.setattr('scripts.stake_ab.LOG_PATH', log_path)
+    _append_log([_row(date='2026/05/24', variant='flat_min')], '2026/05/24')
+    _append_log([_row(date='2026/05/24', variant='flat_min')], '2026/05/24')
+    with open(log_path) as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 1, f'expected idempotent re-run, got {len(rows)} rows'
