@@ -372,26 +372,16 @@ def _per_meeting_winner(rows, variant, baseline='flat_min') -> list[int]:
     return out
 
 
+from scripts.forward_common import bayesian_verdict as _shared_bayesian_verdict
+
+
 def _bayesian_verdict(winners: list[int]) -> dict:
-    """Beta-Binomial posterior P(variant beats baseline) under Beta(1,1).
-    Optional-stopping safe — see scripts/shadow_evaluate.py for rationale."""
-    n = len(winners)
-    if n == 0:
-        return {'n': 0, 'wins': 0, 'posterior': 0.5, 'verdict': 'WATCH'}
-    wins = sum(winners)
-    losses = n - wins
-    try:
-        from scipy.stats import beta as _beta
-        posterior = float(1.0 - _beta.cdf(0.5, 1 + wins, 1 + losses))
-    except ImportError:
-        posterior = wins / n
-    if posterior >= 0.95:
-        verdict = 'SHIP'
-    elif posterior <= 0.05:
-        verdict = 'KILL'
-    else:
-        verdict = 'WATCH'
-    return {'n': n, 'wins': wins, 'posterior': posterior, 'verdict': verdict}
+    """Thin wrapper around scripts.forward_common.bayesian_verdict that
+    renames `n_meetings` → `n` for back-compat with the existing report
+    text. Underlying logic + thresholds are identical."""
+    out = _shared_bayesian_verdict(winners)
+    return {'n': out['n_meetings'], 'wins': out['wins'],
+            'posterior': out['posterior'], 'verdict': out['verdict']}
 
 
 def report() -> int:
