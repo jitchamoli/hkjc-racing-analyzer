@@ -43,31 +43,43 @@ LOG_PATH = REPO_ROOT / 'tracking_data' / 'stake_ab_log.csv'
 DEFAULT_BANKROLL = float(getattr(config, 'BANKROLL', 10000.0))
 
 # Variant definitions. Extend by adding a new entry — the rest is generic.
+# `apply_chaos`: when False, the CHAOS soft-going filter is BYPASSED for this
+# variant's bet selection. This gives us the counterfactual baseline needed
+# to forward-validate the CHAOS filter at N≥6 meetings (Bayesian per-meeting
+# verdict via cumulative ROI delta vs production).
 VARIANTS = {
     'flat_min':   {'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
-                   'skip_tiers': set(),
+                   'skip_tiers': set(), 'apply_chaos': True,
                    'label': 'flat HK$10/combo (user habit)'},
+    'flat_min_pre_chaos': {
+                   'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
+                   'skip_tiers': set(), 'apply_chaos': False,
+                   # Counterfactual: what flat_min would have done WITHOUT
+                   # the CHAOS filter shipped 2026-05-23. After N≥6 forward
+                   # meetings where CHAOS fires, compare cumulative ROI vs
+                   # flat_min via bayesian_verdict to validate/kill the filter.
+                   'label': 'flat HK$10/combo, CHAOS filter OFF'},
     'flat_min_skip_aware': {
                    'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
                    # Mirrors production's implicit "no bet on SKIP-tier races"
                    # without copying its tier ramp. Isolates whether
                    # production's edge is the RAMP or the SKIP filter.
-                   'skip_tiers': {'SKIP'},
+                   'skip_tiers': {'SKIP'}, 'apply_chaos': True,
                    'label': 'flat HK$10/combo + skip SKIP-tier'},
     'production': {'mode': 'race_ramp_split',
                    'ramp': {'EDGE': 0.030, 'HIGH': 0.020, 'MED': 0.010,
                             'LOW': 0.005, 'SKIP': 0.000},
-                   'skip_tiers': set(),
+                   'skip_tiers': set(), 'apply_chaos': True,
                    'label': 'production ramp 3/2/1/0.5%'},
     'flat_1pct':  {'mode': 'race_ramp_split',
                    'ramp': {'EDGE': 0.010, 'HIGH': 0.010, 'MED': 0.010,
                             'LOW': 0.010, 'SKIP': 0.000},
-                   'skip_tiers': set(),
+                   'skip_tiers': set(), 'apply_chaos': True,
                    'label': 'flat 1% × bankroll'},
     'invert':     {'mode': 'race_ramp_split',
                    'ramp': {'EDGE': 0.005, 'HIGH': 0.010, 'MED': 0.020,
                             'LOW': 0.030, 'SKIP': 0.000},
-                   'skip_tiers': set(),
+                   'skip_tiers': set(), 'apply_chaos': True,
                    'label': 'inverted 0.5/1/2/3%'},
 }
 
@@ -81,21 +93,25 @@ LOG_HEADERS = [
 # Firing-bet inference — mirrors dashboard/template.py:799-840
 # ---------------------------------------------------------------------------
 
-def firing_bets(race: dict) -> dict[str, int]:
+def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
     """Return {bet_label: combo_count} for all bets the dashboard fires on
     this race. Mirrors the template.py logic so the A/B reflects what the
-    user actually sees on their dashboard."""
+    user actually sees on their dashboard.
+
+    apply_chaos: when True (default), suppresses ALL bets on soft-going
+    races per the CHAOS filter shipped 2026-05-23. Set False to compute
+    the pre-CHAOS counterfactual for forward-validation of the filter."""
     horses = race.get('horses', [])
-    # CHAOS suppression — applied retrospectively so historical race_data
-    # JSONs (generated before the filter shipped) compare apples-to-apples
-    # with current production behavior.
-    from betting.conviction import detect_chaos
-    is_chaos, _ = detect_chaos(
-        going=race.get('going', ''), horses=horses,
-        class_type=race.get('class_type', ''),
-    )
-    if is_chaos:
-        return {}
+    if apply_chaos:
+        # CHAOS suppression — applied retrospectively so historical
+        # race_data JSONs compare apples-to-apples with current production.
+        from betting.conviction import detect_chaos
+        is_chaos, _ = detect_chaos(
+            going=race.get('going', ''), horses=horses,
+            class_type=race.get('class_type', ''),
+        )
+        if is_chaos:
+            return {}
     bet_horse_counts = defaultdict(int)
     for h in horses:
         b = (h.get('bet_recommendation') or '').strip()
@@ -316,10 +332,12 @@ def evaluate_date(race_date: str, bankroll: float) -> int:
         if not race.get('results_available'):
             continue
         rn = race.get('race_number')
-        fires = firing_bets(race)
-        if not fires:
-            continue
-        for variant in VARIANTS:
+        for variant, cfg in VARIANTS.items():
+            # Fires now per-variant — `flat_min_pre_chaos` bypasses the
+            # CHAOS filter; everyone else applies it (production behavior).
+            fires = firing_bets(race, apply_chaos=cfg.get('apply_chaos', True))
+            if not fires:
+                continue
             stakes = variant_stakes(variant, race, fires, bankroll)
             for bet_label, combos in fires.items():
                 stake = stakes.get(bet_label, 0.0)
