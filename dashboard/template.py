@@ -826,16 +826,22 @@ function renderBetCard(race) {{
     // BOX TRIO-5 and F4 BOX-5 also fire as MAIN tier when top5 length is 5
     var top5len = race.horses.slice(0, 5).length;
     if (top5len === 5) {{
-      // SKIP-tier gate (shipped 2026-05-23 from stake_ab backfill: BOX TRIO-5
-      // auto-firing on SKIP-tier races returned -75.6% ROI / lost ~$1,656 over
-      // 10 meetings). When the recommender said SKIP, BOX TRIO-5 follows.
-      if (tier !== 'SKIP') {{
+      // BOX TRIO-5 F4-style triple gate (widened 2026-05-23 from SKIP-only
+      // to match the F4 BOX-5 gate). Backtest on 668-race burned holdout:
+      // ungated ROI -45.4% vs triple-gated -33.6% (+11.8pp). Heavy fav alone
+      // does 70% of the work — TRIO pools collapse around dominant favs.
+      var t5top1 = (race.horses[0] && race.horses[0].win_odds) || 0;
+      var t5field = race.horses.length;
+      var t5Skip = (t5top1 > 0 && t5top1 < 2.5) ||
+                    (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+                    (t5field < 8);
+      if (!t5Skip) {{
         betLines.push({{lbl: 'BOX TRIO-5', combos: 10}});
         totalCombos += 10;
       }}
       // F4 BOX-5 has its own gate (mirrors logic at line ~915)
-      var f4top1 = (race.horses[0] && race.horses[0].win_odds) || 0;
-      var f4field = race.horses.length;
+      var f4top1 = t5top1;
+      var f4field = t5field;
       var f4Skip = (f4top1 > 0 && f4top1 < 2.5) ||
                     (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
                     (f4field < 8);
@@ -1113,10 +1119,16 @@ function renderBetCard(race) {{
   // for trio coverage and should never be buried as an "optional add".
   // Inserted into the lines array directly above the addOns block below.
   var t5MainBlock = null;
-  // SKIP-tier gate (shipped 2026-05-23 — see template.py:828 + stake_ab finding).
-  // BOX TRIO-5 historically auto-fired on every 5+horse race; on SKIP-tier
-  // races that pattern lost -75.6% ROI across 10 backfilled meetings.
-  if (top5wa.length === 5 && tier !== 'SKIP') {{
+  // F4-style triple gate (widened 2026-05-23, mirrors F4 BOX-5 below).
+  // Backtest 668-race holdout: ungated TRIO-5 ROI -45.4% vs gated -33.6%
+  // (+11.8pp). Heavy fav alone accounts for ~70% of the saved losses —
+  // dominant favs collapse the TRIO pool.
+  var t5Top1OddsWa = (race.horses[0] && race.horses[0].win_odds) || 0;
+  var t5FieldWa = race.horses.length;
+  var t5SkipWa = (t5Top1OddsWa > 0 && t5Top1OddsWa < 2.5) ||
+                  (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+                  (t5FieldWa < 8);
+  if (top5wa.length === 5 && !t5SkipWa) {{
     var t5Nums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
     var t5Stake = waUnit > 0 ? (' · $' + (10 * waUnit)) : '';
     var t5SwapAnno = top5waSwap
@@ -2038,22 +2050,24 @@ function _buildRaceDetailPanel(race) {{
   // 5th model pick to expand placing-pool coverage beyond the QIN-4
   // box. 10 combos at 1 unit = 10-unit stake. Uses the swapped top-5
   // (same rank-5 swap as F4 BOX-5) for consistency.
-  // SKIP-tier gate: shipped 2026-05-23 after stake_ab backfill showed
-  // BOX TRIO-5 on SKIP-tier races returned -75.6% ROI (-$1,656 over 10
-  // meetings). When the recommender said SKIP, BOX TRIO-5 now follows.
+  // F4-style triple gate (shipped 2026-05-23, widened from SKIP-only).
+  // 668-race holdout backtest: ungated -45.4% vs gated -33.6% (+11.8pp).
+  // Heavy fav alone does 70% of the work — TRIO pool collapses on dominant
+  // favorites. Mirrors the F4 BOX-5 gate at line ~1996.
   var top5 = top5_eff;
   if (top5.length === 5) {{
-    var t5DetailTier = race.conviction_tier || '';
-    if (t5DetailTier === 'SKIP') {{
-      ticketLines.push(
-        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.72rem;color:var(--dim)">' +
-          '<span style="display:inline-block;background:rgba(71,85,105,.4);color:var(--dim);font-weight:700;padding:2px 8px;border-radius:3px;font-size:.65rem;margin-right:8px">' +
-            'BOX TRIO-5 · SKIPPED' +
-          '</span>' +
-          'SKIP conviction — recommender said no bet on this race' +
-        '</div>'
-      );
-    }} else {{
+    var t5Top1Odds = (race.horses[0] && race.horses[0].win_odds) || 0;
+    var t5Tier = race.conviction_tier || '';
+    var t5Field = race.horses.length;
+    var t5SkipReason = '';
+    if (t5Top1Odds > 0 && t5Top1Odds < 2.5) {{
+      t5SkipReason = 'heavy fav $' + t5Top1Odds.toFixed(1) + ' — TRIO pool collapses';
+    }} else if (t5Tier !== 'EDGE' && t5Tier !== 'HIGH' && t5Tier !== 'MED') {{
+      t5SkipReason = t5Tier + ' conviction — top-5 coverage unreliable';
+    }} else if (t5Field < 8) {{
+      t5SkipReason = 'small field ' + t5Field + ' — TRIO pool too thin';
+    }}
+    if (!t5SkipReason) {{
       ticketLines.push(
         '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
           '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
@@ -2062,6 +2076,15 @@ function _buildRaceDetailPanel(race) {{
           swapBadge +
           top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
           '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
+        '</div>'
+      );
+    }} else {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.72rem;color:var(--dim)">' +
+          '<span style="display:inline-block;background:rgba(71,85,105,.4);color:var(--dim);font-weight:700;padding:2px 8px;border-radius:3px;font-size:.65rem;margin-right:8px">' +
+            'BOX TRIO-5 · SKIPPED' +
+          '</span>' +
+          esc(t5SkipReason) +
         '</div>'
       );
     }}

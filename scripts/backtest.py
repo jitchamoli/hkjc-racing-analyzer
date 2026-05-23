@@ -46,6 +46,7 @@ from ml.model import HKJCRacingMLModel
 from ml.features import FeatureEngineering
 from core.scorer import _dynamic_blend_weights
 from betting.optimizer import compute_suggested_stake
+from betting.conviction import assign_conviction_tier
 
 logger = logging.getLogger(__name__)
 
@@ -539,6 +540,24 @@ def simulate_bets(races, conn):
         trio_dividend = get_real_exotic_dividend(conn, date, race_no, 'TRIO')
         f4_dividend = get_real_exotic_dividend(conn, date, race_no, 'FIRST 4')
 
+        # F4-style triple-gate skip test for BOX TRIO-5 (user A/B 2026-05-23).
+        # Mirrors the existing F4 BOX-5 gate in dashboard/template.py:1129-1131:
+        # skip on heavy fav (top1<2.5), LOW/SKIP conviction, or small field (<8).
+        # has_edge=False is acceptable approximation — EDGE is rare (N=4 fires
+        # ever per memory) and EDGE→still-passes-gate anyway.
+        race_top_2_share = sum(p[1] for p in preds[:2]) if len(preds) >= 2 else 0.0
+        race_top_3_share = sum(p[1] for p in preds[:3]) if len(preds) >= 3 else 0.0
+        race_conv_tier = assign_conviction_tier(
+            has_edge=False,
+            top_2_share=race_top_2_share, top_3_share=race_top_3_share,
+        )
+        race_field_size = len(preds)
+        trio5_f4gate_skip = (
+            (top_odds > 0 and top_odds < 2.5) or
+            (race_conv_tier not in ('EDGE', 'HIGH', 'MED')) or
+            (race_field_size < 8)
+        )
+
         # Recommender-gated quinella P&L (F-03: what the dashboard actually bets)
         # Determine what the recommender chose for this race
         rec_bet_type = _infer_race_bet_type(preds)
@@ -597,6 +616,9 @@ def simulate_bets(races, conn):
             'box3_q_hit': box3_q_hit,
             'box4_q_hit': box4_q_hit,
             'trio5_hit': trio5_hit,
+            'trio5_f4gate_skip': trio5_f4gate_skip,
+            'race_conviction_tier': race_conv_tier,
+            'race_field_size': race_field_size,
             'trio6_hit': trio6_hit,
             'f4box5_hit': f4box5_hit,
             'f4box6_hit': f4box6_hit,
@@ -841,6 +863,67 @@ def print_exotic_hits(records):
         print(f"    Bets: {n_gated}  |  Stake: ${total_stake:.0f}  "
               f"|  P&L: ${total_pnl:+.2f}  |  Hits: {hits} ({hits/n_gated*100:.1f}%)")
         print(f"    SIMULATED ROI: {roi:+.2f}%")
+
+
+def print_trio5_f4_gate_ab(records):
+    """A/B test: does adding the F4 BOX-5 triple gate (heavy-fav, LOW/SKIP
+    conviction, small field) to BOX TRIO-5 improve ROI vs the current
+    'fires whenever top-5 exists' behavior?
+
+    Cost = 10 units/race (10 combos × 1u). Hit pays TRIO dividend.
+    Compares two strategies on the same races + same picks:
+      Ungated:   fires on every race with top-5 picks
+      F4-gated:  skip when (top1 < 2.5) OR (tier ∈ {LOW, SKIP}) OR (field < 8)
+    """
+    # Filter to races with TRIO dividend data
+    elig = [r for r in records if r.get('trio_dividend') is not None]
+    if not elig:
+        print("\n  No TRIO dividend data — skipping BOX TRIO-5 gate A/B.")
+        return
+
+    print("\n" + "=" * 70)
+    print("  BOX TRIO-5 GATE A/B — ungated (ship default) vs F4-style triple gate")
+    print("=" * 70)
+    print("  Stake = 10 units/race (10 combos × 1u). Real TRIO dividends from DB.")
+
+    def _summary(rows, label):
+        n = len(rows)
+        if n == 0:
+            print(f"  {label:<28}: 0 races")
+            return
+        hits = sum(1 for r in rows if r['trio5_hit'])
+        stake = n * 10.0
+        pnl = sum((r['trio_dividend'] - 10.0) if r['trio5_hit'] else -10.0
+                  for r in rows)
+        roi = pnl / stake * 100
+        hr = hits / n * 100
+        print(f"  {label:<28}: {n:>3} races, {hits:>2} hits ({hr:>4.1f}%)  "
+              f"stake={stake:>6.0f}  pnl={pnl:>+8.1f}  ROI={roi:>+6.1f}%")
+
+    ungated = elig
+    gated = [r for r in elig if not r.get('trio5_f4gate_skip')]
+    skipped = [r for r in elig if r.get('trio5_f4gate_skip')]
+
+    print()
+    _summary(ungated,  "Ungated (current behavior)")
+    _summary(gated,    "F4-style triple-gated")
+    _summary(skipped,  "Bets the gate would skip")
+    print()
+
+    # Quick breakdown of WHY each skip fired (to spot-check the gate's
+    # selectivity — too few skips means the gate barely matters)
+    if skipped:
+        heavy_fav = sum(1 for r in skipped if (r['odds'] or 0) > 0 and r['odds'] < 2.5)
+        low_conv = sum(1 for r in skipped
+                       if r.get('race_conviction_tier') not in ('EDGE', 'HIGH', 'MED'))
+        small_field = sum(1 for r in skipped if (r.get('race_field_size') or 0) < 8)
+        print(f"  Skip reasons (overlap possible): heavy_fav={heavy_fav}, "
+              f"low_conv={low_conv}, small_field={small_field}")
+
+    print()
+    print("  Interpretation: if gated ROI > ungated ROI by a meaningful margin,")
+    print("  ship the gate. If similar, the gate is harmless but unnecessary.")
+    print("  If skipped-races ROI > 0, the gate is REMOVING profitable bets.")
 
 
 def print_production_stake_pnl(records, bankroll: float):
@@ -1259,6 +1342,7 @@ def main():
 
     print_strategies(records, args.min_ev)
     print_exotic_hits(records)
+    print_trio5_f4_gate_ab(records)
     if args.production_stakes:
         print_production_stake_pnl(records, args.bankroll)
     print_clv(records)
