@@ -38,17 +38,40 @@ class ClassMovementAnalyzer:
         if current_rank is None:
             return 50.0, "Class info unavailable"
 
-        prev_rank = None
+        recent = []  # up to 3 most-recent (rank, finish_position) pairs
         for race in horse_history:
             rc = race.get("class", "") or race.get("class_type", "")
             rank = ClassMovementAnalyzer._parse_class(rc)
-            if rank is not None:
-                prev_rank = rank
+            if rank is None:
+                continue
+            fp_raw = race.get("position") or race.get("finish_position") or 0
+            try:
+                fp = int(fp_raw) if fp_raw else 0
+            except (ValueError, TypeError):
+                fp = 0
+            recent.append((rank, fp))
+            if len(recent) >= 3:
                 break
 
-        if prev_rank is None:
+        if not recent:
             return 50.0, "No previous class data"
 
+        # AU-school multi-race drop: dropping after a sequence of losses at a
+        # higher grade is a recognised value angle. Fires only when the drop
+        # survives a 3-race window (not just the immediate prior).
+        # Rank is INVERTED: lower number = higher class (G1=0, Class 5=5),
+        # so a class DROP means current_rank > prior ranks.
+        if len(recent) >= 3:
+            median_rank = sorted(r for r, _ in recent)[1]
+            valid_fps = [fp for _, fp in recent if fp > 0]
+            avg_fp = sum(valid_fps) / len(valid_fps) if valid_fps else 0
+            if current_rank > median_rank and avg_fp >= 6:
+                return 92.0, (
+                    f"DROP AFTER POOR FORM: avg finish {avg_fp:.1f} over 3 prior at "
+                    f"higher class → Class {current_rank}"
+                )
+
+        prev_rank = recent[0][0]
         diff = prev_rank - current_rank  # positive = rising, negative = dropping
 
         if diff == 0:

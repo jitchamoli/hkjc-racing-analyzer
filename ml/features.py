@@ -72,6 +72,7 @@ _jt_pair_cache: dict = {}        # keyed by (jockey, trainer, before_date)
 _speed_fig_cache: dict = {}      # keyed by (horse_name, before_date)
 _par_times_cache: dict = {}      # keyed by before_date — par_times is O(N) to compute
 _running_pos_cache: dict = {}    # keyed by (horse_name, before_date) — v6.8 Features 22-24
+_daily_variant_cache: dict = {}  # keyed by (race_date, before_race_no, before_date)
 
 
 def clear_feature_caches() -> None:
@@ -83,6 +84,7 @@ def clear_feature_caches() -> None:
     _speed_fig_cache.clear()
     _par_times_cache.clear()
     _running_pos_cache.clear()
+    _daily_variant_cache.clear()
 
 
 def extract_class_rank(class_type: str) -> Optional[int]:
@@ -594,7 +596,8 @@ class FeatureEngineering:
     @staticmethod
     def _compute_speed_fig_norm(horse_name, conn, before_date):
         from analytics.speed_figures import (
-            compute_par_times, adjusted_speed_figure, normalize_speed_figure,
+            compute_par_times, compute_daily_variant,
+            adjusted_speed_figure, normalize_speed_figure,
         )
         c = None
         owns = conn is None
@@ -609,14 +612,16 @@ class FeatureEngineering:
             # Look up the horse's most recent prior race
             if before_date:
                 row = c.execute(
-                    "SELECT finish_time, distance, going, class_type, weight "
+                    "SELECT finish_time, distance, going, class_type, weight, "
+                    "race_date, race_number "
                     "FROM race_results WHERE horse_name = ? AND race_date < ? "
                     "ORDER BY race_date DESC, race_number DESC LIMIT 1",
                     (horse_name, before_date),
                 ).fetchone()
             else:
                 row = c.execute(
-                    "SELECT finish_time, distance, going, class_type, weight "
+                    "SELECT finish_time, distance, going, class_type, weight, "
+                    "race_date, race_number "
                     "FROM race_results WHERE horse_name = ? "
                     "ORDER BY race_date DESC, race_number DESC LIMIT 1",
                     (horse_name,),
@@ -630,10 +635,19 @@ class FeatureEngineering:
             if par_times is None:
                 par_times = compute_par_times(c, before_date=before_date)
                 _par_times_cache[before_date] = par_times
+            # Daily track variant — adjust par for the conditions on the day
+            # of the horse's prior race (median earlier-card winner vs par).
+            v_key = (row['race_date'], row['race_number'], before_date)
+            variant = _daily_variant_cache.get(v_key)
+            if variant is None:
+                variant = compute_daily_variant(
+                    c, row['race_date'], row['race_number'], par_times,
+                )
+                _daily_variant_cache[v_key] = variant
             sf = adjusted_speed_figure(
                 row['finish_time'], row['distance'] or 0,
                 row['going'] or '', row['class_type'] or '',
-                row['weight'] or 120, par_times,
+                row['weight'] or 120, par_times, daily_variant=variant,
             )
             if sf is None:
                 return 0.5

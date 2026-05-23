@@ -22,6 +22,17 @@ class DrawBiasAnalyzer:
     # value = (ideal_draw, spread)  where spread controls falloff steepness
     RAIL_BIAS: Dict[str, Dict[str, Dict[str, Tuple[int, int]]]] = {
         "ST": {  # Sha Tin - wide, galloping track
+            "chute_short": {  # ST 1000m + 1200m on the straight chute (no turn) —
+                              # stand-side high-draw bias, opposite of round-1200m
+                "A":   (9, 4),
+                "A+1": (9, 4),
+                "A+2": (8, 4),
+                "A+3": (8, 4),
+                "B":   (8, 4),
+                "B+2": (7, 4),
+                "C":   (7, 5),
+                "C+3": (7, 5),
+            },
             "short": {  # ≤1200m
                 "A":   (2, 3),
                 "A+1": (3, 3),
@@ -110,9 +121,15 @@ class DrawBiasAnalyzer:
 
     @classmethod
     def analyze_draw_with_rail(
-        cls, draw: int, distance: str, course: str, venue: str
+        cls, draw: int, distance: str, course: str, venue: str,
+        field_size: int = 0, race_no: int = 0,
     ) -> Tuple[float, str]:
         """Score draw advantage considering rail position.
+
+        field_size: when >0, clip ideal to the field — draw 12 of 12 is the
+        widest the field has, but draw 12 of 7 doesn't exist post-scratchings.
+        race_no: when ≥ 6 on a true-rail (A/A+1) configuration, the inside
+        path is chewed up; nudge ideal one path outward.
 
         Returns (score 0-100, reason string).
         """
@@ -122,13 +139,22 @@ class DrawBiasAnalyzer:
         rail = cls._extract_rail(course)
         vk = cls._venue_key(venue)
         db = cls._distance_bucket(distance)
+        # ST 1000m + 1200m run on the straight chute (no turn) — flip to the
+        # stand-side high-draw bias bucket instead of the round-track low-draw.
+        if vk == "ST" and db == "short":
+            db = "chute_short"
 
         if not rail or vk not in cls.RAIL_BIAS:
-            # Fallback: basic draw scoring without rail info
             return cls._basic_draw_score(draw, distance)
 
         bias = cls.RAIL_BIAS.get(vk, {}).get(db, {})
         ideal, spread = bias.get(rail, (5, 4))
+        if field_size and field_size > 0 and ideal > field_size:
+            ideal = field_size
+        # Rail degradation: by race 6+ on a true-rail configuration the inside
+        # path is chewed and the live rail drifts a path or two outward.
+        if race_no >= 6 and rail in ("A", "A+1") and ideal <= 3:
+            ideal += 1
 
         diff = abs(draw - ideal)
         if diff == 0:

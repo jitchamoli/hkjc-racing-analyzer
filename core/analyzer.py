@@ -602,7 +602,9 @@ class CombinedRaceAnalyzer:
 
         # --- Enhanced draw with rail bias ---
         draw_score, draw_reason = self.draw_analyzer.analyze_draw_with_rail(
-            horse.draw, distance, race.course, race.venue
+            horse.draw, distance, race.course, race.venue,
+            field_size=len(all_horses) if all_horses else 0,
+            race_no=race.race_number or 0,
         )
         factors["draw"] = draw_score
         reasoning.append(draw_reason)
@@ -616,10 +618,17 @@ class CombinedRaceAnalyzer:
             reasoning.append(tips_reason)
 
         # --- NEW: Pace Map ---
-        style = horse.running_style or self.pace_analyzer.estimate_style_from_form(
-            horse.last_6, horse.draw,
-            int(distance) if distance and distance.isdigit() else 1200
-        )
+        style = horse.running_style
+        if not style:
+            conn = getattr(self._horse_db, 'conn', None) if self._horse_db else None
+            style = self.pace_analyzer.classify_style_from_db(
+                horse.name, conn=conn, before_date=race.date,
+            )
+        if not style:
+            style = self.pace_analyzer.estimate_style_from_form(
+                horse.last_6, horse.draw,
+                int(distance) if distance and distance.isdigit() else 1200,
+            )
         if pace_scenario:
             pace_score, pace_reason = self.pace_analyzer.analyze_pace(style, pace_scenario)
         else:
