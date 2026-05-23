@@ -38,6 +38,30 @@ class PaceAnalyzer:
             return "Midfield"
         return "Closer"
 
+    @classmethod
+    def classify_style_from_db(
+        cls, horse_name: str, conn=None, before_date=None,
+    ) -> str:
+        """Derive a style label from the horse's most recent running_position
+        in the DB (99.4% coverage) via the ml.features helper. Returns ''
+        when no prior data — caller should then fall back to the last_6 +
+        draw heuristic in estimate_style_from_form."""
+        if not horse_name:
+            return ""
+        from ml.features import FeatureEngineering
+        early, late, style_f = FeatureEngineering.calculate_running_position_features(
+            horse_name, conn=conn, before_date=before_date,
+        )
+        if early == 0.5 and late == 0.5 and style_f == 0.5:
+            return ""
+        if style_f <= 0.2:
+            return "Leader"
+        if style_f <= 0.45:
+            return "Stalker"
+        if style_f >= 0.7:
+            return "Closer"
+        return "Midfield"
+
     @staticmethod
     def estimate_style_from_form(
         last_6: str, draw: int = 0, distance: int = 1200

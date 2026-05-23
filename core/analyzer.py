@@ -14,6 +14,7 @@ from typing import List, Optional, Dict
 from datetime import datetime
 import logging
 
+import config
 from core.fetcher import HKJCDataFetcher, HorseEntry, RaceCard
 from core.ports import HorseHistoryStore
 
@@ -289,7 +290,8 @@ class BettingStrategy:
                               table: str, count_field: str,
                               tiers: dict, tier_scores: tuple,
                               thresholds: list, score_cap: tuple,
-                              place_bonuses: list, default_score: float) -> tuple:
+                              place_bonuses: list, default_score: float,
+                              before_date: str = '') -> tuple:
         """Shared scoring logic for jockeys and trainers.
 
         Args:
@@ -299,7 +301,10 @@ class BettingStrategy:
         """
         if db and name:
             stats = stats_getter(name)
-            if not stats:
+            # The surname-LIKE fallback reads the season-aggregate table, which
+            # includes future races — skip it in backtest (before_date set) to
+            # avoid re-introducing the leak the asof getter just closed.
+            if not stats and not before_date:
                 try:
                     c = db.conn.cursor()
                     c.execute(f"SELECT * FROM {table} WHERE name LIKE ?",
@@ -345,11 +350,13 @@ class BettingStrategy:
         return default_score, f"{role.title()}: {name}"
 
     @staticmethod
-    def analyze_jockey(jockey: str, db=None) -> tuple:
-        """Score jockey using real DB stats when available, else fallback."""
+    def analyze_jockey(jockey: str, db=None, before_date: str = '') -> tuple:
+        """Score jockey using real DB stats when available, else fallback.
+        before_date: backtest-leak guard — computes season-to-date stats."""
         return BettingStrategy._score_person_from_db(
-            name=jockey, role="jockey", db=db,
-            stats_getter=db.get_jockey_stats if db else lambda x: None,
+            name=jockey, role="jockey", db=db, before_date=before_date,
+            stats_getter=(lambda n: db.get_jockey_stats(n, before_date=before_date))
+                         if db else (lambda x: None),
             table="jockey_stats", count_field="rides",
             # Tiers refreshed 2026-05-17 against current-season DB stats:
             # - "atzeni" promoted tier 2 → tier 1 (527 rides at 10.8% wr)
@@ -377,11 +384,13 @@ class BettingStrategy:
         )
 
     @staticmethod
-    def analyze_trainer(trainer: str, db=None) -> tuple:
-        """Score trainer using real DB stats when available, else fallback."""
+    def analyze_trainer(trainer: str, db=None, before_date: str = '') -> tuple:
+        """Score trainer using real DB stats when available, else fallback.
+        before_date: backtest-leak guard — computes season-to-date stats."""
         return BettingStrategy._score_person_from_db(
-            name=trainer, role="trainer", db=db,
-            stats_getter=db.get_trainer_stats if db else lambda x: None,
+            name=trainer, role="trainer", db=db, before_date=before_date,
+            stats_getter=(lambda n: db.get_trainer_stats(n, before_date=before_date))
+                         if db else (lambda x: None),
             table="trainer_stats", count_field="runners",
             # Tiers refreshed 2026-05-17 against current-season DB stats:
             # - "shum" promoted tier 2 → tier 1 (445 runners at 12.1% wr,
@@ -407,33 +416,6 @@ class BettingStrategy:
             place_bonuses=[(0.30, 4, 95), (0.20, 2, 93)],
             default_score=58.0,
         )
-
-    @staticmethod
-    def analyze_draw(draw: int, distance: str) -> tuple:
-        dist = int(distance) if distance and distance.isdigit() else 1200
-
-        if dist <= 1000:
-            ideal_range = (1, 4)
-        elif dist <= 1400:
-            ideal_range = (1, 6)
-        else:
-            ideal_range = (4, 10)
-
-        if draw == 0:
-            return 50.0, "No draw data"
-
-        if ideal_range[0] <= draw <= ideal_range[1]:
-            # Within ideal range — score based on closeness to center
-            center = (ideal_range[0] + ideal_range[1]) / 2
-            dist_from_center = abs(draw - center) / max(1, (ideal_range[1] - ideal_range[0]) / 2)
-            score = 95 - dist_from_center * 15  # 95 at center, ~80 at edges
-            return score, f"Good barrier ({draw})"
-        elif draw > 12:
-            return 45.0, f"Wide draw ({draw})"
-        elif draw > ideal_range[1]:
-            return 60.0, f"Outside ideal range ({draw})"
-        else:
-            return 65.0, f"Average barrier ({draw})"
 
     @staticmethod
     def analyze_tips(horse: "Horse", all_horses: List["Horse"]) -> tuple:
@@ -545,7 +527,8 @@ class CombinedRaceAnalyzer:
         # Normalize distance to string (some paths pass int, some str)
         distance = str(race.distance) if race.distance else "1200"
         # Cache horse record once — used by going_pref and career_place sections
-        horse_record = self._horse_db.get_horse_record(horse.name) if self._horse_db else None
+        horse_record = self._horse_db.get_horse_record(
+            horse.name, before_date=race.date if race.date else '') if self._horse_db else None
 
         # --- Core factors (same as before) ---
 
@@ -607,17 +590,21 @@ class CombinedRaceAnalyzer:
         else:
             reasoning.append("No live odds available")
 
-        jockey_score, jockey_reason = self.strategy.analyze_jockey(horse.jockey, db=self._horse_db)
+        jockey_score, jockey_reason = self.strategy.analyze_jockey(
+            horse.jockey, db=self._horse_db, before_date=race.date if race.date else '')
         factors["jockey"] = jockey_score
         reasoning.append(jockey_reason)
 
-        trainer_score, trainer_reason = self.strategy.analyze_trainer(horse.trainer, db=self._horse_db)
+        trainer_score, trainer_reason = self.strategy.analyze_trainer(
+            horse.trainer, db=self._horse_db, before_date=race.date if race.date else '')
         factors["trainer"] = trainer_score
         reasoning.append(trainer_reason)
 
         # --- Enhanced draw with rail bias ---
         draw_score, draw_reason = self.draw_analyzer.analyze_draw_with_rail(
-            horse.draw, distance, race.course, race.venue
+            horse.draw, distance, race.course, race.venue,
+            field_size=len(all_horses) if all_horses else 0,
+            race_no=race.race_number or 0,
         )
         factors["draw"] = draw_score
         reasoning.append(draw_reason)
@@ -631,10 +618,17 @@ class CombinedRaceAnalyzer:
             reasoning.append(tips_reason)
 
         # --- NEW: Pace Map ---
-        style = horse.running_style or self.pace_analyzer.estimate_style_from_form(
-            horse.last_6, horse.draw,
-            int(distance) if distance and distance.isdigit() else 1200
-        )
+        style = horse.running_style
+        if not style:
+            conn = getattr(self._horse_db, 'conn', None) if self._horse_db else None
+            style = self.pace_analyzer.classify_style_from_db(
+                horse.name, conn=conn, before_date=race.date,
+            )
+        if not style:
+            style = self.pace_analyzer.estimate_style_from_form(
+                horse.last_6, horse.draw,
+                int(distance) if distance and distance.isdigit() else 1200,
+            )
         if pace_scenario:
             pace_score, pace_reason = self.pace_analyzer.analyze_pace(style, pace_scenario)
         else:
@@ -659,7 +653,8 @@ class CombinedRaceAnalyzer:
         cd_score, cd_reason = 0.0, ""
         if self._horse_db:
             cd_history = self._horse_db.get_horse_cd_history(
-                horse.name, race.venue or '', int(race.distance or 1200))
+                horse.name, race.venue or '', int(race.distance or 1200),
+                before_date=race.date if race.date else '')
             if cd_history:
                 cd_score, cd_reason = self.cd_analyzer.analyze_cd_form(
                     cd_history, race.venue or '', int(race.distance or 1200),
@@ -697,7 +692,8 @@ class CombinedRaceAnalyzer:
         class_score = 50.0
         class_reason = "No previous class data"
         if self._horse_db and race.class_type:
-            horse_hist = self._horse_db.get_horse_history(horse.name, limit=5)
+            horse_hist = self._horse_db.get_horse_history(
+                horse.name, limit=5, before_date=race.date if race.date else '')
             if horse_hist:
                 class_score, class_reason = self.class_analyzer.analyze_class_movement(
                     horse_hist, race.class_type
@@ -710,7 +706,8 @@ class CombinedRaceAnalyzer:
         prior_gear = ""
         is_debutant = False
         if self._horse_db:
-            history = self._horse_db.get_horse_history(horse.name, limit=1)
+            history = self._horse_db.get_horse_history(
+                horse.name, limit=1, before_date=race.date if race.date else '')
             if not history:
                 is_debutant = True
             else:
@@ -737,7 +734,8 @@ class CombinedRaceAnalyzer:
                         before_date=race.date if race.date else None,
                     )
                     self._par_times_by_date[cache_key] = par_times
-                last_race = self._horse_db.get_horse_history(horse.name, limit=1)
+                last_race = self._horse_db.get_horse_history(
+                    horse.name, limit=1, before_date=race.date if race.date else '')
                 if last_race:
                     lr = last_race[0]
                     sf = adjusted_speed_figure(
@@ -844,7 +842,8 @@ class CombinedRaceAnalyzer:
         going_score = 0.0
         going_reason = ""
         if race.going and self._horse_db:
-            going_record = self._horse_db.get_horse_going_record(horse.name, race.going)
+            going_record = self._horse_db.get_horse_going_record(
+                horse.name, race.going, before_date=race.date if race.date else '')
             total_runs = horse_record.get('total_starts', 0) if horse_record else 0
             going_score, going_reason = self.going_analyzer.analyze_going_preference(
                 going_record, race.going, total_runs
@@ -857,7 +856,8 @@ class CombinedRaceAnalyzer:
         rolling_score = 0.0
         rolling_reason = ""
         if self._horse_db:
-            rolling_stats = self._horse_db.get_rolling_stats(horse.name, n_races=5)
+            rolling_stats = self._horse_db.get_rolling_stats(
+                horse.name, n_races=5, before_date=race.date if race.date else '')
             if rolling_stats.get('runs', 0) >= 2:
                 rolling_score, rolling_reason = self.rolling_analyzer.analyze_rolling_form(rolling_stats)
         factors["rolling_form"] = rolling_score
@@ -868,7 +868,8 @@ class CombinedRaceAnalyzer:
         margin_score = 0.0
         margin_reason = ""
         if self._horse_db:
-            margin_stats = self._horse_db.get_beaten_margins(horse.name, n_races=5)
+            margin_stats = self._horse_db.get_beaten_margins(
+                horse.name, n_races=5, before_date=race.date if race.date else '')
             if margin_stats.get('runs', 0) > 0:
                 margin_score, margin_reason = self.margin_analyzer.analyze_margins(margin_stats)
         factors["margin"] = margin_score
@@ -879,7 +880,8 @@ class CombinedRaceAnalyzer:
         jc_score = 0.0
         jc_reason = ""
         if self._horse_db:
-            last_jockey = self._horse_db.get_last_jockey(horse.name)
+            last_jockey = self._horse_db.get_last_jockey(
+                horse.name, before_date=race.date if race.date else '')
             if last_jockey:
                 jc_score, jc_reason = self.jockey_change_analyzer.analyze_jockey_change(
                     horse.jockey, last_jockey
@@ -892,8 +894,11 @@ class CombinedRaceAnalyzer:
         jf_score = 0.0
         jf_reason = ""
         if self._horse_db and horse.jockey:
-            jf = self._horse_db.get_jockey_recent_form(horse.jockey, n_rides=10)
-            if jf.get('rides', 0) >= 3:
+            jf = self._horse_db.get_jockey_recent_form(
+                horse.jockey, n_rides=10, before_date=race.date if race.date else '')
+            # Threshold is config-driven so shadow_generate jockey_form variant
+            # can disable the factor (patches min to 15; n_rides LIMIT is 10).
+            if jf.get('rides', 0) >= config.JOCKEY_FORM_RIDES_MIN:
                 wr = jf['win_rate']
                 pr = jf['place_rate']
                 if jf['hot']:
@@ -916,7 +921,8 @@ class CombinedRaceAnalyzer:
         tf_score = 0.0
         tf_reason = ""
         if self._horse_db and horse.trainer:
-            tf = self._horse_db.get_trainer_recent_form(horse.trainer, n_runners=10)
+            tf = self._horse_db.get_trainer_recent_form(
+                horse.trainer, n_runners=10, before_date=race.date if race.date else '')
             if tf.get('runners', 0) >= 3:
                 wr = tf['win_rate']
                 if tf['hot']:

@@ -74,11 +74,16 @@ def _write_log_and_stats(rows: list[dict], single_date: str = None) -> None:
     elif LOG_PATH.exists() and not rows:
         return  # nothing to write
     all_rows = existing + rows if single_date else rows
-    with open(LOG_PATH, 'w', newline='') as f:
+    # Atomic write: a concurrent dashboard regen reads this file; a torn read
+    # silently wipes the EDGE banner, and a half-written CSV permanently
+    # corrupts the cumulative count on the next dedup read.
+    _logtmp = LOG_PATH.with_suffix(LOG_PATH.suffix + '.tmp')
+    with open(_logtmp, 'w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=LOG_HEADERS)
         w.writeheader()
         for r in all_rows:
             w.writerow(r)
+    _logtmp.replace(LOG_PATH)
 
     # Recompute aggregate stats
     n_fires = len(all_rows)
@@ -92,7 +97,9 @@ def _write_log_and_stats(rows: list[dict], single_date: str = None) -> None:
         'n_won': n_won,
         'last_updated': max((r['race_date'] for r in all_rows), default='') if all_rows else '',
     }
-    STATS_PATH.write_text(json.dumps(stats, indent=2))
+    _stmp = STATS_PATH.with_suffix('.json.tmp')
+    _stmp.write_text(json.dumps(stats, indent=2))
+    _stmp.replace(STATS_PATH)
 
 
 def track_one(date: str) -> int:

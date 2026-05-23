@@ -80,6 +80,7 @@ class RaceCard:
     track: str = ""
     course: str = ""
     prize: str = ""
+    weather: str = ""
     horses: List[HorseEntry] = field(default_factory=list)
     odds_updated_at: str = ""
 

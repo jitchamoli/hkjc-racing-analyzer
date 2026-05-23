@@ -1,10 +1,13 @@
 """FR XGBoost model wrapper — MVP.
 
-Mirror of ml/uk_model.py. Same hyperparameters, same save/load format,
-different feature import + model path.
+Mirror of ml/uk_model.py. Same hyperparameters, same save/load format
+(including the SHA256 sidecar enforced on load), different feature import
++ model path.
 """
 from __future__ import annotations
 
+import hashlib
+import logging
 import pickle
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +20,13 @@ import xgboost as xgb
 import config
 from ml.fr_features import FEATURE_COLS
 
+logger = logging.getLogger(__name__)
+
 MODEL_PATH = config.MODEL_DIR / "fr_racing_model.pkl"
+
+
+def _checksum_path(path: Path) -> Path:
+    return path.with_suffix('.sha256')
 
 
 XGB_PARAMS = {
@@ -92,15 +101,33 @@ class FRRacingModel:
             "n_train_samples": self.n_train_samples,
             "training_metrics": self.training_metrics,
         }
-        with open(path, "wb") as f:
-            pickle.dump(payload, f)
+        model_bytes = pickle.dumps(payload)
+        path.write_bytes(model_bytes)
+        _checksum_path(path).write_text(hashlib.sha256(model_bytes).hexdigest())
         return path
 
     @classmethod
     def load(cls, path: Optional[Path] = None) -> "FRRacingModel":
         path = Path(path or MODEL_PATH)
-        with open(path, "rb") as f:
-            payload = pickle.load(f)
+        model_bytes = path.read_bytes()
+
+        # Verify-then-load: refuse to unpickle without a valid SHA256 sidecar.
+        # Mirrors the HK pattern in ml/model.py.
+        checksum_file = _checksum_path(path)
+        if not checksum_file.exists():
+            raise RuntimeError(
+                f"Model checksum file missing at {checksum_file} — refusing to "
+                f"load unsigned model. Retrain with: python3 -m scripts.train_fr"
+            )
+        expected = checksum_file.read_text().strip()
+        actual = hashlib.sha256(model_bytes).hexdigest()
+        if actual != expected:
+            raise RuntimeError(
+                f"Model checksum mismatch at {path} — file may be corrupted or "
+                f"tampered. Expected {expected[:16]}..., got {actual[:16]}..."
+            )
+
+        payload = pickle.loads(model_bytes)
         inst = cls()
         inst.model = payload["model"]
         inst.feature_names = payload["feature_names"]

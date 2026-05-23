@@ -45,6 +45,8 @@ import config
 from ml.model import HKJCRacingMLModel
 from ml.features import FeatureEngineering
 from core.scorer import _dynamic_blend_weights
+from betting.optimizer import compute_suggested_stake
+from betting.conviction import assign_conviction_tier
 
 logger = logging.getLogger(__name__)
 
@@ -538,6 +540,24 @@ def simulate_bets(races, conn):
         trio_dividend = get_real_exotic_dividend(conn, date, race_no, 'TRIO')
         f4_dividend = get_real_exotic_dividend(conn, date, race_no, 'FIRST 4')
 
+        # F4-style triple-gate skip test for BOX TRIO-5 (user A/B 2026-05-23).
+        # Mirrors the existing F4 BOX-5 gate in dashboard/template.py:1129-1131:
+        # skip on heavy fav (top1<2.5), LOW/SKIP conviction, or small field (<8).
+        # has_edge=False is acceptable approximation — EDGE is rare (N=4 fires
+        # ever per memory) and EDGE→still-passes-gate anyway.
+        race_top_2_share = sum(p[1] for p in preds[:2]) if len(preds) >= 2 else 0.0
+        race_top_3_share = sum(p[1] for p in preds[:3]) if len(preds) >= 3 else 0.0
+        race_conv_tier = assign_conviction_tier(
+            has_edge=False,
+            top_2_share=race_top_2_share, top_3_share=race_top_3_share,
+        )
+        race_field_size = len(preds)
+        trio5_f4gate_skip = (
+            (top_odds > 0 and top_odds < 2.5) or
+            (race_conv_tier not in ('EDGE', 'HIGH', 'MED')) or
+            (race_field_size < 8)
+        )
+
         # Recommender-gated quinella P&L (F-03: what the dashboard actually bets)
         # Determine what the recommender chose for this race
         rec_bet_type = _infer_race_bet_type(preds)
@@ -596,6 +616,9 @@ def simulate_bets(races, conn):
             'box3_q_hit': box3_q_hit,
             'box4_q_hit': box4_q_hit,
             'trio5_hit': trio5_hit,
+            'trio5_f4gate_skip': trio5_f4gate_skip,
+            'race_conviction_tier': race_conv_tier,
+            'race_field_size': race_field_size,
             'trio6_hit': trio6_hit,
             'f4box5_hit': f4box5_hit,
             'f4box6_hit': f4box6_hit,
@@ -842,6 +865,163 @@ def print_exotic_hits(records):
         print(f"    SIMULATED ROI: {roi:+.2f}%")
 
 
+def print_trio5_f4_gate_ab(records):
+    """A/B test: does adding the F4 BOX-5 triple gate (heavy-fav, LOW/SKIP
+    conviction, small field) to BOX TRIO-5 improve ROI vs the current
+    'fires whenever top-5 exists' behavior?
+
+    Cost = 10 units/race (10 combos × 1u). Hit pays TRIO dividend.
+    Compares two strategies on the same races + same picks:
+      Ungated:   fires on every race with top-5 picks
+      F4-gated:  skip when (top1 < 2.5) OR (tier ∈ {LOW, SKIP}) OR (field < 8)
+    """
+    # Filter to races with TRIO dividend data
+    elig = [r for r in records if r.get('trio_dividend') is not None]
+    if not elig:
+        print("\n  No TRIO dividend data — skipping BOX TRIO-5 gate A/B.")
+        return
+
+    print("\n" + "=" * 70)
+    print("  BOX TRIO-5 GATE A/B — ungated (ship default) vs F4-style triple gate")
+    print("=" * 70)
+    print("  Stake = 10 units/race (10 combos × 1u). Real TRIO dividends from DB.")
+
+    def _summary(rows, label):
+        n = len(rows)
+        if n == 0:
+            print(f"  {label:<28}: 0 races")
+            return
+        hits = sum(1 for r in rows if r['trio5_hit'])
+        stake = n * 10.0
+        pnl = sum((r['trio_dividend'] - 10.0) if r['trio5_hit'] else -10.0
+                  for r in rows)
+        roi = pnl / stake * 100
+        hr = hits / n * 100
+        print(f"  {label:<28}: {n:>3} races, {hits:>2} hits ({hr:>4.1f}%)  "
+              f"stake={stake:>6.0f}  pnl={pnl:>+8.1f}  ROI={roi:>+6.1f}%")
+
+    ungated = elig
+    gated = [r for r in elig if not r.get('trio5_f4gate_skip')]
+    skipped = [r for r in elig if r.get('trio5_f4gate_skip')]
+
+    print()
+    _summary(ungated,  "Ungated (current behavior)")
+    _summary(gated,    "F4-style triple-gated")
+    _summary(skipped,  "Bets the gate would skip")
+    print()
+
+    # Quick breakdown of WHY each skip fired (to spot-check the gate's
+    # selectivity — too few skips means the gate barely matters)
+    if skipped:
+        heavy_fav = sum(1 for r in skipped if (r['odds'] or 0) > 0 and r['odds'] < 2.5)
+        low_conv = sum(1 for r in skipped
+                       if r.get('race_conviction_tier') not in ('EDGE', 'HIGH', 'MED'))
+        small_field = sum(1 for r in skipped if (r.get('race_field_size') or 0) < 8)
+        print(f"  Skip reasons (overlap possible): heavy_fav={heavy_fav}, "
+              f"low_conv={low_conv}, small_field={small_field}")
+
+    print()
+    print("  Interpretation: if gated ROI > ungated ROI by a meaningful margin,")
+    print("  ship the gate. If similar, the gate is harmless but unnecessary.")
+    print("  If skipped-races ROI > 0, the gate is REMOVING profitable bets.")
+
+
+def print_production_stake_pnl(records, bankroll: float):
+    """Re-compute gated-QIN + exotic ROI at PRODUCTION tier-staking instead
+    of flat 1u. Tests whether the staking ramp (EDGE 3% / HIGH 2% / MED 1% /
+    LOW 0.5% of bankroll) is itself the ROI leak — flagged by the Kelly
+    auditor 2026-05-23 as never-backtested.
+
+    Conviction tier proxy: uses each record's top1_confidence (per-horse
+    model confidence) rather than the race-level top_2_share gate.
+    They correlate strongly (both surface as 'HIGH' on the same concentrated
+    races) so the aggregate ROI swing is informative; exact production
+    replication would need recomputing top_2_share per record.
+    """
+    print("\n" + "=" * 70)
+    print("  PRODUCTION-STAKE P&L vs flat-1u baseline")
+    print(f"  bankroll={bankroll:.0f} HKD; EDGE 3% / HIGH 2% / MED 1% / LOW 0.5%")
+    print("  (top1_confidence used as conviction-tier proxy)")
+    print("=" * 70)
+
+    by_type = defaultdict(lambda: {'stake': 0.0, 'pnl': 0.0, 'hits': 0, 'n': 0})
+
+    # (flat_cost, hit_field, dividend_field, bet_type_for_sizing)
+    bet_specs = [
+        ('BOX Q4',  6.0,  'box4_q_hit',  'q_dividend',    'QIN'),
+        ('BOX Q',   3.0,  'box3_q_hit',  'q_dividend',    'QIN'),
+        ('STRAIGHT Q', 1.0, 'quinella_hit', 'q_dividend', 'QIN'),
+        ('TRIO-5', 10.0,  'trio5_hit',   'trio_dividend', 'TRIO'),
+        ('TRIO-6', 20.0,  'trio6_hit',   'trio_dividend', 'TRIO'),
+        ('F4 BOX-5', 5.0, 'f4box5_hit',  'f4_dividend',   'QIN'),
+        ('F4 BOX-6', 15.0,'f4box6_hit',  'f4_dividend',   'QIN'),
+    ]
+
+    # Also model the recommender-gated path: stake only when recommender's
+    # rec_bet_type fires (not on every race), mirroring production behavior.
+    _gated_hit_field = {'BOX Q4': 'box4_q_hit', 'BOX Q': 'box3_q_hit', 'QIN': 'quinella_hit'}
+    _gated_cost = {'BOX Q4': 6.0, 'BOX Q': 3.0, 'QIN': 1.0}
+
+    for r in records:
+        tier = r.get('top1_confidence') or 'SKIP'
+        top_prob = r.get('final_prob') or 0.0
+        top_odds = r.get('odds') or 0.0
+
+        # 1) Recommender-gated QIN — production's actual bet path
+        rec = r.get('rec_bet_type')
+        div = r.get('q_dividend')
+        if rec in _gated_cost and div is not None:
+            si = compute_suggested_stake(
+                conviction_tier=tier, bet_type=rec,
+                top_prob=top_prob, top_odds=top_odds, bankroll=bankroll,
+            )
+            amount = si['amount']
+            if amount > 0:
+                cost = _gated_cost[rec]
+                hit = bool(r.get(_gated_hit_field[rec], False))
+                pnl = (amount * (div / cost - 1)) if hit else -amount
+                e = by_type['GATED-QIN']
+                e['stake'] += amount; e['pnl'] += pnl
+                e['hits'] += int(hit); e['n'] += 1
+
+        # 2) Unconditional per-bet-type strategies (mirror flat-1u table)
+        for label, flat_cost, hit_field, div_field, sizing_type in bet_specs:
+            d = r.get(div_field)
+            if d is None:
+                continue
+            si = compute_suggested_stake(
+                conviction_tier=tier, bet_type=sizing_type,
+                top_prob=top_prob, top_odds=top_odds, bankroll=bankroll,
+            )
+            amount = si['amount']
+            if amount <= 0:
+                continue
+            hit = bool(r.get(hit_field, False))
+            pnl = (amount * (d / flat_cost - 1)) if hit else -amount
+            e = by_type[label]
+            e['stake'] += amount; e['pnl'] += pnl
+            e['hits'] += int(hit); e['n'] += 1
+
+    print(f"\n  {'Bet type':<14}{'N':>5}{'Hits':>7}{'Hit%':>8}"
+          f"{'Stake HKD':>12}{'P&L HKD':>12}{'ROI':>9}")
+    print("  " + "-" * 67)
+    for label in ('GATED-QIN', 'STRAIGHT Q', 'BOX Q', 'BOX Q4',
+                  'TRIO-5', 'TRIO-6', 'F4 BOX-5', 'F4 BOX-6'):
+        e = by_type.get(label)
+        if not e or e['stake'] <= 0:
+            continue
+        roi = e['pnl'] / e['stake'] * 100
+        hr = e['hits'] / e['n'] * 100 if e['n'] else 0
+        print(f"  {label:<14}{e['n']:>5}{e['hits']:>7}{hr:>7.1f}%"
+              f"{e['stake']:>12.0f}{e['pnl']:>+12.0f}{roi:>+8.1f}%")
+
+    print("\n  Interpretation: compare these ROIs to the flat-1u figures above.")
+    print("  If production-stake ROI is materially WORSE, the tier-ramp staking")
+    print("  is itself the leak — it stakes UP on HIGH-conviction races that pay")
+    print("  LESS (memory: project_conviction_gate_wrong_for_exotics).")
+    print("  If they MATCH, the leak is in pick selection or pool choice, not sizing.")
+
+
 def print_calibration(records):
     """Calibration report — Brier, BSS, ECE, and per-bin diff.
 
@@ -1083,6 +1263,12 @@ def main():
     parser.add_argument('--qin-gate', type=float, default=None,
                         help='Override the QIN bet-fire floor (MIN_TOP2_CONVICTION). '
                              'A/B the selectivity fix without touching production default (0.30).')
+    parser.add_argument('--production-stakes', action='store_true',
+                        help='Also report ROI at production tier-staking (EDGE 3% / HIGH 2% / '
+                             'MED 1% / LOW 0.5% of bankroll) alongside the flat-1u baseline. '
+                             'Tests whether the staking ramp is itself the ROI leak.')
+    parser.add_argument('--bankroll', type=float, default=10000.0,
+                        help='Bankroll for --production-stakes simulation (default: 10000 HKD).')
     args = parser.parse_args()
 
     # A/B the QIN selectivity gate (Tier-1 fix #1). Overrides the module global
@@ -1156,6 +1342,9 @@ def main():
 
     print_strategies(records, args.min_ev)
     print_exotic_hits(records)
+    print_trio5_f4_gate_ab(records)
+    if args.production_stakes:
+        print_production_stake_pnl(records, args.bankroll)
     print_clv(records)
     print_calibration(records)
     print_place_calibration(records)

@@ -268,8 +268,15 @@ def calibrate_probabilities(analyses, field_size: int = 12,
         try:
             import numpy as _np
             blended = list(iso.predict(_np.array(blended)))
-        except Exception:
-            pass  # fall through to raw blended values on any sklearn error
+        except Exception as e:
+            # Fall through to raw blended values on any sklearn error, but
+            # surface the failure — silent skip means every prediction is
+            # uncalibrated with no observable signal (e.g. after a sklearn
+            # version drift that invalidates the pickled isotonic).
+            logger.warning(
+                "blend_calibrator.predict failed — predictions uncalibrated "
+                "this run: %s", e,
+            )
 
     iso_total = sum(blended) or 1.0
     return [p / iso_total for p in blended]

@@ -71,18 +71,15 @@ class TestMixedOddsBlend:
     def test_no_odds_ratio_preserves_cal_prob_proportion(self):
         """F-20: when all horses lack odds, output ratios match cal_prob ratios.
 
-        With no market signal, blended[i] = cal_probs[i] for all i.
-        After normalization by the softmax total, the relative ordering is
-        preserved (no horse is systematically boosted or suppressed).
+        Use cal_probs that span distinguishable calibrator bins (0.30 vs 0.05);
+        the previous (0.60 vs 0.40) both floor-clip to the top isotonic bin
+        post-recalibration, leaving the test brittle to calibrator state.
         """
         analyses = [
-            FakeAnalysis(0.60, 0.0),
-            FakeAnalysis(0.40, 0.0),
+            FakeAnalysis(0.30, 0.0),
+            FakeAnalysis(0.05, 0.0),
         ]
         probs = calibrate_probabilities(analyses, field_size=2, distance=1200)
-        # Both have same model_w applied, so ratio of outputs should be close to
-        # ratio of inputs (exact equality holds only if softmax is linear, but
-        # direction must be preserved).
         assert probs[0] > probs[1], (
             "Higher cal_prob horse must have higher blended prob when all odds missing"
         )

@@ -74,14 +74,16 @@ class TestCachePersistence:
         fc.save()
         # Only the final .npz file, no .tmp leftovers
         files = sorted(p.name for p in tmp_path.glob("*"))
-        assert files == ["features_v24_deadbeef.npz"], f"unexpected files: {files}"
+        assert files == [f"features_v{NUM_FEATURES}_deadbeef.npz"], (
+            f"unexpected files: {files}"
+        )
 
 
 class TestCacheInvalidation:
     def test_cache_path_includes_schema_and_signature(self, monkeypatch):
         monkeypatch.setattr(fc, "_db_signature", lambda: "cafebabe")
         path = fc._cache_path()
-        assert "v24" in path.name  # NUM_FEATURES
+        assert f"v{NUM_FEATURES}" in path.name  # tied to current schema count
         assert "cafebabe" in path.name  # data signature
 
     def test_different_signature_writes_to_different_file(self, monkeypatch, tmp_path):
@@ -97,4 +99,4 @@ class TestCacheInvalidation:
         # Cache for the new signature should be empty — different file
         assert fc.get("2026/05/13", 1, "X") is None
         files = sorted(p.name for p in tmp_path.glob("*.npz"))
-        assert "features_v24_sig00001.npz" in files
+        assert f"features_v{NUM_FEATURES}_sig00001.npz" in files

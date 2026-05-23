@@ -117,6 +117,10 @@ class HorseDatabase:
             # sectional page, e.g. "27.84 23.69 24.22 24.10". Last token
             # is the last-400m time. Mirrors the running_position pattern.
             "sectional_times TEXT DEFAULT ''",
+            # Race-day weather text from the HKJC meeting page (e.g.
+            # "Fine", "Cloudy", "Rain"). Captured to start collecting a year
+            # of data — not yet read by any feature.
+            "weather TEXT DEFAULT ''",
         ]:
             try:
                 c.execute(f"ALTER TABLE race_results ADD COLUMN {col_def}")
@@ -457,10 +461,16 @@ class HorseDatabase:
         )
         return [dict(r) for r in c.fetchall()]
 
-    def get_horse_record(self, horse_name: str) -> Optional[Dict]:
-        """Get horse's complete racing record (computed from race_results)."""
+    def get_horse_record(self, horse_name: str, before_date: str = '') -> Optional[Dict]:
+        """Get horse's complete racing record (computed from race_results).
+
+        before_date: backtest-leak guard — without it total_starts/wins/places
+        include the current race and later ones. Live passes none. See
+        get_horse_history.
+        """
         c = self.conn.cursor()
-        c.execute("""
+        df = ' AND race_date < ?' if before_date else ''
+        c.execute(f"""
             SELECT
                 horse_name as name,
                 COUNT(*) as total_starts,
@@ -470,22 +480,39 @@ class HorseDatabase:
                 MAX(trainer) as trainer,
                 MAX(race_date) as last_seen_date
             FROM race_results
-            WHERE horse_name = ?
-        """, (horse_name,))
+            WHERE horse_name = ?{df}
+        """, (horse_name, before_date) if before_date else (horse_name,))
         row = c.fetchone()
         if not row or not row['total_starts']:
             return None
         return dict(row)
 
-    def get_horse_history(self, horse_name: str, limit: int = 10) -> List[Dict]:
-        """Get horse's past race results, most recent first."""
+    def get_horse_history(self, horse_name: str, limit: int = 10,
+                          before_date: str = '') -> List[Dict]:
+        """Get horse's past race results, most recent first.
+
+        before_date: if set, only return races STRICTLY before this date
+        (YYYY/MM/DD). Required by the rule engine in backtest, where the DB
+        holds the whole timeline — without it this returns the race being
+        scored (and later ones), leaking the current outcome (e.g. finish_time
+        into speed_fig). Live is unaffected (the race isn't in the DB yet) so
+        the default keeps the old no-filter behaviour.
+        """
         c = self.conn.cursor()
-        c.execute("""
-            SELECT * FROM race_results
-            WHERE horse_name = ?
-            ORDER BY race_date DESC, race_number DESC
-            LIMIT ?
-        """, (horse_name, limit))
+        if before_date:
+            c.execute("""
+                SELECT * FROM race_results
+                WHERE horse_name = ? AND race_date < ?
+                ORDER BY race_date DESC, race_number DESC
+                LIMIT ?
+            """, (horse_name, before_date, limit))
+        else:
+            c.execute("""
+                SELECT * FROM race_results
+                WHERE horse_name = ?
+                ORDER BY race_date DESC, race_number DESC
+                LIMIT ?
+            """, (horse_name, limit))
         return [dict(r) for r in c.fetchall()]
 
     @staticmethod
@@ -564,43 +591,85 @@ class HorseDatabase:
         return [dict(r) for r in c.fetchall()]
 
     def get_horse_cd_history(self, horse_name: str, venue: str,
-                              distance: int, tolerance: int = 100) -> list:
-        """Get horse's race-by-race C&D history with dates for winning trip detection."""
+                              distance: int, tolerance: int = 100,
+                              before_date: str = '') -> list:
+        """Get horse's race-by-race C&D history with dates for winning trip detection.
+
+        before_date: backtest-leak guard — without it the horse's CURRENT race
+        (same venue+distance) is counted into its own C&D win/place record.
+        Live passes none (race not yet in DB). See get_horse_history.
+        """
         c = self.conn.cursor()
         venue_norm = self._normalize_venue(venue)
-        c.execute("""
+        df = ' AND race_date < ?' if before_date else ''
+        params = ([horse_name, venue_norm, distance, tolerance, before_date]
+                  if before_date else [horse_name, venue_norm, distance, tolerance])
+        c.execute(f"""
             SELECT race_date, venue, distance, finish_position
             FROM race_results
             WHERE horse_name = ?
               AND venue = ?
-              AND ABS(distance - ?) <= ?
+              AND ABS(distance - ?) <= ?{df}
             ORDER BY race_date
-        """, (horse_name, venue_norm, distance, tolerance))
+        """, params)
         return [{'date': r[0], 'venue': r[1], 'distance': r[2], 'position': r[3]}
                 for r in c.fetchall()]
 
-    def get_jockey_stats(self, jockey_name: str) -> Optional[Dict]:
-        """Get jockey's season statistics."""
+    @staticmethod
+    def _season_start_for(date_str: str) -> str:
+        """First day of the HK season containing date_str (Jul 1 - Jun 30)."""
+        y, m = int(date_str[:4]), int(date_str[5:7])
+        return f"{y if m >= 7 else y - 1}/07/01"
+
+    def _person_stats_asof(self, col: str, name: str, before_date: str) -> Optional[Dict]:
+        """Compute a jockey/trainer's CURRENT-SEASON-to-date win/place rate from
+        race_results with race_date < before_date — the leak-free equivalent of
+        the pre-aggregated season tables (which include future races). Used by
+        the rule engine in backtest. Returns rides AND runners keys so it serves
+        both jockey (count_field='rides') and trainer ('runners')."""
+        season_start = self._season_start_for(before_date)
+        row = self.conn.execute(
+            f"SELECT COUNT(*) AS n, COALESCE(SUM(is_winner),0) AS wins, "
+            f"COALESCE(SUM(is_top3),0) AS places FROM race_results "
+            f"WHERE {col} = ? AND race_date >= ? AND race_date < ? AND finish_position > 0",
+            (name, season_start, before_date)).fetchone()
+        n = row['n'] or 0
+        if not n:
+            return None
+        wins, places = row['wins'] or 0, row['places'] or 0
+        return {'name': name, 'rides': n, 'runners': n, 'wins': wins, 'places': places,
+                'win_rate': wins / n, 'place_rate': places / n}
+
+    def get_jockey_stats(self, jockey_name: str, before_date: str = '') -> Optional[Dict]:
+        """Get jockey's season statistics. before_date: backtest-leak guard —
+        the season table is rebuilt over the whole season incl. future races, so
+        in backtest pass before_date to compute season-to-date from race_results."""
+        if before_date:
+            return self._person_stats_asof('jockey', jockey_name, before_date)
         c = self.conn.cursor()
         c.execute("SELECT * FROM jockey_stats WHERE name = ?", (jockey_name,))
         row = c.fetchone()
         return dict(row) if row else None
 
-    def get_jockey_recent_form(self, jockey_name: str, n_rides: int = 10) -> Dict:
+    def get_jockey_recent_form(self, jockey_name: str, n_rides: int = 10,
+                               before_date: str = '') -> Dict:
         """Get jockey's recent form over last N rides.
 
         Hot streak detection — a jockey winning 4/10 recent rides is on fire,
         regardless of their season average. Bill Benter found this among the
         most predictive features.
+
+        before_date: backtest-leak guard (see get_horse_history).
         """
         c = self.conn.cursor()
-        c.execute("""
+        df = ' AND race_date < ?' if before_date else ''
+        c.execute(f"""
             SELECT is_winner, is_top3, finish_position
             FROM race_results
-            WHERE jockey = ? AND finish_position > 0
+            WHERE jockey = ? AND finish_position > 0{df}
             ORDER BY race_date DESC, race_number DESC
             LIMIT ?
-        """, (jockey_name, n_rides))
+        """, (jockey_name, before_date, n_rides) if before_date else (jockey_name, n_rides))
         rows = c.fetchall()
         if not rows:
             return {'rides': 0, 'wins': 0, 'places': 0, 'win_rate': 0, 'place_rate': 0, 'hot': False}
@@ -618,16 +687,21 @@ class HorseDatabase:
             'hot': win_rate >= 0.25,  # 25%+ recent win rate = hot streak
         }
 
-    def get_trainer_recent_form(self, trainer_name: str, n_runners: int = 10) -> Dict:
-        """Get trainer's recent form over last N runners."""
+    def get_trainer_recent_form(self, trainer_name: str, n_runners: int = 10,
+                                before_date: str = '') -> Dict:
+        """Get trainer's recent form over last N runners.
+
+        before_date: backtest-leak guard (see get_horse_history).
+        """
         c = self.conn.cursor()
-        c.execute("""
+        df = ' AND race_date < ?' if before_date else ''
+        c.execute(f"""
             SELECT is_winner, is_top3, finish_position
             FROM race_results
-            WHERE trainer = ? AND finish_position > 0
+            WHERE trainer = ? AND finish_position > 0{df}
             ORDER BY race_date DESC, race_number DESC
             LIMIT ?
-        """, (trainer_name, n_runners))
+        """, (trainer_name, before_date, n_runners) if before_date else (trainer_name, n_runners))
         rows = c.fetchall()
         if not rows:
             return {'runners': 0, 'wins': 0, 'places': 0, 'win_rate': 0, 'place_rate': 0, 'hot': False}
@@ -645,8 +719,11 @@ class HorseDatabase:
             'hot': win_rate >= 0.20,  # 20%+ recent win rate = hot streak
         }
 
-    def get_trainer_stats(self, trainer_name: str) -> Optional[Dict]:
-        """Get trainer's season statistics."""
+    def get_trainer_stats(self, trainer_name: str, before_date: str = '') -> Optional[Dict]:
+        """Get trainer's season statistics. before_date: backtest-leak guard
+        (see get_jockey_stats) — computes season-to-date from race_results."""
+        if before_date:
+            return self._person_stats_asof('trainer', trainer_name, before_date)
         c = self.conn.cursor()
         c.execute("SELECT * FROM trainer_stats WHERE name = ?", (trainer_name,))
         row = c.fetchone()
@@ -682,26 +759,69 @@ class HorseDatabase:
         row = c.fetchone()
         return dict(row) if row else {'runners': 0, 'wins': 0, 'places': 0}
 
-    def get_horse_going_record(self, horse_name: str, going: str) -> Dict:
+    @staticmethod
+    def _going_surface_class(going: str) -> str:
+        """Bucket going into FIRM-side (GOOD/FIRM/FAST) vs SOFT-side
+        (YIELDING/SOFT/HEAVY/WET-SLOW). Prior LIKE 'GOOD%' pattern leaked
+        'GOOD TO YIELDING' into firm queries — credited soft-side runs as
+        firm-side experience."""
+        g = (going or '').upper()
+        if any(kw in g for kw in ('YIELDING', 'SOFT', 'HEAVY', 'WET-SLOW', 'WET SLOW')):
+            return 'SOFT'
+        return 'FIRM'
+
+    def get_horse_going_record(self, horse_name: str, going: str,
+                               before_date: str = '') -> Dict:
         """Get horse's record on a specific going (track condition).
 
-        Single query: exact match OR primary keyword match (e.g. 'Good' matches 'Good To Firm').
+        Filters prior runs by FIRM vs SOFT surface class so a 'GOOD TO YIELDING'
+        prior doesn't get credited as firm-side experience.
+        before_date: if set, only count races STRICTLY before this date — same
+        backtest-leak fix as get_horse_history (live passes no filter).
         """
         c = self.conn.cursor()
-        going_upper = going.upper().strip() if going else ''
-        if not going_upper:
+        if not (going and going.strip()):
             return {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
 
-        primary = going_upper.split(' TO ')[0].split()[0] if going_upper else going_upper
-        c.execute("""
-            SELECT
-                COUNT(*) as runs,
-                SUM(is_winner) as wins,
-                SUM(is_top3) as places,
-                AVG(CASE WHEN finish_position > 0 THEN finish_position END) as avg_pos
-            FROM race_results
-            WHERE horse_name = ? AND (UPPER(going) = ? OR UPPER(going) LIKE ?)
-        """, (horse_name, going_upper, f'{primary}%'))
+        if self._going_surface_class(going) == 'SOFT':
+            class_filter = (
+                "(UPPER(going) LIKE '%YIELDING%' "
+                "OR UPPER(going) LIKE '%SOFT%' "
+                "OR UPPER(going) LIKE '%HEAVY%' "
+                "OR UPPER(going) LIKE '%WET%')"
+            )
+        else:
+            class_filter = (
+                "UPPER(going) NOT LIKE '%YIELDING%' "
+                "AND UPPER(going) NOT LIKE '%SOFT%' "
+                "AND UPPER(going) NOT LIKE '%HEAVY%' "
+                "AND UPPER(going) NOT LIKE '%WET%' "
+                "AND (UPPER(going) LIKE '%GOOD%' "
+                "OR UPPER(going) LIKE '%FIRM%' "
+                "OR UPPER(going) LIKE '%FAST%')"
+            )
+
+        if before_date:
+            c.execute(f"""
+                SELECT
+                    COUNT(*) as runs,
+                    SUM(is_winner) as wins,
+                    SUM(is_top3) as places,
+                    AVG(CASE WHEN finish_position > 0 THEN finish_position END) as avg_pos
+                FROM race_results
+                WHERE horse_name = ? AND {class_filter}
+                  AND race_date < ?
+            """, (horse_name, before_date))
+        else:
+            c.execute(f"""
+                SELECT
+                    COUNT(*) as runs,
+                    SUM(is_winner) as wins,
+                    SUM(is_top3) as places,
+                    AVG(CASE WHEN finish_position > 0 THEN finish_position END) as avg_pos
+                FROM race_results
+                WHERE horse_name = ? AND {class_filter}
+            """, (horse_name,))
         row = c.fetchone()
         return dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
 
@@ -803,20 +923,26 @@ class HorseDatabase:
 
         return row['finish_time'] if row else ''
 
-    def get_rolling_stats(self, horse_name: str, n_races: int = 5) -> Dict:
+    def get_rolling_stats(self, horse_name: str, n_races: int = 5,
+                          before_date: str = '') -> Dict:
         """Get rolling performance stats over last N races.
 
         Returns avg position, win rate, place rate, and trend direction.
         This is one of the highest-impact features in ML racing models.
+
+        before_date: backtest-leak guard — without it this reads the CURRENT
+        race's own finish_position/is_winner/margin (the race is in the DB).
+        Live passes none (the race isn't in the DB yet). See get_horse_history.
         """
         c = self.conn.cursor()
-        c.execute("""
+        df = ' AND race_date < ?' if before_date else ''
+        c.execute(f"""
             SELECT finish_position, is_winner, is_top3, margin, win_odds
             FROM race_results
-            WHERE horse_name = ? AND finish_position > 0
+            WHERE horse_name = ? AND finish_position > 0{df}
             ORDER BY race_date DESC, race_number DESC
             LIMIT ?
-        """, (horse_name, n_races))
+        """, (horse_name, before_date, n_races) if before_date else (horse_name, n_races))
         rows = c.fetchall()
         if not rows:
             return {'runs': 0, 'avg_pos': 0, 'win_rate': 0, 'place_rate': 0,
@@ -856,51 +982,79 @@ class HorseDatabase:
             'recent_3_avg': round(recent_3_avg, 1),
         }
 
-    def get_last_jockey(self, horse_name: str) -> Optional[str]:
+    def get_last_jockey(self, horse_name: str, before_date: str = '') -> Optional[str]:
         """Get the jockey who rode this horse in its most recent race.
 
         Used to detect jockey changes — a new jockey booking often signals
         the trainer is making a strategic move.
+
+        before_date: backtest-leak guard — without it the "most recent race"
+        is the current race itself (so the jockey-change factor never fires in
+        backtest). See get_horse_history.
         """
         c = self.conn.cursor()
-        c.execute("""
+        df = ' AND race_date < ?' if before_date else ''
+        c.execute(f"""
             SELECT jockey FROM race_results
-            WHERE horse_name = ? AND jockey != ''
+            WHERE horse_name = ? AND jockey != ''{df}
             ORDER BY race_date DESC, race_number DESC
             LIMIT 1
-        """, (horse_name,))
+        """, (horse_name, before_date) if before_date else (horse_name,))
         row = c.fetchone()
         return row['jockey'] if row else None
 
-    def get_beaten_margins(self, horse_name: str, n_races: int = 5) -> Dict:
+    # Class-rank multipliers for beaten-margin adjustment. Lower rank = higher
+    # class (G1=0, Class 5=5). Dividing raw margin by these maps "1L beaten in
+    # Class 1" to a smaller effective margin (more impressive) than "1L beaten
+    # in Class 5", which is what professional handicappers want.
+    _CLASS_MARGIN_DIVISOR = {0: 1.30, 1: 1.15, 2: 1.05, 3: 1.00,
+                             4: 0.95, 5: 0.85}
+
+    @staticmethod
+    def _class_adjust_margin(margin, class_type: str) -> float:
+        if not margin or margin <= 0:
+            return 0.0
+        from ml.features import extract_class_rank
+        rank = extract_class_rank(class_type or '')
+        if rank is None:
+            return float(margin)
+        return float(margin) / HorseDatabase._CLASS_MARGIN_DIVISOR.get(rank, 1.0)
+
+    def get_beaten_margins(self, horse_name: str, n_races: int = 5,
+                           before_date: str = '') -> Dict:
         """Get beaten margin stats for recent races.
 
-        Margins < 2.75 lengths behind winner = strong next-out signal.
-        This is a key feature in professional handicapping.
+        Margins are class-adjusted before bucketing (1L in Class 1 is a
+        different beating than 1L in Class 5).
+
+        before_date: backtest-leak guard (see get_horse_history) — without it
+        this reads the current race's own margin/finish.
         """
         c = self.conn.cursor()
-        c.execute("""
-            SELECT finish_position, margin
+        df = ' AND race_date < ?' if before_date else ''
+        c.execute(f"""
+            SELECT finish_position, margin, class_type
             FROM race_results
-            WHERE horse_name = ? AND finish_position > 0
+            WHERE horse_name = ? AND finish_position > 0{df}
             ORDER BY race_date DESC, race_number DESC
             LIMIT ?
-        """, (horse_name, n_races))
+        """, (horse_name, before_date, n_races) if before_date else (horse_name, n_races))
         rows = c.fetchall()
         if not rows:
             return {'runs': 0, 'close_finishes': 0, 'avg_margin': 0, 'last_margin': 0}
 
-        margins = [r['margin'] for r in rows if r['margin'] and r['margin'] > 0]
-        # Close finishes: within 2.75 lengths of winner (non-winners)
-        close = [m for m in margins if m <= 2.75]
-        last_margin = margins[0] if margins else 0
-        # Distinguish winner (margin=0, position=1) from missing margin data
+        adj_margins = [
+            self._class_adjust_margin(r['margin'], r['class_type'])
+            for r in rows if r['margin'] and r['margin'] > 0
+        ]
+        close = [m for m in adj_margins if m <= 2.75]
+        last_margin = adj_margins[0] if adj_margins else 0
         last_winner = rows[0]['finish_position'] == 1 if rows else False
 
         return {
             'runs': len(rows),
             'close_finishes': len(close),
-            'avg_margin': round(sum(margins) / len(margins), 2) if margins else 0,
+            'avg_margin': round(sum(adj_margins) / len(adj_margins), 2) if adj_margins else 0,
             'last_margin': round(last_margin, 2),
             'last_winner': last_winner,
         }

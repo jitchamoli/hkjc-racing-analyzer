@@ -28,18 +28,44 @@ python3 -m scripts.raceday finish '2026/05/17'   # ONCE, PM: post_race (forwards
 
 # Underlying one-command wrappers (raceday dispatches to these)
 python3 -m scripts.race_day '2026/05/17'     # generate_predictions + shadow_generate + tier_b_shadow
-python3 -m scripts.post_race '2026/05/17'    # 7+1 steps: results_fetcher --auto-learn →
-                                             #   shadow_evaluate → tier_b_evaluate →
-                                             #   track_spoilers → track_longshot_trio →
-                                             #   track_edge → regen dashboard
-                                             #   (fresh edge_stats) → auto_dump
+python3 -m scripts.post_race '2026/05/17'    # 10+1 steps:
+                                             #   1   results_fetcher --auto-learn
+                                             #   2a  shadow_evaluate (rule_w)
+                                             #   2b  shadow_evaluate (jockey_form)
+                                             #   2c  stake_ab (staking variants)
+                                             #   3   tier_b_evaluate
+                                             #   4   track_spoilers
+                                             #   4a  track_longshot_trio
+                                             #   4b  validate_hk
+                                             #   5   track_edge → regen dashboard
+                                             #   5b  gate_impact (BOX TRIO-5 OLD vs NEW)
+                                             #   6   auto_dump
 python3 -m scripts.post_race '2026/05/17' --skip-dump   # leave DB dump/push for later
 
-# Shadow logging — active forward-validation experiment for rule_w=0.9 (see
-# memory/project_shadow_logging_rule_w_09.md). Production stays at 0.6.
-python3 -m scripts.shadow_generate '2026/05/17'           # writes shadow_race_data_YYYYMMDD.json
-python3 -m scripts.shadow_evaluate '2026/05/17'           # appends to tracking_data/shadow_log.csv
-python3 -m scripts.shadow_evaluate --report               # cumulative comparison after N≥6 meetings
+# Shadow logging — two active forward-validation experiments. Production unchanged.
+#   rule_w (default): rule_w=0.9 vs prod 0.6. memory/project_shadow_logging_rule_w_09.md
+#   jockey_form:       jockey_form factor disabled. memory/project_jockey_form_shadow_2026-05-23.md
+python3 -m scripts.shadow_generate '2026/05/17'                              # rule_w (writes shadow_race_data_*.json)
+python3 -m scripts.shadow_generate '2026/05/17' --variant jockey_form        # jockey_form (writes shadow_jockey_race_data_*.json)
+python3 -m scripts.shadow_evaluate '2026/05/17'                              # rule_w → tracking_data/shadow_log.csv
+python3 -m scripts.shadow_evaluate '2026/05/17' --variant jockey_form        # jockey_form → tracking_data/shadow_jockey_log.csv
+python3 -m scripts.shadow_evaluate --report                                  # cumulative rule_w
+python3 -m scripts.shadow_evaluate --report --variant jockey_form            # cumulative jockey_form
+# Both shadows auto-run via scripts.race_day; both eval auto-run via scripts.post_race.
+
+# Stake A/B — same picks, different stake sizes (flat-$10 vs production ramp
+# vs flat-1% vs invert). User typically bets HK$10/combo (memory:
+# user_stake_habit_10hkd_minimum); this measures which strategy actually wins
+# forward. Auto-runs in scripts.post_race step 2c.
+python3 -m scripts.stake_ab '2026/05/20'                                     # log one meeting
+python3 -m scripts.stake_ab --report                                         # cumulative + Bayesian verdict per variant
+
+# "Bayesian verdict" (used by shadow_evaluate + stake_ab) — Beta-Binomial
+# posterior P(variant beats baseline | per-meeting cumulative-ROI wins) under
+# a flat Beta(1,1) prior. SHIP if posterior ≥ 0.95, KILL if ≤ 0.05, else
+# WATCH. Optional-stopping safe: you can check the report after every meeting
+# without inflating Type I error (unlike the older arbitrary "N≥6 meetings"
+# heuristic still used by track_longshot_trio + tier_b_evaluate).
 
 # Forward-validation experiments + empirical trackers (auto-run by post_race)
 python3 -m scripts.tier_b_evaluate '2026/05/17'           # OLD vs NEW recommender (tier_b_log.csv)
@@ -49,7 +75,16 @@ python3 -m scripts.track_edge '2026/05/17'                # log EDGE fires + out
 python3 -m scripts.track_longshot_trio '2026/05/17'       # PAPER experiment: top-5 + steamed rank 6-8 longshot → longshot_trio_log.csv
 python3 -m scripts.track_longshot_trio --report           # cumulative hit-rate + ROI + SHIP/KILL verdict (N≥6 gate). NOT wired to dashboard/WA
 python3 -m scripts.clv_report                             # REAL closing-line value (open→close odds move on rank-1 picks) — fast sharpness signal. Coverage grows via `raceday live`
+python3 -m scripts.validate_hk                            # HK FORWARD-VALIDATION: scores actual live predictions on meetings AFTER a frozen cutoff (un-burned). Auto-runs in post_race. The ONLY honest ROI evidence — trust over the burned backtest. --report / --include-burned
+
 python3 -m scripts.eval_swap_rule --rank-out 6 --odds-ratio 0.5   # backtest a TRIO-6 swap rule before shipping (pre-ship gate)
+
+# Feature candidate diagnostics (cheap → re-rank → direct A/B → ship — the v6.9/v6.10 pipeline)
+python3 -m scripts.diagnose_mid_race_sectional      # Gate A/B for the jockey's mid-race 800-400 segment feature (n≈47k)
+python3 -m scripts.test_mid_race_rerank             # Signal-additivity on burned last 6 meetings — measures λ-sweep top-N capture
+python3 -m scripts.diagnose_sire_going              # Gate A1/A2/B for the handicap expert's sire-on-going feature (n≈55k)
+python3 -m scripts.test_sire_going_rerank           # Same signal-additivity probe for sire candidate
+python3 -m scripts.compare_v6_9_v6_10               # Direct trained-model A/B: v6.9 (25 features) vs v6.10 (26) on last 6 burned meetings, ML head only
 
 # Scrape historical results into database (Playwright required)
 python3 scrape_history.py                    # Last 10 meeting dates
@@ -77,6 +112,14 @@ python3 -m scripts.fetch_results '2026/04/16'
 python3 -m scripts.backtest              # Held-out last 20% of DB (default)
 python3 -m scripts.backtest --sweep      # Grid over softmax temp × model weight
 python3 -m scripts.backtest --exclude-date 2026/04/19
+python3 -m scripts.backtest --production-stakes   # Re-run holdout with production tier-ramped stakes (vs default flat-1u) — diagnose whether the conviction-tier staking ramp is itself the ROI leak. See memory: project_production_stakes_leak_2026-05-23.
+
+# Gate impact — OLD-vs-NEW BOX TRIO-5 triple gate (shipped 2026-05-23) over
+# the last N meetings, using same picks + real HKJC dividends. Auto-runs in
+# scripts.post_race step 5b after every meeting.
+python3 -m scripts.gate_impact             # last 8 meetings (default)
+python3 -m scripts.gate_impact --last 12   # last 12
+python3 -m scripts.gate_impact --all       # every available meeting
 
 # Backfill real HKJC dividends into race_dividends table
 python3 -m scripts.backfill_dividends              # All missing dates
@@ -112,7 +155,7 @@ python3 -m scripts.validate_fr --since-cutoff # forward-validation (true OOS)
 
 ```
 core/       — fetcher, analyzer, scorer, recommender, ML predictor          (HK)
-ml/         — feature schema (24 features, v6.8), feature extraction,       (HK)
+ml/         — feature schema (26 features, v6.10), feature extraction,      (HK)
               model, training, integrity, experiments
               + uk_features.py, uk_model.py                                   (UK MVP)
               + fr_features.py, fr_model.py                                   (FR MVP)
@@ -162,11 +205,21 @@ scripts/train.py → models/hkjc_racing_model.pkl
 
 **CombinedRaceAnalyzer** (`hkjc_racing_analyzer.py`) merges two systems:
 - **Rule engine (60%)**: 25 dynamically-weighted factors (added `speed_fig` v6.6). Missing-data factors are excluded and remaining weights renormalize to 1.0. The rule_score (0-100) is converted to a probability via a base-rate-anchored sigmoid: `sigmoid(0.06 × (score - 50) + logit(1/field_size))`. `odds` and `odds_movement` are NOT in the rule engine — market info enters via the dynamic market blend only (prevents triple-counting). v6.6 (2026-05-09) audit purged 3 sites that violated this: `field_size` factor (used `1/win_odds`), no-form fallback (used `1/win_odds`), and BANKER signal #9 (used `1/win_odds`). All replaced with structural-only logic.
-- **ML model (40%)**: XGBoost classifier with **24 features** (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a separate place model (`is_top3`). Both use IsotonicRegression recency-weighted, trained on ~50,750 real race results from a 5-year window (grows ~146/meeting). After the market blend, a second isotonic (`models/blend_calibrator.pkl`, fit by `scripts/calibrate_blend.py` on the 70-85% calibration fold ~8,271 production-pipeline pairs) recalibrates the post-blend distribution per-horse with renormalization. **Auto-learn refits the calibrator after every retrain** (gated on `retrain_ok` — won't refit against a stale model). 4-fold split: rows[0:60%] train, [60:70%] earlystop, [70:85%] calibrator, [85:100%] backtest holdout — strictly disjoint.
+- **ML model (40%)**: XGBoost classifier with **26 features** (`ml/model.py`, schema in `ml/feature_schema.py`). Includes a separate place model (`is_top3`). Both use IsotonicRegression recency-weighted, trained on ~50,750 real race results from a 5-year window (grows ~146/meeting). After the market blend, a second isotonic (`models/blend_calibrator.pkl`, fit by `scripts/calibrate_blend.py` on the 70-85% calibration fold ~8,271 production-pipeline pairs) recalibrates the post-blend distribution per-horse with renormalization. **Auto-learn refits the calibrator after every retrain** (gated on `retrain_ok` — won't refit against a stale model). 4-fold split: rows[0:60%] train, [60:70%] earlystop, [70:85%] calibrator, [85:100%] backtest holdout — strictly disjoint.
 
 The 14 specialized analyzers live in `analytics/` (draw bias, pace, sectionals, barrier trials, C&D, class movement, gear, weight, going preference, rolling form, beaten margins, jockey change, speed figures, jockey form). `analytics/speed_figures.py` was wired into the rule engine in v6.6 (was previously orphaned). `analytics/gear_change.py` scores are now data-calibrated by `scripts/calibrate_gear.py` (auto-runs after each meeting via auto-learn) — `models/gear_scores.json` overrides hand-tuned defaults.
 
 → Full feature list, importance table, removed-features history, training pipeline detail: `docs/ml-model.md`.
+
+**v6.9 + v6.10 (2026-05-24)** added two features from the PR #52 multi-expert review (handicap expert, racing pro, former jockey, strict code review). Both shipped after passing the cheap-diagnostic → re-rank signal-additivity → direct trained A/B pipeline:
+
+- **#25 `mid_race_pace`** (v6.9, former jockey rec): race-mean-normalized (800-400 split) minus (last-400 split), averaged across the horse's last 3 prior runs with 3+ sectionals. Captures the "unspent finisher" signal (held up mid-race then sprinted late). Importance 0.028, orthogonal to `late_kick` (positions-based, r=0.23). Source: `race_results.sectional_times` (99.4% Path B coverage).
+
+- **#26 `sire_top3_rate_on_going`** (v6.10, handicap expert rec): sire's smoothed top-3 rate on TODAY's going bucket, Beta(2, 8) prior, leak-free `before_date` filter. Strongest cheap-diagnostic pass in 6+ weeks: r=+0.0772 with `is_top3` (80% of `horse_prior_win_rate`'s signal strength), orthogonal to per-horse going history (r=0.45). Source: `renavon_horses` (frozen 2026/04/22, 99.7% sire coverage of currently-active HK horses). Going bucketed FIRM/GY/YIELDING/SOFT/WET-FAST via `_GOING_REVERSE` map.
+
+**Diagnostic discipline used (reusable pattern):** for every new feature candidate, run `scripts/diagnose_<feature>.py` (correlation gates A1/A2/B) → `scripts/test_<feature>_rerank.py` (signal-additivity on burned holdout) → train + run `scripts/compare_v6_x_v6_y.py` (direct trained A/B). Ship if pipeline is strictly positive on TOP-N capture; expect WIN to drop because the model rebalances toward TOP-N when given a place-rate feature. Forward log via `scripts/validate_hk.py` is the only honest measure.
+
+**Backups for instant revert**: `models/hkjc_racing_model.pkl.pre-sire` (=v6.9) and `models/hkjc_racing_model.pkl.pre-mid-race-pace` (=v6.8). One `cp` reverts.
 
 ### Database
 
@@ -290,7 +343,10 @@ Market odds enter ONLY through the dynamic market blend. Blend weights are heavi
 
 → Edge gates, conviction tiers, recommender logic, backtest history, exotic pricing math: `docs/betting-strategy.md`.
 
-> **⚠️ ROI-figure correction (2026-05-22).** A backtest bug scored HKJC dividends (declared **per HK$10**) against **$1** stakes, inflating every real-dividend ROI by **~10×**. Fixed in `scripts/backtest.py` (`get_real_quinella_dividend`/`get_real_exotic_dividend` now `/10`). **Treat every ROI figure dated before 2026-05-22 in this file, README, and docs/ as ~10× overstated.** Corrected held-out figures (668 races): straight QIN **+44%**, recommender-gated QIN **+19%**, TRIO-5 **+16%**, TRIO-6 **+29%**, F4 BOX-5 **+39%**. Relative ordering is preserved, so prior ship/kill decisions still hold — only the magnitudes were wrong. Also note: the model is now evaluated on **place / top-4 capture** (`print_place_calibration` in backtest — place ECE 0.0093 vs win 0.0527), NOT top-1 win Brier; the betting edge lives in top-N box capture, which is at its ceiling (speed_fig, sectional, is_top4, pace, marginal-slot all tested → no top-4 capture gain).
+> **🚨 LEAK CORRECTION (2026-05-22, SUPERSEDES every ROI figure in this repo).** Three rounds of expert audit found **10 date-leaking rule-engine DB lookups** with no `before_date` filter — in BACKTEST they read the **current race's own result** (`get_rolling_stats`/`get_beaten_margins` pulled the scored race's `finish_position`/`is_winner`/`margin`; `get_horse_cd_history` folded the current race into its own C&D record; `get_jockey_stats`/`get_trainer_stats` read season-aggregate tables containing up to 10 months of FUTURE racing). The full list: `get_horse_history`, `get_horse_going_record`, `get_rolling_stats`, `get_beaten_margins`, `get_horse_record`, `get_last_jockey`, `get_jockey_recent_form`, `get_trainer_recent_form`, `get_horse_cd_history`, `get_jockey_stats`/`get_trainer_stats`. **All 10 fixed** (`before_date` param + `race_date < ?`, threaded from `race.date` in `core/analyzer.py`; jockey/trainer now compute season-to-date from race_results). Live was unaffected (the race isn't in the DB at predict time; jockey/trainer live ≈ unchanged since the season table is local-rebuilt anyway).
+> **FULLY LEAK-FREE held-out figures (668 races) — EVERY bet type is NEGATIVE:** straight QIN **−10.7%**, gated QIN **−27.0%**, Box-4 QIN −23.0%, TRIO-5 −45.4%, F4 BOX-5 −44.8%. The earlier "+16.7% / +2.9%" QIN figures were themselves still leak-inflated (cd_history + season-aggregate). **The PLACE MODEL is unaffected (ML, not rule engine): BSS +0.10, ECE 0.0093** — the model genuinely DISCRIMINATES (rank-1 top-3 54.9% ≈ 2.2× random), but that skill does **NOT** beat the market + takeout on ANY bet type once hindsight is removed. The 668-race holdout is also BURNED (dozens of prior comparisons) so even the negatives are noisy — but there is **ZERO evidence of a positive-EV bet**. **HONEST POSTURE: no demonstrated betting edge; treat the tool as a ranking/screening aid, PAPER-ONLY, until the forward-validation log (`scripts/validate_hk.py`) shows a positive lower-CI-bound over N≥250 bets.** Detail: `memory/project_7expert_panel_2026-05-22.md`.
+>
+> **⚠️ ROI-figure correction (2026-05-22).** A backtest bug scored HKJC dividends (declared **per HK$10**) against **$1** stakes, inflating every real-dividend ROI by **~10×**. Fixed in `scripts/backtest.py` (`get_real_quinella_dividend`/`get_real_exotic_dividend` now `/10`). **Treat every ROI figure dated before 2026-05-22 in this file, README, and docs/ as ~10× overstated.** ~~Corrected held-out figures (668 races): straight QIN +44%, gated QIN +19%, TRIO-5 +16%, TRIO-6 +29%, F4 BOX-5 +39%.~~ **← SUPERSEDED by the LEAK CORRECTION above; these were measured on the leaking analyzer.** The model is evaluated on **place / top-4 capture** (`print_place_calibration` — place ECE 0.0093 vs win 0.0527), NOT top-1 win Brier.
 
 ## DB Data Gaps (post-Renavon backfill, audited 2026-05-16)
 
@@ -320,7 +376,7 @@ Added 2026-05-17. All non-HK racing data flows from **theracingapi.com** (HTTP B
 
 | Jurisdiction | DB | Model | Status | 12mo volume |
 |---|---|---|---|---|
-| **HK** | `horse_history.db` | v6.8 production | Production. Untouched by this expansion. | 55,303 race results |
+| **HK** | `horse_history.db` | v6.10 production | Production. Untouched by this expansion. | 55,303 race results |
 | **UK** | `uk_history.db` | `uk_racing_model.pkl` (15-feature XGB) | MVP — forward-validating | 81,975 runners |
 | **FR** | `fr_history.db` | `fr_racing_model.pkl` (15-feature XGB) | MVP — forward-validating, **beats market favourite** in backtest | 21,267 runners |
 | **AU** | `au_history.db` | none | Reference data only — too sparse on standard tier | 4,444 runners |
