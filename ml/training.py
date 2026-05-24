@@ -430,14 +430,14 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 )
             )
 
-            # Feature 25 (v6.9): mid-race sectional pace.
+            # mid_race_pace (v6.9): mid-race sectional pace.
             # Same helper as inference for train/predict parity.
             feat_mid_pace = FeatureEngineering.calculate_mid_race_pace(
                 r.get('horse_name', '') or '',
                 conn=conn, before_date=race_date,
             )
 
-            # Feature 26 (v6.10): sire's top-3 rate on this race's going.
+            # sire_top3_rate_on_going (v6.10): sire's top-3 rate on this race's going.
             # Same helper as inference for train/predict parity.
             feat_sire_going = FeatureEngineering.calculate_sire_top3_on_going(
                 r.get('horse_name', '') or '',
@@ -556,7 +556,7 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         late_kick_feat = float(np.clip(np.random.normal(0.5, 0.15), 0.0, 1.0))
         # v6.9 feature 25 (mid-race pace / "unspent finisher")
         mid_pace_feat = float(np.clip(np.random.normal(0.5, 0.10), 0.0, 1.0))
-        # v6.10 feature 26 (sire top-3 rate on going). Beta(2, 8) yields a
+        # v6.10 sire_top3_rate_on_going. Beta(2, 8) yields a
         # distribution roughly matching the smoothed real-data shape.
         sire_going_feat = float(np.random.beta(2, 8))
 
