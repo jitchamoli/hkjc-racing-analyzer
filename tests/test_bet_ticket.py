@@ -96,6 +96,40 @@ def test_bet_ticket_freeze_guard_refuses_any_mutation():
     assert should_replace(pre_race, identical) is True
 
 
+def test_bet_ticket_includes_trio5_and_f4_on_heavy_fav():
+    """2026-05-24: heavy-fav-skip removed from F4 BOX-5 + BOX TRIO-5 triple
+    gate per user. At flat $10/combo the downside is bounded, and the prior
+    behavior produced 'phantom-hit' recap inconsistency on R8/R11 2026-05-24
+    where the synthetic-strategy hit was reported but the bet was gated out
+    of the ticket.
+    """
+    race = {
+        'race_number': 8,
+        'conviction_tier': 'EDGE',
+        'has_edge': True,
+        'odds_age_minutes': 4,
+        'bankroll': 10000,
+        'suggested_stake': {'amount': 300.0, 'pct': 3.0, 'method': 'tier-fraction (EDGE)'},
+        'horses': [
+            _horse(1, 'QIN', odds=1.1),  # extreme heavy fav (R8 case)
+            _horse(2, 'QIN'),
+            _horse(3, 'QIN'),
+            _horse(4, 'QIN'),
+            _horse(5, 'SKIP'),
+            _horse(6, 'SKIP'),
+            _horse(7, 'SKIP'),
+            _horse(8, 'SKIP'),
+        ],
+    }
+    ticket = build_bet_ticket(
+        race, race_date='2026/05/24', model_version='m1',
+        generated_at='2026-05-24 12:00:00',
+    )
+    labels = [b['label'] for b in ticket['bets']]
+    assert 'BOX TRIO-5' in labels, "TRIO-5 must appear on heavy-fav races now"
+    assert 'F4 BOX-5' in labels, "F4 BOX-5 must appear on heavy-fav races now"
+
+
 def test_bet_ticket_freeze_guard_treats_actual_position_as_race_off():
     """Regression: bet_ticket regenerates if results_available=False, even
     after the race has run. Bookies settle post-race, top1 odds drift, the

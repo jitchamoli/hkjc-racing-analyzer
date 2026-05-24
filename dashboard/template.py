@@ -982,8 +982,7 @@ function renderBetCard(race) {{
   if (waTop5Len === 5) {{
     var f4t1 = (race.horses[0] && race.horses[0].win_odds) || 0;
     var f4f = race.horses.length;
-    var f4Sk = (f4t1 > 0 && f4t1 < 2.5) ||
-                (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+    var f4Sk = (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
                 (f4f < 8);
     if (!f4Sk) waF4Combos = 5;
     // TRIO-6 included only when verdict is TAKE (mirrors logic at line ~1088).
@@ -1098,14 +1097,11 @@ function renderBetCard(race) {{
   // for trio coverage and should never be buried as an "optional add".
   // Inserted into the lines array directly above the addOns block below.
   var t5MainBlock = null;
-  // F4-style triple gate (widened 2026-05-23, mirrors F4 BOX-5 below).
-  // Backtest 668-race holdout: ungated TRIO-5 ROI -45.4% vs gated -33.6%
-  // (+11.8pp). Heavy fav alone accounts for ~70% of the saved losses —
-  // dominant favs collapse the TRIO pool.
-  var t5Top1OddsWa = (race.horses[0] && race.horses[0].win_odds) || 0;
+  // Triple gate (tier + field; heavy-fav-skip removed 2026-05-24 per user —
+  // at flat $10/combo the downside is bounded; user prefers visible-and-staked
+  // over the "phantom-hit" recap inconsistency on R8/R11 2026-05-24).
   var t5FieldWa = race.horses.length;
-  var t5SkipWa = (t5Top1OddsWa > 0 && t5Top1OddsWa < 2.5) ||
-                  (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+  var t5SkipWa = (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
                   (t5FieldWa < 8);
   if (top5wa.length === 5 && !t5SkipWa) {{
     var t5Nums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
@@ -1123,10 +1119,8 @@ function renderBetCard(race) {{
   // cover different misses (TRIO-5 hits when 4th finisher is outside top-5).
   var f4bMainBlock = null;
   if (top5wa.length === 5) {{
-    var f4bTop1OddsWa = (race.horses[0] && race.horses[0].win_odds) || 0;
     var f4bFieldWa = race.horses.length;
-    var f4bSkipWa = (f4bTop1OddsWa > 0 && f4bTop1OddsWa < 2.5) ||
-                    (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
+    var f4bSkipWa = (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
                     (f4bFieldWa < 8);
     if (!f4bSkipWa) {{
       var f4bNums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
@@ -2003,13 +1997,10 @@ function _buildRaceDetailPanel(race) {{
   // LOW conv, or small field collapse the F4 dividend pool.
   var top5_f4 = top5_eff;
   if (top5_f4.length === 5) {{
-    var f4bTop1Odds = (race.horses[0] && race.horses[0].win_odds) || 0;
     var f4bTier = race.conviction_tier || '';
     var f4bField = race.horses.length;
     var f4bSkipReason = '';
-    if (f4bTop1Odds > 0 && f4bTop1Odds < 2.5) {{
-      f4bSkipReason = 'heavy fav $' + f4bTop1Odds.toFixed(1) + ' — F4 dividends collapse';
-    }} else if (f4bTier !== 'EDGE' && f4bTier !== 'HIGH' && f4bTier !== 'MED') {{
+    if (f4bTier !== 'EDGE' && f4bTier !== 'HIGH' && f4bTier !== 'MED') {{
       f4bSkipReason = f4bTier + ' conviction — top-5 coverage unreliable';
     }} else if (f4bField < 8) {{
       f4bSkipReason = 'small field ' + f4bField + ' — F4 pool too thin';
@@ -2049,13 +2040,10 @@ function _buildRaceDetailPanel(race) {{
   // favorites. Mirrors the F4 BOX-5 gate at line ~1996.
   var top5 = top5_eff;
   if (top5.length === 5) {{
-    var t5Top1Odds = (race.horses[0] && race.horses[0].win_odds) || 0;
     var t5Tier = race.conviction_tier || '';
     var t5Field = race.horses.length;
     var t5SkipReason = '';
-    if (t5Top1Odds > 0 && t5Top1Odds < 2.5) {{
-      t5SkipReason = 'heavy fav $' + t5Top1Odds.toFixed(1) + ' — TRIO pool collapses';
-    }} else if (t5Tier !== 'EDGE' && t5Tier !== 'HIGH' && t5Tier !== 'MED') {{
+    if (t5Tier !== 'EDGE' && t5Tier !== 'HIGH' && t5Tier !== 'MED') {{
       t5SkipReason = t5Tier + ' conviction — top-5 coverage unreliable';
     }} else if (t5Field < 8) {{
       t5SkipReason = 'small field ' + t5Field + ' — TRIO pool too thin';
