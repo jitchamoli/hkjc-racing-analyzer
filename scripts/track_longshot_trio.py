@@ -50,12 +50,20 @@ LOG_PATH = REPO_ROOT / 'tracking_data' / 'longshot_trio_log.csv'
 DB_PATH = REPO_ROOT / 'tracking_data' / 'horse_history.db'
 
 LOG_HEADERS = [
-    'race_date', 'race_number', 'longshot_num', 'longshot_name',
-    'longshot_rank', 'longshot_odds', 'steam_pct', 'box6_nums',
-    'actual_top3', 'trio5_hit', 'box6_hit', 'rescued', 'longshot_finish',
+    'race_date', 'race_number', 'variant',
+    'longshot_num', 'longshot_name', 'longshot_rank', 'longshot_odds', 'steam_pct',
+    'cold_num', 'cold_name', 'cold_rank', 'cold_odds', 'drift_pct',
+    'box6_nums', 'actual_top3',
+    'trio5_hit', 'box6_hit', 'rescued', 'longshot_finish',
 ]
 
+# Variant 1 (calc_hot): top-5 + 1 steamed rank 6-8 → BOX TRIO-6 (20 combos).
 LONGSHOT_RANKS = (6, 7, 8)
+
+# Variant 2 (mix_hot_cold, 2026-05-24): top-1 + 1 most-steamed in rank 6-12
+# + 1 most-drifted in rank 6-12 → STRAIGHT TRIO (1 combo). $10 lottery to
+# complement the 20-combo calc_hot box. Mirrors dashboard's _bolterTrio().
+MIX_LONGSHOT_RANKS = tuple(range(6, 13))
 
 
 def _steam_pct(horse: dict) -> int:
@@ -65,8 +73,14 @@ def _steam_pct(horse: dict) -> int:
     return int(m.group(1)) if m else 0
 
 
+def _movement_pct(horse: dict) -> float:
+    """odds_movement.change_pct (signed). >0 = shortened, <0 = drifted."""
+    om = horse.get('odds_movement') or {}
+    return float(om.get('change_pct') or 0)
+
+
 def _select(horses_sorted: list) -> dict | None:
-    """Pick the most-steamed rank-6..8 horse. None qualifying -> None (no bet)."""
+    """Variant 1 (calc_hot): most-steamed rank 6-8 horse."""
     if len(horses_sorted) < max(LONGSHOT_RANKS):
         return None
     candidates = []
@@ -81,11 +95,65 @@ def _select(horses_sorted: list) -> dict | None:
     return {'rank': rank, 'horse': horse, 'steam_pct': _steam_pct(horse)}
 
 
+def _select_hot_in_range(horses_sorted: list, ranks: tuple[int, ...]) -> dict | None:
+    """Most-steamed (largest positive change_pct) horse in given rank range."""
+    cap = min(max(ranks), len(horses_sorted))
+    candidates = []
+    for rank in ranks:
+        if rank > cap:
+            break
+        h = horses_sorted[rank - 1]
+        s = h.get('steam_move') or {}
+        if isinstance(s, dict) and s.get('is_steam'):
+            candidates.append((rank, h))
+    if not candidates:
+        return None
+    rank, horse = max(candidates, key=lambda rh: _movement_pct(rh[1]))
+    return {'rank': rank, 'horse': horse, 'steam_pct': int(_movement_pct(horse))}
+
+
+def _select_cold_in_range(horses_sorted: list, ranks: tuple[int, ...],
+                          exclude_nums: set[int] | None = None) -> dict | None:
+    """Most-drifted (most negative change_pct) horse in given rank range.
+
+    Drift threshold: change_pct < -10% (mirrors odds_tracker 'Mild drift' floor).
+    Skips horses already chosen by the hot selector.
+    """
+    cap = min(max(ranks), len(horses_sorted))
+    exclude_nums = exclude_nums or set()
+    candidates = []
+    for rank in ranks:
+        if rank > cap:
+            break
+        h = horses_sorted[rank - 1]
+        if h.get('number') in exclude_nums:
+            continue
+        pct = _movement_pct(h)
+        if pct < -10:
+            candidates.append((rank, h, pct))
+    if not candidates:
+        return None
+    rank, horse, pct = min(candidates, key=lambda rhp: rhp[2])
+    return {'rank': rank, 'horse': horse, 'drift_pct': abs(int(pct))}
+
+
+def _empty_row_fields() -> dict:
+    """Default empty values for unused columns (variant-dependent)."""
+    base = {k: '' for k in (
+        'longshot_num', 'longshot_name', 'longshot_rank', 'longshot_odds',
+        'steam_pct', 'cold_num', 'cold_name', 'cold_rank', 'cold_odds',
+        'drift_pct', 'box6_nums', 'actual_top3', 'longshot_finish',
+    )}
+    base.update({'trio5_hit': 0, 'box6_hit': 0, 'rescued': 0})
+    return base
+
+
 def _box_hit(box_nums: list[int], actual_top3: list) -> bool:
     return bool(actual_top3) and all(n in box_nums for n in actual_top3)
 
 
 def _rows_for_meeting(races: list, date: str) -> list[dict]:
+    """One row per (race, qualifying variant) — 0, 1, or 2 rows per race."""
     rows = []
     for r in races:
         if not r.get('results_available'):
@@ -94,31 +162,72 @@ def _rows_for_meeting(races: list, date: str) -> list[dict]:
         if not top3:
             continue
         horses_sorted = sorted(r['horses'], key=lambda h: h.get('rank') or 99)
-        if len(horses_sorted) < max(LONGSHOT_RANKS):
-            continue
-        sel = _select(horses_sorted)
-        if not sel:
-            continue
-        base5 = [h['number'] for h in horses_sorted[:5]]
-        ls = sel['horse']
-        box6 = base5 + [ls['number']]
-        trio5_hit = _box_hit(base5, top3)
-        box6_hit = _box_hit(box6, top3)
-        rows.append({
-            'race_date': date,
-            'race_number': r.get('race_number'),
-            'longshot_num': ls['number'],
-            'longshot_name': ls.get('name', ''),
-            'longshot_rank': sel['rank'],
-            'longshot_odds': ls.get('win_odds') or '',
-            'steam_pct': sel['steam_pct'],
-            'box6_nums': '|'.join(str(n) for n in box6),
-            'actual_top3': '|'.join(str(n) for n in top3),
-            'trio5_hit': int(trio5_hit),
-            'box6_hit': int(box6_hit),
-            'rescued': int(box6_hit and not trio5_hit),
-            'longshot_finish': ls.get('actual_position') or '',
-        })
+
+        # Variant 1: calc_hot (top-5 + steamed rank 6-8 → BOX TRIO-6)
+        if len(horses_sorted) >= max(LONGSHOT_RANKS):
+            sel = _select(horses_sorted)
+            if sel:
+                base5 = [h['number'] for h in horses_sorted[:5]]
+                ls = sel['horse']
+                box6 = base5 + [ls['number']]
+                trio5_hit = _box_hit(base5, top3)
+                box6_hit = _box_hit(box6, top3)
+                row = _empty_row_fields()
+                row.update({
+                    'race_date': date,
+                    'race_number': r.get('race_number'),
+                    'variant': 'calc_hot',
+                    'longshot_num': ls['number'],
+                    'longshot_name': ls.get('name', ''),
+                    'longshot_rank': sel['rank'],
+                    'longshot_odds': ls.get('win_odds') or '',
+                    'steam_pct': sel['steam_pct'],
+                    'box6_nums': '|'.join(str(n) for n in box6),
+                    'actual_top3': '|'.join(str(n) for n in top3),
+                    'trio5_hit': int(trio5_hit),
+                    'box6_hit': int(box6_hit),
+                    'rescued': int(box6_hit and not trio5_hit),
+                    'longshot_finish': ls.get('actual_position') or '',
+                })
+                rows.append(row)
+
+        # Variant 2: mix_hot_cold (top-1 + steamed 6-12 + drifted 6-12 → STRAIGHT TRIO)
+        if len(horses_sorted) >= 6:
+            top1 = horses_sorted[0]
+            hot = _select_hot_in_range(horses_sorted, MIX_LONGSHOT_RANKS)
+            cold = _select_cold_in_range(
+                horses_sorted, MIX_LONGSHOT_RANKS,
+                exclude_nums={hot['horse']['number']} if hot else set(),
+            )
+            if hot and cold:
+                hh = hot['horse']
+                ch = cold['horse']
+                trio3 = [top1['number'], hh['number'], ch['number']]
+                # STRAIGHT TRIO with exactly 3 picks: hit iff set(top3) == set(trio3)
+                hit = bool(top3) and set(top3) == set(trio3)
+                row = _empty_row_fields()
+                row.update({
+                    'race_date': date,
+                    'race_number': r.get('race_number'),
+                    'variant': 'mix_hot_cold',
+                    'longshot_num': hh['number'],
+                    'longshot_name': hh.get('name', ''),
+                    'longshot_rank': hot['rank'],
+                    'longshot_odds': hh.get('win_odds') or '',
+                    'steam_pct': hot['steam_pct'],
+                    'cold_num': ch['number'],
+                    'cold_name': ch.get('name', ''),
+                    'cold_rank': cold['rank'],
+                    'cold_odds': ch.get('win_odds') or '',
+                    'drift_pct': cold['drift_pct'],
+                    'box6_nums': '|'.join(str(n) for n in trio3),
+                    'actual_top3': '|'.join(str(n) for n in top3),
+                    'trio5_hit': 0,
+                    'box6_hit': int(hit),
+                    'rescued': 0,
+                    'longshot_finish': hh.get('actual_position') or '',
+                })
+                rows.append(row)
     return rows
 
 
@@ -151,16 +260,29 @@ def track_one(date: str) -> int:
         return 1
     rows = _rows_for_meeting(races, date)
     _write_log(rows, single_date=date)
-    n_box = sum(r['box6_hit'] for r in rows)
-    n_resc = sum(r['rescued'] for r in rows)
-    print(f"{date}: {len(rows)} qualifying races (steamed rank 6-8 present). "
-          f"Longshot-box TRIO hit {n_box}/{len(rows)}; rescued {n_resc} that the "
-          f"default top-5 box missed.")
-    for r in rows:
+
+    calc_rows = [r for r in rows if r['variant'] == 'calc_hot']
+    mix_rows  = [r for r in rows if r['variant'] == 'mix_hot_cold']
+
+    n_calc_hit = sum(r['box6_hit'] for r in calc_rows)
+    n_calc_resc = sum(r['rescued'] for r in calc_rows)
+    print(f"\n{date}  variant=calc_hot: {len(calc_rows)} qualifying races. "
+          f"box6 hit {n_calc_hit}/{len(calc_rows)}; rescued {n_calc_resc}.")
+    for r in calc_rows:
         flag = '  <-- RESCUED' if r['rescued'] else ('  (hit)' if r['box6_hit'] else '')
         print(f"   R{r['race_number']}: +#{r['longshot_num']} {r['longshot_name']} "
               f"(rank {r['longshot_rank']}, ${r['longshot_odds']}, -{r['steam_pct']}%) "
               f"finish {r['longshot_finish'] or '?'}{flag}")
+
+    n_mix_hit = sum(r['box6_hit'] for r in mix_rows)
+    print(f"\n{date}  variant=mix_hot_cold: {len(mix_rows)} qualifying races. "
+          f"STRAIGHT TRIO hit {n_mix_hit}/{len(mix_rows)}.")
+    for r in mix_rows:
+        flag = '  (HIT)' if r['box6_hit'] else ''
+        print(f"   R{r['race_number']}: hot #{r['longshot_num']} {r['longshot_name']} "
+              f"(rank {r['longshot_rank']}, ${r['longshot_odds']}, -{r['steam_pct']}%)  "
+              f"cold #{r['cold_num']} {r['cold_name']} "
+              f"(rank {r['cold_rank']}, ${r['cold_odds']}, +{r['drift_pct']}%){flag}")
     return 0
 
 
@@ -198,23 +320,17 @@ def _trio_dividend(date: str, race_no) -> float | None:
     return row[0] if row and row[0] is not None else None
 
 
-def report() -> int:
-    if not LOG_PATH.exists():
-        print("No log yet. Run with a date or --backfill-all first.")
-        return 1
-    with open(LOG_PATH) as f:
-        rows = list(csv.DictReader(f))
+def _report_calc_hot(rows: list[dict]) -> dict:
+    """Variant 1 report: top-5 + steamed rank 6-8 → BOX TRIO-6 (20 combos)."""
     if not rows:
-        print("Log is empty.")
-        return 1
-
+        print("\nVariant 1 (calc_hot): no qualifying races.")
+        return {}
     meetings = sorted({r['race_date'] for r in rows})
     n_q = len(rows)
     n_trio5 = sum(int(r['trio5_hit']) for r in rows)
     n_box6 = sum(int(r['box6_hit']) for r in rows)
     n_resc = sum(int(r['rescued']) for r in rows)
 
-    # ROI (only over races where the TRIO dividend has been backfilled)
     box_stake = box_pay = base_stake = base_pay = 0.0
     n_priced = 0
     for r in rows:
@@ -230,25 +346,107 @@ def report() -> int:
             base_pay += div
 
     print("\n" + "=" * 72)
-    print("LONGSHOT-INCLUSIVE TRIO — paper experiment (top-5 + steamed rank 6-8)")
+    print("VARIANT 1: calc_hot  (top-5 + steamed rank 6-8 → BOX TRIO-6, 20 combos)")
     print("=" * 72)
-    print(f"Meetings logged:        {len(meetings)}  ({meetings[0]} .. {meetings[-1]})")
-    print(f"Qualifying races:       {n_q}")
-    print(f"  default TRIO-5 hit:   {n_trio5}/{n_q} ({100*n_trio5/n_q:.0f}%)")
-    print(f"  longshot-box hit:     {n_box6}/{n_q} ({100*n_box6/n_q:.0f}%)")
-    print(f"  RESCUED (box hit, top-5 missed): {n_resc}")
+    print(f"Meetings:      {len(meetings)}  ({meetings[0]} .. {meetings[-1]})")
+    print(f"Qualifying:    {n_q}")
+    print(f"  TRIO-5 base: {n_trio5}/{n_q} ({100*n_trio5/n_q:.0f}%)")
+    print(f"  box6 hit:    {n_box6}/{n_q} ({100*n_box6/n_q:.0f}%)")
+    print(f"  RESCUED:     {n_resc}  (box6 hit where TRIO-5 missed)")
     if n_priced:
         box_roi = (box_pay - box_stake) / box_stake * 100
         base_roi = (base_pay - base_stake) / base_stake * 100
-        print(f"\nROI over {n_priced} priced races (TRIO div per $10):")
-        print(f"  longshot box:   {box_roi:+.0f}%  (won ${box_pay:.0f} on ${box_stake:.0f})")
-        print(f"  baseline TRIO-5:{base_roi:+.0f}%  (won ${base_pay:.0f} on ${base_stake:.0f})")
+        print(f"\nROI over {n_priced} priced races:")
+        print(f"  longshot box:    {box_roi:+.0f}%  (won ${box_pay:.0f} on ${box_stake:.0f})")
+        print(f"  baseline TRIO-5: {base_roi:+.0f}%  (won ${base_pay:.0f} on ${base_stake:.0f})")
     else:
         box_roi = base_roi = None
-        print("\nROI: pending — no TRIO dividends backfilled yet "
-              "(run scripts.backfill_dividends).")
-
+        print("\nROI: pending — no TRIO dividends backfilled yet.")
     print("\nVERDICT:", _verdict(len(meetings), box_roi, base_roi))
+    return {'rows': rows, 'meetings': meetings}
+
+
+def _report_mix_hot_cold(rows: list[dict]) -> dict:
+    """Variant 2 report: top-1 + hot + cold → STRAIGHT TRIO (1 combo, $10 lottery).
+
+    Same selection as dashboard's _bolterTrio() — the 🍀 lottery line.
+    """
+    if not rows:
+        print("\nVariant 2 (mix_hot_cold): no qualifying races.")
+        return {}
+    meetings = sorted({r['race_date'] for r in rows})
+    n_q = len(rows)
+    n_hit = sum(int(r['box6_hit']) for r in rows)  # field reused for STRAIGHT TRIO hit
+
+    mix_stake = mix_pay = 0.0
+    n_priced = 0
+    for r in rows:
+        div = _trio_dividend(r['race_date'], int(r['race_number']))
+        if div is None:
+            continue
+        n_priced += 1
+        mix_stake += 1 * 10   # STRAIGHT TRIO = 1 combo at $10
+        if int(r['box6_hit']):
+            mix_pay += div
+
+    print("\n" + "=" * 72)
+    print("VARIANT 2: mix_hot_cold  (top-1 + steamed 6-12 + drifted 6-12 → STRAIGHT TRIO)")
+    print("                         (same shape as dashboard 🍀 BOLTER TRIO)")
+    print("=" * 72)
+    print(f"Meetings:      {len(meetings)}  ({meetings[0]} .. {meetings[-1]})")
+    print(f"Qualifying:    {n_q}")
+    print(f"  STRAIGHT hit: {n_hit}/{n_q} ({100*n_hit/n_q:.1f}%)")
+    if n_priced:
+        mix_roi = (mix_pay - mix_stake) / mix_stake * 100
+        print(f"\nROI over {n_priced} priced races (STRAIGHT TRIO, 1 combo × $10):")
+        print(f"  mix straight: {mix_roi:+.0f}%  (won ${mix_pay:.0f} on ${mix_stake:.0f})")
+        print("  (lottery shape — single hit can dwarf many meetings of losses)")
+    else:
+        mix_roi = None
+        print("\nROI: pending — no TRIO dividends backfilled yet.")
+    print("\nVERDICT:", _verdict(len(meetings), mix_roi, None))
+    return {'rows': rows, 'meetings': meetings}
+
+
+def report() -> int:
+    if not LOG_PATH.exists():
+        print("No log yet. Run with a date or --backfill-all first.")
+        return 1
+    with open(LOG_PATH) as f:
+        all_rows = list(csv.DictReader(f))
+    if not all_rows:
+        print("Log is empty.")
+        return 1
+
+    # Backward-compat: rows from before the variant column default to calc_hot.
+    for r in all_rows:
+        if not r.get('variant'):
+            r['variant'] = 'calc_hot'
+
+    calc_rows = [r for r in all_rows if r['variant'] == 'calc_hot']
+    mix_rows  = [r for r in all_rows if r['variant'] == 'mix_hot_cold']
+
+    _report_calc_hot(calc_rows)
+    _report_mix_hot_cold(mix_rows)
+    rows = calc_rows  # legacy aggregate Bayesian section uses calc_hot only
+    if not rows:
+        return 0
+    meetings = sorted({r['race_date'] for r in rows})
+    box_stake = box_pay = base_stake = base_pay = 0.0
+    n_priced = 0
+    for r in rows:
+        div = _trio_dividend(r['race_date'], int(r['race_number']))
+        if div is None:
+            continue
+        n_priced += 1
+        box_stake += 20 * 10
+        base_stake += 10 * 10
+        if int(r['box6_hit']):
+            box_pay += div
+        if int(r['trio5_hit']):
+            base_pay += div
+    box_roi = (box_pay - box_stake) / box_stake * 100 if box_stake else None
+    base_roi = (base_pay - base_stake) / base_stake * 100 if base_stake else None
 
     # Bayesian per-meeting verdict (added 2026-05-23 — replaces the aggregate
     # N>=6 + ROI-compare heuristic above with optional-stopping-safe SHIP/KILL/
