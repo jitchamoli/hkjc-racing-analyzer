@@ -3,8 +3,17 @@
 Both extract_features() and build_training_data_from_db() MUST build
 feature vectors in FEATURE_SCHEMA order. This prevents train/predict mismatch.
 
-21 features — all use data available BEFORE the race (no leakage).
+23 features (v6.11) — all use data available BEFORE the race (no leakage).
 No direct market odds features — ML must provide independent signal.
+
+v6.11 drops (2026-05-24, Tier 1 prune from 3-expert PRUNE review):
+- draw_advantage: r=−0.0095 with is_winner on 50k rows (literally zero signal).
+  field_rel_draw (r=−0.085) already carries the draw signal.
+- speed_fig_norm: HK is paceless (small fields, jockey-controlled tempo);
+  final times compress. r=0.53 with last_start_margin. Memory
+  speed_fig_starved_not_dead documented prior NEUTRAL-for-betting verdict.
+- running_style: r=+0.914 with early_speed (near-duplicate; 3-bin
+  coarsened version of the same continuous signal).
 
 Wave 2c drops:
 - field_rel_speed: r=0.718 with recent_form, r=0.710 with last_start_margin.
@@ -76,30 +85,27 @@ import numpy as np
 FEATURE_SCHEMA = [
     {"name": "prior_win_rate", "default": 0.5, "range": (0.0, 1.0)},       # 1
     {"name": "recent_form", "default": 0.5, "range": (0.0, 1.0)},          # 2
-    {"name": "draw_advantage", "default": 0.6, "range": (0.0, 1.0)},       # 3
-    {"name": "jockey_win_rate", "default": 0.08, "range": (0.0, 0.6)},     # 4
-    {"name": "trainer_win_rate", "default": 0.06, "range": (0.0, 0.5)},    # 5
-    {"name": "field_size", "default": 0.857, "range": (0.0, 1.0)},         # 6 (clipped to [0,1])
-    {"name": "field_rel_draw", "default": 0.5, "range": (0.0, 1.0)},       # 7 (clipped to [0,1])
-    {"name": "cd_form_prior", "default": 0.5, "range": (0.0, 1.0)},        # 8
-    {"name": "class_level", "default": 0.4, "range": (0.0, 1.0)},          # 9 (Group=1.0, Class1=0.8, Class5=0.0)
-    {"name": "freshness", "default": 0.5, "range": (0.0, 1.0)},            # 10
-    {"name": "going_performance", "default": 0.5, "range": (0.0, 1.0)},    # 11
-    {"name": "weight_vs_field", "default": 0.5, "range": (0.0, 1.0)},      # 12
-    {"name": "jockey_horse_coop", "default": 0.5, "range": (0.0, 1.0)},    # 13
-    {"name": "last_start_margin", "default": 0.5, "range": (0.0, 1.0)},    # 14
-    {"name": "class_change", "default": 0.5, "range": (0.0, 1.0)},         # 15
-    {"name": "horse_weight_change", "default": 0.5, "range": (0.0, 1.0)},  # 16
-    {"name": "horse_age", "default": 0.5, "range": (0.0, 1.0)},            # 17 (3yo→1.0, 9yo→0.0)
-    {"name": "rating_change", "default": 0.5, "range": (0.0, 1.0)},        # 18 (+10pts→1.0, -10→0.0)
-    {"name": "jockey_form_30d", "default": 0.08, "range": (0.0, 0.6)},     # 19 (last 30-day strike rate)
-    {"name": "jt_pair_win_rate", "default": 0.08, "range": (0.0, 0.5)},    # 20 (Bayesian-smoothed jockey×trainer)
-    {"name": "speed_fig_norm", "default": 0.5, "range": (0.0, 1.0)},       # 21 (par-time normalised, last run)
-    {"name": "early_speed", "default": 0.5, "range": (0.0, 1.0)},          # 22 (1st-call rank, front=0.0 closer=1.0; default avg)
-    {"name": "late_kick", "default": 0.5, "range": (0.0, 1.0)},            # 23 (closing rate; >0.5=closing, <0.5=fading)
-    {"name": "running_style", "default": 0.5, "range": (0.0, 1.0)},        # 24 (front=0.0, stalker=0.5, closer=1.0)
-    {"name": "mid_race_pace", "default": 0.5, "range": (0.0, 1.0)},        # 25 (mid_minus_late: race-mean-normalized 800-400 split minus last-400 split, mean of last 3 prior sectional runs)
-    {"name": "sire_top3_rate_on_going", "default": 0.20, "range": (0.0, 1.0)},  # 26 (Beta(2,8)-smoothed top-3 rate of horse's sire on TODAY's going bucket, all prior progeny starts; default = base top-3 rate)
+    {"name": "jockey_win_rate", "default": 0.08, "range": (0.0, 0.6)},     # 3
+    {"name": "trainer_win_rate", "default": 0.06, "range": (0.0, 0.5)},    # 4
+    {"name": "field_size", "default": 0.857, "range": (0.0, 1.0)},         # 5 (clipped to [0,1])
+    {"name": "field_rel_draw", "default": 0.5, "range": (0.0, 1.0)},       # 6 (clipped to [0,1])
+    {"name": "cd_form_prior", "default": 0.5, "range": (0.0, 1.0)},        # 7
+    {"name": "class_level", "default": 0.4, "range": (0.0, 1.0)},          # 8 (Group=1.0, Class1=0.8, Class5=0.0)
+    {"name": "freshness", "default": 0.5, "range": (0.0, 1.0)},            # 9
+    {"name": "going_performance", "default": 0.5, "range": (0.0, 1.0)},    # 10
+    {"name": "weight_vs_field", "default": 0.5, "range": (0.0, 1.0)},      # 11
+    {"name": "jockey_horse_coop", "default": 0.5, "range": (0.0, 1.0)},    # 12
+    {"name": "last_start_margin", "default": 0.5, "range": (0.0, 1.0)},    # 13
+    {"name": "class_change", "default": 0.5, "range": (0.0, 1.0)},         # 14
+    {"name": "horse_weight_change", "default": 0.5, "range": (0.0, 1.0)},  # 15
+    {"name": "horse_age", "default": 0.5, "range": (0.0, 1.0)},            # 16 (3yo→1.0, 9yo→0.0)
+    {"name": "rating_change", "default": 0.5, "range": (0.0, 1.0)},        # 17 (+10pts→1.0, -10→0.0)
+    {"name": "jockey_form_30d", "default": 0.08, "range": (0.0, 0.6)},     # 18 (last 30-day strike rate)
+    {"name": "jt_pair_win_rate", "default": 0.08, "range": (0.0, 0.5)},    # 19 (Bayesian-smoothed jockey×trainer)
+    {"name": "early_speed", "default": 0.5, "range": (0.0, 1.0)},          # 20 (1st-call rank, front=0.0 closer=1.0; default avg)
+    {"name": "late_kick", "default": 0.5, "range": (0.0, 1.0)},            # 21 (closing rate; >0.5=closing, <0.5=fading)
+    {"name": "mid_race_pace", "default": 0.5, "range": (0.0, 1.0)},        # 22 (mid_minus_late: race-mean-normalized 800-400 split minus last-400 split, mean of last 3 prior sectional runs)
+    {"name": "sire_top3_rate_on_going", "default": 0.20, "range": (0.0, 1.0)},  # 23 (Beta(2,8)-smoothed top-3 rate of horse's sire on TODAY's going bucket, all prior progeny starts; default = base top-3 rate)
 ]
 
 FEATURE_NAMES = [f["name"] for f in FEATURE_SCHEMA]
