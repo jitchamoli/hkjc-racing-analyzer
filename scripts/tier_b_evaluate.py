@@ -28,6 +28,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 import config
+from betting.dividends import hkjc_declared_to_unit
 from scripts.forward_common import bayesian_verdict
 
 LOG_PATH = REPO_ROOT / "tracking_data" / "tier_b_log.csv"
@@ -58,7 +59,7 @@ def _lookup_win_dividend(conn, date: str, race_no: int, horse_number: int) -> fl
         "WHERE race_date=? AND race_number=? AND pool='WIN' AND combination=?",
         (date, race_no, str(horse_number)),
     ).fetchone()
-    return float(row[0]) if row else None
+    return hkjc_declared_to_unit(row[0]) if row else None
 
 
 def _score_edge_shadow(conn, date: str, race_no: int,
@@ -98,7 +99,10 @@ def _real_pnl(conn, date, race_no, bet_type, leg_count, hit,
     ).fetchone()
     if not row:
         return None, stake
-    return float(row[0]) - stake, stake
+    dividend = hkjc_declared_to_unit(row[0])
+    if dividend is None:
+        return None, stake
+    return dividend - stake, stake
 
 
 def _score_bet(conn, date, race_no, bet_type, top3_picks, top4_picks,

@@ -55,6 +55,46 @@ def _insert_dividend(conn, date, race_no, pool, combination, dividend):
 
 
 class TestRaceLevelHitDetection:
+    def test_log_predictions_does_not_overwrite_filled_results(self):
+        db, path = _make_db()
+        try:
+            conn = sqlite3.connect(str(path))
+            _insert_race(conn, '2026/01/01', 1, [
+                (1, 'A', 'QIN', 1, 1, 1, -10),
+            ])
+            conn.close()
+
+            db.log_predictions('2026/01/01', [{
+                'race_number': 1,
+                'venue': 'Sha Tin',
+                'distance': 1200,
+                'class_type': 'Class 3',
+                'going': 'GOOD',
+                'conviction_tier': 'EDGE',
+                'horses': [{
+                    'name': 'A',
+                    'number': 1,
+                    'rank': 9,
+                    'rule_score': 1,
+                    'ml_prob': 0.01,
+                    'calibrated_prob': 0.01,
+                    'expected_return': -0.9,
+                    'bet_recommendation': 'SKIP',
+                    'confidence': 'LOW',
+                    'win_odds': 99,
+                }],
+            }], model_version='new-model')
+
+            conn = sqlite3.connect(str(path))
+            row = conn.execute(
+                "SELECT predicted_rank, bet_recommendation, results_filled "
+                "FROM prediction_log WHERE race_date='2026/01/01' AND race_number=1"
+            ).fetchone()
+            conn.close()
+            assert row == (1, 'QIN', 1)
+        finally:
+            path.unlink(missing_ok=True)
+
     def test_qin_hits_when_two_of_top3_finish_top2(self):
         db, path = _make_db()
         try:
@@ -255,9 +295,9 @@ class TestRaceLevelHitDetection:
             _insert_dividend(conn, '2026/02/15', 1, 'QUINELLA', '1,2', 47.5)
             conn.close()
             s = db.get_accuracy_summary(days=9999)
-            # 1 bet (straight QIN, 2 legs → cost 1u), hit pays 47.5u, net +46.5u
+            # HKJC declares 47.5 per HK$10 → 4.75u on repo's 1u basis.
             assert s['bets_won'] == 1
-            assert abs(s['total_profit'] - 46.5) < 1e-6, f"got {s['total_profit']}"
+            assert abs(s['total_profit'] - 3.8) < 1e-6, f"got {s['total_profit']}"
             assert abs(s['total_stake'] - 1.0) < 1e-6
         finally:
             path.unlink(missing_ok=True)
@@ -275,8 +315,8 @@ class TestRaceLevelHitDetection:
             _insert_dividend(conn, '2026/02/16', 1, 'QUINELLA', '1,2', 60.0)
             conn.close()
             s = db.get_accuracy_summary(days=9999)
-            # Hit: dividend 60 - stake 3 = +57u
-            assert abs(s['total_profit'] - 57.0) < 1e-6
+            # HKJC declares 60 per HK$10 → 6u return; BOX Q3 stake is 3u.
+            assert abs(s['total_profit'] - 3.0) < 1e-6
             assert abs(s['total_stake'] - 3.0) < 1e-6
         finally:
             path.unlink(missing_ok=True)
@@ -328,8 +368,8 @@ class TestRaceLevelHitDetection:
             conn.close()
             s = db.get_accuracy_summary(days=9999)
             assert s['bets_won'] == 1
-            # Straight TRIO: 1 combo, dividend 500 - stake 1 = +499
-            assert abs(s['total_profit'] - 499.0) < 1e-6
+            # HKJC declares 500 per HK$10 → 50u return; straight TRIO stake is 1u.
+            assert abs(s['total_profit'] - 49.0) < 1e-6
         finally:
             path.unlink(missing_ok=True)
 

@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from betting.dividends import hkjc_declared_to_unit
+
 logger = logging.getLogger(__name__)
 
 DB_DIR = Path(__file__).parent.parent / 'tracking_data'
@@ -1291,6 +1293,7 @@ class HorseDatabase:
                         model_version=excluded.model_version,
                         conviction_tier=excluded.conviction_tier,
                         predicted_at=excluded.predicted_at
+                    WHERE COALESCE(prediction_log.results_filled, 0) = 0
                 """, (
                     race_date, race_no, venue, distance, class_type, going,
                     field_size, h.get('name', ''), h.get('number', 0),
@@ -1391,7 +1394,9 @@ class HorseDatabase:
         ).fetchone()
         if not row:
             return None, stake
-        dividend = float(row[0])
+        dividend = hkjc_declared_to_unit(row[0])
+        if dividend is None:
+            return None, stake
         return dividend - stake, stake
 
     def get_accuracy_summary(self, days: int = 30) -> Dict:

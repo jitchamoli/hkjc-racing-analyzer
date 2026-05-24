@@ -30,6 +30,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config
+from betting.dividends import hkjc_declared_to_unit
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = REPO_ROOT / 'results'
@@ -53,7 +54,7 @@ def _trio_div_per1(conn, race_date: str, race_no: int,
         "AND race_number=? AND pool='TRIO' AND combination=?",
         (race_date, race_no, combo),
     ).fetchone()
-    return (row[0] / 10.0) if row else None
+    return hkjc_declared_to_unit(row[0]) if row else None
 
 
 def _triple_gate_skip(race: dict) -> tuple[bool, str]:

@@ -244,7 +244,7 @@ def test_frozen_keys_constants_are_complete():
     """Pin the explicit list so a future commit can't silently shrink it."""
     expected_race = {
         'conviction_tier', 'has_edge', 'suggested_stake', 'bankroll',
-        'odds_age_minutes', 'top_2_share', 'top_3_share',
+        'odds_age_minutes', 'bet_ticket', 'top_2_share', 'top_3_share',
         'edge_horse_rank', 'edge_horse_number', 'edge_horse_name',
     }
     expected_horse = {

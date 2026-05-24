@@ -81,6 +81,7 @@ _RESULT_KEYS_HORSE = {'actual_position'}
 # moved $7.40 → $3.10 in the post-race feed, dragging cal_probs.
 _FROZEN_PREDICTION_KEYS_RACE = {'conviction_tier', 'has_edge', 'suggested_stake',
                                  'bankroll', 'odds_age_minutes',
+                                 'bet_ticket',
                                  # Shape stats — must move in lockstep with the
                                  # frozen horse-level calibrated_prob (audit
                                  # 2026-05-17, ML expert finding HIGH-1)
@@ -251,6 +252,111 @@ def apply_card_exposure_cap(all_races: list, bankroll: float,
         s['method'] = (s.get('method') or '') + \
             f" · card-capped ×{scale:.2f} ({int(cap_frac*100)}% day limit)"
     return scale
+
+
+def _ticket_add_bet(bets: list, label: str, pool: str, horses: list,
+                    combos: int, reason: str) -> None:
+    if combos <= 0 or not horses:
+        return
+    bets.append({
+        'label': label,
+        'pool': pool,
+        'combos': int(combos),
+        'legs': [
+            {'rank': h.get('rank'), 'number': h.get('number'), 'name': h.get('name')}
+            for h in horses
+        ],
+        'reason': reason,
+    })
+
+
+def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
+                     generated_at: str) -> dict:
+    """Server-side frozen bet ticket; dashboard/evaluators should render this.
+
+    The old UI derived extra MAIN bets client-side. Persisting the ticket here
+    makes the actual decision auditable before results land.
+    """
+    horses = sorted(race.get('horses') or [], key=lambda h: h.get('rank') or 99)
+    stake = race.get('suggested_stake') or {}
+    amount = float(stake.get('amount') or 0.0)
+    bets = []
+
+    if amount > 0 and horses:
+        by_rec = {}
+        for h in horses:
+            rec = (h.get('bet_recommendation') or '').strip()
+            if rec and rec != 'SKIP':
+                by_rec.setdefault(rec, []).append(h)
+
+        for rec, legs in by_rec.items():
+            n = len(legs)
+            if rec in ('WIN', 'BANKER WIN'):
+                _ticket_add_bet(bets, rec, 'WIN', legs[:1], 1, 'recommender')
+            elif rec == 'PLACE':
+                _ticket_add_bet(bets, 'PLACE', 'PLACE', legs[:1], 1, 'recommender')
+            elif rec == 'QIN':
+                combos = 1 if n == 2 else n * (n - 1) // 2
+                label = 'STRAIGHT QIN' if n == 2 else f'BOX QIN-{n}'
+                _ticket_add_bet(bets, label, 'QUINELLA', legs, combos, 'recommender')
+            elif rec == 'TRIO':
+                combos = 1 if n == 3 else n * (n - 1) * (n - 2) // 6
+                label = 'STRAIGHT TRIO' if n == 3 else f'BOX TRIO-{n}'
+                _ticket_add_bet(bets, label, 'TRIO', legs, combos, 'recommender')
+
+        top5 = horses[:5]
+        if len(top5) == 5:
+            tier = (race.get('conviction_tier') or 'SKIP').upper()
+            top1_odds = top5[0].get('win_odds') or 0
+            field = len(horses)
+            triple_gate_skip = (
+                (top1_odds > 0 and top1_odds < 2.5) or
+                (tier not in ('EDGE', 'HIGH', 'MED')) or
+                (field < 8)
+            )
+            if not triple_gate_skip:
+                _ticket_add_bet(bets, 'BOX TRIO-5', 'TRIO', top5, 10, 'main_trio5_gate')
+                _ticket_add_bet(bets, 'F4 BOX-5', 'FIRST 4', top5, 5, 'main_f4_gate')
+
+            steam_count = sum(
+                1 for h in horses[:12]
+                if (h.get('steam_move') or {}).get('is_steam')
+            )
+            trio6_take = (
+                False if (top1_odds > 0 and top1_odds < 2.5)
+                else True if steam_count >= 2
+                else (tier == 'HIGH' and field >= 11 and 2.5 <= top1_odds <= 5.0)
+            )
+            if trio6_take and len(horses) >= 6:
+                _ticket_add_bet(
+                    bets, 'BOX TRIO-6', 'TRIO', horses[:6], 20, 'main_trio6_gate',
+                )
+
+    total_combos = sum(b['combos'] for b in bets)
+    unit = (amount / total_combos) if amount > 0 and total_combos > 0 else 0.0
+    unit_rounded = max(5.0, (unit // 5.0) * 5.0) if unit > 0 else 0.0
+    allocated = 0.0
+    for b in bets:
+        b['unit_stake'] = float(unit_rounded)
+        b['amount'] = float(b['combos'] * unit_rounded)
+        allocated += b['amount']
+
+    return {
+        'version': 1,
+        'race_date': race_date,
+        'race_number': race.get('race_number'),
+        'generated_at': generated_at,
+        'model_version': model_version,
+        'conviction_tier': race.get('conviction_tier'),
+        'has_edge': bool(race.get('has_edge')),
+        'odds_age_minutes': race.get('odds_age_minutes'),
+        'bankroll': race.get('bankroll'),
+        'suggested_stake': stake,
+        'total_combos': int(total_combos),
+        'unit_stake': float(unit_rounded),
+        'allocated_amount': float(allocated),
+        'bets': bets,
+    }
 
 
 def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
@@ -684,6 +790,15 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     apply_card_exposure_cap(all_races, _cfg.BANKROLL,
                             getattr(_cfg, 'CARD_EXPOSURE_CAP', 0.10))
 
+    model_ver = analyzer.ml_analyzer.ml_model.model_version if hasattr(analyzer, 'ml_analyzer') else ''
+    ticket_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    for r in all_races:
+        if r.get('results_available') and r.get('bet_ticket'):
+            continue
+        r['bet_ticket'] = build_bet_ticket(
+            r, race_date=race_date, model_version=model_ver, generated_at=ticket_ts,
+        )
+
     # Alerts — diff current vs previous race_data file
     from betting.alerts import compute_alerts, AlertState, load_alert_state, save_alert_state
     prev_json = _load_previous_race_data(json_file)
@@ -696,7 +811,6 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     _atomic_write(json_file, json.dumps(all_races, indent=2))
 
     # Log predictions to DB for longitudinal accuracy tracking
-    model_ver = analyzer.ml_analyzer.ml_model.model_version if hasattr(analyzer, 'ml_analyzer') else ''
     db.log_predictions(race_date, all_races, model_version=model_ver)
 
     # Snapshot 60-day accuracy for the dashboard's "Recent accuracy" panel +
