@@ -456,6 +456,134 @@ def test_hit_and_dividend_qpl_banker_sums_hit_pairs():
     assert div > 0, f"QPL per-$1 dividend sum must be > 0; got {div}"
 
 
+def test_score_bet_from_ticket_box_qin4_protection_does_not_crash():
+    """Old hit_and_dividend split `BOX QIN-4 PROTECTION` as a BOX QIN-N
+    label and crashed on `int('4 PROTECTION')`. New _score_bet_from_ticket
+    reads pool='QUINELLA' + legs directly; the suffix is irrelevant
+    (GPT-5.5 R10 2026-05-25 — silent ticket-scoring regression after R9
+    made firing_bets ticket-first but kept label parsing in scoring)."""
+    from scripts.stake_ab import _score_bet_from_ticket
+    conn = _conn_or_skip()
+    race = {
+        'race_number': 8,
+        'horses': [
+            {'name': f'H{i}', 'number': i, 'rank': i,
+             'actual_position': i if i <= 4 else None}
+            for i in range(1, 8)
+        ],
+    }
+    bet = {
+        'label': 'BOX QIN-4 PROTECTION', 'pool': 'QUINELLA', 'combos': 6,
+        'legs': [{'name': f'H{i}', 'number': i} for i in range(1, 5)],
+    }
+    # Should not raise — and should report hit (top-2 ⊂ {H1..H4}).
+    hit, div = _score_bet_from_ticket(bet, race, conn, '2026/05/24')
+    conn.close()
+    assert hit, "BOX QIN-4 PROTECTION must hit when top-2 inside legs"
+
+
+def test_score_bet_from_ticket_f4_saver_scores():
+    """F4 SAVER had NO branch in old hit_and_dividend → (False, 0.0)
+    for every staked F4 SAVER bet. Scoring now treats it as pool='FIRST 4'
+    and checks top-4 ⊂ leg names."""
+    from scripts.stake_ab import _score_bet_from_ticket
+    conn = _conn_or_skip()
+    race = {
+        'race_number': 8,
+        'horses': [
+            {'name': f'H{i}', 'number': i, 'rank': i,
+             'actual_position': i if i <= 4 else None}
+            for i in range(1, 8)
+        ],
+    }
+    bet = {
+        'label': 'F4 SAVER', 'pool': 'FIRST 4', 'combos': 1,
+        'legs': [{'name': f'H{i}', 'number': i} for i in range(1, 5)],
+    }
+    hit, div = _score_bet_from_ticket(bet, race, conn, '2026/05/24')
+    conn.close()
+    assert hit, "F4 SAVER hits when top-4 finishers all in legs (any order)"
+
+
+def test_score_bet_from_ticket_trio6_uses_legs_not_top_picks():
+    """TRIO-6 with manual/auto rank-6 swap: ticket legs include the swapped
+    horse (e.g. rank-9 #99) but old scoring used `_top_picks(race, 6)`
+    which returned rank-1..6 (without the swap). Result: false-miss when
+    the swap-in horse placed top-3. Now scoring iterates ticket legs."""
+    from scripts.stake_ab import _score_bet_from_ticket
+    conn = _conn_or_skip()
+    # Top-3 finishers are #1, #2, #99 (the swapped-in horse). Default
+    # top-6 ranks would have been #1..#6 — without the swap legs, #99
+    # wouldn't be in scoring, so the bet false-misses.
+    race = {
+        'race_number': 9,
+        'horses': [
+            {'name': 'H1', 'number': 1, 'rank': 1, 'actual_position': 1},
+            {'name': 'H2', 'number': 2, 'rank': 2, 'actual_position': 2},
+            {'name': 'H99', 'number': 99, 'rank': 9, 'actual_position': 3},  # swap-in placed 3rd
+            {'name': 'H3', 'number': 3, 'rank': 3, 'actual_position': 4},
+            {'name': 'H4', 'number': 4, 'rank': 4, 'actual_position': 5},
+            {'name': 'H5', 'number': 5, 'rank': 5, 'actual_position': 6},
+            {'name': 'H6', 'number': 6, 'rank': 6, 'actual_position': 7},
+        ],
+    }
+    # Ticket legs: rank-1..5 + the manual-override #99 (NOT rank-6 #6).
+    bet = {
+        'label': 'BOX TRIO-6', 'pool': 'TRIO', 'combos': 20,
+        'legs': [
+            {'name': 'H1', 'number': 1}, {'name': 'H2', 'number': 2},
+            {'name': 'H3', 'number': 3}, {'name': 'H4', 'number': 4},
+            {'name': 'H5', 'number': 5}, {'name': 'H99', 'number': 99},
+        ],
+    }
+    hit, div = _score_bet_from_ticket(bet, race, conn, '2026/05/24')
+    conn.close()
+    assert hit, (
+        "TRIO-6 swap hit must read ticket legs, not _top_picks rank-1..6"
+    )
+
+
+def test_score_bet_from_ticket_qpl_banker_pivot_off_board():
+    """Same miss case as the legacy test, now via the ticket-leg scorer."""
+    from scripts.stake_ab import _score_bet_from_ticket
+    conn = _conn_or_skip()
+    race = {
+        'race_number': 99,
+        'horses': [
+            {'name': 'PIVOT', 'number': 1, 'rank': 1, 'actual_position': 5},
+            {'name': 'BK1', 'number': 2, 'rank': 2, 'actual_position': 1},
+            {'name': 'BK2', 'number': 3, 'rank': 3, 'actual_position': 2},
+            {'name': 'BK3', 'number': 4, 'rank': 4, 'actual_position': 3},
+        ],
+    }
+    bet = {
+        'label': 'QIN PLACE BANKER', 'pool': 'QIN PLACE', 'combos': 3,
+        'legs': [
+            {'name': 'PIVOT', 'number': 1}, {'name': 'BK1', 'number': 2},
+            {'name': 'BK2', 'number': 3}, {'name': 'BK3', 'number': 4},
+        ],
+    }
+    hit, div = _score_bet_from_ticket(bet, race, conn, '2026/05/24')
+    conn.close()
+    assert not hit
+    assert div == 0.0
+
+
+def test_append_log_writes_lf_line_endings(tmp_path, monkeypatch):
+    """csv.DictWriter defaults to '\\r\\n' even with newline='' on the
+    file open. Force LF-only so `git show --check` doesn't flag every
+    appended row as trailing whitespace (GPT-5.5 R10 Low)."""
+    from scripts.stake_ab import _append_log
+    log_path = tmp_path / 'stake_ab_log.csv'
+    monkeypatch.setattr('scripts.stake_ab.LOG_PATH', log_path)
+    _append_log([_row()], '2026/05/24')
+    raw = log_path.read_bytes()
+    assert b'\r\n' not in raw, (
+        f"CSV must use LF-only line endings, found CRLF: {raw[:120]!r}"
+    )
+    assert raw.endswith(b'\n')
+
+
 def test_hit_and_dividend_qpl_banker_miss_when_pivot_off_board():
     """If pivot doesn't place top-3, no pair can pay → miss."""
     from scripts.stake_ab import hit_and_dividend
