@@ -1116,6 +1116,15 @@ class CombinedRaceAnalyzer:
             # uses field-relative median formula (matching training). Without this,
             # inference fell back to absolute-weight formula → 82% parity failure.
             "field_weights": field_weights,
+            # 2026-05-25 (GPT-5.5 audit Finding #1): these three were silently
+            # missing from horse_data → ml/features.py read defaults (0) at
+            # inference even though training had real values. Feature 13
+            # (weight_change), 14 (age_score), 15 (rating_change) were
+            # effectively neutralized. Same train/predict parity rule as
+            # field_weights above — never reimplement, just thread through.
+            "horse_weight": horse.horse_weight,
+            "age": getattr(horse, 'age', '') or '',
+            "rating_change": horse.rating_change,
         }
 
         # Graceful degradation remains available to offline diagnostics, but

@@ -101,6 +101,102 @@ def test_bet_ticket_freeze_guard_refuses_any_mutation():
     assert should_replace(pre_race, identical) is True
 
 
+def test_bet_ticket_trio6_includes_auto_rank6_swap():
+    """2026-05-25 (GPT-5.5 Finding #2): TRIO-6 used to store horses[:6]
+    server-side while JS in UI/WA swapped rank-6 with a shorter-priced,
+    gear-changed horse from ranks 7-12. validate_hk --replay scored the
+    unswapped legs → divergence. Now build_bet_ticket bakes the swap into
+    bet_ticket.bets so all three surfaces (display, WA, replay) agree.
+
+    Fixture: 11 horses, EDGE tier, top1=$3.0 (competitive fav), rank-6
+    at $11 with no gear, rank-7 at $7.4 with gear 'B/TT' → triggers
+    auto-swap (candidate odds 7.4 ≤ 11 × 0.8 = 8.8 AND gear visible).
+    """
+    race = {
+        'race_number': 5,
+        'conviction_tier': 'HIGH',
+        'has_edge': False,
+        'odds_age_minutes': 4,
+        'bankroll': 10000,
+        'suggested_stake': {'amount': 300.0, 'pct': 3.0, 'method': 'tier-fraction (HIGH)'},
+        'horses': [
+            _horse(1, 'QIN', odds=3.0),
+            _horse(2, 'QIN', odds=5.0),
+            _horse(3, 'QIN', odds=6.0),
+            _horse(4, 'SKIP', odds=8.0),
+            _horse(5, 'SKIP', odds=9.0),
+            _horse(6, 'SKIP', odds=11.0),
+            _horse(7, 'SKIP', odds=7.4),
+            _horse(8, 'SKIP', odds=15.0),
+            _horse(9, 'SKIP', odds=20.0),
+            _horse(10, 'SKIP', odds=25.0),
+            _horse(11, 'SKIP', odds=30.0),
+        ],
+    }
+    # rank-7 (horse #7) gets gear → auto-swap candidate
+    race['horses'][6]['gear'] = 'B/TT'
+    # Add at least 2 steam horses to satisfy trio6_take (auto-take when steam≥2)
+    for i in (0, 1):
+        race['horses'][i]['steam_move'] = {'is_steam': True}
+
+    ticket = build_bet_ticket(
+        race, race_date='2026/05/25', model_version='m1',
+        generated_at='2026-05-25 12:00:00',
+    )
+
+    t6 = next((b for b in ticket['bets'] if b['label'] == 'BOX TRIO-6'), None)
+    assert t6 is not None, 'BOX TRIO-6 must be in bet_ticket'
+    leg_nums = [l['number'] for l in t6['legs']]
+    assert leg_nums == [1, 2, 3, 4, 5, 7], (
+        f'TRIO-6 legs must reflect rank-6 swap (#6 → #7), got {leg_nums}'
+    )
+    assert t6.get('swap'), 'swap metadata must be persisted on the bet'
+    assert t6['swap']['kind'] == 'auto'
+    assert t6['swap']['out_number'] == 6
+    assert t6['swap']['in_number'] == 7
+
+
+def test_bet_ticket_trio6_includes_manual_override():
+    """Manual TRIO-6 override (race.manual_trio6_horse) wins over auto swap
+    and must also be reflected in bet_ticket.bets so replay sees it."""
+    race = {
+        'race_number': 5,
+        'conviction_tier': 'HIGH',
+        'manual_trio6_horse': 9,
+        'manual_trio6_reason': 'racing-API form upgrade',
+        'suggested_stake': {'amount': 300.0, 'pct': 3.0, 'method': 'tier-fraction (HIGH)'},
+        'horses': [
+            _horse(1, 'QIN', odds=3.0),
+            _horse(2, 'QIN', odds=5.0),
+            _horse(3, 'QIN', odds=6.0),
+            _horse(4, 'SKIP', odds=8.0),
+            _horse(5, 'SKIP', odds=9.0),
+            _horse(6, 'SKIP', odds=11.0),
+            _horse(7, 'SKIP', odds=7.4),
+            _horse(8, 'SKIP', odds=15.0),
+            _horse(9, 'SKIP', odds=20.0),
+            _horse(10, 'SKIP', odds=25.0),
+            _horse(11, 'SKIP', odds=30.0),
+        ],
+    }
+    race['horses'][6]['gear'] = 'B/TT'
+    for i in (0, 1):
+        race['horses'][i]['steam_move'] = {'is_steam': True}
+
+    ticket = build_bet_ticket(
+        race, race_date='2026/05/25', model_version='m1',
+        generated_at='2026-05-25 12:00:00',
+    )
+    t6 = next((b for b in ticket['bets'] if b['label'] == 'BOX TRIO-6'), None)
+    assert t6 is not None
+    leg_nums = [l['number'] for l in t6['legs']]
+    assert leg_nums == [1, 2, 3, 4, 5, 9], (
+        f'manual override must beat auto swap, got {leg_nums}'
+    )
+    assert t6['swap']['kind'] == 'manual'
+    assert t6['swap']['in_number'] == 9
+
+
 def test_bet_ticket_includes_trio5_and_f4_on_heavy_fav():
     """2026-05-24: heavy-fav-skip removed from F4 BOX-5 + BOX TRIO-5 triple
     gate per user. At flat $10/combo the downside is bounded, and the prior
