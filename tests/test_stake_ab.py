@@ -203,6 +203,170 @@ def test_append_log_partial_backfill_preserves_other_variants(tmp_path, monkeypa
     )
 
 
+# ---------------------------------------------------------------------------
+# QIN PLACE BANKER firing (GPT-5.5 R8 Finding #2 2026-05-25)
+# ---------------------------------------------------------------------------
+
+def _race_with_ranks(top1_odds: float, tier: str, n_horses: int):
+    """Build a synthetic race with explicit rank numbers (1..n) so the
+    rank-based sort in firing_bets() picks the right top1. Required for
+    QIN PLACE BANKER firing tests."""
+    horses = [
+        {'win_odds': top1_odds + i,
+         'rank': i + 1,
+         'number': i + 1,
+         'name': f'H{i+1}'}
+        for i in range(n_horses)
+    ]
+    return {'horses': horses, 'conviction_tier': tier}
+
+
+def test_firing_bets_emits_qin_place_banker_on_short_fav():
+    """Mirrors dashboard/generator.py:432-439: top1 ≤ $1.8 AND ≥4 horses
+    triggers a 3-combo QIN PLACE BANKER. Prior to 2026-05-25 stake_ab
+    didn't emit this and silently undercounted ROI on heavy-fav cards."""
+    fires = firing_bets(_race_with_ranks(top1_odds=1.5, tier='HIGH', n_horses=10))
+    assert fires.get('QIN PLACE BANKER') == 3, (
+        f"QIN PLACE BANKER must fire 3 combos on top1=$1.5; got {fires!r}"
+    )
+
+
+def test_firing_bets_no_qpl_banker_above_1_8_threshold():
+    fires = firing_bets(_race_with_ranks(top1_odds=1.9, tier='HIGH', n_horses=10))
+    assert 'QIN PLACE BANKER' not in fires, (
+        f"QPL BANKER must NOT fire when top1 > $1.8; got {fires!r}"
+    )
+
+
+def test_firing_bets_no_qpl_banker_with_under_4_horses():
+    fires = firing_bets(_race_with_ranks(top1_odds=1.5, tier='HIGH', n_horses=3))
+    assert 'QIN PLACE BANKER' not in fires, (
+        f"QPL BANKER needs ≥4 horses (pivot + 3 bankers); got {fires!r}"
+    )
+
+
+def test_firing_bets_qpl_banker_at_1_8_boundary():
+    """top1 EXACTLY $1.8 fires (gate is `≤ 1.8`)."""
+    fires = firing_bets(_race_with_ranks(top1_odds=1.8, tier='HIGH', n_horses=10))
+    assert fires.get('QIN PLACE BANKER') == 3
+
+
+# ---------------------------------------------------------------------------
+# hit_and_dividend — PLACE + QIN PLACE BANKER pricing
+# (GPT-5.5 R8 Finding #2 2026-05-25)
+# ---------------------------------------------------------------------------
+
+import sqlite3
+from pathlib import Path
+
+import pytest
+
+import config
+
+
+def _conn_or_skip():
+    if not Path(config.DB_PATH).exists():
+        pytest.skip("No horse_history.db found")
+    return sqlite3.connect(str(config.DB_PATH))
+
+
+def test_hit_and_dividend_place_priced_from_race_dividends():
+    """PLACE pricing was 0.0 (MVP stub) until 2026-05-25. Verify a top pick
+    that placed top-3 now returns a non-zero per-$1 dividend matched from
+    race_dividends pool='PLACE' for the horse's number."""
+    from scripts.stake_ab import hit_and_dividend
+    conn = _conn_or_skip()
+    # Find a (race, placed horse_number) pair we can stage.
+    row = conn.execute("""
+        SELECT race_date, race_number, combination
+        FROM race_dividends WHERE pool='PLACE' LIMIT 1
+    """).fetchone()
+    if row is None:
+        conn.close()
+        pytest.skip("no PLACE dividend rows")
+    date, rno, num_str = row
+    placed_num = int(num_str)
+
+    # Stage a synthetic race dict with the placed horse as top-1 pick.
+    race = {
+        'race_number': rno,
+        'horses': [
+            {'name': 'TOPPICK', 'number': placed_num, 'rank': 1,
+             'actual_position': 2, 'win_odds': 5.0,
+             'bet_recommendation': 'PLACE'},
+            {'name': 'SECOND', 'number': 99, 'rank': 2,
+             'actual_position': 1},
+            {'name': 'THIRD', 'number': 98, 'rank': 3,
+             'actual_position': 3},
+        ],
+    }
+    hit, div = hit_and_dividend('PLACE', race, conn, date)
+    conn.close()
+    assert hit, "PLACE must register hit when top pick finishes top-3"
+    assert div > 0, (
+        f"PLACE per-$1 dividend must be > 0 after 2026-05-25 fix; got {div}"
+    )
+
+
+def test_hit_and_dividend_qpl_banker_sums_hit_pairs():
+    """QIN PLACE BANKER returns sum of per-$1 dividends across all hit
+    (pivot, banker) pairs. A single placed pivot + banker → ≥1 priced pair."""
+    from scripts.stake_ab import hit_and_dividend
+    conn = _conn_or_skip()
+    row = conn.execute("""
+        SELECT race_date, race_number, combination
+        FROM race_dividends WHERE pool='QUINELLA PLACE' LIMIT 1
+    """).fetchone()
+    if row is None:
+        conn.close()
+        pytest.skip("no QPL dividend rows")
+    date, rno, combo = row
+    n1, n2 = sorted(int(x) for x in combo.split(','))
+
+    # Stage so pivot=n1 (rank 1), bankers include n2 (rank 2). Both placed.
+    race = {
+        'race_number': rno,
+        'horses': [
+            {'name': 'PIVOT', 'number': n1, 'rank': 1,
+             'actual_position': 1, 'win_odds': 1.5,
+             'bet_recommendation': 'WIN'},
+            {'name': 'BK1', 'number': n2, 'rank': 2,
+             'actual_position': 3},
+            {'name': 'BK2', 'number': 97, 'rank': 3,
+             'actual_position': 5},
+            {'name': 'BK3', 'number': 96, 'rank': 4,
+             'actual_position': 6},
+        ],
+    }
+    hit, div = hit_and_dividend('QIN PLACE BANKER', race, conn, date)
+    conn.close()
+    assert hit, "QPL BANKER hit when pivot + ≥1 banker both top-3"
+    assert div > 0, f"QPL per-$1 dividend sum must be > 0; got {div}"
+
+
+def test_hit_and_dividend_qpl_banker_miss_when_pivot_off_board():
+    """If pivot doesn't place top-3, no pair can pay → miss."""
+    from scripts.stake_ab import hit_and_dividend
+    conn = _conn_or_skip()
+    race = {
+        'race_number': 99,
+        'horses': [
+            {'name': 'PIVOT', 'number': 1, 'rank': 1,
+             'actual_position': 5},
+            {'name': 'BK1', 'number': 2, 'rank': 2,
+             'actual_position': 1},
+            {'name': 'BK2', 'number': 3, 'rank': 3,
+             'actual_position': 2},
+            {'name': 'BK3', 'number': 4, 'rank': 4,
+             'actual_position': 3},
+        ],
+    }
+    hit, div = hit_and_dividend('QIN PLACE BANKER', race, conn, '1900/01/01')
+    conn.close()
+    assert not hit
+    assert div == 0.0
+
+
 def test_append_log_full_rerun_still_replaces_same_variant(tmp_path, monkeypatch):
     """The full-rerun case (same set of variants for same date) must still
     overwrite — otherwise duplicate rows accumulate."""

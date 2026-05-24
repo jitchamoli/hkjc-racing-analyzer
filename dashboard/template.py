@@ -385,6 +385,8 @@ button {{ font-family:inherit; cursor:pointer; }}
 .strike-badge.trio {{ background:rgba(236,72,153,.85); color:#000; }}
 .strike-badge.f4 {{ background:linear-gradient(135deg,rgba(168,85,247,.95),rgba(236,72,153,.85)); color:#000; box-shadow:0 0 6px rgba(168,85,247,.45); }}
 .strike-badge.trio6 {{ background:rgba(244,63,94,.85); color:#fff; }}
+.strike-badge.qpl {{ background:rgba(34,197,94,.85); color:#000; }}
+.strike-badge.place {{ background:rgba(99,102,241,.85); color:#fff; }}
 .strike-badge.miss {{ background:rgba(239,68,68,.6); color:#fff; }}
 
 /* View tabs — by default boxed (legacy below-strip placement).
@@ -656,10 +658,27 @@ function _didBetHit(race) {{
 
     if (pool === 'WIN' || pool === 'BANKER WIN') {{
       if (legs[0] && legs[0].number === p1) hits.WIN = true;
+    }} else if (pool === 'PLACE') {{
+      // PLACE hits when any leg horse finishes top-3. Mirrors
+      // validate_hk._score_meeting_replay PLACE branch.
+      if (top3) {{
+        for (var k = 0; k < legs.length; k++) {{
+          if (top3.indexOf(legs[k].number) >= 0) {{ hits.PLACE = true; break; }}
+        }}
+      }}
     }} else if (pool === 'QUINELLA') {{
       if (_containsAll(legs, top2)) {{
         if (nLegs === 4) hits.BOX4 = true;
         else hits.QIN = true;
+      }}
+    }} else if (pool === 'QIN PLACE') {{
+      // QPL BANKER (server-side build): legs[0] = pivot, legs[1:] = bankers.
+      // Pair (pivot, banker_i) pays when BOTH place top-3. One hit pair is
+      // enough for the STRIKE badge. Mirrors validate_hk QIN PLACE branch.
+      if (top3 && nLegs >= 2 && top3.indexOf(legs[0].number) >= 0) {{
+        for (var k = 1; k < nLegs; k++) {{
+          if (top3.indexOf(legs[k].number) >= 0) {{ hits.QPL = true; break; }}
+        }}
       }}
     }} else if (pool === 'TRIO') {{
       if (top3 && _containsAll(legs, top3)) {{
@@ -671,13 +690,18 @@ function _didBetHit(race) {{
     }}
   }}
 
-  // Priority order — most specific/strongest first, matching old taxonomy
+  // Priority order — most specific/strongest first, matching old taxonomy.
+  // WIN > QIN > QPL > F4-5 > BOX4 > TRIO5 > TRIO6 > PLACE.
+  // PLACE last because 1-of-top-3 is the loosest hit; bury under any harder
+  // strike to avoid masking the headline bet outcome.
   if (hits.WIN) return 'STRIKE-WIN';
   if (hits.QIN) return 'STRIKE-QIN';
+  if (hits.QPL) return 'STRIKE-QPL';
   if (hits['F4-5']) return 'STRIKE-F4-5';
   if (hits.BOX4) return 'STRIKE-BOX4';
   if (hits.TRIO5) return 'STRIKE-TRIO5';
   if (hits.TRIO6) return 'STRIKE-TRIO6';
+  if (hits.PLACE) return 'STRIKE-PLACE';
   return 'MISS';
 }}
 
@@ -928,6 +952,8 @@ function renderBetCard(race) {{
     strikeBadge = '<span class="strike-badge win" title="Top pick won the race">★ STRIKE · WIN</span>';
   }} else if (strikeStatus === 'STRIKE-QIN') {{
     strikeBadge = '<span class="strike-badge qin" title="Winning quinella pair was inside top-2 model picks">★ STRIKE · QIN</span>';
+  }} else if (strikeStatus === 'STRIKE-QPL') {{
+    strikeBadge = '<span class="strike-badge qpl" title="Quinella PLACE banker pair both finished top-3 (QPL hit)">★ STRIKE · QPL</span>';
   }} else if (strikeStatus === 'STRIKE-BOX4') {{
     strikeBadge = '<span class="strike-badge box4" title="Winning quinella pair was inside top-4 model picks (Box-4 hit)">★ STRIKE · BOX-4</span>';
   }} else if (strikeStatus === 'STRIKE-F4-5') {{
@@ -936,6 +962,8 @@ function renderBetCard(race) {{
     strikeBadge = '<span class="strike-badge trio" title="Full podium inside top-5 model picks (BOX TRIO-5 hit)">★ STRIKE · TRIO-5</span>';
   }} else if (strikeStatus === 'STRIKE-TRIO6') {{
     strikeBadge = '<span class="strike-badge trio6" title="Full podium inside top-6 model picks (BOX TRIO-6 hit — TRIO-5 missed)">★ STRIKE · TRIO-6</span>';
+  }} else if (strikeStatus === 'STRIKE-PLACE') {{
+    strikeBadge = '<span class="strike-badge place" title="Top pick finished top-3 (PLACE hit)">★ STRIKE · PLACE</span>';
   }} else if (strikeStatus === 'MISS') {{
     var horsesByPos = race.horses.filter(function(h) {{ return h.actual_position; }})
       .sort(function(a, b) {{ return a.actual_position - b.actual_position; }});

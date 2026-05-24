@@ -136,6 +136,18 @@ def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
             elif n >= 4:
                 out[f'BOX TRIO-{n}'] = n * (n - 1) * (n - 2) // 6
 
+    # QIN PLACE BANKER — short-favorite races (top1 ≤ $1.8). Mirrors
+    # dashboard/generator.py:428-439 (server-side build_bet_ticket).
+    # 3 combos: pivot (top1) × bankers (top2-4). Without this branch,
+    # stake_ab silently ignored every QPL BANKER bet production fired,
+    # so flat_min/production/invert ROI all undercounted on heavy-fav
+    # cards (GPT-5.5 R8 Finding #2 2026-05-25).
+    horses_by_rank = sorted(horses, key=lambda h: h.get('rank') or 99)
+    if (horses_by_rank
+            and (horses_by_rank[0].get('win_odds') or 99) <= 1.8
+            and len(horses_by_rank) >= 4):
+        out['QIN PLACE BANKER'] = 3
+
     # MAIN-tier auto-fires when top-5 exists (mirrors production
     # build_bet_ticket triple gate). Heavy-fav-skip clause was removed
     # 2026-05-24 to match production after user UNGATE choice (see
@@ -239,13 +251,52 @@ def hit_and_dividend(bet_label: str, race: dict, conn,
         odds = picks[0].get('win_odds') or 0  # already per $1
         return (hit, float(odds))
 
-    # PLACE — top pick top-3. PLACE pool dividend lookup is complex (per-horse,
-    # not per-combination); skip the dividend for MVP. Hit is still logged.
+    # PLACE — top pick top-3. race_dividends pool='PLACE' rows are keyed
+    # by single horse number (combination = '7' not '7,8'). Lookup the
+    # placed pick's per-$1 dividend directly. Prior MVP returned 0.0 and
+    # under-counted every PLACE hit (GPT-5.5 R8 Finding #2 2026-05-25).
     if bet_label == 'PLACE':
         picks = _top_picks(race, 1)
         if not picks:
             return False, 0.0
-        return (picks[0]['name'] in actual_top3, 0.0)
+        pick = picks[0]
+        hit = pick['name'] in actual_top3
+        if not hit:
+            return (False, 0.0)
+        pick_num = pick.get('number')
+        if not pick_num:
+            return (True, 0.0)
+        return (True, _lookup_dividend(conn, race_date, rn, 'PLACE', str(pick_num)))
+
+    # QIN PLACE BANKER — pivot (top1) + bankers (top2-4); each (pivot, banker)
+    # pair is one combo that pays when BOTH horses place top-3. Sum
+    # per-$1 dividends across hit pairs — multi-hit cards compound.
+    # Mirrors validate_hk._score_meeting_replay QPL branch.
+    if bet_label == 'QIN PLACE BANKER':
+        picks4 = _top_picks(race, 4)
+        if len(picks4) < 4:
+            return False, 0.0
+        pivot = picks4[0]
+        bankers = picks4[1:]
+        if pivot['name'] not in actual_top3:
+            return (False, 0.0)
+        piv_num = pivot.get('number')
+        if not piv_num:
+            return (False, 0.0)
+        div_sum = 0.0
+        hit_any = False
+        for bk in bankers:
+            if bk['name'] in actual_top3:
+                bk_num = bk.get('number')
+                if not bk_num:
+                    continue
+                lo, hi = sorted([int(piv_num), int(bk_num)])
+                d2 = _lookup_dividend(conn, race_date, rn,
+                                      'QUINELLA PLACE', f"{lo},{hi}")
+                if d2 > 0:
+                    div_sum += d2
+                    hit_any = True
+        return (hit_any, div_sum)
 
     # QIN family — straight & box
     if bet_label == 'STRAIGHT QIN':
