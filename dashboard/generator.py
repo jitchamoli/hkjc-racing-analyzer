@@ -322,10 +322,10 @@ def apply_card_exposure_cap(all_races: list, bankroll: float,
 
 
 def _ticket_add_bet(bets: list, label: str, pool: str, horses: list,
-                    combos: int, reason: str) -> None:
+                    combos: int, reason: str, swap: dict | None = None) -> None:
     if combos <= 0 or not horses:
         return
-    bets.append({
+    entry = {
         'label': label,
         'pool': pool,
         'combos': int(combos),
@@ -334,7 +334,61 @@ def _ticket_add_bet(bets: list, label: str, pool: str, horses: list,
             for h in horses
         ],
         'reason': reason,
-    })
+    }
+    if swap:
+        entry['swap'] = swap
+    bets.append(entry)
+
+
+def _pick_trio6_top6(horses: list, manual_trio6_horse, manual_reason: str = ''):
+    """Return (top6_horses, swap_meta_dict_or_None) for BOX TRIO-6.
+
+    Mirrors the JS rank-6 swap logic in dashboard/template.py (moved
+    server-side 2026-05-25, GPT-5.5 audit Finding #2). Without this, the
+    ticket stored horses[:6] while the UI/WA showed a swapped top-6 →
+    validate_hk --replay scored different legs than the user staked.
+
+    Priority:
+      1. Manual override (race.manual_trio6_horse) wins outright.
+      2. Auto swap: scan ranks 7-12 for a horse with (a) odds ≤ rank-6
+         × 0.8 AND (b) gear visible. Pick the shortest-priced candidate.
+      3. Otherwise return the literal top-6 by rank.
+    """
+    if len(horses) < 6:
+        return horses[:6], None
+    top6 = horses[:6]
+    # Manual override
+    if manual_trio6_horse:
+        if top6[5].get('number') != manual_trio6_horse:
+            manual_h = next((h for h in horses if h.get('number') == manual_trio6_horse), None)
+            if manual_h:
+                return horses[:5] + [manual_h], {
+                    'kind': 'manual',
+                    'out_number': top6[5].get('number'),
+                    'in_number': manual_h.get('number'),
+                    'reason': manual_reason,
+                }
+        # else: override matches current rank-6 — no swap
+    # Auto swap
+    rank6 = top6[5]
+    rank6_odds = rank6.get('win_odds') or 0
+    if rank6_odds > 0:
+        best = None
+        for cand in horses[6:12]:
+            cand_odds = cand.get('win_odds') or 0
+            cand_gear = (cand.get('gear') or '').strip()
+            if cand_odds > 0 and cand_gear and cand_odds <= rank6_odds * 0.8:
+                if best is None or cand_odds < (best.get('win_odds') or 0):
+                    best = cand
+        if best:
+            return horses[:5] + [best], {
+                'kind': 'auto',
+                'out_number': rank6.get('number'),
+                'in_number': best.get('number'),
+                'in_rank': best.get('rank'),
+                'in_gear': (best.get('gear') or '').strip(),
+            }
+    return top6, None
 
 
 def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
@@ -436,8 +490,18 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
                 else (tier == 'HIGH' and field >= 11 and 2.5 <= top1_odds <= 5.0)
             )
             if trio6_take and len(horses) >= 6:
+                # Apply rank-6 swap (manual override or auto longshot pick)
+                # so the ticket's legs match what UI/WA renders. Otherwise
+                # validate_hk --replay scores horses[:6] while the user
+                # staked the swapped top-6 (GPT-5.5 Finding #2, 2026-05-25).
+                top6_swapped, swap_meta = _pick_trio6_top6(
+                    horses,
+                    race.get('manual_trio6_horse'),
+                    race.get('manual_trio6_reason') or '',
+                )
                 _ticket_add_bet(
-                    bets, 'BOX TRIO-6', 'TRIO', horses[:6], 20, 'main_trio6_gate',
+                    bets, 'BOX TRIO-6', 'TRIO', top6_swapped, 20, 'main_trio6_gate',
+                    swap=swap_meta,
                 )
 
     total_combos = sum(b['combos'] for b in bets)
@@ -634,6 +698,11 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     # race_results — HKJC post-race odds (final SP / settled) would
     # otherwise overwrite the legitimate pre-race odds we captured earlier
     # and corrupt any future backtest that reads odds_snapshots.
+    # 2026-05-25 (GPT-5.5 Finding #3): also skip when the race scheduled
+    # post-time has passed for TODAY's card — closes the 1-5 min window
+    # between race off and results_fetcher writing race_results. Date-aware
+    # so historical/future regen does not falsely treat past-time-of-day
+    # races as off'd (same pattern as _merge_with_existing L5).
     try:
         race_finished = False
         if db is not None and hasattr(db, 'conn'):
@@ -642,7 +711,19 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
                 (race_date, race.race_number),
             ).fetchone()
             race_finished = bool(row)
-        if not race_finished:
+        race_offed = False
+        race_time_str = getattr(race, 'time', '') or ''
+        today_str = datetime.now().strftime('%Y/%m/%d')
+        if race_time_str and race_date == today_str:
+            try:
+                hh, mm = race_time_str.split(':')[:2]
+                now = datetime.now()
+                post_minutes = int(hh) * 60 + int(mm)
+                now_minutes = now.hour * 60 + now.minute
+                race_offed = now_minutes >= post_minutes
+            except (ValueError, AttributeError):
+                pass
+        if not race_finished and not race_offed:
             odds_horses = [
                 {'number': h.number, 'name': h.name,
                  'win_odds': h.win_odds or 0, 'place_odds': getattr(h, 'place_odds', 0) or 0}

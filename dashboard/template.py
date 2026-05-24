@@ -1159,44 +1159,25 @@ function renderBetCard(race) {{
   // match what the dashboard recommends. t6MainBlock is set when verdict
   // says TAKE so the line is rendered as MAIN instead of "Optional".
   var t6MainBlock = null;
-  var top6waSwap = null;
-  var top6waSwapOut = null;
-  var top6waManual = null;
-  var top6waManualOut = null;
-  // Manual TRIO-6 override (race.manual_trio6_horse) takes precedence over
-  // the auto rank-6 swap. Set via tracking_data/manual_overrides.json when
-  // racing-API form/RPR signal beats the auto candidate. If the override
-  // names a horse that is ALREADY rank-6, the override just suppresses the
-  // auto-swap (no visible badge) — nothing to swap.
-  if (top6wa.length === 6 && race.manual_trio6_horse) {{
-    if (top6wa[5].number !== race.manual_trio6_horse) {{
-      top6waManual = race.horses.find(function(h) {{ return h.number === race.manual_trio6_horse; }});
-      if (top6waManual) {{
-        top6waManualOut = top6wa[5];
-        top6wa = race.horses.slice(0, 5).concat([top6waManual]);
-      }}
-    }}
-    // else: override matches current rank-6 — no swap, no badge, but auto-swap is suppressed
-  }} else if (top6wa.length === 6) {{
-    var rank6wa = top6wa[5];
-    var rank6OddsWa = (rank6wa && rank6wa.win_odds) || 0;
-    if (rank6OddsWa > 0) {{
-      for (var swiW = 6; swiW < Math.min(12, race.horses.length); swiW++) {{
-        var candW = race.horses[swiW];
-        var candOddsW = candW.win_odds || 0;
-        var candGearW = (candW.gear || '').trim();
-        if (candOddsW > 0 && candGearW && candOddsW <= rank6OddsWa * 0.8) {{
-          if (!top6waSwap || candOddsW < top6waSwap.win_odds) {{
-            top6waSwap = candW;
-          }}
-        }}
-      }}
-    }}
-    if (top6waSwap) {{
-      top6waSwapOut = top6wa[5];
-      top6wa = race.horses.slice(0, 5).concat([top6waSwap]);
-    }}
+  // TRIO-6 legs come from the FROZEN bet_ticket (server-side
+  // _pick_trio6_top6 already chose any swap). WA just reads — same
+  // source of truth as the detail-panel above (GPT-5.5 Finding #2).
+  var _t6BetWa = (race.bet_ticket && race.bet_ticket.bets || []).find(
+    function(b) {{ return b.label === 'BOX TRIO-6'; }});
+  if (_t6BetWa) {{
+    var _waByNum = {{}};
+    race.horses.forEach(function(h) {{ _waByNum[h.number] = h; }});
+    top6wa = (_t6BetWa.legs || []).map(function(l) {{
+      return _waByNum[l.number] || l;
+    }});
   }}
+  var _swapWa = (_t6BetWa && _t6BetWa.swap) || null;
+  var _waByNum2 = {{}};
+  race.horses.forEach(function(h) {{ _waByNum2[h.number] = h; }});
+  var top6waSwap = (_swapWa && _swapWa.kind === 'auto') ? (_waByNum2[_swapWa.in_number] || null) : null;
+  var top6waSwapOut = (_swapWa && _swapWa.kind === 'auto') ? (_waByNum2[_swapWa.out_number] || null) : null;
+  var top6waManual = (_swapWa && _swapWa.kind === 'manual') ? (_waByNum2[_swapWa.in_number] || null) : null;
+  var top6waManualOut = (_swapWa && _swapWa.kind === 'manual') ? (_waByNum2[_swapWa.out_number] || null) : null;
   if (top6wa.length === 6) {{
     var t6Nums = top6wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
     var t6Top1 = (race.horses[0] && race.horses[0].win_odds) || 0;
@@ -2056,43 +2037,21 @@ function _buildRaceDetailPanel(race) {{
   // it into the rank-6 slot in the displayed TRIO-6 box. Validated by
   // R5 2026-05-03 #8 FLYING KNIGHT (rank 9, $7.4 vs rank-6 $11, gear
   // B/TT) which won at $8 — would have hit TRIO-6 with the swap.
-  var top6 = race.horses.slice(0, 6);
-  var swapCandidate = null;
-  var swappedOut = null;
-  var manualCandidate = null;
-  var manualSwappedOut = null;
-  // Manual override (race.manual_trio6_horse) wins over auto rank-6 swap.
-  // If override matches the current rank-6 horse, it is a no-op swap — just
-  // suppress the auto-swap; do not render a misleading "MANUAL #X→#X" badge.
-  if (top6.length === 6 && race.manual_trio6_horse) {{
-    if (top6[5].number !== race.manual_trio6_horse) {{
-      manualCandidate = race.horses.find(function(h) {{ return h.number === race.manual_trio6_horse; }});
-      if (manualCandidate) {{
-        manualSwappedOut = top6[5];
-        top6 = race.horses.slice(0, 5).concat([manualCandidate]);
-      }}
-    }}
-    // else: override matches current rank-6 — suppress auto-swap silently
-  }} else if (top6.length === 6) {{
-    var rank6 = top6[5];
-    var rank6Odds = (rank6 && rank6.win_odds) || 0;
-    if (rank6Odds > 0) {{
-      for (var swi = 6; swi < Math.min(12, race.horses.length); swi++) {{
-        var cand = race.horses[swi];
-        var candOdds = cand.win_odds || 0;
-        var candGear = (cand.gear || '').trim();
-        if (candOdds > 0 && candGear && candOdds <= rank6Odds * 0.8) {{
-          if (!swapCandidate || candOdds < swapCandidate.win_odds) {{
-            swapCandidate = cand;
-          }}
-        }}
-      }}
-    }}
-    if (swapCandidate) {{
-      swappedOut = top6[5];
-      top6 = race.horses.slice(0, 5).concat([swapCandidate]);
-    }}
-  }}
+  // TRIO-6 legs come from the FROZEN bet_ticket (2026-05-25, GPT-5.5
+  // Finding #2). Server-side _pick_trio6_top6 chose the swap candidate
+  // (manual override or auto longshot) — JS just reads it so display
+  // matches what validate_hk --replay scores. swapMeta drives the badge.
+  var _t6Bet = _ticketBets.find(function(b) {{ return b.label === 'BOX TRIO-6'; }});
+  var top6 = _t6Bet
+    ? _legsToHorses(_t6Bet.legs || [])
+    : race.horses.slice(0, 6);
+  var _swap = (_t6Bet && _t6Bet.swap) || null;
+  var byNumLookup = {{}};
+  race.horses.forEach(function(h) {{ byNumLookup[h.number] = h; }});
+  var swapCandidate = (_swap && _swap.kind === 'auto') ? (byNumLookup[_swap.in_number] || null) : null;
+  var swappedOut = (_swap && _swap.kind === 'auto') ? (byNumLookup[_swap.out_number] || null) : null;
+  var manualCandidate = (_swap && _swap.kind === 'manual') ? (byNumLookup[_swap.in_number] || null) : null;
+  var manualSwappedOut = (_swap && _swap.kind === 'manual') ? (byNumLookup[_swap.out_number] || null) : null;
   if (top6.length === 6) {{
     // Practical decision rule (validated across 6 meetings, 60 races):
     //   SKIP if heavy favorite (top1 odds < $2.5) — model+market aligned
