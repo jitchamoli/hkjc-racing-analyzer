@@ -77,6 +77,16 @@ def main() -> int:
             rno = race.get('race_number')
             if rno is None:
                 continue
+            # Mirror the same post-results freeze guard as log_predictions
+            # (GPT-5.5 Finding #3 2026-05-24). A backfill must not silently
+            # overwrite a frozen ticket that was already validated.
+            results_filled = conn.execute(
+                "SELECT 1 FROM prediction_log WHERE race_date=? AND race_number=? "
+                "AND COALESCE(results_filled, 0) = 1 LIMIT 1",
+                (date, rno),
+            ).fetchone()
+            if results_filled:
+                continue
             conn.execute(
                 "INSERT INTO race_bet_ticket (race_date, race_number, ticket_json, logged_at) "
                 "VALUES (?, ?, ?, ?) "

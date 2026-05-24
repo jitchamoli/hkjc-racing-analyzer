@@ -136,15 +136,15 @@ def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
             elif n >= 4:
                 out[f'BOX TRIO-{n}'] = n * (n - 1) * (n - 2) // 6
 
-    # MAIN-tier auto-fires when top-5 exists (mirrors template.py:826+).
-    # BOX TRIO-5 and F4 BOX-5 share the same triple gate (widened from
-    # SKIP-only for BOX TRIO-5 on 2026-05-23 — see ship memory).
+    # MAIN-tier auto-fires when top-5 exists (mirrors production
+    # build_bet_ticket triple gate). Heavy-fav-skip clause was removed
+    # 2026-05-24 to match production after user UNGATE choice (see
+    # memory: heavy-fav-skip-ungated-2026-05-24 + GPT-5.5 Finding #2).
+    # Tier + field-size gates retained.
     if len(horses) >= 5:
         tier = (race.get('conviction_tier') or 'SKIP').upper()
-        top1_odds = horses[0].get('win_odds') or 0
         field_size = len(horses)
-        triple_gate_skip = ((top1_odds > 0 and top1_odds < 2.5) or
-                            tier not in ('EDGE', 'HIGH', 'MED') or
+        triple_gate_skip = (tier not in ('EDGE', 'HIGH', 'MED') or
                             field_size < 8)
         if not triple_gate_skip:
             out['BOX TRIO-5'] = 10
