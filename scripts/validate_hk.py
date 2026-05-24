@@ -273,6 +273,15 @@ def _score_meeting_replay(conn, date) -> dict | None:
             stake_per_combo = unit_stake if unit_stake > 0 else 1.0
 
             hit = False
+            # QPL ticket structure: legs[0] is the pivot, legs[1:] are bankers
+            # (server-side build_bet_ticket). Each (pivot, banker_i) pair is
+            # one combo and pays independently when both horses place top-3.
+            ordered_legs = bet.get("legs") or []
+            qpl_pivot = ordered_legs[0].get("name") if ordered_legs and pool == "QIN PLACE" else None
+            qpl_bankers = [l.get("name") for l in ordered_legs[1:]] if pool == "QIN PLACE" else []
+            qpl_hit_pairs: list[tuple[str, str]] = []
+            placed_top3 = {finishers.get(p) for p in (1, 2, 3) if finishers.get(p)}
+
             if pool == "WIN":
                 hit = finishers.get(1) in leg_names
             elif pool == "PLACE":
@@ -283,6 +292,12 @@ def _score_meeting_replay(conn, date) -> dict | None:
                 hit = top3_names is not None and top3_names <= leg_names
             elif pool == "FIRST 4":
                 hit = top4_names is not None and top4_names <= leg_names
+            elif pool == "QIN PLACE":
+                if qpl_pivot and qpl_pivot in placed_top3:
+                    for bk in qpl_bankers:
+                        if bk and bk in placed_top3:
+                            qpl_hit_pairs.append((qpl_pivot, bk))
+                hit = len(qpl_hit_pairs) > 0
 
             # `div_per_unit` is the payout PER HK$1 of stake on a winning combo.
             # Multiply by stake_per_combo to get actual dollar return per combo.
@@ -324,8 +339,31 @@ def _score_meeting_replay(conn, date) -> dict | None:
                                 placed_any = True
                 if placed_any:
                     div_per_unit = placed_legs_div
+            elif hit and pool == "QIN PLACE":
+                # 2026-05-26 (GPT-5.5 R7 Finding #1): pool was missing from
+                # replay, so QPL BANKER bets were unscored. race_dividends
+                # pool='QUINELLA PLACE' has the per-pair dividends. Sum
+                # across hit pairs — multi-pair hits compound the payout.
+                qpl_div_sum = 0.0
+                priced_any = False
+                for piv, bk in qpl_hit_pairs:
+                    piv_num = horses.get(piv, {}).get("number")
+                    bk_num = horses.get(bk, {}).get("number")
+                    if piv_num and bk_num:
+                        lo, hi = sorted([int(piv_num), int(bk_num)])
+                        row = conn.execute(
+                            "SELECT dividend FROM race_dividends WHERE race_date=? "
+                            "AND race_number=? AND pool='QUINELLA PLACE' "
+                            "AND combination=?",
+                            (date, rno, f"{lo},{hi}"),
+                        ).fetchone()
+                        if row:
+                            qpl_div_sum += hkjc_declared_to_unit(row[0])
+                            priced_any = True
+                if priced_any:
+                    div_per_unit = qpl_div_sum
 
-            if hit and div_per_unit is None and pool in ("QUINELLA", "TRIO", "FIRST 4", "WIN", "PLACE"):
+            if hit and div_per_unit is None and pool in ("QUINELLA", "TRIO", "FIRST 4", "WIN", "PLACE", "QIN PLACE"):
                 continue
 
             # Box bets: only the one winning combo pays out, NOT every combo
