@@ -14,13 +14,17 @@ Flags tested (per horse in each race):
   4. wide_no_cover           — draw ≥9 AND distance ≥1200
   5. pace_collapse_candidate — Closer AND race has ≥3 Leaders
 
-Gates per flag:
-  A1: r(flag, is_winner) on full DB — must |r| ≥ 0.02 to survive
-  A2: r(flag, is_top3)   on full DB — must |r| ≥ 0.02 to survive
-  B : |r(flag, proxy)|  < 0.7 vs early_speed_proxy, field_rel_draw_proxy,
-      late_kick_proxy (redundant flags die here)
+Gates per flag (in order — first to fire wins):
+  KILL        — |A1|<0.02 OR |A2|<0.02 (no signal magnitude)
+  WRONG_SIGN  — A1<0 AND A2<0 (predicts negative outcome; could be useful
+                as a demotion signal but not as a positive feature)
+  REDUNDANT   — |B collision| ≥ 0.7 (re-encoding an existing feature)
+  PASS        — A1>0 AND A2>0 AND magnitudes pass AND no B collision
 
-Verdict: PASS only if A1 ≥ 0.02 AND A2 ≥ 0.02 AND no B collision ≥ 0.7.
+Old verdict used abs() on the A-gate which let WRONG_SIGN flags slip
+through labeled as PASS (caught by GPT-5.5 R7 Finding #2 2026-05-26).
+Refactored 2026-05-26 to split the verdict so the output matches what
+the diagnostic actually justifies shipping.
 
 Usage:
     python3 -m scripts.diagnose_pace_trip
@@ -148,13 +152,13 @@ def main() -> int:
         rate = sum(vals) / len(vals)
         print(f"  {name:30s} {rate*100:.2f}%")
 
-    print(f"\n{'='*92}")
-    print(f"  PACE/TRIP DIAGNOSTIC — A1/A2/B gates  "
-          f"(A pass: |r|≥{A_GATE}, B kill: |r|≥{B_GATE})")
-    print(f"{'='*92}")
+    print(f"\n{'='*100}")
+    print(f"  PACE/TRIP DIAGNOSTIC  "
+          f"(A pass: |r|≥{A_GATE}, B redundancy kill: |r|≥{B_GATE})")
+    print(f"{'='*100}")
     print(f"  {'flag':<30}{'A1 (win)':>10}{'A2 (top3)':>12}"
-          f"{'best collision':>30}{'verdict':>10}")
-    print("  " + "-" * 90)
+          f"{'best collision':>30}{'verdict':>14}")
+    print("  " + "-" * 98)
 
     for name, vals in flag_vals.items():
         a1 = _pearson(vals, y_win)
@@ -162,22 +166,32 @@ def main() -> int:
         best_collision_r = 0.0
         best_collision_name = ''
         for pname, pvals in proxy_vals.items():
-            r = _pearson(vals, [int(round(v)) for v in pvals]) if False else _pearson(vals, list(map(int, [round(v * 100) for v in pvals])))
-            # Easier: compute r against the proxy float series directly.
             r = _pearson_float(vals, pvals)
             if abs(r) > abs(best_collision_r):
                 best_collision_r = r
                 best_collision_name = pname
-        a1_ok = abs(a1) >= A_GATE
-        a2_ok = abs(a2) >= A_GATE
-        b_ok = abs(best_collision_r) < B_GATE
-        verdict = 'PASS' if (a1_ok and a2_ok and b_ok) else 'KILL'
+        # Verdict ladder — first matching rule wins, ordered by precedence.
+        if abs(a1) < A_GATE or abs(a2) < A_GATE:
+            verdict = 'KILL'
+        elif a1 < 0 and a2 < 0:
+            # Both correlations negative → flag predicts WORSE outcomes.
+            # Domain hypothesis may be directionally right, but the signal
+            # has the opposite sign — would need to be inverted to ship.
+            verdict = 'WRONG_SIGN'
+        elif abs(best_collision_r) >= B_GATE:
+            verdict = 'REDUNDANT'
+        else:
+            verdict = 'PASS'
         coll_str = f"{best_collision_name}={best_collision_r:+.3f}"
         print(f"  {name:<30}{a1:>+10.4f}{a2:>+12.4f}"
-              f"{coll_str:>30}{verdict:>10}")
+              f"{coll_str:>30}{verdict:>14}")
 
     print()
-    print("  Verdict rules: KILL on A1<0.02 OR A2<0.02 OR collision ≥0.70.")
+    print("  Verdict ladder:")
+    print("    KILL       — |A1|<0.02 OR |A2|<0.02 (no signal magnitude)")
+    print("    WRONG_SIGN — A1<0 AND A2<0 (predicts negative outcome)")
+    print("    REDUNDANT  — |B collision| ≥0.70 (re-encodes existing feature)")
+    print("    PASS       — positive correlations + no B collision")
     print("  Per feedback_diagnostic_to_ship_pipeline: only PASS flags advance")
     print("  to re-rank signal-additivity testing (next stage if any survive).")
     conn.close()
