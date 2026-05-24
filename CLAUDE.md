@@ -62,7 +62,7 @@ python3 -m scripts.hk_news 2026/05/24 [--picks]   # --picks = only MED/HIGH/EDGE
 
 ```
 core/       — fetcher, analyzer, scorer, recommender, ML predictor   (HK)
-ml/         — feature_schema (26 feat, v6.10), features, model,      (HK)
+ml/         — feature_schema (23 feat, v6.11), features, model,      (HK)
               training, integrity; + uk_features/model, fr_features/model
 analytics/  — 14 specialized analyzers                                (HK)
 data/       — database, odds_tracker, scraper, sectional_scraper,    (HK)
@@ -89,11 +89,17 @@ core/fetcher → core/analyzer → dashboard/generator → results/
 
 ### Scoring (CombinedRaceAnalyzer)
 - **Rule engine (60%)**: 25 dynamically-weighted factors, missing-data renormalized. `odds`/`odds_movement` NOT in rule engine — market enters via dynamic blend only.
-- **ML model (40%)**: XGBoost win + place (`is_top3`) with 26 features (`ml/feature_schema.py`). IsotonicRegression recency-weighted; trained on ~50k real results. Post-blend isotonic recalibrator (`models/blend_calibrator.pkl`) refit after every retrain. 4-fold disjoint split: 0-60 train / 60-70 earlystop / 70-85 cal / 85-100 holdout.
+- **ML model (40%)**: XGBoost win + place (`is_top3`) with 23 features (`ml/feature_schema.py`). IsotonicRegression recency-weighted; trained on ~50k real results. Post-blend isotonic recalibrator (`models/blend_calibrator.pkl`) refit after every retrain. 4-fold disjoint split: 0-60 train / 60-70 earlystop / 70-85 cal / 85-100 holdout.
+
+**v6.11 (2026-05-24)** Tier 1 PRUNE from 3-expert review (ML stats / HK domain / forward-validation pragmatist) dropped 3 features:
+- `draw_advantage` — r=−0.0095 with `is_winner` on 50k rows (literal zero). `field_rel_draw` carries the draw signal.
+- `speed_fig_norm` — r=+0.53 with `last_start_margin`. HK paceless; prior revival was NEUTRAL-for-betting.
+- `running_style` — r=+0.914 with `early_speed` (coarsened duplicate).
+Backup: `models/hkjc_racing_model.pkl.pre-prune-tier1`. Gate-tune attempt (+0.15) reverted after 300-meeting quantile-match showed real distribution shift was only +0.007. See memory: `project_v6_11_prune_and_gate_revert_2026-05-24.md`.
 
 **v6.9/v6.10 (2026-05-24)** added two features via the cheap-diagnostic → re-rank → A/B pipeline:
-- `#25 mid_race_pace` — (800-400)-(last-400) split, last-3-runs mean. Source: `race_results.sectional_times`. Backup: `models/hkjc_racing_model.pkl.pre-mid-race-pace`.
-- `#26 sire_top3_rate_on_going` — sire's Beta(2,8) smoothed top-3 rate on TODAY's going (`_GOING_REVERSE` map: FIRM/GY/YIELDING/SOFT/WET-FAST). Source: `renavon_horses`. Backup: `models/hkjc_racing_model.pkl.pre-sire`.
+- `mid_race_pace` (v6.9, Feature 22 in v6.11) — (800-400)-(last-400) split, last-3-runs mean. Source: `race_results.sectional_times`. Backup: `models/hkjc_racing_model.pkl.pre-mid-race-pace`.
+- `sire_top3_rate_on_going` (v6.10, Feature 23 in v6.11) — sire's Beta(2,8) smoothed top-3 rate on TODAY's going (`_GOING_REVERSE` map: FIRM/GY/YIELDING/SOFT/WET-FAST). Source: `renavon_horses`. Backup: `models/hkjc_racing_model.pkl.pre-sire`.
 
 → Full layout, BET TICKET prose, strike-badge precedence: `docs/dashboard.md`.
 → Edge gates, conviction tiers, exotic pricing: `docs/betting-strategy.md`.
@@ -190,7 +196,7 @@ All non-HK data flows from **theracingapi.com** (HTTP Basic Auth via `.env`: `RA
 
 | Jurisdiction | DB                | Model              | Status                                      |
 |---|---|---|---|
-| HK   | `horse_history.db`| v6.10 production    | Production                                  |
+| HK   | `horse_history.db`| v6.11 production    | Production                                  |
 | UK   | `uk_history.db`   | 15-feat XGB         | MVP — forward-validating                    |
 | FR   | `fr_history.db`   | 15-feat XGB         | MVP — beats market fav in backtest          |
 | AU   | `au_history.db`   | none                | Reference only (sparse on standard tier)    |

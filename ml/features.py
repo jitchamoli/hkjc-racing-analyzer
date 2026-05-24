@@ -72,8 +72,8 @@ _jt_pair_cache: dict = {}        # keyed by (jockey, trainer, before_date)
 _speed_fig_cache: dict = {}      # keyed by (horse_name, before_date)
 _par_times_cache: dict = {}      # keyed by before_date — par_times is O(N) to compute
 _running_pos_cache: dict = {}    # keyed by (horse_name, before_date) — v6.8 Features 22-24
-_mid_race_cache: dict = {}       # keyed by (horse_name, before_date) — v6.9 Feature 25
-_sire_going_cache: dict = {}     # keyed by (sire, going_bucket, before_date) — v6.10 Feature 26
+_mid_race_cache: dict = {}       # keyed by (horse_name, before_date) — v6.9 mid_race_pace
+_sire_going_cache: dict = {}     # keyed by (sire, going_bucket, before_date) — v6.10 sire_top3_on_going
 _horse_sire_map: dict = {}       # one-shot horse_name → sire from renavon_horses (lazy)
 _daily_variant_cache: dict = {}  # keyed by (race_date, before_race_no, before_date)
 
@@ -522,7 +522,7 @@ class FeatureEngineering:
     @staticmethod
     def calculate_mid_race_pace(horse_name: str, conn=None,
                                 before_date: str = None) -> float:
-        """v6.9 Feature 25: mid-race sectional pace ("unspent finisher" signal).
+        """v6.9 mid_race_pace: mid-race sectional pace ("unspent finisher" signal).
 
         For each of the horse's last 3 prior runs with 3+ sectionals, computes
         race-mean-normalized (800-400 split) − (last-400 split). Positive =
@@ -637,7 +637,7 @@ class FeatureEngineering:
     @staticmethod
     def calculate_sire_top3_on_going(horse_name: str, going: str, conn=None,
                                      before_date: str = None) -> float:
-        """v6.10 Feature 26: sire's top-3 rate on the current race's going.
+        """v6.10 sire_top3_on_going: sire's top-3 rate on the current race's going.
 
         Bayesian-smoothed Beta(2, 8) — prior weight 10, base rate 20%.
         Returns the smoothed rate; defaults to 0.20 (base) when sire unknown
@@ -1215,7 +1215,7 @@ class FeatureEngineering:
         )
         features.append(mid_pace)
 
-        # Feature 26 (v6.10): sire's top-3 rate on TODAY's going. Bayesian-
+        # sire_top3_rate_on_going (v6.10): sire's top-3 rate on TODAY's going. Bayesian-
         # smoothed Beta(2, 8). Orthogonal to per-horse going history (r=0.45);
         # carries information the horse's own form can't because per-sire
         # samples are 50-200× larger than per-horse samples on rare goings.
