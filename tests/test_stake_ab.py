@@ -75,10 +75,13 @@ def test_firing_bets_normal_med_race_fires_both():
     assert fires['F4 BOX-5'] == 5
 
 
-def test_firing_bets_skips_on_heavy_fav():
+def test_firing_bets_fires_on_heavy_fav_2026_05_24():
+    """After 2026-05-24 ungate (heavy-fav-skip-ungated-2026-05-24), heavy
+    favorites no longer suppress BOX TRIO-5 / F4 BOX-5. Tier + field-size
+    gates still apply; heavy-fav clause is gone."""
     fires = firing_bets(_race(top1_odds=2.2, tier='HIGH', n_horses=10))
-    assert 'BOX TRIO-5' not in fires
-    assert 'F4 BOX-5' not in fires
+    assert 'BOX TRIO-5' in fires
+    assert 'F4 BOX-5' in fires
 
 
 def test_firing_bets_skips_on_low_conviction():

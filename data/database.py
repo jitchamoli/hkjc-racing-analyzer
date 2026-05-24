@@ -1289,14 +1289,26 @@ class HorseDatabase:
 
             ticket = race.get('bet_ticket')
             if ticket:
-                c.execute("""
-                    INSERT INTO race_bet_ticket (
-                        race_date, race_number, ticket_json, logged_at
-                    ) VALUES (?, ?, ?, ?)
-                    ON CONFLICT(race_date, race_number) DO UPDATE SET
-                        ticket_json=excluded.ticket_json,
-                        logged_at=excluded.logged_at
-                """, (race_date, race_no, json.dumps(ticket), now))
+                # Mirror prediction_log's pattern: pre-race tickets can update
+                # as odds drift, but once ANY horse in this race has a result,
+                # the ticket is frozen. Prevents post-results regen from
+                # overwriting the actual staked ticket — the "frozen" promise
+                # that validate_hk --replay depends on (GPT-5.5 Finding #3
+                # 2026-05-24).
+                results_filled = c.execute(
+                    "SELECT 1 FROM prediction_log WHERE race_date=? AND race_number=? "
+                    "AND COALESCE(results_filled, 0) = 1 LIMIT 1",
+                    (race_date, race_no),
+                ).fetchone()
+                if not results_filled:
+                    c.execute("""
+                        INSERT INTO race_bet_ticket (
+                            race_date, race_number, ticket_json, logged_at
+                        ) VALUES (?, ?, ?, ?)
+                        ON CONFLICT(race_date, race_number) DO UPDATE SET
+                            ticket_json=excluded.ticket_json,
+                            logged_at=excluded.logged_at
+                    """, (race_date, race_no, json.dumps(ticket), now))
 
             for h in horses:
                 c.execute("""

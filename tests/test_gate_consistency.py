@@ -27,64 +27,59 @@ def _race(top1_odds: float, tier: str, n_horses: int):
     return {'horses': horses, 'conviction_tier': tier}
 
 
-@pytest.mark.parametrize('top1,tier,n,expected_skip', [
-    # Normal fires
-    (3.0, 'MED', 10, False),
-    (5.0, 'HIGH', 12, False),
-    (8.0, 'EDGE', 9, False),
-    # Heavy fav
-    (1.5, 'MED', 10, True),
-    (2.4, 'HIGH', 10, True),
-    # Low/SKIP conv
-    (5.0, 'LOW', 10, True),
-    (5.0, 'SKIP', 10, True),
-    # Small field
-    (5.0, 'MED', 7, True),
-    (5.0, 'MED', 5, True),
-    # Boundary: top1 exactly 2.5 is NOT skipped (gate is `< 2.5`)
-    (2.5, 'MED', 10, False),
-    # Boundary: field of exactly 8 is NOT skipped (gate is `< 8`)
-    (5.0, 'MED', 8, False),
-    # Multiple gate conditions simultaneously
-    (1.8, 'LOW', 6, True),
+# 2026-05-24: production (stake_ab.firing_bets) UNGATED heavy-fav after user
+# choice — F4 BOX-5 + BOX TRIO-5 now fire even when top1 < $2.50, as long as
+# tier + field-size pass (see memory: heavy-fav-skip-ungated-2026-05-24).
+# gate_impact._triple_gate_skip INTENTIONALLY retains the heavy-fav-gated
+# semantics — its purpose is the A/B comparison between ungated production
+# and the deprecated heavy-fav-gated alternative. So the two implementations
+# legitimately DISAGREE on heavy-fav cases. This table documents both.
+@pytest.mark.parametrize('top1,tier,n,gi_skip,sa_skip', [
+    # Normal fires — both agree
+    (3.0, 'MED', 10, False, False),
+    (5.0, 'HIGH', 12, False, False),
+    (8.0, 'EDGE', 9, False, False),
+    # Heavy fav — gate_impact (deprecated) skips; production (ungated) fires
+    (1.5, 'MED', 10, True, False),
+    (2.4, 'HIGH', 10, True, False),
+    # Low/SKIP conv — both skip on tier
+    (5.0, 'LOW', 10, True, True),
+    (5.0, 'SKIP', 10, True, True),
+    # Small field — both skip on field
+    (5.0, 'MED', 7, True, True),
+    (5.0, 'MED', 5, True, True),
+    # Boundary: top1 exactly 2.5 (gate is `< 2.5`) — both fire
+    (2.5, 'MED', 10, False, False),
+    # Boundary: field exactly 8 (gate is `< 8`) — both fire
+    (5.0, 'MED', 8, False, False),
+    # Multiple gate conditions — both skip on tier (heavy-fav clause moot)
+    (1.8, 'LOW', 6, True, True),
 ])
-def test_gate_decisions_agree_across_implementations(
-    top1, tier, n, expected_skip
-):
-    """Both stake_ab.firing_bets and gate_impact._triple_gate_skip must
-    agree on every gate decision. The expected_skip column is the
-    ground-truth spec."""
+def test_gate_decisions_match_documented_spec(top1, tier, n, gi_skip, sa_skip):
+    """gate_impact stays on the deprecated heavy-fav-gated semantics by
+    design (it's the A/B baseline). stake_ab matches production (ungated).
+    """
     race = _race(top1, tier, n)
 
-    # gate_impact returns (skip: bool, reason: str)
-    gi_skip, _gi_reason = _triple_gate_skip(race)
-    assert gi_skip is expected_skip, (
-        f"gate_impact disagreed: top1={top1}, tier={tier}, n={n} → "
-        f"got skip={gi_skip}, expected {expected_skip}"
+    actual_gi, _ = _triple_gate_skip(race)
+    assert actual_gi is gi_skip, (
+        f"gate_impact: top1={top1}, tier={tier}, n={n} → got skip={actual_gi}, "
+        f"expected {gi_skip}"
     )
 
-    # firing_bets includes BOX TRIO-5 iff gate does NOT skip
     fires = firing_bets(race)
-    sa_skip = 'BOX TRIO-5' not in fires
-    assert sa_skip is expected_skip, (
-        f"stake_ab.firing_bets disagreed: top1={top1}, tier={tier}, n={n} → "
-        f"BOX TRIO-5 in fires={('BOX TRIO-5' in fires)}, expected_skip={expected_skip}"
-    )
-
-    # Sanity: the two implementations agree with each other (transitivity
-    # check — if both match expected, they must match each other, but
-    # explicit assert documents the invariant).
-    assert gi_skip == sa_skip, (
-        f"stake_ab + gate_impact disagree on top1={top1}, tier={tier}, n={n}"
+    actual_sa = 'BOX TRIO-5' not in fires
+    assert actual_sa is sa_skip, (
+        f"stake_ab: top1={top1}, tier={tier}, n={n} → BOX TRIO-5 in fires="
+        f"{('BOX TRIO-5' in fires)}, expected_skip={sa_skip}"
     )
 
 
 def test_gate_uses_first_horse_for_top1_odds():
-    """Both implementations must read horses[0].win_odds (rank-1 odds),
-    not the minimum or any other horse."""
-    # Build a race where horses[0] is the favorite (low odds) but later
-    # horses have even-higher odds. Heavy fav gate should still fire on
-    # horses[0]'s odds, not some other field.
+    """gate_impact must read horses[0].win_odds (rank-1 odds) for the
+    heavy-fav clause, not the minimum or any other horse. stake_ab no
+    longer cares about top1 odds after the 2026-05-24 ungate.
+    """
     race = {
         'horses': [{'win_odds': 1.8, 'bet_recommendation': 'QIN'},
                    {'win_odds': 50.0, 'bet_recommendation': 'QIN'},
@@ -96,6 +91,6 @@ def test_gate_uses_first_horse_for_top1_odds():
         'conviction_tier': 'MED',
     }
     skip_gi, _ = _triple_gate_skip(race)
-    skip_sa = 'BOX TRIO-5' not in firing_bets(race)
-    assert skip_gi is True
-    assert skip_sa is True
+    assert skip_gi is True, "gate_impact must still skip on heavy-fav rank-1"
+    # Production fires — tier + field pass; heavy-fav no longer matters.
+    assert 'BOX TRIO-5' in firing_bets(race)

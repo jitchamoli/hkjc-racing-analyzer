@@ -197,7 +197,8 @@ def _score_meeting_replay(conn, date) -> dict | None:
         return None
 
     horse_rows = conn.execute(
-        "SELECT race_number, horse_number, horse_name, actual_position "
+        "SELECT race_number, horse_number, horse_name, actual_position, "
+        "       COALESCE(actual_odds, 0) AS actual_odds "
         "FROM prediction_log WHERE race_date=? AND results_filled=1",
         (date,),
     ).fetchall()
@@ -206,6 +207,7 @@ def _score_meeting_replay(conn, date) -> dict | None:
         by_race[r["race_number"]][r["horse_name"]] = {
             "number": r["horse_number"],
             "actual_position": r["actual_position"],
+            "actual_odds": r["actual_odds"],
         }
 
     acc: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0])
@@ -233,9 +235,13 @@ def _score_meeting_replay(conn, date) -> dict | None:
             label = bet.get("label", "?")
             pool = bet.get("pool", "")
             combos = int(bet.get("combos", 0) or 0)
+            unit_stake = float(bet.get("unit_stake", 0) or 0)
             leg_names = {leg.get("name") for leg in (bet.get("legs") or [])}
             if not leg_names or combos <= 0:
                 continue
+            # Fall back to $1 unit if the ticket didn't size the stake — keeps
+            # ROI% meaningful even on legacy tickets without unit_stake.
+            stake_per_combo = unit_stake if unit_stake > 0 else 1.0
 
             hit = False
             if pool == "WIN":
@@ -249,24 +255,39 @@ def _score_meeting_replay(conn, date) -> dict | None:
             elif pool == "FIRST 4":
                 hit = top4_names is not None and top4_names <= leg_names
 
-            div = None
+            # `div_per_unit` is the payout PER HK$1 of stake on a winning combo.
+            # Multiply by stake_per_combo to get actual dollar return per combo.
+            div_per_unit: float | None = None
             if hit and pool == "QUINELLA":
                 top2_nums = sorted(horses[finishers[p]]["number"] for p in (1, 2))
-                div = _quin_div(conn, date, rno, *top2_nums)
+                div_per_unit = _quin_div(conn, date, rno, *top2_nums)
             elif hit and pool == "TRIO":
                 combo_str = ",".join(str(n) for n in sorted(
                     horses[finishers[p]]["number"] for p in (1, 2, 3)))
-                div = _exotic_div(conn, date, rno, pool, combo_str)
+                div_per_unit = _exotic_div(conn, date, rno, pool, combo_str)
             elif hit and pool == "FIRST 4":
                 combo_str = ",".join(str(n) for n in sorted(
                     horses[finishers[p]]["number"] for p in (1, 2, 3, 4)))
-                div = _exotic_div(conn, date, rno, pool, combo_str)
-            # WIN/PLACE dividends are per-horse and not in race_dividends; skip pricing.
+                div_per_unit = _exotic_div(conn, date, rno, pool, combo_str)
+            elif hit and pool == "WIN":
+                # Price from the winning horse's actual_odds (SP). HKJC WIN
+                # odds are already per-$1 (decimal), so div_per_unit = odds.
+                winner_name = finishers.get(1)
+                div_per_unit = (horses.get(winner_name, {}).get("actual_odds") or 0) or None
+            # PLACE pool dividends aren't in race_dividends and there's no
+            # per-horse PLACE column in prediction_log — leave hit unscored.
 
-            if hit and div is None and pool in ("QUINELLA", "TRIO", "FIRST 4"):
+            if hit and div_per_unit is None and pool in ("QUINELLA", "TRIO", "FIRST 4", "WIN"):
                 continue
-            acc[label][0] += combos
-            acc[label][1] += div if hit else 0.0
+
+            # Box bets: only the one winning combo pays out, NOT every combo
+            # in the box. Stake covers all `combos`; return on hit is sized
+            # to the single winning combo. Matches HKJC mechanics + mirrors
+            # the synthetic scorer's `ncombo` stake / `div_per_$1` return.
+            stake = combos * stake_per_combo
+            ret = (stake_per_combo * div_per_unit) if (hit and div_per_unit) else 0.0
+            acc[label][0] += stake
+            acc[label][1] += ret
             acc[label][2] += 1 if hit else 0
 
     return {"_races": n_races, "labels": dict(acc)}

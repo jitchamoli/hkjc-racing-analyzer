@@ -568,8 +568,10 @@ def simulate_bets(races, conn):
             top_2_share=race_top_2_share, top_3_share=race_top_3_share,
         )
         race_field_size = len(preds)
+        # Heavy-fav-skip removed 2026-05-24 to match production after user
+        # UNGATE choice (memory: heavy-fav-skip-ungated-2026-05-24 +
+        # GPT-5.5 Finding #2). Tier + field-size gates retained.
         trio5_f4gate_skip = (
-            (top_odds > 0 and top_odds < 2.5) or
             (race_conv_tier not in ('EDGE', 'HIGH', 'MED')) or
             (race_field_size < 8)
         )
