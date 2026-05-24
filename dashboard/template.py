@@ -1038,7 +1038,7 @@ function renderBetCard(race) {{
                 (t6stm >= 2) ? true :
                 (tier === 'HIGH' && f4f >= 11 && f4t1 >= 2.5 && f4t1 <= 5.0) ? true :
                 false;
-    if (t6Tk && mainBetTypes.length > 0) waT6Combos = 20;
+    if (t6Tk && _waRecBets.length > 0) waT6Combos = 20;
   }}
   waTotalCombos += waT5Combos + waF4Combos + waT6Combos;
   // Floor (not round) to nearest $5 so the per-bet stakes never sum above
