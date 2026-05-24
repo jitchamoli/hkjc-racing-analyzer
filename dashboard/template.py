@@ -387,6 +387,7 @@ button {{ font-family:inherit; cursor:pointer; }}
 .strike-badge.trio6 {{ background:rgba(244,63,94,.85); color:#fff; }}
 .strike-badge.qpl {{ background:rgba(34,197,94,.85); color:#000; }}
 .strike-badge.place {{ background:rgba(99,102,241,.85); color:#fff; }}
+.strike-badge.multi {{ background:linear-gradient(135deg,var(--gold),rgba(236,72,153,.95)); color:#000; box-shadow:0 0 8px rgba(251,191,36,.5); }}
 .strike-badge.miss {{ background:rgba(239,68,68,.6); color:#fff; }}
 
 /* View tabs — by default boxed (legacy below-strip placement).
@@ -611,18 +612,11 @@ setInterval(function() {{
 // (races with results, with STRIKE/MISS badges).
 var _topBetsFilter = 'next';
 
-function _didBetHit(race) {{
-  // Returns the strongest STRIKE-* badge for any bet ACTUALLY in the frozen
-  // bet_ticket that hit. Returns 'MISS' if the ticket has bets but none hit,
-  // 'MISS' if no ticket exists (SKIP race with results), or null if the
-  // race is not finished yet.
-  //
-  // Rewritten 2026-05-24 (GPT-5.5 Playwright audit) to read from
-  // race.bet_ticket.bets instead of synthetic top-N rank slices. Old code
-  // would show STRIKE-F4-5 on R8/R11-style races where the heavy-fav gate
-  // (since lifted) had removed F4 BOX-5 from the ticket — a phantom hit
-  // badge for a bet that was never staked. See memory:
-  // post-fix-consistency-sweep.
+// _placedFromRace — extract [p1, p2, p3, p4] horse numbers from a finished
+// race. Returns null when fewer than 2 horses have actual_position (race
+// not finished or partial results). Shared by _betHitsTicket and
+// _allStrikeLabels so they read placements identically.
+function _placedFromRace(race) {{
   if (!race.results_available) return null;
   var horsesByPos = race.horses
     .filter(function(h) {{ return h.actual_position; }})
@@ -632,77 +626,120 @@ function _didBetHit(race) {{
   var p2 = horsesByPos[1].number;
   var p3 = horsesByPos.length >= 3 ? horsesByPos[2].number : null;
   var p4 = horsesByPos.length >= 4 ? horsesByPos[3].number : null;
-  var top2 = [p1, p2];
-  var top3 = p3 != null ? [p1, p2, p3] : null;
-  var top4 = p4 != null ? [p1, p2, p3, p4] : null;
+  return {{
+    p1: p1, p2: p2, p3: p3, p4: p4,
+    top2: [p1, p2],
+    top3: p3 != null ? [p1, p2, p3] : null,
+    top4: p4 != null ? [p1, p2, p3, p4] : null,
+  }};
+}}
 
-  var ticket = race.bet_ticket;
-  var bets = (ticket && ticket.bets) ? ticket.bets : [];
-  if (bets.length === 0) return 'MISS';
-
-  function _containsAll(legs, needed) {{
+// _betHitsTicket — per-bet hit/miss. Returns true/false/null per single
+// ticket entry. null = race not yet finished / partial results.
+// Mirrors validate_hk._score_meeting_replay pool branches exactly so
+// dashboard display agrees with replay scoring.
+function _betHitsTicket(bet, race) {{
+  var placed = _placedFromRace(race);
+  if (placed === null) return null;
+  var pool = bet.pool || '';
+  var legs = bet.legs || [];
+  var nLegs = legs.length;
+  var nums = legs.map(function(l) {{ return l.number; }});
+  function _containsAll(needed) {{
     if (!needed) return false;
-    var nums = legs.map(function(l) {{ return l.number; }});
     for (var i = 0; i < needed.length; i++) {{
       if (nums.indexOf(needed[i]) < 0) return false;
     }}
     return true;
   }}
+  if (pool === 'WIN' || pool === 'BANKER WIN') {{
+    return !!(legs[0] && legs[0].number === placed.p1);
+  }}
+  if (pool === 'PLACE') {{
+    if (!placed.top3) return false;
+    for (var k = 0; k < nLegs; k++) {{
+      if (placed.top3.indexOf(legs[k].number) >= 0) return true;
+    }}
+    return false;
+  }}
+  if (pool === 'QUINELLA') {{
+    return _containsAll(placed.top2);
+  }}
+  if (pool === 'QIN PLACE') {{
+    // QPL BANKER: legs[0] pivot + legs[1:] bankers. Need pivot top-3 AND
+    // at least one banker top-3.
+    if (!placed.top3 || nLegs < 2) return false;
+    if (placed.top3.indexOf(legs[0].number) < 0) return false;
+    for (var k = 1; k < nLegs; k++) {{
+      if (placed.top3.indexOf(legs[k].number) >= 0) return true;
+    }}
+    return false;
+  }}
+  if (pool === 'TRIO') {{
+    return placed.top3 != null && _containsAll(placed.top3);
+  }}
+  if (pool === 'FIRST 4') {{
+    return placed.top4 != null && _containsAll(placed.top4);
+  }}
+  return false;
+}}
 
-  var hits = {{}};
+// _allStrikeLabels — return short labels for EVERY hit bet, priority-
+// ordered. Used by both _didBetHit (which collapses to a single highest-
+// priority badge) and the multi-hit STRIKE badge renderer (which lists
+// all of them when ≥2 hit).
+function _allStrikeLabels(race) {{
+  var placed = _placedFromRace(race);
+  if (placed === null) return null;
+  var ticket = race.bet_ticket;
+  var bets = (ticket && ticket.bets) ? ticket.bets : [];
+  if (bets.length === 0) return [];
+  // Dedupe across multiple bets of the same pool (e.g., two TRIO bets
+  // both hitting → one TRIO5 entry).
+  var seen = {{}};
+  var ordered = [];
+  function _push(short) {{ if (!seen[short]) {{ seen[short] = true; ordered.push(short); }} }}
   for (var i = 0; i < bets.length; i++) {{
     var bet = bets[i];
+    if (!_betHitsTicket(bet, race)) continue;
     var pool = bet.pool || '';
-    var legs = bet.legs || [];
-    var nLegs = legs.length;
-
-    if (pool === 'WIN' || pool === 'BANKER WIN') {{
-      if (legs[0] && legs[0].number === p1) hits.WIN = true;
-    }} else if (pool === 'PLACE') {{
-      // PLACE hits when any leg horse finishes top-3. Mirrors
-      // validate_hk._score_meeting_replay PLACE branch.
-      if (top3) {{
-        for (var k = 0; k < legs.length; k++) {{
-          if (top3.indexOf(legs[k].number) >= 0) {{ hits.PLACE = true; break; }}
-        }}
-      }}
-    }} else if (pool === 'QUINELLA') {{
-      if (_containsAll(legs, top2)) {{
-        if (nLegs === 4) hits.BOX4 = true;
-        else hits.QIN = true;
-      }}
-    }} else if (pool === 'QIN PLACE') {{
-      // QPL BANKER (server-side build): legs[0] = pivot, legs[1:] = bankers.
-      // Pair (pivot, banker_i) pays when BOTH place top-3. One hit pair is
-      // enough for the STRIKE badge. Mirrors validate_hk QIN PLACE branch.
-      if (top3 && nLegs >= 2 && top3.indexOf(legs[0].number) >= 0) {{
-        for (var k = 1; k < nLegs; k++) {{
-          if (top3.indexOf(legs[k].number) >= 0) {{ hits.QPL = true; break; }}
-        }}
-      }}
-    }} else if (pool === 'TRIO') {{
-      if (top3 && _containsAll(legs, top3)) {{
-        if (nLegs >= 6) hits.TRIO6 = true;
-        else hits.TRIO5 = true;
-      }}
-    }} else if (pool === 'FIRST 4') {{
-      if (top4 && _containsAll(legs, top4)) hits['F4-5'] = true;
-    }}
+    var nLegs = (bet.legs || []).length;
+    if (pool === 'WIN' || pool === 'BANKER WIN') _push('WIN');
+    else if (pool === 'PLACE') _push('PLACE');
+    else if (pool === 'QUINELLA') _push(nLegs === 4 ? 'BOX4' : 'QIN');
+    else if (pool === 'QIN PLACE') _push('QPL');
+    else if (pool === 'TRIO') _push(nLegs >= 6 ? 'TRIO6' : 'TRIO5');
+    else if (pool === 'FIRST 4') _push('F4-5');
   }}
+  // Re-sort by priority so the highest-priority hit leads the multi-hit chip.
+  var priority = ['WIN', 'QIN', 'QPL', 'F4-5', 'BOX4', 'TRIO5', 'TRIO6', 'PLACE'];
+  ordered.sort(function(a, b) {{
+    var ai = priority.indexOf(a);
+    var bi = priority.indexOf(b);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+  }});
+  return ordered;
+}}
 
-  // Priority order — most specific/strongest first, matching old taxonomy.
+function _didBetHit(race) {{
+  // Returns the strongest STRIKE-* badge for any bet ACTUALLY in the frozen
+  // bet_ticket that hit. Returns 'MISS' if the ticket has bets but none hit,
+  // 'MISS' if no ticket exists (SKIP race with results), or null if the
+  // race is not finished yet.
+  //
+  // Now delegates per-bet hit detection to _betHitsTicket (shared with
+  // the detail-panel per-bet markers + multi-hit badge renderer) so all
+  // three surfaces compute hits identically. Priority order:
   // WIN > QIN > QPL > F4-5 > BOX4 > TRIO5 > TRIO6 > PLACE.
-  // PLACE last because 1-of-top-3 is the loosest hit; bury under any harder
-  // strike to avoid masking the headline bet outcome.
-  if (hits.WIN) return 'STRIKE-WIN';
-  if (hits.QIN) return 'STRIKE-QIN';
-  if (hits.QPL) return 'STRIKE-QPL';
-  if (hits['F4-5']) return 'STRIKE-F4-5';
-  if (hits.BOX4) return 'STRIKE-BOX4';
-  if (hits.TRIO5) return 'STRIKE-TRIO5';
-  if (hits.TRIO6) return 'STRIKE-TRIO6';
-  if (hits.PLACE) return 'STRIKE-PLACE';
-  return 'MISS';
+  var labels = _allStrikeLabels(race);
+  if (labels === null) return null;
+  if (labels.length === 0) {{
+    // SKIP race or all bets missed — distinguish by whether ticket exists.
+    var ticket = race.bet_ticket;
+    var bets = (ticket && ticket.bets) ? ticket.bets : [];
+    return bets.length === 0 ? 'MISS' : 'MISS';
+  }}
+  return 'STRIKE-' + labels[0];
 }}
 
 function setTopBetsFilter(f) {{
@@ -946,9 +983,23 @@ function renderBetCard(race) {{
   // STRIKE / MISS badge for past races (resolved on the fly from
   // _didBetHit). Surfaces the bet outcome at the card header so the
   // user can scan past races for what hit without expanding each card.
+  //
+  // Multi-hit handling (added 2026-05-25): when ≥2 bet types hit on the
+  // same race (e.g., WIN + QIN + TRIO-5 all fire on a model-nailed race),
+  // the badge shows `★ STRIKE × N · A/B/C` instead of masking the lower
+  // hits under the single highest-priority badge. Replay/stake_ab already
+  // count all hits; this just surfaces them on the card scan.
   var strikeStatus = _didBetHit(race);
+  var allStrikes = _allStrikeLabels(race) || [];
   var strikeBadge = '';
-  if (strikeStatus === 'STRIKE-WIN') {{
+  if (allStrikes.length >= 2) {{
+    var displayMap = {{
+      'WIN': 'WIN', 'QIN': 'QIN', 'QPL': 'QPL', 'BOX4': 'BOX-4',
+      'F4-5': 'F4-5', 'TRIO5': 'TRIO-5', 'TRIO6': 'TRIO-6', 'PLACE': 'PLACE',
+    }};
+    var pretty = allStrikes.map(function(s) {{ return displayMap[s] || s; }}).join('/');
+    strikeBadge = '<span class="strike-badge multi" title="Multiple bet types hit on this race — see BET TICKET for per-bet result">★ STRIKE × ' + allStrikes.length + ' · ' + pretty + '</span>';
+  }} else if (strikeStatus === 'STRIKE-WIN') {{
     strikeBadge = '<span class="strike-badge win" title="Top pick won the race">★ STRIKE · WIN</span>';
   }} else if (strikeStatus === 'STRIKE-QIN') {{
     strikeBadge = '<span class="strike-badge qin" title="Winning quinella pair was inside top-2 model picks">★ STRIKE · QIN</span>';
@@ -996,6 +1047,17 @@ function renderBetCard(race) {{
     ? race.bet_ticket.bets.map(function(b) {{ return b.label; }})
     : [];
   function _waTicketHas(label) {{ return _waTicketLabels.indexOf(label) >= 0; }}
+  // Plain-text per-bet hit/miss mark for WA copy. Mirrors _ticketHitMark
+  // (visual) and validate_hk replay scoring. Empty string while race
+  // unresolved so live-prep messages do not carry false ✗ MISS marks.
+  function _waHitMark(label) {{
+    var _bets = (race.bet_ticket && race.bet_ticket.bets) || [];
+    var bet = _bets.filter(function(b) {{ return b.label === label; }})[0];
+    if (!bet) return '';
+    var hit = _betHitsTicket(bet, race);
+    if (hit === null) return '';
+    return hit ? ' ✓ HIT' : ' ✗ MISS';
+  }}
   // Race header — bold race id + meta on a second line for scannability
   var venueWa = race.venue || '';
   waLines.push('*R' + race.race_number + ' · ' + (race.time||'') + (venueWa ? ' · ' + venueWa : '') + '*');
@@ -1104,7 +1166,7 @@ function renderBetCard(race) {{
     _waPrimary.forEach(function(bet) {{
       var betStake = waUnit > 0 ? (' · $' + ((bet.combos || 0) * waUnit)) : '';
       waLines.push('');
-      waLines.push('*MAIN: ' + bet.label + betStake + '*');
+      waLines.push('*MAIN: ' + bet.label + betStake + '*' + _waHitMark(bet.label));
       (bet.legs || []).forEach(function(leg) {{ waLines.push(_waPickFromLeg(leg)); }});
     }});
   }} else {{
@@ -1128,19 +1190,19 @@ function renderBetCard(race) {{
   // QIN PLACE BANKER for short-favorite races
   if (_waTicketHas('QIN PLACE BANKER') && top1Wa && race.horses.length >= 4) {{
     var bnkNums = race.horses.slice(1, 4).map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    addOns.push('QPL BANKER (3 combos): #' + top1Wa.number + ' with ' + bnkNums);
+    addOns.push('QPL BANKER (3 combos): #' + top1Wa.number + ' with ' + bnkNums + _waHitMark('QIN PLACE BANKER'));
   }}
 
   // BOX QIN-4 PROTECTION — only when server included it in bet_ticket
   if (top4wa.length === 4 && _waTicketHas('BOX QIN-4 PROTECTION')) {{
     var box4Nums = top4wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    addOns.push('BOX QIN-4 (6 combos): ' + box4Nums);
+    addOns.push('BOX QIN-4 (6 combos): ' + box4Nums + _waHitMark('BOX QIN-4 PROTECTION'));
   }}
 
   // F4 SAVER — only when server included it in bet_ticket
   if (top4wa.length === 4 && _waTicketHas('F4 SAVER')) {{
     var f4Order = top4wa.map(function(h) {{ return '#' + h.number; }}).join(' → ');
-    addOns.push('F4 SAVER (1 unit · exact 1→4): ' + f4Order);
+    addOns.push('F4 SAVER (1 unit · exact 1→4): ' + f4Order + _waHitMark('F4 SAVER'));
   }}
 
   // Rank-5 swap REVERTED 2026-05-17 after R5 forward test: shipped on N=1
@@ -1163,7 +1225,7 @@ function renderBetCard(race) {{
     var t5SwapAnno = top5waSwap
       ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
       : '';
-    t5MainBlock = ['', '*MAIN: BOX TRIO-5' + t5Stake + '* (10 combos)' + t5SwapAnno, t5Nums];
+    t5MainBlock = ['', '*MAIN: BOX TRIO-5' + t5Stake + '* (10 combos)' + t5SwapAnno + _waHitMark('BOX TRIO-5'), t5Nums];
   }}
 
   // F4 BOX-5 — second MAIN bet block (shipped 2026-05-06, +54% ROI on 60-race
@@ -1178,7 +1240,7 @@ function renderBetCard(race) {{
     var f4bSwapAnno = top5waSwap
       ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
       : '';
-    f4bMainBlock = ['', '*MAIN: F4 BOX-5' + f4bStake + '* (5 combos · top-4 any order)' + f4bSwapAnno, f4bNums];
+    f4bMainBlock = ['', '*MAIN: F4 BOX-5' + f4bStake + '* (5 combos · top-4 any order)' + f4bSwapAnno + _waHitMark('F4 BOX-5'), f4bNums];
   }}
 
   // BOX TRIO-6 — annotate with TAKE/SKIP/YOUR CALL + chaos so user sees
@@ -1241,9 +1303,9 @@ function renderBetCard(race) {{
     if (_waTicketHas('BOX TRIO-6')) {{
       if (isT6Take && !isSkipRace) {{
         var t6Stake = waUnit > 0 ? (' · $' + (20 * waUnit)) : '';
-        t6MainBlock = ['', '*MAIN: BOX TRIO-6' + t6Stake + '* (20 combos · ' + t6Verdict + ' · CHAOS ' + chaosScore + '/4)' + swapAnno, t6Nums];
+        t6MainBlock = ['', '*MAIN: BOX TRIO-6' + t6Stake + '* (20 combos · ' + t6Verdict + ' · CHAOS ' + chaosScore + '/4)' + swapAnno + _waHitMark('BOX TRIO-6'), t6Nums];
       }} else {{
-        addOns.push('BOX TRIO-6 (20 combos · ' + t6Verdict + ' · CHAOS ' + chaosScore + '/4): ' + t6Nums + swapAnno);
+        addOns.push('BOX TRIO-6 (20 combos · ' + t6Verdict + ' · CHAOS ' + chaosScore + '/4): ' + t6Nums + swapAnno + _waHitMark('BOX TRIO-6'));
       }}
     }}
   }}
@@ -1919,6 +1981,19 @@ function _buildRaceDetailPanel(race) {{
   var _ticketBets = (race.bet_ticket && race.bet_ticket.bets) || [];
   var _ticketLabels = _ticketBets.map(function(b) {{ return b.label; }});
   function _ticketHas(label) {{ return _ticketLabels.indexOf(label) >= 0; }}
+  // Per-bet ✓/✗ chip — surfaces hit/miss on each ticket line so the user
+  // sees which of N bets hit (the card-header STRIKE badge can only show
+  // the highest-priority single hit; this gives the full picture inside
+  // the BET TICKET block). Added 2026-05-25.
+  function _ticketHitMark(label) {{
+    var bet = _ticketBets.filter(function(b) {{ return b.label === label; }})[0];
+    if (!bet) return '';
+    var hit = _betHitsTicket(bet, race);
+    if (hit === null) return '';
+    return hit
+      ? '<span style="background:rgba(34,197,94,.95);color:#000;font-weight:800;padding:1px 6px;border-radius:3px;font-size:.62rem;margin-left:8px;vertical-align:middle">✓ HIT</span>'
+      : '<span style="background:rgba(239,68,68,.7);color:#fff;font-weight:800;padding:1px 6px;border-radius:3px;font-size:.62rem;margin-left:8px;vertical-align:middle">✗ MISS</span>';
+  }}
   function _legsToHorses(legs) {{
     // Re-hydrate full horse objects from rank so _renderPick has odds,
     // jockey, edge, etc. Falls back to a minimal stub when rank not found.
@@ -1941,6 +2016,7 @@ function _buildRaceDetailPanel(race) {{
         '<span style="display:inline-block;background:var(--gold);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
           'PRIMARY · ' + esc(bet.label) +
         '</span>' +
+        _ticketHitMark(bet.label) +
         _legsToHorses(bet.legs || []).map(_renderPick).join('') +
       '</div>'
     );
@@ -1959,6 +2035,7 @@ function _buildRaceDetailPanel(race) {{
         '<span style="display:inline-block;background:rgba(59,130,246,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
           '+ QIN PLACE BANKER · 3 combos' +
         '</span>' +
+        _ticketHitMark('QIN PLACE BANKER') +
         '<span style="font-weight:600">#' + esc(topH2.number) + ' ' + esc(topH2.name) + ' </span>' +
         '<span style="color:var(--dim);margin:0 4px">with</span>' +
         bankers.map(function(h) {{ return '#' + esc(h.number) + ' ' + esc(h.name); }}).join(' / ') +
@@ -1978,6 +2055,7 @@ function _buildRaceDetailPanel(race) {{
         '<span style="display:inline-block;background:rgba(16,185,129,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
           '+ PROTECTION · BOX QIN-4 (6 combos)' +
         '</span>' +
+        _ticketHitMark('BOX QIN-4 PROTECTION') +
         top4.map(_renderPick).join('') +
       '</div>'
     );
@@ -1993,6 +2071,7 @@ function _buildRaceDetailPanel(race) {{
         '<span style="display:inline-block;background:rgba(168,85,247,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
           'F4 SAVER · 1 unit' +
         '</span>' +
+        _ticketHitMark('F4 SAVER') +
         '<span style="color:var(--fg);font-weight:600">' + f4Nums + '</span>' +
         '<span style="color:var(--dim);font-size:.7rem;margin-left:8px">(exact order — 1st → 4th)</span>' +
       '</div>'
@@ -2019,6 +2098,7 @@ function _buildRaceDetailPanel(race) {{
         '<span style="display:inline-block;background:linear-gradient(135deg,rgba(168,85,247,.95),rgba(236,72,153,.85));color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
           '★ MAIN · F4 BOX-5 · 5 combos' +
         '</span>' +
+        _ticketHitMark('F4 BOX-5') +
         swapBadge +
         top5_f4.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
         '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when the top-4 finishers are all inside these 5. Backtest: 17% hit, +54% ROI on 60 races (median dividend ~$461 per hit, 9× the $50 stake).</div>' +
@@ -2043,6 +2123,7 @@ function _buildRaceDetailPanel(race) {{
         '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
           '+ BOX TRIO-5 · 10 combos' +
         '</span>' +
+        _ticketHitMark('BOX TRIO-5') +
         swapBadge +
         top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
         '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
@@ -2146,6 +2227,7 @@ function _buildRaceDetailPanel(race) {{
           '<span style="display:inline-block;background:rgba(244,63,94,.6);color:#fff;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
             '+ BOX TRIO-6 · 20 combos · OPTIONAL' +
           '</span>' +
+          _ticketHitMark('BOX TRIO-6') +
           top6.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
           ' · ' + recBadge + chaosBadge + swapBadge +
           '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">' + recReason +

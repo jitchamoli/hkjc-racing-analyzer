@@ -408,10 +408,15 @@ def test_strike_qpl_miss_when_pivot_off_board(browser: Browser, tmp_path):
     page.close()
 
 
-def test_strike_place_priority_below_harder_hits(browser: Browser, tmp_path):
-    """Priority: WIN > QIN > QPL > F4-5 > BOX4 > TRIO5 > TRIO6 > PLACE.
-    When both PLACE and QIN hit, badge shows STRIKE-QIN (PLACE is the
-    loosest hit; should not mask the headline QIN strike)."""
+def test_strike_multi_hit_badge_lists_all_with_priority_order(browser: Browser, tmp_path):
+    """Multi-hit (2+ pool types hitting on the same race) now collapses
+    to a single chip `★ STRIKE × N · A/B/C` with labels ordered by
+    priority (WIN > QIN > QPL > F4-5 > BOX4 > TRIO5 > TRIO6 > PLACE).
+
+    Previously only the highest-priority single STRIKE badge rendered
+    and lower hits were invisible on the card header. After 2026-05-25
+    (multi-hit support) all hits surface; priority still drives the
+    order so QIN leads PLACE on this race."""
     race = _make_race(
         race_number=11,
         bet_ticket_bets=[_qin_bet([1, 2]), _place_bet(1)],
@@ -423,7 +428,119 @@ def test_strike_place_priority_below_harder_hits(browser: Browser, tmp_path):
     page.wait_for_load_state('networkidle')
 
     badge_text = page.locator('[data-testid="strike-badge-R11"]').inner_text()
-    assert 'QIN' in badge_text and 'PLACE' not in badge_text, (
-        f"expected STRIKE-QIN (priority over PLACE), got: {badge_text!r}"
+    # Multi-hit chip: must report count + both labels in priority order
+    # (QIN first, PLACE after).
+    assert '× 2' in badge_text, (
+        f"expected multi-hit count `× 2`, got: {badge_text!r}"
     )
+    qin_idx = badge_text.find('QIN')
+    place_idx = badge_text.find('PLACE')
+    assert qin_idx >= 0 and place_idx >= 0, (
+        f"expected both QIN and PLACE in multi-hit chip, got: {badge_text!r}"
+    )
+    assert qin_idx < place_idx, (
+        f"priority order violated — QIN must precede PLACE, got: {badge_text!r}"
+    )
+    page.close()
+
+
+def test_strike_single_hit_keeps_simple_badge(browser: Browser, tmp_path):
+    """Single-hit case must still render the simple `★ STRIKE · X` badge
+    (not the multi-hit chip), so the visual scan stays compact when only
+    one bet hits — backward compatibility with the pre-multi-hit UX."""
+    race = _make_race(
+        race_number=12,
+        bet_ticket_bets=[_qin_bet([1, 2])],
+        horses_top4_positions=[1, 2, 5, 6],
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+
+    badge_text = page.locator('[data-testid="strike-badge-R12"]').inner_text()
+    assert badge_text.strip() == '★ STRIKE · QIN', (
+        f"single-hit should keep simple badge, got: {badge_text!r}"
+    )
+    page.close()
+
+
+def test_per_bet_hit_marks_in_detail_panel(browser: Browser, tmp_path):
+    """Detail panel BET TICKET must show ✓ HIT / ✗ MISS next to each
+    bet label after results. R13 ticket: QIN [1,2] hits, F4 BOX-5
+    [1,2,3,4,5] misses (top-4 = [1,2,5,9] — #9 outside). User can scan
+    multi-bet tickets without manually checking each bet's legs."""
+    race = _make_race(
+        race_number=13,
+        bet_ticket_bets=[_qin_bet([1, 2]), _f4_box5_bet([1, 2, 3, 4, 5])],
+        horses_top4_positions=[1, 2, 5, 9],  # QIN hits, F4 misses (#9 not in legs)
+        conviction_tier='EDGE',
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+
+    page.click('[data-testid="race-card-R13"]')
+    page.wait_for_selector('[data-testid="bet-ticket-R13"]', timeout=3000)
+    ticket_text = page.locator('[data-testid="bet-ticket-R13"]').first.inner_text()
+    assert '✓ HIT' in ticket_text, (
+        f"expected ✓ HIT mark in ticket, got: {ticket_text!r}"
+    )
+    assert '✗ MISS' in ticket_text, (
+        f"expected ✗ MISS mark in ticket, got: {ticket_text!r}"
+    )
+    page.close()
+
+
+def test_per_bet_hit_marks_in_wa_payload(browser: Browser, tmp_path):
+    """WA copy mirrors the detail-panel marks in plain text. Same R13
+    scenario — QIN hit, F4 BOX-5 missed — must reflect in payload."""
+    race = _make_race(
+        race_number=14,
+        bet_ticket_bets=[_qin_bet([1, 2]), _f4_box5_bet([1, 2, 3, 4, 5])],
+        horses_top4_positions=[1, 2, 5, 9],
+        conviction_tier='EDGE',
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+
+    payload = page.locator('[data-testid="copy-wa-R14"]').first.get_attribute('data-payload') or ''
+    assert '✓ HIT' in payload, (
+        f"WA payload missing ✓ HIT, got: {payload[:400]!r}"
+    )
+    assert '✗ MISS' in payload, (
+        f"WA payload missing ✗ MISS, got: {payload[:400]!r}"
+    )
+    page.close()
+
+
+def test_hit_marks_absent_before_results(browser: Browser, tmp_path):
+    """Live-prep messages (race not yet resolved) must NOT show ✗ MISS
+    chips. Empty hit-mark when results_available is False."""
+    race = _make_race(
+        race_number=15,
+        bet_ticket_bets=[_qin_bet([1, 2, 3])],
+        results_available=False,
+        conviction_tier='EDGE',
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+
+    page.click('[data-testid="race-card-R15"]')
+    page.wait_for_selector('[data-testid="bet-ticket-R15"]', timeout=3000)
+    ticket_text = page.locator('[data-testid="bet-ticket-R15"]').first.inner_text()
+    payload = page.locator('[data-testid="copy-wa-R15"]').first.get_attribute('data-payload') or ''
+
+    for marker in ('✓ HIT', '✗ MISS'):
+        assert marker not in ticket_text, (
+            f"unresolved race must not carry {marker} mark in ticket"
+        )
+        assert marker not in payload, (
+            f"unresolved race must not carry {marker} mark in WA payload"
+        )
     page.close()
