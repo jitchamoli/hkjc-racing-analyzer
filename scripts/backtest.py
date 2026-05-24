@@ -553,6 +553,16 @@ def simulate_bets(races, conn):
         trio6_hit = len(actual_top3) == 3 and actual_top3.issubset(our_top6_names)
         f4box5_hit = len(actual_top4) == 4 and actual_top4.issubset(our_top5_names)
         f4box6_hit = len(actual_top4) == 4 and actual_top4.issubset(our_top6_names)
+        # F4 SAVER: exact-order top-4 — our rank-N must have finished at
+        # position N for N in 1..4. Needed for the reward-max policy A/B
+        # (F4 SAVER pays the FIRST 4 dividend on a 1-combo exact-order
+        # ticket, much rarer than f4box5 but big payout when it hits).
+        f4saver_hit = (
+            top_h_row.get('finish_position') == 1
+            and rank2_h_row is not None and rank2_h_row.get('finish_position') == 2
+            and rank3_h_row is not None and rank3_h_row.get('finish_position') == 3
+            and rank4_h_row is not None and rank4_h_row.get('finish_position') == 4
+        )
         trio_dividend = get_real_exotic_dividend(conn, date, race_no, 'TRIO')
         f4_dividend = get_real_exotic_dividend(conn, date, race_no, 'FIRST 4')
 
@@ -640,6 +650,8 @@ def simulate_bets(races, conn):
             'trio6_hit': trio6_hit,
             'f4box5_hit': f4box5_hit,
             'f4box6_hit': f4box6_hit,
+            'f4saver_hit': f4saver_hit,
+            'top_odds': top_odds,
             'trio_dividend': trio_dividend,
             'f4_dividend': f4_dividend,
             'pure_ev_top': pure_ev_top,
@@ -942,6 +954,214 @@ def print_trio5_f4_gate_ab(records):
     print("  Interpretation: if gated ROI > ungated ROI by a meaningful margin,")
     print("  ship the gate. If similar, the gate is harmless but unnecessary.")
     print("  If skipped-races ROI > 0, the gate is REMOVING profitable bets.")
+
+
+def print_reward_max_ab(records):
+    """A/B test the proposed reward-max policy vs current production gates.
+
+    User request (2026-05-25): force the full protection bundle on EDGE
+    races + a qualified bundle on HIGH races. Backtest first per user
+    feedback_n6_validation_rule. Stake = flat HK$10/combo (user habit
+    [[user-stake-habit-10hkd-minimum]]). Dividends from race_dividends
+    (real HKJC payouts via hkjc_declared_to_unit).
+
+    Current policy (mirrors dashboard/generator.py:build_bet_ticket):
+      PRIMARY (BOX QIN-3 proxy: 3 combos, q_dividend)
+      BOX QIN-4 PROTECTION (6 combos, q_dividend) — fires whenever top-4 exists
+      F4 SAVER          (1 combo,  f4_dividend exact-order) — top1≥2.5 AND tier∈{E,H,M} AND field≥8
+      BOX TRIO-5        (10 combos, trio_dividend)         — tier∈{E,H,M} AND field≥8
+      F4 BOX-5          (5 combos,  f4_dividend any-order) — tier∈{E,H,M} AND field≥8
+      BOX TRIO-6        (20 combos, trio_dividend)         — narrow gate (steam≥2 OR HIGH+field≥11+top1∈[2.5,5])
+
+    Reward-max policy:
+      EDGE races (amount>0): force ALL of above, including TRIO-6 if field≥6.
+      HIGH races qualified (field≥8 AND top1≥2.5): force same bundle minus
+        TRIO-6, plus TRIO-6 when field≥10.
+      All other tiers (MED/LOW/SKIP): unchanged.
+
+    Limitations:
+      - Steam-trigger for TRIO-6 not available in holdout (no morning odds);
+        only the field-size trigger contributes to reward-max TRIO-6.
+      - BOX QIN-4 PROTECTION combo count = 6 (not 1) so its cost dominates;
+        kept as 6 to match production stake.
+    """
+    elig = [r for r in records
+            if r.get('q_dividend') is not None
+            or r.get('trio_dividend') is not None
+            or r.get('f4_dividend') is not None]
+    if not elig:
+        print("\n  No dividend data — skipping reward-max policy A/B.")
+        return
+
+    print("\n" + "=" * 78)
+    print("  REWARD-MAX POLICY A/B — current gates vs proposed always-fire bundle")
+    print("=" * 78)
+    print(f"  Stake = flat HK$10/combo (user habit). N = {len(elig)} races.")
+    print()
+
+    def _bets_current(r):
+        """Return list of (label, combos, hit, div_per_$1) for current policy.
+        Note: `*_dividend` fields in records are ALREADY per-HK$1 (after
+        `hkjc_declared_to_unit` in get_real_*_dividend). The earlier
+        dividend-basis bug (memory: project_dividend_basis_bug_fixed)
+        was treating per-$10 as per-$1 — make sure NOT to re-introduce
+        it here by dividing again."""
+        tier = r.get('race_conviction_tier') or 'SKIP'
+        field = r.get('race_field_size') or 0
+        top1 = r.get('top_odds') or r.get('odds') or 0
+        bets = []
+        # PRIMARY QIN proxy via the dashboard's BOX QIN-3 (most common)
+        if r.get('q_dividend') is not None:
+            bets.append(('PRIMARY_QIN', 3, r.get('box3_q_hit', False), r['q_dividend']))
+        # BOX QIN-4 PROTECTION
+        if r.get('q_dividend') is not None and field >= 4:
+            bets.append(('BOX_QIN_4_PROT', 6, r.get('box4_q_hit', False), r['q_dividend']))
+        triple_gate = tier in ('EDGE', 'HIGH', 'MED') and field >= 8
+        # F4 SAVER: triple gate + top1≥2.5 (heavy-fav clause RETAINED)
+        if triple_gate and top1 >= 2.5 and r.get('f4_dividend') is not None:
+            bets.append(('F4_SAVER', 1, r.get('f4saver_hit', False), r['f4_dividend']))
+        # BOX TRIO-5 + F4 BOX-5 (heavy-fav clause REMOVED 2026-05-24)
+        if triple_gate and r.get('trio_dividend') is not None:
+            bets.append(('BOX_TRIO_5', 10, r.get('trio5_hit', False), r['trio_dividend']))
+        if triple_gate and r.get('f4_dividend') is not None:
+            bets.append(('F4_BOX_5', 5, r.get('f4box5_hit', False), r['f4_dividend']))
+        # BOX TRIO-6: narrow current gate (HIGH+field≥11+top1∈[2.5,5])
+        # We can only approximate the HIGH-field-window trigger from records
+        # (steam_count absent in backtest). Match production: requires HIGH +
+        # field≥11 + 2.5≤top1≤5.0.
+        if (tier == 'HIGH' and field >= 11 and 2.5 <= top1 <= 5.0
+                and r.get('trio_dividend') is not None):
+            bets.append(('BOX_TRIO_6', 20, r.get('trio6_hit', False), r['trio_dividend']))
+        return bets
+
+    def _bets_reward_max(r):
+        """Reward-max is ADDITIVE to current gates — it forces EDGE and
+        HIGH-qualified races to fire the full bundle, but leaves
+        MED/LOW/SKIP behavior unchanged. Critical: the MED tier still
+        passes the existing triple gate (tier∈{E,H,M} + field≥8 +
+        top1≥2.5 for F4 SAVER), so reward-max never STRIPS bets — it
+        only ADDS them on EDGE / HIGH-qualified."""
+        tier = r.get('race_conviction_tier') or 'SKIP'
+        field = r.get('race_field_size') or 0
+        top1 = r.get('top_odds') or r.get('odds') or 0
+        bets = []
+        if r.get('q_dividend') is not None:
+            bets.append(('PRIMARY_QIN', 3, r.get('box3_q_hit', False), r['q_dividend']))
+        if r.get('q_dividend') is not None and field >= 4:
+            bets.append(('BOX_QIN_4_PROT', 6, r.get('box4_q_hit', False), r['q_dividend']))
+
+        force_edge = (tier == 'EDGE')
+        force_high_qual = (tier == 'HIGH' and field >= 8 and top1 >= 2.5)
+
+        # F4 SAVER / BOX TRIO-5 / F4 BOX-5: fire if EDGE forced, or HIGH-qual
+        # forced, OR current gate passes (triple_gate + top1>=2.5 for F4 SAVER).
+        triple_gate = tier in ('EDGE', 'HIGH', 'MED') and field >= 8
+        fire_main_bundle = force_edge or force_high_qual or triple_gate
+        if fire_main_bundle and r.get('f4_dividend') is not None:
+            # F4 SAVER: EDGE forces regardless of top1; HIGH-qual already has
+            # top1>=2.5; current MED gate retains the heavy-fav clause.
+            saver_ok = force_edge or force_high_qual or (triple_gate and top1 >= 2.5)
+            if saver_ok:
+                bets.append(('F4_SAVER', 1, r.get('f4saver_hit', False), r['f4_dividend']))
+        if fire_main_bundle and r.get('trio_dividend') is not None:
+            bets.append(('BOX_TRIO_5', 10, r.get('trio5_hit', False), r['trio_dividend']))
+        if fire_main_bundle and r.get('f4_dividend') is not None:
+            bets.append(('F4_BOX_5', 5, r.get('f4box5_hit', False), r['f4_dividend']))
+
+        # BOX TRIO-6: EDGE always (field≥6); HIGH when field≥10 (reward-max
+        # widening); OR current narrow HIGH gate (HIGH+field≥11+top1∈[2.5,5]).
+        # Steam trigger unavailable in backtest.
+        trio6_fire = (
+            (force_edge and field >= 6) or
+            (tier == 'HIGH' and field >= 10) or
+            (tier == 'HIGH' and field >= 11 and 2.5 <= top1 <= 5.0)
+        )
+        if trio6_fire and r.get('trio_dividend') is not None:
+            bets.append(('BOX_TRIO_6', 20, r.get('trio6_hit', False), r['trio_dividend']))
+        return bets
+
+    def _aggregate(records, bet_fn, label):
+        per_tier = defaultdict(lambda: [0.0, 0.0, 0])  # stake, return, hits
+        per_label = defaultdict(lambda: [0.0, 0.0, 0])
+        total_stake = total_return = total_hits = 0
+        n_races_with_bet = 0
+        for r in records:
+            bets = bet_fn(r)
+            if not bets:
+                continue
+            n_races_with_bet += 1
+            tier = r.get('race_conviction_tier') or 'SKIP'
+            for (lbl, combos, hit, div_per_dollar) in bets:
+                # Flat HK$10/combo (user habit). One winning combo pays
+                # `stake_per_combo × div_per_$1`; other combos in the box lose.
+                stake_per_combo = 10.0
+                stake = combos * stake_per_combo
+                ret = (stake_per_combo * div_per_dollar) if (hit and div_per_dollar) else 0.0
+                per_tier[tier][0] += stake
+                per_tier[tier][1] += ret
+                per_tier[tier][2] += (1 if hit else 0)
+                per_label[lbl][0] += stake
+                per_label[lbl][1] += ret
+                per_label[lbl][2] += (1 if hit else 0)
+                total_stake += stake
+                total_return += ret
+                total_hits += (1 if hit else 0)
+        return {
+            'label': label, 'races': n_races_with_bet,
+            'stake': total_stake, 'ret': total_return,
+            'pnl': total_return - total_stake,
+            'per_tier': dict(per_tier), 'per_label': dict(per_label),
+        }
+
+    cur = _aggregate(elig, _bets_current, 'current')
+    new = _aggregate(elig, _bets_reward_max, 'reward-max')
+
+    def _line(s):
+        roi = (s['pnl'] / s['stake'] * 100) if s['stake'] > 0 else 0
+        print(f"  {s['label']:<14} races={s['races']:>4} stake={s['stake']:>9,.0f}  "
+              f"return={s['ret']:>9,.0f}  pnl={s['pnl']:>+9,.0f}  ROI={roi:>+6.1f}%")
+
+    _line(cur)
+    _line(new)
+    delta_pnl = new['pnl'] - cur['pnl']
+    delta_roi_pp = ((new['pnl'] / new['stake']) - (cur['pnl'] / cur['stake'])) * 100 \
+        if new['stake'] > 0 and cur['stake'] > 0 else 0
+    print(f"  {'DELTA':<14} {'':>10} stake={new['stake']-cur['stake']:>+9,.0f}  "
+          f"{'':>9} pnl={delta_pnl:>+9,.0f}  ROI={delta_roi_pp:>+6.1f}pp")
+
+    print()
+    print("  Per-tier breakdown (reward-max policy):")
+    print(f"  {'tier':<8}{'stake':>10}{'return':>10}{'pnl':>10}{'ROI':>9}")
+    for tier in ('EDGE', 'HIGH', 'MED', 'LOW', 'SKIP'):
+        n_stake, n_ret, _ = new['per_tier'].get(tier, [0, 0, 0])
+        c_stake, c_ret, _ = cur['per_tier'].get(tier, [0, 0, 0])
+        n_pnl = n_ret - n_stake
+        c_pnl = c_ret - c_stake
+        if n_stake == 0 and c_stake == 0:
+            continue
+        n_roi = (n_pnl / n_stake * 100) if n_stake > 0 else 0
+        c_roi = (c_pnl / c_stake * 100) if c_stake > 0 else 0
+        print(f"  {tier:<8}{n_stake:>10,.0f}{n_ret:>10,.0f}{n_pnl:>+10,.0f}{n_roi:>+7.1f}%   "
+              f"(cur ROI {c_roi:+.1f}%, delta {n_roi - c_roi:+.1f}pp)")
+
+    print()
+    print("  Per-label breakdown (reward-max policy):")
+    print(f"  {'label':<18}{'stake':>10}{'return':>10}{'pnl':>10}{'ROI':>9}")
+    for lbl in ('PRIMARY_QIN', 'BOX_QIN_4_PROT', 'F4_SAVER',
+                'BOX_TRIO_5', 'F4_BOX_5', 'BOX_TRIO_6'):
+        s, ret, hits = new['per_label'].get(lbl, [0, 0, 0])
+        if s == 0:
+            continue
+        pnl = ret - s
+        roi = (pnl / s * 100) if s > 0 else 0
+        print(f"  {lbl:<18}{s:>10,.0f}{ret:>10,.0f}{pnl:>+10,.0f}{roi:>+7.1f}%")
+
+    print()
+    print("  Interpretation:")
+    print("    Ship if reward-max ROI ≥ current ROI by ≥ +1pp (or per-tier EDGE")
+    print("    delta is meaningfully positive). Kill if delta is materially negative.")
+    print("    NOTE: TRIO-6 steam-trigger unavailable in backtest — only field-size")
+    print("    contribution counted; live reward-max may differ slightly on TRIO-6.")
 
 
 def print_production_stake_pnl(records, bankroll: float):
@@ -1361,6 +1581,7 @@ def main():
     print_strategies(records, args.min_ev)
     print_exotic_hits(records)
     print_trio5_f4_gate_ab(records)
+    print_reward_max_ab(records)
     if args.production_stakes:
         print_production_stake_pnl(records, args.bankroll)
     print_clv(records)
