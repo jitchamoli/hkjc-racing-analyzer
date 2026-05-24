@@ -802,74 +802,40 @@ function renderBetCard(race) {{
     : '';
   if (ss.amount && ss.amount > 0) {{
     var br = race.bankroll || 0;
-    // Enumerate firing MAIN bets and their combo counts
-    var mainBets = {{}};
-    race.horses.forEach(function(h) {{
-      var b = (h.bet_recommendation || '').trim();
-      if (b && b !== 'SKIP') {{ (mainBets[b] = mainBets[b] || []).push(h); }}
-    }});
     var betLines = [];
     var totalCombos = 0;
-    Object.keys(mainBets).forEach(function(bt) {{
-      var n = mainBets[bt].length;
-      var combos = 0, lbl = bt;
-      if (bt === 'WIN' || bt === 'BANKER WIN') {{ combos = 1; lbl = bt; }}
-      else if (bt === 'PLACE') {{ combos = 1; lbl = 'PLACE'; }}
-      else if ((bt === 'QIN' || bt === 'BOX QIN')) {{
-        combos = n === 2 ? 1 : (n*(n-1)/2);
-        lbl = n === 2 ? 'STRAIGHT QIN' : 'BOX QIN-' + n;
-      }} else if (bt === 'TRIO') {{
-        combos = n === 3 ? 1 : (n*(n-1)*(n-2)/6);
-        lbl = n === 3 ? 'STRAIGHT TRIO' : 'BOX TRIO-' + n;
-      }}
-      if (combos > 0) {{
-        betLines.push({{lbl: lbl, combos: combos}});
-        totalCombos += combos;
-      }}
-    }});
-    // BOX TRIO-5 and F4 BOX-5 also fire as MAIN tier when top5 length is 5
-    var top5len = race.horses.slice(0, 5).length;
-    if (top5len === 5) {{
-      // BOX TRIO-5 F4-style triple gate (widened 2026-05-23 from SKIP-only
-      // to match the F4 BOX-5 gate). Backtest on 668-race burned holdout:
-      // ungated ROI -45.4% vs triple-gated -33.6% (+11.8pp). Heavy fav alone
-      // does 70% of the work — TRIO pools collapse around dominant favs.
-      var t5top1 = (race.horses[0] && race.horses[0].win_odds) || 0;
-      var t5field = race.horses.length;
-      var t5Skip = (t5top1 > 0 && t5top1 < 2.5) ||
-                    (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
-                    (t5field < 8);
-      if (!t5Skip) {{
-        betLines.push({{lbl: 'BOX TRIO-5', combos: 10}});
-        totalCombos += 10;
-      }}
-      // F4 BOX-5 has its own gate (mirrors logic at line ~915)
-      var f4top1 = t5top1;
-      var f4field = t5field;
-      var f4Skip = (f4top1 > 0 && f4top1 < 2.5) ||
-                    (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
-                    (f4field < 8);
-      if (!f4Skip) {{
-        betLines.push({{lbl: 'F4 BOX-5', combos: 5}});
-        totalCombos += 5;
-      }}
-      // BOX TRIO-6 fires as MAIN only when verdict is TAKE (mirrors logic
-      // at line ~1088). Adding 20 combos dilutes the per-bet unit stake
-      // (e.g., $200 / 36 combos = $5/combo) which is the intended trade —
-      // the user sees TRIO-6 sized in the breakdown when it matters.
-      var t6t1 = f4top1;
-      var t6fld = f4field;
-      var t6stm = race.horses.slice(0, 12).filter(function(h) {{
-        return h.steam_move && h.steam_move.is_steam;
-      }}).length;
-      var t6Take = (t6t1 > 0 && t6t1 < 2.5) ? false :
-                    (t6stm >= 2) ? true :
-                    (tier === 'HIGH' && t6fld >= 11 && t6t1 >= 2.5 && t6t1 <= 5.0) ? true :
-                    false;
-      if (t6Take) {{
-        betLines.push({{lbl: 'BOX TRIO-6', combos: 20}});
-        totalCombos += 20;
-      }}
+    if (race.bet_ticket && race.bet_ticket.bets && race.bet_ticket.bets.length) {{
+      race.bet_ticket.bets.forEach(function(b) {{
+        var combos = b.combos || 0;
+        if (combos > 0) {{
+          betLines.push({{lbl: b.label || b.pool || 'BET', combos: combos}});
+          totalCombos += combos;
+        }}
+      }});
+    }} else {{
+      // Legacy fallback for older JSON files without server-side bet_ticket.
+      var mainBets = {{}};
+      race.horses.forEach(function(h) {{
+        var b = (h.bet_recommendation || '').trim();
+        if (b && b !== 'SKIP') {{ (mainBets[b] = mainBets[b] || []).push(h); }}
+      }});
+      Object.keys(mainBets).forEach(function(bt) {{
+        var n = mainBets[bt].length;
+        var combos = 0, lbl = bt;
+        if (bt === 'WIN' || bt === 'BANKER WIN') {{ combos = 1; lbl = bt; }}
+        else if (bt === 'PLACE') {{ combos = 1; lbl = 'PLACE'; }}
+        else if ((bt === 'QIN' || bt === 'BOX QIN')) {{
+          combos = n === 2 ? 1 : (n*(n-1)/2);
+          lbl = n === 2 ? 'STRAIGHT QIN' : 'BOX QIN-' + n;
+        }} else if (bt === 'TRIO') {{
+          combos = n === 3 ? 1 : (n*(n-1)*(n-2)/6);
+          lbl = n === 3 ? 'STRAIGHT TRIO' : 'BOX TRIO-' + n;
+        }}
+        if (combos > 0) {{
+          betLines.push({{lbl: lbl, combos: combos}});
+          totalCombos += combos;
+        }}
+      }});
     }}
     // Unit stake — divide budget across all combos. Floor to nearest $5
     // so per-bet stakes never sum above the budget (was: round() inflated

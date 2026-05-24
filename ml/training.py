@@ -23,7 +23,10 @@ from ml.features import FeatureEngineering, extract_class_rank, parse_age_score
 logger = logging.getLogger(__name__)
 
 
-def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
+def build_training_data_from_db(
+    years_back: Optional[int] = None,
+    return_groups: bool = False,
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
     """Build training data from real race results in horse_database.
 
     Args:
@@ -39,6 +42,8 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
     try:
         db_path = config.DB_PATH
         if not db_path.exists():
+            if return_groups:
+                return None, None, None, None, None
             return None, None, None, None
 
         conn = sqlite3.connect(str(db_path))
@@ -70,6 +75,8 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
 
         if len(rows) < config.MIN_REAL_SAMPLES:
             logger.info(f"Only {len(rows)} results in DB — not enough for real training")
+            if return_groups:
+                return None, None, None, None, None
             return None, None, None, None
 
         logger.info(f"Building training data from {len(rows)} real race results")
@@ -178,7 +185,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
         # the full DB. The asymmetry under-trained Features 4 and 5.
         # Now both training and inference use the same conn-based DB query.
 
-        X, y, y_place, weights = [], [], [], []
+        X, y, y_place, weights, groups = [], [], [], [], []
         for row in rows:
             r = dict(row)
             draw = r.get('draw', 0) or 0
@@ -463,6 +470,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             y.append(1 if r.get('is_winner', 0) else 0)
             y_place.append(1 if r.get('is_top3', 0) else 0)
             weights.append(0.0)  # placeholder; overwritten below
+            groups.append(race_key)
 
         # Recency weights — exponential decay so recent races dominate.
         # Diagnostic 2026-04-25: linear 0.3→1.0 over 5y window made the most
@@ -491,9 +499,19 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 conn.close()
             except Exception:
                 pass
+        if return_groups:
+            return None, None, None, None, None
         return None, None, None, None
 
-    return np.array(X, dtype=np.float32), np.array(y), np.array(weights), np.array(y_place)
+    result = (
+        np.array(X, dtype=np.float32),
+        np.array(y),
+        np.array(weights),
+        np.array(y_place),
+    )
+    if return_groups:
+        return (*result, np.array(groups, dtype=object))
+    return result
 
 
 def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray, np.ndarray]:

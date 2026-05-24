@@ -48,6 +48,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import config
+from betting.dividends import hkjc_declared_to_unit
 
 CUTOFF_RE = re.compile(r'^\d{4}/\d{2}/\d{2}$')
 
@@ -70,7 +71,7 @@ def _quin_div(conn, d, rno, a, b):
     row = conn.execute(
         "SELECT dividend FROM race_dividends WHERE race_date=? AND race_number=? "
         "AND pool='QUINELLA' AND combination=?", (d, rno, f"{lo},{hi}")).fetchone()
-    return float(row[0]) / 10.0 if row else None
+    return hkjc_declared_to_unit(row[0]) if row else None
 
 
 def _exotic_div(conn, d, rno, pool, combination):
@@ -83,7 +84,7 @@ def _exotic_div(conn, d, rno, pool, combination):
     row = conn.execute(
         "SELECT dividend FROM race_dividends WHERE race_date=? AND race_number=? "
         "AND pool=? AND combination=?", (d, rno, pool, combination)).fetchone()
-    return float(row[0]) / 10.0 if row else None
+    return hkjc_declared_to_unit(row[0]) if row else None
 
 
 def _load_cutoff(conn) -> str:

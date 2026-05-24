@@ -34,6 +34,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config
+from betting.dividends import hkjc_declared_to_unit
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -176,7 +177,7 @@ def evaluate_date(race_date: str, variant: str) -> int:
                 (race_date, rn, f"{min(win2[0]['horse_number'], win2[1]['horse_number'])},"
                                 f"{max(win2[0]['horse_number'], win2[1]['horse_number'])}"),
             ).fetchone()
-            q_div = float(d['dividend']) if d else None
+            q_div = hkjc_declared_to_unit(d['dividend']) if d else None
 
         prod_hit = _is_hit(prod_bet, prod_legs_set, actual_top2, actual_top3, top1_won)
         sh_top1_won = any(r['horse_name'] in shadow_legs_set and r['is_winner'] for r in actual_rows)

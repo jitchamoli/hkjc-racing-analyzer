@@ -237,7 +237,9 @@ def main():
     # TRAINING_YEARS_BACK=0 (no cutoff) or any int.
     yrs_str = os.environ.get('TRAINING_YEARS_BACK', '5')
     yrs = None if yrs_str.strip() == '0' else int(yrs_str)
-    X_db, y_db, sw_db, y_place_db = build_training_data_from_db(years_back=yrs)
+    X_db, y_db, sw_db, y_place_db, groups_db = build_training_data_from_db(
+        years_back=yrs, return_groups=True,
+    )
 
     place_labels = None
     if X_db is not None and len(X_db) >= 200:
@@ -247,6 +249,7 @@ def main():
         y_combined = y_db
         sample_weights = sw_db
         place_labels = y_place_db
+        groups = groups_db
     else:
         # Fallback to scraped training_data
         total_entries = sum(len(r['entries']) for r in all_races)
@@ -262,12 +265,14 @@ def main():
             y_combined = np.concatenate([y_real, y_syn])
             sample_weights = np.ones(len(y_combined))
             sample_weights[:len(y_real)] = 3.0
+            groups = None
             logger.info(f"Combined: {X_combined.shape[0]} samples "
                         f"(real={X_real.shape[0]}, synthetic={X_syn.shape[0]})")
         else:
             X_combined = X_real
             y_combined = y_real
             sample_weights = None
+            groups = None
             logger.info("Enough real data — training without synthetic augmentation")
 
     # Step 5: Train model
@@ -288,7 +293,7 @@ def main():
 
     try:
         result = model.train(X_combined, y_combined, sample_weight=sample_weights,
-                             place_labels=place_labels)
+                             place_labels=place_labels, groups=groups)
     except Exception as e:
         logger.error(f"Training failed: {e}")
         if backup_path.exists():

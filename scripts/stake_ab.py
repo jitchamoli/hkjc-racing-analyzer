@@ -37,6 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config
+from betting.dividends import hkjc_declared_to_unit
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOG_PATH = REPO_ROOT / 'tracking_data' / 'stake_ab_log.csv'
@@ -209,7 +210,8 @@ def _lookup_dividend(conn, race_date: str, race_no: int, pool: str,
         "AND race_number=? AND pool=? AND combination=?",
         (race_date, race_no, pool, combo),
     ).fetchone()
-    return (row[0] / 10.0) if row else 0.0
+    div = hkjc_declared_to_unit(row[0]) if row else None
+    return div if div is not None else 0.0
 
 
 def hit_and_dividend(bet_label: str, race: dict, conn,
@@ -250,13 +252,15 @@ def hit_and_dividend(bet_label: str, race: dict, conn,
         picks = _top_picks(race, 2)
         hit = _names(picks) == actual_top2
         div = race.get('qin_top_pair_dividend')
-        return (hit, (div / 10.0) if div else 0.0)
+        unit_div = hkjc_declared_to_unit(div) if div else None
+        return (hit, unit_div if unit_div is not None else 0.0)
     if bet_label.startswith('BOX QIN-'):
         n = int(bet_label.split('-')[1])
         box = _names(_top_picks(race, n))
         hit = actual_top2.issubset(box)
         div = race.get('qin_top_pair_dividend')
-        return (hit, (div / 10.0) if div else 0.0)
+        unit_div = hkjc_declared_to_unit(div) if div else None
+        return (hit, unit_div if unit_div is not None else 0.0)
 
     # TRIO family
     if bet_label == 'STRAIGHT TRIO':

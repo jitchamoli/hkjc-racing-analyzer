@@ -95,6 +95,7 @@ class HKJCRacingMLModel:
         self.model_version = "1.0"
         self.feature_importance = {}
         self._metadata = None
+        self._fold_metadata = None
 
         if ML_AVAILABLE:
             self._load_model()
@@ -157,6 +158,7 @@ class HKJCRacingMLModel:
                     'n_features': data.get('n_features'),
                     'version': data.get('version'),
                 }
+                self._fold_metadata = data.get('fold_metadata')
                 self.is_trained = self.model is not None
 
                 # Fix #21: integrity check at load time (was per-predict before).
@@ -203,7 +205,8 @@ class HKJCRacingMLModel:
             'feature_names': list(FEATURE_NAMES),  # Fix #19: catch renames
             'n_samples': n_samples,  # NEW: persisted for F-05 integrity check
             'feature_importance': self.feature_importance,
-            'trained_date': datetime.now().isoformat()
+            'trained_date': datetime.now().isoformat(),
+            'fold_metadata': self._fold_metadata,
         }
 
         model_bytes = pickle.dumps(data)
@@ -216,7 +219,8 @@ class HKJCRacingMLModel:
               sample_weight: np.ndarray = None,
               temporal: bool = True,
               place_labels: np.ndarray = None,
-              save: bool = True) -> Dict:
+              save: bool = True,
+              groups: np.ndarray = None) -> Dict:
         if not ML_AVAILABLE:
             return {'error': 'ML libraries not available'}
 
@@ -230,25 +234,50 @@ class HKJCRacingMLModel:
         # Separate calibrator fold prevents the isotonic from learning a too-shallow
         # correction on the same set XGBoost early-stopped on (which is over-optimistic
         # since early-stopping picks the iteration minimizing val loss).
+        fold_meta = None
         if temporal:
-            cut_train = int(len(features) * 0.60)
-            cut_val = int(len(features) * 0.70)
-            cut_calib = int(len(features) * 0.85)
-            X_train = features[:cut_train]
-            X_val = features[cut_train:cut_val]
-            X_calib = features[cut_val:cut_calib]
-            X_test = features[cut_calib:]
-            y_train = labels[:cut_train]
-            y_val = labels[cut_train:cut_val]
-            y_calib = labels[cut_val:cut_calib]
-            y_test = labels[cut_calib:]
-            sw_train = sample_weight[:cut_train] if sample_weight is not None else None
-            logger.info(
-                f"Temporal 4-fold split: train={cut_train}, "
-                f"earlystop_val={cut_val-cut_train}, "
-                f"calib={cut_calib-cut_val}, "
-                f"test={len(features)-cut_calib}"
-            )
+            if groups is not None:
+                from ml.folds import grouped_temporal_indices, fold_metadata
+                folds = grouped_temporal_indices(groups)
+                train_idx = folds["train"]
+                val_idx = folds["val"]
+                calib_idx = folds["calib"]
+                test_idx = folds["test"]
+                X_train = features[train_idx]
+                X_val = features[val_idx]
+                X_calib = features[calib_idx]
+                X_test = features[test_idx]
+                y_train = labels[train_idx]
+                y_val = labels[val_idx]
+                y_calib = labels[calib_idx]
+                y_test = labels[test_idx]
+                sw_train = sample_weight[train_idx] if sample_weight is not None else None
+                fold_meta = fold_metadata(groups)
+                logger.info(
+                    "Race-grouped temporal 4-fold split: "
+                    f"train={len(train_idx)}, earlystop_val={len(val_idx)}, "
+                    f"calib={len(calib_idx)}, test={len(test_idx)}, "
+                    f"groups={fold_meta['n_groups']}"
+                )
+            else:
+                cut_train = int(len(features) * 0.60)
+                cut_val = int(len(features) * 0.70)
+                cut_calib = int(len(features) * 0.85)
+                X_train = features[:cut_train]
+                X_val = features[cut_train:cut_val]
+                X_calib = features[cut_val:cut_calib]
+                X_test = features[cut_calib:]
+                y_train = labels[:cut_train]
+                y_val = labels[cut_train:cut_val]
+                y_calib = labels[cut_val:cut_calib]
+                y_test = labels[cut_calib:]
+                sw_train = sample_weight[:cut_train] if sample_weight is not None else None
+                logger.info(
+                    f"Temporal 4-fold split: train={cut_train}, "
+                    f"earlystop_val={cut_val-cut_train}, "
+                    f"calib={cut_calib-cut_val}, "
+                    f"test={len(features)-cut_calib}"
+                )
         else:
             # Non-temporal path (synthetic / small-sample fallback). No
             # separate calib fold — falls back to using val for calibration
@@ -322,7 +351,10 @@ class HKJCRacingMLModel:
         # Input: logit(calib_proba) — isotonic operates on raw logit domain.
         calib_proba = self.model.predict_proba(X_calib)[:, 1]
         calib_logit = logit(np.clip(calib_proba, 1e-6, 1 - 1e-6))
-        sw_calib = sample_weight[cut_val:cut_calib] if (sample_weight is not None and temporal) else None
+        if sample_weight is not None and temporal:
+            sw_calib = sample_weight[calib_idx] if groups is not None else sample_weight[cut_val:cut_calib]
+        else:
+            sw_calib = None
         self.calibrator = IsotonicRegression(out_of_bounds='clip', y_min=0.0, y_max=1.0)
         self.calibrator.fit(calib_logit.ravel(), y_calib, sample_weight=sw_calib)
         logger.info(f"Isotonic calibrator fitted on {len(y_calib)} calib samples (logit-input)"
@@ -339,10 +371,16 @@ class HKJCRacingMLModel:
         place_accuracy = None
         if place_labels is not None:
             if temporal:
-                pl_train = place_labels[:cut_train]
-                pl_val = place_labels[cut_train:cut_val]
-                pl_calib = place_labels[cut_val:cut_calib]
-                pl_test = place_labels[cut_calib:]
+                if groups is not None:
+                    pl_train = place_labels[train_idx]
+                    pl_val = place_labels[val_idx]
+                    pl_calib = place_labels[calib_idx]
+                    pl_test = place_labels[test_idx]
+                else:
+                    pl_train = place_labels[:cut_train]
+                    pl_val = place_labels[cut_train:cut_val]
+                    pl_calib = place_labels[cut_val:cut_calib]
+                    pl_test = place_labels[cut_calib:]
             else:
                 # Re-split place_labels with same random_state and stratify to
                 # get partitions aligned with X/y. Previously we sliced by
@@ -376,7 +414,10 @@ class HKJCRacingMLModel:
             # over-stated.
             pl_calib_proba = self.place_model.predict_proba(X_calib)[:, 1]
             pl_calib_logit = logit(np.clip(pl_calib_proba, 1e-6, 1 - 1e-6))
-            sw_calib_pl = sample_weight[cut_val:cut_calib] if (sample_weight is not None and temporal) else None
+            if sample_weight is not None and temporal:
+                sw_calib_pl = sample_weight[calib_idx] if groups is not None else sample_weight[cut_val:cut_calib]
+            else:
+                sw_calib_pl = None
             self.place_calibrator = IsotonicRegression(out_of_bounds='clip', y_min=0.0, y_max=1.0)
             self.place_calibrator.fit(pl_calib_logit.ravel(), pl_calib, sample_weight=sw_calib_pl)
             logger.info(f"Isotonic place calibrator fitted on {len(pl_calib)} calib samples")
@@ -388,6 +429,7 @@ class HKJCRacingMLModel:
 
         self.is_trained = True
         self.model_version = datetime.now().strftime('%Y%m%d-%H%M%S')
+        self._fold_metadata = fold_meta
         if save:
             self._save_model()
         else:
@@ -404,6 +446,8 @@ class HKJCRacingMLModel:
         }
         if place_accuracy is not None:
             result['place_accuracy'] = place_accuracy
+        if fold_meta is not None:
+            result['fold_metadata'] = fold_meta
 
         # Compute feature correlation matrix and flag high correlations
         high_corrs = {}
@@ -604,12 +648,14 @@ class CombinedRacingAnalyzer:
             import os
             yrs_str = os.environ.get('TRAINING_YEARS_BACK', '5')
             yrs = None if yrs_str.strip() == '0' else int(yrs_str)
-            X_real, y_real, sw_real, y_place = build_training_data_from_db(years_back=yrs)
+            X_real, y_real, sw_real, y_place, groups = build_training_data_from_db(
+                years_back=yrs, return_groups=True,
+            )
             if X_real is not None and len(X_real) >= config.MIN_REAL_SAMPLES:
                 logger.info(f"Training ML model with {len(X_real)} REAL race results "
                             f"({'no cutoff' if yrs is None else f'{yrs}y window'})...")
                 result = self.ml_model.train(X_real, y_real, sample_weight=sw_real,
-                                            place_labels=y_place)
+                                             place_labels=y_place, groups=groups)
                 logger.info(f"Model trained on REAL data: accuracy={result['accuracy']:.2%}")
             else:
                 # Audit fix 2026-05-17: refuse to swap in a synthetic in-memory

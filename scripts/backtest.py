@@ -42,6 +42,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
+from betting.dividends import hkjc_declared_to_unit
 from ml.model import HKJCRacingMLModel
 from ml.features import FeatureEngineering
 from core.scorer import _dynamic_blend_weights
@@ -213,27 +214,47 @@ def predict_race_production(horse_rows, conn):
 # Data loading
 # ---------------------------------------------------------------------------
 
-def load_held_out_races(conn, last_n=None):
-    """Load truly-held-out test set: 85-100% of chronologically-sorted rows.
+def _training_window_clause(conn):
+    """Mirror train_ml_model.py's TRAINING_YEARS_BACK window for fold slicing."""
+    yrs_str = os.environ.get('TRAINING_YEARS_BACK', '5')
+    if yrs_str.strip() == '0':
+        return "", ()
+    years_back = int(yrs_str)
+    max_date = conn.execute("SELECT MAX(race_date) FROM race_results").fetchone()[0]
+    if not max_date:
+        return "", ()
+    from datetime import datetime, timedelta
+    mx = datetime.strptime(max_date.replace('/', '-'), '%Y-%m-%d')
+    cutoff = (mx - timedelta(days=365 * years_back)).strftime('%Y/%m/%d')
+    return " AND race_date >= ?", (cutoff,)
 
-    Matches the new 4-fold split in ml/model.py.train(): 0-60% train,
-    60-70% earlystop_val, 70-85% calib, 85-100% test. Backtest reads
-    the test fold; the calib fold is reserved for fitting the blend
-    calibrator (load_calibration_window below).
-    """
+
+def _load_training_window_rows(conn):
+    cutoff_clause, cutoff_args = _training_window_clause(conn)
     rows = conn.execute(
         "SELECT * FROM race_results WHERE finish_position > 0 "
-        "ORDER BY race_date, race_number"
+        f"{cutoff_clause} ORDER BY race_date, race_number",
+        cutoff_args,
     ).fetchall()
-    rows = [dict(r) for r in rows]
+    return [dict(r) for r in rows]
+
+
+def load_held_out_races(conn, last_n=None):
+    """Load truly-held-out test set: 85-100% of chronological race groups.
+
+    Matches ml/model.py.train(groups=...): 0-60% train, 60-70%
+    earlystop_val, 70-85% calib, 85-100% test. Every runner from a race stays
+    in the same fold.
+    """
+    rows = _load_training_window_rows(conn)
     if last_n is not None:
         return rows[-last_n:]
-    cut_calib = int(len(rows) * 0.85)
-    return rows[cut_calib:]
+    from ml.folds import split_rows_by_race
+    return split_rows_by_race(rows)["test"]
 
 
 def load_calibration_window(conn):
-    """Load the 70-85% slice — disjoint from both model train and backtest test.
+    """Load the 70-85% race-group slice — disjoint from train and test.
 
     The blend calibrator (scripts/calibrate_blend.py) was previously fit on
     the same 80-100% the model treated as test. With the new 4-fold split,
@@ -242,14 +263,9 @@ def load_calibration_window(conn):
     isotonic calibrator (in ml/model.py) ALSO fit on, but that backtest
     never sees. Backtest then evaluates on the truly-virgin 85-100% test.
     """
-    rows = conn.execute(
-        "SELECT * FROM race_results WHERE finish_position > 0 "
-        "ORDER BY race_date, race_number"
-    ).fetchall()
-    rows = [dict(r) for r in rows]
-    cut_val = int(len(rows) * 0.70)
-    cut_calib = int(len(rows) * 0.85)
-    return rows[cut_val:cut_calib]
+    rows = _load_training_window_rows(conn)
+    from ml.folds import split_rows_by_race
+    return split_rows_by_race(rows)["calib"]
 
 
 def group_by_race(rows):
@@ -325,7 +341,7 @@ def get_real_quinella_dividend(conn, race_date, race_no, horse_num_a, horse_num_
         "WHERE race_date = ? AND race_number = ? AND pool = 'QUINELLA' AND combination = ?",
         (race_date, race_no, combo)
     ).fetchone()
-    return float(row[0]) / 10.0 if row else None
+    return hkjc_declared_to_unit(row[0]) if row else None
 
 
 def get_real_exotic_dividend(conn, race_date, race_no, pool):
@@ -346,7 +362,7 @@ def get_real_exotic_dividend(conn, race_date, race_no, pool):
         "WHERE race_date = ? AND race_number = ? AND pool = ?",
         (race_date, race_no, pool)
     ).fetchone()
-    return float(row[0]) / 10.0 if row else None
+    return hkjc_declared_to_unit(row[0]) if row else None
 
 
 # ---------------------------------------------------------------------------
