@@ -41,6 +41,7 @@ Usage:
 from __future__ import annotations
 import argparse
 import csv
+import json
 import re
 import sqlite3
 import sys
@@ -48,11 +49,13 @@ from collections import defaultdict
 from pathlib import Path
 
 import config
+from betting.dividends import hkjc_declared_to_unit
 
 CUTOFF_RE = re.compile(r'^\d{4}/\d{2}/\d{2}$')
 
 CUTOFF_FILE = Path(config.DB_PATH).parent / "hk_forward_cutoff.txt"
 LOG_FILE = Path(config.DB_PATH).parent / "hk_forward_validation.csv"
+REPLAY_LOG_FILE = Path(config.DB_PATH).parent / "hk_forward_validation_replay.csv"
 
 # (label, leg_n, box_n, n_combos, pool)  — leg/box define capture; pool the dividend
 STRATS = [
@@ -70,7 +73,7 @@ def _quin_div(conn, d, rno, a, b):
     row = conn.execute(
         "SELECT dividend FROM race_dividends WHERE race_date=? AND race_number=? "
         "AND pool='QUINELLA' AND combination=?", (d, rno, f"{lo},{hi}")).fetchone()
-    return float(row[0]) / 10.0 if row else None
+    return hkjc_declared_to_unit(row[0]) if row else None
 
 
 def _exotic_div(conn, d, rno, pool, combination):
@@ -83,7 +86,38 @@ def _exotic_div(conn, d, rno, pool, combination):
     row = conn.execute(
         "SELECT dividend FROM race_dividends WHERE race_date=? AND race_number=? "
         "AND pool=? AND combination=?", (d, rno, pool, combination)).fetchone()
-    return float(row[0]) / 10.0 if row else None
+    return hkjc_declared_to_unit(row[0]) if row else None
+
+
+def _win_div(conn, d, rno, horse_number):
+    """Per-$1 WIN dividend for a specific winning horse number.
+
+    Added 2026-05-25 (GPT-5.5 Finding #4): prediction_log.actual_odds is
+    populated 0 for all rows, so the prior WIN-from-actual_odds path
+    silently dropped every WIN replay. race_dividends.pool='WIN' has
+    4,611 rows — query directly.
+    """
+    row = conn.execute(
+        "SELECT dividend FROM race_dividends WHERE race_date=? AND race_number=? "
+        "AND pool='WIN' AND combination=?",
+        (d, rno, str(int(horse_number))),
+    ).fetchone()
+    return hkjc_declared_to_unit(row[0]) if row else None
+
+
+def _place_div(conn, d, rno, horse_number):
+    """Per-$1 PLACE dividend for a specific placed horse number.
+
+    pool='PLACE' has one row per placed horse per race (3 rows when 8+
+    runners, 2 rows when 4-7 runners, 1 when ≤4). Returns None if the
+    horse did not place.
+    """
+    row = conn.execute(
+        "SELECT dividend FROM race_dividends WHERE race_date=? AND race_number=? "
+        "AND pool='PLACE' AND combination=?",
+        (d, rno, str(int(horse_number))),
+    ).fetchone()
+    return hkjc_declared_to_unit(row[0]) if row else None
 
 
 def _load_cutoff(conn) -> str:
@@ -175,11 +209,234 @@ def _score_meeting(conn, date) -> dict:
     return acc
 
 
+def _score_meeting_replay(conn, date) -> dict | None:
+    """Score the ACTUAL frozen bet_ticket for each race on `date`.
+
+    Returns None when no race_bet_ticket rows exist (forward-only — meetings
+    before 2026-05-24 weren't logged). Returns {label: [stake_combos, ret,
+    hits]} keyed by the user-visible ticket label (BOX QIN-4, BOX TRIO-5,
+    F4 BOX-5, ...) — so the report names match what was actually staked.
+
+    Solves Finding #2 2026-05-24: the synthetic _score_meeting reported
+    F4 BOX-5 hits on R8/R11 that were never in the ticket (gated out).
+    """
+    ticket_rows = conn.execute(
+        "SELECT race_number, ticket_json FROM race_bet_ticket WHERE race_date=?",
+        (date,),
+    ).fetchall()
+    if not ticket_rows:
+        return None
+
+    horse_rows = conn.execute(
+        "SELECT race_number, horse_number, horse_name, actual_position "
+        "FROM prediction_log WHERE race_date=? AND results_filled=1",
+        (date,),
+    ).fetchall()
+    by_race: dict[int, dict[str, dict]] = defaultdict(dict)
+    for r in horse_rows:
+        by_race[r["race_number"]][r["horse_name"]] = {
+            "number": r["horse_number"],
+            "actual_position": r["actual_position"],
+        }
+
+    acc: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0])
+    n_races = 0
+    for row in ticket_rows:
+        rno = row["race_number"]
+        try:
+            ticket = json.loads(row["ticket_json"])
+        except (json.JSONDecodeError, TypeError):
+            continue
+        horses = by_race.get(rno, {})
+        finishers = {h["actual_position"]: name
+                     for name, h in horses.items()
+                     if h["actual_position"] in (1, 2, 3, 4)}
+        if not all(p in finishers for p in (1, 2)):
+            continue
+        n_races += 1
+        top2_names = {finishers[1], finishers[2]}
+        top3_names = ({finishers[p] for p in (1, 2, 3)}
+                      if all(p in finishers for p in (1, 2, 3)) else None)
+        top4_names = ({finishers[p] for p in (1, 2, 3, 4)}
+                      if all(p in finishers for p in (1, 2, 3, 4)) else None)
+
+        for bet in ticket.get("bets", []) or []:
+            label = bet.get("label", "?")
+            pool = bet.get("pool", "")
+            combos = int(bet.get("combos", 0) or 0)
+            unit_stake = float(bet.get("unit_stake", 0) or 0)
+            leg_names = {leg.get("name") for leg in (bet.get("legs") or [])}
+            if not leg_names or combos <= 0:
+                continue
+            # Fall back to $1 unit if the ticket didn't size the stake — keeps
+            # ROI% meaningful even on legacy tickets without unit_stake.
+            stake_per_combo = unit_stake if unit_stake > 0 else 1.0
+
+            hit = False
+            # QPL ticket structure: legs[0] is the pivot, legs[1:] are bankers
+            # (server-side build_bet_ticket). Each (pivot, banker_i) pair is
+            # one combo and pays independently when both horses place top-3.
+            ordered_legs = bet.get("legs") or []
+            qpl_pivot = ordered_legs[0].get("name") if ordered_legs and pool == "QIN PLACE" else None
+            qpl_bankers = [l.get("name") for l in ordered_legs[1:]] if pool == "QIN PLACE" else []
+            qpl_hit_pairs: list[tuple[str, str]] = []
+            placed_top3 = {finishers.get(p) for p in (1, 2, 3) if finishers.get(p)}
+
+            if pool == "WIN":
+                hit = finishers.get(1) in leg_names
+            elif pool == "PLACE":
+                hit = any(finishers.get(p) in leg_names for p in (1, 2, 3))
+            elif pool == "QUINELLA":
+                hit = top2_names <= leg_names
+            elif pool == "TRIO":
+                hit = top3_names is not None and top3_names <= leg_names
+            elif pool == "FIRST 4":
+                hit = top4_names is not None and top4_names <= leg_names
+            elif pool == "QIN PLACE":
+                if qpl_pivot and qpl_pivot in placed_top3:
+                    for bk in qpl_bankers:
+                        if bk and bk in placed_top3:
+                            qpl_hit_pairs.append((qpl_pivot, bk))
+                hit = len(qpl_hit_pairs) > 0
+
+            # `div_per_unit` is the payout PER HK$1 of stake on a winning combo.
+            # Multiply by stake_per_combo to get actual dollar return per combo.
+            div_per_unit: float | None = None
+            if hit and pool == "QUINELLA":
+                top2_nums = sorted(horses[finishers[p]]["number"] for p in (1, 2))
+                div_per_unit = _quin_div(conn, date, rno, *top2_nums)
+            elif hit and pool == "TRIO":
+                combo_str = ",".join(str(n) for n in sorted(
+                    horses[finishers[p]]["number"] for p in (1, 2, 3)))
+                div_per_unit = _exotic_div(conn, date, rno, pool, combo_str)
+            elif hit and pool == "FIRST 4":
+                combo_str = ",".join(str(n) for n in sorted(
+                    horses[finishers[p]]["number"] for p in (1, 2, 3, 4)))
+                div_per_unit = _exotic_div(conn, date, rno, pool, combo_str)
+            elif hit and pool == "WIN":
+                # 2026-05-25 (Finding #4): price from race_dividends pool='WIN'
+                # for the winning horse number (prediction_log.actual_odds is
+                # populated 0 for all rows, so the old path silently dropped
+                # every WIN replay).
+                winner_name = finishers.get(1)
+                winner_num = horses.get(winner_name, {}).get("number")
+                if winner_num:
+                    div_per_unit = _win_div(conn, date, rno, winner_num)
+            elif hit and pool == "PLACE":
+                # PLACE pays once per placed leg horse (1-3 placed horses per
+                # race depending on field size). Sum dividends across all leg
+                # horses that actually placed — most PLACE bets have 1 leg
+                # but the data structure supports multiple.
+                placed_legs_div = 0.0
+                placed_any = False
+                for leg_name in leg_names:
+                    if any(finishers.get(p) == leg_name for p in (1, 2, 3)):
+                        ln_num = horses.get(leg_name, {}).get("number")
+                        if ln_num:
+                            d2 = _place_div(conn, date, rno, ln_num)
+                            if d2:
+                                placed_legs_div += d2
+                                placed_any = True
+                if placed_any:
+                    div_per_unit = placed_legs_div
+            elif hit and pool == "QIN PLACE":
+                # 2026-05-26 (GPT-5.5 R7 Finding #1): pool was missing from
+                # replay, so QPL BANKER bets were unscored. race_dividends
+                # pool='QUINELLA PLACE' has the per-pair dividends. Sum
+                # across hit pairs — multi-pair hits compound the payout.
+                qpl_div_sum = 0.0
+                priced_any = False
+                for piv, bk in qpl_hit_pairs:
+                    piv_num = horses.get(piv, {}).get("number")
+                    bk_num = horses.get(bk, {}).get("number")
+                    if piv_num and bk_num:
+                        lo, hi = sorted([int(piv_num), int(bk_num)])
+                        row = conn.execute(
+                            "SELECT dividend FROM race_dividends WHERE race_date=? "
+                            "AND race_number=? AND pool='QUINELLA PLACE' "
+                            "AND combination=?",
+                            (date, rno, f"{lo},{hi}"),
+                        ).fetchone()
+                        if row:
+                            qpl_div_sum += hkjc_declared_to_unit(row[0])
+                            priced_any = True
+                if priced_any:
+                    div_per_unit = qpl_div_sum
+
+            if hit and div_per_unit is None and pool in ("QUINELLA", "TRIO", "FIRST 4", "WIN", "PLACE", "QIN PLACE"):
+                continue
+
+            # Box bets: only the one winning combo pays out, NOT every combo
+            # in the box. Stake covers all `combos`; return on hit is sized
+            # to the single winning combo. Matches HKJC mechanics + mirrors
+            # the synthetic scorer's `ncombo` stake / `div_per_$1` return.
+            stake = combos * stake_per_combo
+            ret = (stake_per_combo * div_per_unit) if (hit and div_per_unit) else 0.0
+            acc[label][0] += stake
+            acc[label][1] += ret
+            acc[label][2] += 1 if hit else 0
+
+    return {"_races": n_races, "labels": dict(acc)}
+
+
 def _read_csv() -> list[dict]:
     if not LOG_FILE.exists():
         return []
     with open(LOG_FILE) as f:
         return list(csv.DictReader(f))
+
+
+def _read_replay_csv() -> list[dict]:
+    if not REPLAY_LOG_FILE.exists():
+        return []
+    with open(REPLAY_LOG_FILE) as f:
+        return list(csv.DictReader(f))
+
+
+def _append_replay_csv(date, replay):
+    rows = _read_replay_csv()
+    labels = replay["labels"]
+    newrow = {"race_date": date, "races": replay["_races"],
+              "ticket_json": json.dumps(labels)}
+    rows.append(newrow)
+    tmp = REPLAY_LOG_FILE.with_suffix(".csv.tmp")
+    cols = ["race_date", "races", "ticket_json"]
+    with open(tmp, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: r.get(k, "") for k in cols})
+    tmp.replace(REPLAY_LOG_FILE)
+
+
+def _report_replay(rows: list[dict], title: str):
+    print(f"\n{'='*68}\n  {title}\n{'='*68}")
+    if not rows:
+        print("  (no meetings with frozen tickets yet — replay-mode is forward-only)")
+        return
+    dates = sorted(r["race_date"] for r in rows)
+    print(f"  meetings: {len(dates)}  ({dates[0]} .. {dates[-1]})")
+    gate = "" if len(dates) >= 6 else "   [WARN] N<6 — DIRECTIONAL ONLY"
+    print(f"  {'bet label':<18}{'hits':>6}{'stake':>9}{'P&L':>11}{'ROI':>9}{gate}")
+    print("  " + "-" * 54)
+    totals: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0])
+    for r in rows:
+        try:
+            labels = json.loads(r.get("ticket_json", "{}"))
+        except json.JSONDecodeError:
+            continue
+        for lbl, (stake, ret, hits) in labels.items():
+            totals[lbl][0] += float(stake)
+            totals[lbl][1] += float(ret)
+            totals[lbl][2] += int(hits)
+    for lbl in sorted(totals):
+        stake, ret, hits = totals[lbl]
+        if stake <= 0:
+            continue
+        roi = 100 * (ret - stake) / stake
+        print(f"  {lbl:<18}{hits:>6}{stake:>9.0f}{ret-stake:>+11.1f}{roi:>+9.1f}%")
+    print("\n  REPLAY: scored from the actual frozen bet_ticket (not synthetic).")
+    print("  This is what was really recommended/staked, post-gate filtering.")
 
 
 def _atomic_write_text(path, text):
@@ -238,6 +495,9 @@ def main() -> int:
     p.add_argument("--include-burned", action="store_true",
                    help="also show pre-cutoff meetings (labelled, NOT written to CSV)")
     p.add_argument("--set-cutoff", metavar="YYYY/MM/DD", help="set the frozen cutoff date")
+    p.add_argument("--replay", action="store_true",
+                   help="ALSO score the actual frozen bet_ticket (Finding #2 fix). "
+                        "Forward-only — meetings before 2026-05-24 have no ticket.")
     args = p.parse_args()
 
     conn = sqlite3.connect(str(config.DB_PATH))
@@ -267,7 +527,23 @@ def main() -> int:
             print("  no new clean meetings to log.")
         logged = _read_csv()
 
-    _report(logged, "HK FORWARD VALIDATION (clean, un-burned)")
+        if args.replay:
+            replay_logged = _read_replay_csv()
+            replay_already = {r["race_date"] for r in replay_logged}
+            for d in _meeting_dates(conn, after=cutoff):
+                if d in replay_already:
+                    continue
+                replay = _score_meeting_replay(conn, d)
+                if replay is None:
+                    continue  # no frozen ticket — pre-fix meeting
+                _append_replay_csv(d, replay)
+                print(f"  [replay] logged {d}: {replay['_races']} races")
+
+    _report(logged, "HK FORWARD VALIDATION (clean, un-burned) — SYNTHETIC strategies")
+
+    if args.replay:
+        _report_replay(_read_replay_csv(),
+                       "HK FORWARD VALIDATION — REPLAY (actual staked bet_tickets)")
 
     if args.include_burned:
         burned = []

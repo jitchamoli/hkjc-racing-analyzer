@@ -478,7 +478,8 @@ class BettingStrategy:
 # ---------------------------------------------------------------------------
 
 class CombinedRaceAnalyzer:
-    def __init__(self):
+    def __init__(self, fail_closed_ml: bool = False):
+        self.fail_closed_ml = fail_closed_ml
         self.strategy = BettingStrategy()
         self.ml_analyzer = _MLAnalyzer()
         self.draw_analyzer = DrawBiasAnalyzer()
@@ -792,21 +793,36 @@ class CombinedRaceAnalyzer:
         if fresh_score > 0:
             reasoning.append(f"Freshness: {fresh_reason}")
 
-        # --- NEW: Rating Change (Trending) ---
+        # --- Rating Change — handicap-aware (rebalanced 2026-05-25) ---
+        # Old scoring treated rating-up as strictly positive (80 / 65). In HK
+        # handicap racing this is anti-handicapping: a rating rise means the
+        # horse now carries MORE weight and faces TOUGHER company in its
+        # next race (it may have been moved up a class). The recent-form
+        # signal that produced the rating rise is real but largely offset
+        # by the handicap penalty — and the form signal is already captured
+        # by the dedicated `form_score` factor above.
+        # Conversely, a rating DROP often means the horse is now better-
+        # treated (well-handicapped) — a genuine value signal HK punters
+        # actively look for.
+        # Rebalance: flatten the rating-up reward (no longer reaches 80);
+        # treat small drops as neutral-to-slightly-positive; only large
+        # drops keep the prior "declining" interpretation.
+        # GPT-5.5 audit Finding #6 (2026-05-25). Conservative tuning —
+        # paper-validate forward via shadow_evaluate before scaling up.
         rtg_chg = horse.rating_change
         if rtg_chg != 0:
             if rtg_chg >= 5:
-                trend_score = 80.0
-                trend_reason = f"Rating up {rtg_chg}pts — improving fast"
+                trend_score = 55.0
+                trend_reason = f"Rating up {rtg_chg}pts (now carrying more weight)"
             elif rtg_chg > 0:
-                trend_score = 65.0
-                trend_reason = f"Rating up {rtg_chg}pts — on the rise"
+                trend_score = 50.0
+                trend_reason = f"Rating up {rtg_chg}pts (slightly tougher mark)"
             elif rtg_chg >= -3:
-                trend_score = 45.0
-                trend_reason = f"Rating down {rtg_chg}pts — slight decline"
+                trend_score = 55.0
+                trend_reason = f"Rating down {rtg_chg}pts — well-handicapped"
             else:
-                trend_score = 30.0
-                trend_reason = f"Rating down {rtg_chg}pts — declining"
+                trend_score = 35.0
+                trend_reason = f"Rating down {rtg_chg}pts — declining form"
         else:
             trend_score = 0.0
             trend_reason = ""
@@ -1042,10 +1058,16 @@ class CombinedRaceAnalyzer:
             banker_signals += 1
             banker_reasons.append("High score")
 
-        # 2. Rating trending up strongly
-        if rtg_chg >= 5:
+        # 2. Well-handicapped (rating dropped — better treated next start).
+        # Was: "Rating surging (+5+)" promoted to BANKER, but in HK handicap
+        # racing a rating rise = more weight + tougher class, NOT a banker
+        # signal. The recent-form signal that produced the rise is already
+        # captured by `form_score` (signal #4 below). Flipped 2026-05-25
+        # per GPT-5.5 Finding #6 — a rating drop of 1-3pts is the genuine
+        # "well-handicapped" tell HK punters look for.
+        if -3 <= rtg_chg <= -1:
             banker_signals += 1
-            banker_reasons.append(f"Rating surging (+{rtg_chg})")
+            banker_reasons.append(f"Well-handicapped ({rtg_chg}pts)")
 
         # 3. Ideal freshness (14-35 days)
         if 14 <= days <= 35:
@@ -1115,17 +1137,30 @@ class CombinedRaceAnalyzer:
             # uses field-relative median formula (matching training). Without this,
             # inference fell back to absolute-weight formula → 82% parity failure.
             "field_weights": field_weights,
+            # 2026-05-25 (GPT-5.5 audit Finding #1): these three were silently
+            # missing from horse_data → ml/features.py read defaults (0) at
+            # inference even though training had real values. Feature 13
+            # (weight_change), 14 (age_score), 15 (rating_change) were
+            # effectively neutralized. Same train/predict parity rule as
+            # field_weights above — never reimplement, just thread through.
+            "horse_weight": horse.horse_weight,
+            "age": getattr(horse, 'age', '') or '',
+            "rating_change": horse.rating_change,
         }
 
-        # Graceful degradation: if the model is missing/expired/corrupt,
-        # fall back to rule-only blending instead of crashing the dashboard.
-        # IntegrityError fires for >90-day-old models (per ml/integrity.py);
-        # RuntimeError for untrained models (F-17). Both are recoverable.
+        # Graceful degradation remains available to offline diagnostics, but
+        # race-day dashboard generation runs fail_closed_ml=True so a bad ML
+        # path aborts before writing plausible-looking rule-only predictions.
         try:
             ml_prediction = self.ml_analyzer.predict(horse_data, all_results or [], "")
             ml_available_for_horse = ML_AVAILABLE
         except Exception as e:
             from ml.model import MLPrediction
+            if self.fail_closed_ml:
+                raise RuntimeError(
+                    f"ML prediction failed in fail-closed mode for "
+                    f"{horse.name}: {type(e).__name__}: {e}"
+                ) from e
             logger.warning(
                 f"ML predict failed for {horse.name} ({type(e).__name__}: {e}); "
                 "degrading to rule-only blend"

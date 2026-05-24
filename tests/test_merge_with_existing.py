@@ -244,7 +244,7 @@ def test_frozen_keys_constants_are_complete():
     """Pin the explicit list so a future commit can't silently shrink it."""
     expected_race = {
         'conviction_tier', 'has_edge', 'suggested_stake', 'bankroll',
-        'odds_age_minutes', 'top_2_share', 'top_3_share',
+        'odds_age_minutes', 'bet_ticket', 'top_2_share', 'top_3_share',
         'edge_horse_rank', 'edge_horse_number', 'edge_horse_name',
     }
     expected_horse = {
@@ -260,3 +260,76 @@ def test_no_overlap_between_result_and_frozen_keys():
     """Result fields (actual_*) and pre-race prediction fields should not collide."""
     assert _RESULT_KEYS_RACE.isdisjoint(_FROZEN_PREDICTION_KEYS_RACE)
     assert _RESULT_KEYS_HORSE.isdisjoint(_FROZEN_PREDICTION_KEYS_HORSE)
+
+
+def test_post_off_pre_results_freezes_horse_level_predictions(tmp_json):
+    """Finding #1 2026-05-24: in the 1-5 min window between race off and
+    results_fetcher flipping results_available, horse-level rank/win_odds/
+    calibrated_prob/bet_recommendation/edge_pp were still mutable. This
+    poisoned prediction_log.predicted_rank → corrupted validate_hk.
+    """
+    from datetime import datetime as _dt
+    today = _dt.now().strftime('%Y/%m/%d')
+    past = '00:01'  # always in the past
+
+    old = [{
+        'race_number': 1,
+        'time': past,
+        'results_available': False,
+        'horses': [
+            {'number': 8, 'rank': 1, 'calibrated_prob': 0.21, 'win_odds': 5.0,
+             'bet_recommendation': 'QIN', 'edge_pp': -2.0, 'edge_fires': False},
+            {'number': 1, 'rank': 2, 'calibrated_prob': 0.10, 'win_odds': 13.0,
+             'bet_recommendation': 'QIN', 'edge_pp': -1.0, 'edge_fires': False},
+        ],
+    }]
+    _write_old(tmp_json, old)
+    new = [{
+        'race_number': 1,
+        'time': past,
+        'results_available': False,
+        'horses': [
+            {'number': 1, 'rank': 1, 'calibrated_prob': 0.08, 'win_odds': 22.0,
+             'bet_recommendation': 'WIN', 'edge_pp': 9.0, 'edge_fires': True},
+            {'number': 8, 'rank': 2, 'calibrated_prob': 0.20, 'win_odds': 5.5,
+             'bet_recommendation': 'QIN', 'edge_pp': -5.0, 'edge_fires': False},
+        ],
+    }]
+    merged = _merge_with_existing(tmp_json, new, race_date=today)
+    by_num = {h['number']: h for h in merged[0]['horses']}
+    assert by_num[8]['rank'] == 1
+    assert by_num[8]['calibrated_prob'] == 0.21
+    assert by_num[1]['rank'] == 2
+    assert by_num[1]['edge_fires'] is False, "bogus post-off EDGE must NOT leak"
+    assert [h['number'] for h in merged[0]['horses']] == [8, 1]
+
+
+def test_race_off_detection_is_date_aware(tmp_json):
+    """Finding #3 2026-05-24: race-off detection was clock-only, so any
+    regeneration of a historical or future-date file after that time of day
+    treated past-scheduled races as off'd and froze stale fields. Must only
+    fire when race_date == today.
+    """
+    from datetime import datetime as _dt
+    not_today = '2020/01/01' if _dt.now().strftime('%Y/%m/%d') != '2020/01/01' else '2020/01/02'
+    past_time = '00:01'
+
+    old = [{
+        'race_number': 1,
+        'time': past_time,
+        'results_available': False,
+        'conviction_tier': 'MED',
+        'horses': [{'number': 8, 'rank': 1, 'calibrated_prob': 0.21}],
+    }]
+    _write_old(tmp_json, old)
+    new = [{
+        'race_number': 1,
+        'time': past_time,
+        'results_available': False,
+        'conviction_tier': 'EDGE',
+        'horses': [{'number': 8, 'rank': 1, 'calibrated_prob': 0.30}],
+    }]
+    merged = _merge_with_existing(tmp_json, new, race_date=not_today)
+    # Off-date regen must NOT treat race as off'd — fresh values survive.
+    assert merged[0]['conviction_tier'] == 'EDGE'
+    assert merged[0]['horses'][0]['calibrated_prob'] == 0.30

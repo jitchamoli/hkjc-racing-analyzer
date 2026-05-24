@@ -23,7 +23,10 @@ from ml.features import FeatureEngineering, extract_class_rank, parse_age_score
 logger = logging.getLogger(__name__)
 
 
-def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
+def build_training_data_from_db(
+    years_back: Optional[int] = None,
+    return_groups: bool = False,
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
     """Build training data from real race results in horse_database.
 
     Args:
@@ -39,6 +42,8 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
     try:
         db_path = config.DB_PATH
         if not db_path.exists():
+            if return_groups:
+                return None, None, None, None, None
             return None, None, None, None
 
         conn = sqlite3.connect(str(db_path))
@@ -70,6 +75,8 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
 
         if len(rows) < config.MIN_REAL_SAMPLES:
             logger.info(f"Only {len(rows)} results in DB — not enough for real training")
+            if return_groups:
+                return None, None, None, None, None
             return None, None, None, None
 
         logger.info(f"Building training data from {len(rows)} real race results")
@@ -178,7 +185,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
         # the full DB. The asymmetry under-trained Features 4 and 5.
         # Now both training and inference use the same conn-based DB query.
 
-        X, y, y_place, weights = [], [], [], []
+        X, y, y_place, weights, groups = [], [], [], [], []
         for row in rows:
             r = dict(row)
             draw = r.get('draw', 0) or 0
@@ -221,10 +228,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             else:
                 feat_form = 0.5
 
-            # Feature 3: draw advantage
-            feat_draw = FeatureEngineering.calculate_draw_advantage(draw, distance)
-
-            # Feature 4: jockey win rate (Task #51 fix — same call as inference)
+            # Feature 3: jockey win rate (Task #51 fix — same call as inference)
             # Queries full DB with race_date < before_date filter, no leakage.
             # Caps at 0.6 (was capped at 0.5 in old in-memory training path —
             # cap now matches features.py:_compute_jockey_win_rate).
@@ -423,30 +427,24 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             )
             feat_jt_pair = min(0.5, feat_jt_pair) if feat_jt_pair > 0 else 0.08
 
-            # Feature 21 (v6.6): par-time-normalised speed figure of last
-            # race. Same helper used at inference for consistency.
-            feat_speed_fig = FeatureEngineering.calculate_speed_fig_norm(
-                r.get('horse_name', '') or '',
-                conn=conn, before_date=race_date,
-            )
-
-            # Features 22-24 (v6.8 Path A): running-position proxies.
+            # Features 20-21 (v6.8 Path A): early_speed + late_kick.
+            # v6.11 dropped running_style (r=+0.914 with early_speed).
             # Same helper as inference for train/predict parity.
-            feat_early, feat_late, feat_style = (
+            feat_early, feat_late, _ = (
                 FeatureEngineering.calculate_running_position_features(
                     r.get('horse_name', '') or '',
                     conn=conn, before_date=race_date,
                 )
             )
 
-            # Feature 25 (v6.9): mid-race sectional pace.
+            # mid_race_pace (v6.9): mid-race sectional pace.
             # Same helper as inference for train/predict parity.
             feat_mid_pace = FeatureEngineering.calculate_mid_race_pace(
                 r.get('horse_name', '') or '',
                 conn=conn, before_date=race_date,
             )
 
-            # Feature 26 (v6.10): sire's top-3 rate on this race's going.
+            # sire_top3_rate_on_going (v6.10): sire's top-3 rate on this race's going.
             # Same helper as inference for train/predict parity.
             feat_sire_going = FeatureEngineering.calculate_sire_top3_on_going(
                 r.get('horse_name', '') or '',
@@ -455,7 +453,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             )
 
             features = [
-                feat_form_proxy, feat_form, feat_draw,
+                feat_form_proxy, feat_form,
                 feat_jockey, feat_trainer, feat_field_size,
                 feat_field_draw, feat_cd,
                 feat_class, feat_freshness, going_perf,
@@ -463,8 +461,8 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 feat_last_margin, feat_class_change,
                 feat_hw_change,
                 feat_age, feat_rating_change, feat_jockey_30d,
-                feat_jt_pair, feat_speed_fig,
-                feat_early, feat_late, feat_style,
+                feat_jt_pair,
+                feat_early, feat_late,
                 feat_mid_pace, feat_sire_going,
             ]
             assert len(features) == NUM_FEATURES, f"Expected {NUM_FEATURES} features, got {len(features)}"
@@ -472,6 +470,7 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
             y.append(1 if r.get('is_winner', 0) else 0)
             y_place.append(1 if r.get('is_top3', 0) else 0)
             weights.append(0.0)  # placeholder; overwritten below
+            groups.append(race_key)
 
         # Recency weights — exponential decay so recent races dominate.
         # Diagnostic 2026-04-25: linear 0.3→1.0 over 5y window made the most
@@ -500,9 +499,19 @@ def build_training_data_from_db(years_back: Optional[int] = None) -> Tuple[Optio
                 conn.close()
             except Exception:
                 pass
+        if return_groups:
+            return None, None, None, None, None
         return None, None, None, None
 
-    return np.array(X, dtype=np.float32), np.array(y), np.array(weights), np.array(y_place)
+    result = (
+        np.array(X, dtype=np.float32),
+        np.array(y),
+        np.array(weights),
+        np.array(y_place),
+    )
+    if return_groups:
+        return (*result, np.array(groups, dtype=object))
+    return result
 
 
 def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray, np.ndarray]:
@@ -556,22 +565,21 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         rating_change_feat = np.random.normal(0.5, 0.08)
         rating_change_feat = float(np.clip(rating_change_feat, 0.0, 1.0))
         jockey_form_30d_feat = np.random.beta(2, 8)
-        # v6.6 features (synthetic priors mirror production distribution)
+        # v6.6 features (synthetic priors mirror production distribution).
+        # v6.11 dropped speed_fig_feat (HK paceless, calibration regression).
         jt_pair_feat = float(np.random.beta(2, 8))   # similar shape to jockey_rate
-        speed_fig_feat = float(np.random.normal(0.5, 0.15))
-        speed_fig_feat = float(np.clip(speed_fig_feat, 0.0, 1.0))
-        # v6.8 features 22-24 (running-position proxies)
+        # v6.8 features (running-position proxies). v6.11 dropped running_style_feat
+        # (r=+0.914 with early_speed — coarsened duplicate).
         early_speed_feat = float(np.random.uniform(0.05, 0.95))
         late_kick_feat = float(np.clip(np.random.normal(0.5, 0.15), 0.0, 1.0))
-        running_style_feat = float(np.random.choice([0.0, 0.5, 1.0]))
         # v6.9 feature 25 (mid-race pace / "unspent finisher")
         mid_pace_feat = float(np.clip(np.random.normal(0.5, 0.10), 0.0, 1.0))
-        # v6.10 feature 26 (sire top-3 rate on going). Beta(2, 8) yields a
+        # v6.10 sire_top3_rate_on_going. Beta(2, 8) yields a
         # distribution roughly matching the smoothed real-data shape.
         sire_going_feat = float(np.random.beta(2, 8))
 
         features = [
-            prior_win_rate, form_score / 100, draw_adv,
+            prior_win_rate, form_score / 100,
             jockey_rate, trainer_rate, feat_field_size,
             feat_field_draw, cd_form,
             1.0 - class_level,
@@ -580,8 +588,8 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             last_margin, class_change_feat,
             hw_change,
             horse_age_feat, rating_change_feat, jockey_form_30d_feat,
-            jt_pair_feat, speed_fig_feat,
-            early_speed_feat, late_kick_feat, running_style_feat,
+            jt_pair_feat,
+            early_speed_feat, late_kick_feat,
             mid_pace_feat, sire_going_feat,
         ]
         assert len(features) == NUM_FEATURES
@@ -590,7 +598,6 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
         win_logit = (
             2.5 * (prior_win_rate - 0.15)
             + 1.2 * (form_score / 100 - 0.4)
-            + 0.5 * (draw_adv - 0.6)
             + 3.0 * (jockey_rate - 0.10)
             + 2.0 * (trainer_rate - 0.08)
             + 0.3 * (feat_field_size - 0.8)
@@ -614,12 +621,10 @@ def generate_synthetic_training_data(n_samples: int = 5000) -> Tuple[np.ndarray,
             + 0.3 * (rating_change_feat - 0.5)
             + 0.5 * (jockey_form_30d_feat - 0.08)
             # v6.6: pairing strike rate ~ same shape as jockey rate, slightly lower
-            # weight; speed figure positive when faster than par.
+            # weight.
             + 1.5 * (jt_pair_feat - 0.08)
-            + 0.6 * (speed_fig_feat - 0.5)
             # v6.8: closing horses (high late_kick) and front-runners (low early_speed)
-            # both correlate with winning in HK; running_style is roughly neutral
-            # so synthetic doesn't bias toward any style.
+            # both correlate with winning in HK.
             - 0.3 * (early_speed_feat - 0.5)  # lower position = better, so negative coef
             + 0.5 * (late_kick_feat - 0.5)
             # v6.9: mid-race pace ("unspent finisher"). Positive coefficient

@@ -1,10 +1,20 @@
-"""Measure the cumulative ROI impact of the BOX TRIO-5 triple gate
-(shipped 2026-05-23) over the last N meetings.
+"""Measure the cumulative ROI impact of the heavy-fav-skip clause on
+BOX TRIO-5 over the last N meetings.
 
-Replays each race twice — once with the OLD "always fires on top-5" rule,
-once with the NEW triple-gate (heavy fav / LOW/SKIP conv / small field
-skip) — using the same picks + same real HKJC dividends. The delta is
-the gate's measured P&L impact on what the user actually bet.
+Replays each race twice:
+  PROD  — current production: tier + field-size gates only (heavy-fav-skip
+          was removed 2026-05-24 after user UNGATE choice; see memory
+          heavy-fav-skip-ungated-2026-05-24).
+  GATED — deprecated alternative: PROD gates PLUS heavy-fav-skip
+          (top1 < $2.50). What we'd save/lose by re-enabling the clause.
+
+Uses the same picks + same real HKJC dividends in both arms. Delta is
+the heavy-fav clause's measured P&L impact vs current production.
+
+Pre-2026-05-24 history of this script labelled the arms "OLD" (ungated)
+and "NEW" (gated). After production moved to ungated, the labels were
+backwards relative to what's deployed — renamed to PROD/GATED to track
+the deployment reality.
 
 Reads:
   results/race_data_YYYYMMDD_with_results.json   (per-meeting picks + finishers)
@@ -30,6 +40,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config
+from betting.dividends import hkjc_declared_to_unit
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = REPO_ROOT / 'results'
@@ -53,7 +64,7 @@ def _trio_div_per1(conn, race_date: str, race_no: int,
         "AND race_number=? AND pool='TRIO' AND combination=?",
         (race_date, race_no, combo),
     ).fetchone()
-    return (row[0] / 10.0) if row else None
+    return hkjc_declared_to_unit(row[0]) if row else None
 
 
 def _triple_gate_skip(race: dict) -> tuple[bool, str]:
@@ -88,9 +99,9 @@ def analyze(last_n: int | None) -> int:
     conn = sqlite3.connect(str(config.DB_PATH))
 
     per_meeting = defaultdict(lambda: {
-        'old_stake': 0.0, 'old_pnl': 0.0, 'old_n': 0, 'old_hits': 0,
-        'new_stake': 0.0, 'new_pnl': 0.0, 'new_n': 0, 'new_hits': 0,
-        'gate_saved_pnl': 0.0,
+        'prod_stake': 0.0, 'prod_pnl': 0.0, 'prod_n': 0, 'prod_hits': 0,
+        'gated_stake': 0.0, 'gated_pnl': 0.0, 'gated_n': 0, 'gated_hits': 0,
+        'gated_delta_pnl': 0.0,
     })
     skip_reasons: dict[str, int] = defaultdict(int)
 
@@ -127,22 +138,25 @@ def analyze(last_n: int | None) -> int:
                   if hit else -BOX_TRIO5_TOTAL_STAKE
 
             e = per_meeting[date_str]
-            # OLD: always fires
-            e['old_stake'] += BOX_TRIO5_TOTAL_STAKE
-            e['old_pnl'] += pnl
-            e['old_n'] += 1
-            e['old_hits'] += int(hit)
+            # PROD (current production): tier + field-size gates only,
+            # heavy-fav fires.
+            e['prod_stake'] += BOX_TRIO5_TOTAL_STAKE
+            e['prod_pnl'] += pnl
+            e['prod_n'] += 1
+            e['prod_hits'] += int(hit)
 
-            # NEW: triple-gated
+            # GATED (deprecated alternative): PROD + heavy-fav-skip.
+            # gated_delta_pnl is +ve when re-enabling the gate WOULD have
+            # saved money vs current PROD (i.e., a skipped losing bet).
             skip, reason = _triple_gate_skip(race)
             if skip:
-                e['gate_saved_pnl'] += -pnl  # +ve if we avoided a loss
+                e['gated_delta_pnl'] += -pnl
                 skip_reasons[reason] += 1
             else:
-                e['new_stake'] += BOX_TRIO5_TOTAL_STAKE
-                e['new_pnl'] += pnl
-                e['new_n'] += 1
-                e['new_hits'] += int(hit)
+                e['gated_stake'] += BOX_TRIO5_TOTAL_STAKE
+                e['gated_pnl'] += pnl
+                e['gated_n'] += 1
+                e['gated_hits'] += int(hit)
 
     conn.close()
 
@@ -152,48 +166,49 @@ def analyze(last_n: int | None) -> int:
 
     # Print report
     print(f"\n{'=' * 78}")
-    print(f"  BOX TRIO-5 TRIPLE GATE — {len(per_meeting)} meetings "
-          f"(stake HK${int(BOX_TRIO5_STAKE_PER_COMBO)}/combo × {BOX_TRIO5_COMBOS} combos)")
+    print(f"  BOX TRIO-5 — PROD (ungated) vs GATED (heavy-fav-skip, deprecated)")
+    print(f"  {len(per_meeting)} meetings · stake HK${int(BOX_TRIO5_STAKE_PER_COMBO)}"
+          f"/combo × {BOX_TRIO5_COMBOS} combos")
     print(f"{'=' * 78}")
-    print(f"  {'Meeting':<12}{'OLD bets':>10}{'OLD ROI':>10}"
-          f"{'NEW bets':>10}{'NEW ROI':>10}{'$saved':>11}")
+    print(f"  {'Meeting':<12}{'PROD bets':>11}{'PROD ROI':>11}"
+          f"{'GATED bets':>12}{'GATED ROI':>11}{'$re-gate':>10}")
     print('  ' + '-' * 74)
 
     tot = defaultdict(float)
-    tot_old_n = tot_new_n = tot_old_hits = tot_new_hits = 0
+    tot_prod_n = tot_gated_n = tot_prod_hits = tot_gated_hits = 0
     for date_str in sorted(per_meeting):
         e = per_meeting[date_str]
-        old_roi = (e['old_pnl'] / e['old_stake'] * 100) if e['old_stake'] else 0
-        new_roi_str = (f"{e['new_pnl'] / e['new_stake'] * 100:>+9.1f}%"
-                       if e['new_stake'] else '       —')
+        prod_roi = (e['prod_pnl'] / e['prod_stake'] * 100) if e['prod_stake'] else 0
+        gated_roi_str = (f"{e['gated_pnl'] / e['gated_stake'] * 100:>+9.1f}%"
+                         if e['gated_stake'] else '       —')
         print(f"  {date_str[4:6]}/{date_str[6:8]}    "
-              f"{e['old_n']:>7} {old_roi:>+9.1f}% "
-              f"{e['new_n']:>9} {new_roi_str}  {e['gate_saved_pnl']:>+10.0f}")
-        for k in ('old_stake', 'old_pnl', 'new_stake', 'new_pnl', 'gate_saved_pnl'):
+              f"{e['prod_n']:>8} {prod_roi:>+9.1f}% "
+              f"{e['gated_n']:>11} {gated_roi_str}  {e['gated_delta_pnl']:>+9.0f}")
+        for k in ('prod_stake', 'prod_pnl', 'gated_stake', 'gated_pnl', 'gated_delta_pnl'):
             tot[k] += e[k]
-        tot_old_n += e['old_n']; tot_new_n += e['new_n']
-        tot_old_hits += e['old_hits']; tot_new_hits += e['new_hits']
+        tot_prod_n += e['prod_n']; tot_gated_n += e['gated_n']
+        tot_prod_hits += e['prod_hits']; tot_gated_hits += e['gated_hits']
 
     print('  ' + '-' * 74)
-    old_roi = tot['old_pnl'] / tot['old_stake'] * 100 if tot['old_stake'] else 0
-    new_roi = tot['new_pnl'] / tot['new_stake'] * 100 if tot['new_stake'] else 0
-    print(f"  TOTAL      {tot_old_n:>7} {old_roi:>+9.1f}% "
-          f"{tot_new_n:>9} {new_roi:>+9.1f}%  "
-          f"{tot['new_pnl'] - tot['old_pnl']:>+10.0f}")
+    prod_roi = tot['prod_pnl'] / tot['prod_stake'] * 100 if tot['prod_stake'] else 0
+    gated_roi = tot['gated_pnl'] / tot['gated_stake'] * 100 if tot['gated_stake'] else 0
+    print(f"  TOTAL      {tot_prod_n:>8} {prod_roi:>+9.1f}% "
+          f"{tot_gated_n:>11} {gated_roi:>+9.1f}%  "
+          f"{tot['gated_pnl'] - tot['prod_pnl']:>+9.0f}")
     print()
-    print(f"  Hit rate:  OLD={tot_old_hits}/{tot_old_n} "
-          f"({tot_old_hits/tot_old_n*100:.1f}%)  →  "
-          f"NEW={tot_new_hits}/{tot_new_n} "
-          f"({tot_new_hits/tot_new_n*100:.1f}%)")
-    print(f"  Exposure:  OLD=${tot['old_stake']:.0f}  →  "
-          f"NEW=${tot['new_stake']:.0f}  "
-          f"(gate removed ${tot['old_stake'] - tot['new_stake']:.0f})")
-    print(f"  Net P&L:   OLD={tot['old_pnl']:+.0f}  →  "
-          f"NEW={tot['new_pnl']:+.0f}  "
-          f"(improvement: {tot['new_pnl'] - tot['old_pnl']:+.0f} HKD = "
-          f"{new_roi - old_roi:+.1f}pp ROI)")
+    print(f"  Hit rate:  PROD={tot_prod_hits}/{tot_prod_n} "
+          f"({tot_prod_hits/tot_prod_n*100:.1f}%)  →  "
+          f"GATED={tot_gated_hits}/{tot_gated_n} "
+          f"({tot_gated_hits/tot_gated_n*100:.1f}%)")
+    print(f"  Exposure:  PROD=${tot['prod_stake']:.0f}  →  "
+          f"GATED=${tot['gated_stake']:.0f}  "
+          f"(gate would skip ${tot['prod_stake'] - tot['gated_stake']:.0f})")
+    print(f"  Net P&L:   PROD={tot['prod_pnl']:+.0f}  →  "
+          f"GATED={tot['gated_pnl']:+.0f}  "
+          f"(re-gating impact: {tot['gated_pnl'] - tot['prod_pnl']:+.0f} HKD = "
+          f"{gated_roi - prod_roi:+.1f}pp ROI)")
     print()
-    print(f"  Gate skipped {sum(skip_reasons.values())} bets.  "
+    print(f"  Heavy-fav clause would skip {sum(skip_reasons.values())} bets.  "
           f"Reason mix: {dict(skip_reasons)}")
     print()
     print(f"  Caveat: data is historical (burned holdout). Forward signal may differ.")
