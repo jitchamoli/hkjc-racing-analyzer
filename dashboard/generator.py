@@ -147,7 +147,42 @@ def _merge_with_existing(json_file: str, new_races: list) -> list:
 
     for race in new_races:
         old_race = old_by_num.get(race['race_number'])
-        if not old_race or not old_race.get('results_available'):
+        if not old_race:
+            continue
+
+        # Post-off / pre-results-merge protection: the original audit-2026-05-17
+        # freeze only fires for results_available=True races, leaving a 1-5 min
+        # window after off where bookies have settled and odds drift, but
+        # results_fetcher hasn't yet flipped results_available. In that window,
+        # fresh tier/has_edge/shape stats get computed from post-race-noisy
+        # odds. Detect "race has off'd" by checking the scheduled post time
+        # (`race['time']`, HKT) against now. If past, restore all the frozen
+        # race-level fields from the prior file. Caught on R3/R4/R5 (bet_ticket)
+        # and R7 (conviction_tier flipped LOW → EDGE post-off) 2026/05/24.
+        race_has_offed = False
+        race_time_str = race.get('time') or old_race.get('time')
+        if race_time_str:
+            try:
+                from datetime import datetime as _dt
+                hh, mm = race_time_str.split(':')[:2]
+                now = _dt.now()
+                post_minutes = int(hh) * 60 + int(mm)
+                now_minutes = now.hour * 60 + now.minute
+                race_has_offed = now_minutes >= post_minutes
+            except (ValueError, AttributeError):
+                pass
+
+        if race_has_offed:
+            for key in _FROZEN_PREDICTION_KEYS_RACE:
+                if key in old_race:
+                    race[key] = old_race[key]
+        elif 'bet_ticket' in old_race:
+            # Pre-race: still restore bet_ticket alone (combined with Layer 3
+            # in the regen loop, prevents the rare triple-gate-boundary flip
+            # from changing the morning ticket pre-race).
+            race['bet_ticket'] = old_race['bet_ticket']
+
+        if not old_race.get('results_available'):
             continue
 
         # Copy race-level result fields
@@ -819,11 +854,41 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     model_ver = analyzer.ml_analyzer.ml_model.model_version if hasattr(analyzer, 'ml_analyzer') else ''
     ticket_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     for r in all_races:
-        if r.get('results_available') and r.get('bet_ticket'):
+        # Freeze ticket once the race has run. Two cases:
+        # (1) results_available=True → results_fetcher has merged, definitely freeze.
+        # (2) Any horse has actual_position → race off'd this cycle, freeze
+        #     (results_fetcher runs after generate in the same ./raceday live cycle,
+        #     so on the just-finished race actual_position lands first).
+        # (3) Race is in `late` state (off time past, no results yet) — guard
+        #     against the bookie-settle odds-drift window flipping the triple
+        #     gate. We detect this by NEVER EXPANDING an existing ticket: only
+        #     replace if the new ticket has the same-or-fewer bets. Pure
+        #     shrinkage is legitimate (recommender dropped a flag); expansion
+        #     while a ticket already exists is the bug signature.
+        race_off = any(h.get('actual_position') for h in (r.get('horses') or []))
+        if r.get('bet_ticket') and (r.get('results_available') or race_off):
             continue
-        r['bet_ticket'] = build_bet_ticket(
+        old_ticket = r.get('bet_ticket')
+        new_ticket = build_bet_ticket(
             r, race_date=race_date, model_version=model_ver, generated_at=ticket_ts,
         )
+        # Layer 3 (combo-aware): once a ticket exists, refuse ANY change to
+        # combo count or bet labels. R4 2026/05/24 caught the shrinkage case:
+        # post-race ticket regen reduced BOX QIN-3 → STRAIGHT QIN (3 combos
+        # → 1 combo, both "1 bet entry" — pure-count check missed it).
+        if old_ticket:
+            old_combos = old_ticket.get('total_combos', 0) or 0
+            new_combos = new_ticket.get('total_combos', 0) or 0
+            old_labels = sorted(b.get('label', '') for b in old_ticket.get('bets', []))
+            new_labels = sorted(b.get('label', '') for b in new_ticket.get('bets', []))
+            if new_combos != old_combos or new_labels != old_labels:
+                logger.warning(
+                    f"  R{r.get('race_number')}: refusing to mutate frozen bet_ticket "
+                    f"({old_combos} combos {old_labels} → {new_combos} combos {new_labels}) "
+                    f"— likely post-race odds-drift artifact."
+                )
+                continue
+        r['bet_ticket'] = new_ticket
 
     # Alerts — diff current vs previous race_data file
     from betting.alerts import compute_alerts, AlertState, load_alert_state, save_alert_state
