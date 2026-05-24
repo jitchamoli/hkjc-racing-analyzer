@@ -371,11 +371,50 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
                 label = 'STRAIGHT TRIO' if n == 3 else f'BOX TRIO-{n}'
                 _ticket_add_bet(bets, label, 'TRIO', legs, combos, 'recommender')
 
+        # QIN PLACE BANKER — short-favorite races (top1 ≤ $1.8): WIN pays
+        # barely above stake. Banker the fav with next 3 picks for 3
+        # combos that hit when fav places + any banker places.
+        # Mirrors JS at template.py:1947-1959 (moved server-side 2026-05-24
+        # to make bet_ticket the single source of truth).
+        top1 = horses[0] if horses else None
+        if top1 and (top1.get('win_odds') or 99) <= 1.8 and len(horses) >= 4:
+            bankers = horses[1:4]
+            _ticket_add_bet(
+                bets, 'QIN PLACE BANKER', 'QIN PLACE',
+                [top1] + bankers, 3, 'qin_place_banker',
+            )
+
+        # BOX QIN-4 PROTECTION — always show when top-4 has horses outside
+        # primary recommender QIN bets (catches the rank 3-4 spoiler placings).
+        # Mirrors JS at template.py:1966-1980.
+        top4 = horses[:4]
+        if len(top4) == 4:
+            primary_nums = {leg['number']
+                            for b in bets for leg in b.get('legs') or []}
+            has_non_primary = any(h.get('number') not in primary_nums for h in top4)
+            if has_non_primary or not bets:
+                _ticket_add_bet(bets, 'BOX QIN-4 PROTECTION', 'QUINELLA',
+                                top4, 6, 'qin_protection')
+
         top5 = horses[:5]
         if len(top5) == 5:
             tier = (race.get('conviction_tier') or 'SKIP').upper()
             top1_odds = top5[0].get('win_odds') or 0
             field = len(horses)
+            # F4 SAVER — 1 unit exact-order top-4. Same gates as F4 BOX-5
+            # EXCEPT heavy-fav-skip is RETAINED (exact-order F4 collapses
+            # hard on heavy favs; the box's larger payout-on-hit absorbs
+            # the cost, the saver's 1-combo stake doesn't). Mirrors JS at
+            # template.py:1988-2018 (moved server-side 2026-05-24).
+            f4_saver_skip = (
+                (top1_odds > 0 and top1_odds < 2.5) or
+                (tier not in ('EDGE', 'HIGH', 'MED')) or
+                (field < 8)
+            )
+            if not f4_saver_skip:
+                _ticket_add_bet(bets, 'F4 SAVER', 'FIRST 4', top4, 1,
+                                'f4_saver_gate')
+
             # Heavy-fav-skip dropped 2026-05-24 per user: at flat $10/combo
             # the downside is bounded; user prefers visible-and-staked over
             # the "phantom-hit" recap inconsistency (R8/R11 2026-05-24).

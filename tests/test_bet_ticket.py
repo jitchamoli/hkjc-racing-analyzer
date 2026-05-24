@@ -37,11 +37,16 @@ def test_bet_ticket_persists_recommender_and_main_extras():
         generated_at='2026-05-24 12:00:00',
     )
 
+    # 2026-05-24: PROTECTION + F4 SAVER moved from JS to build_bet_ticket so
+    # the server's ticket is the single source of truth (closes WA + detail
+    # panel xfails). Top-4 has #4 (SKIP, outside primary QIN) → PROTECTION
+    # fires. EDGE/HIGH/MED + field≥8 + top1=$3.4 → F4 SAVER fires.
     labels = [b['label'] for b in ticket['bets']]
-    assert labels == ['BOX QIN-3', 'BOX TRIO-5', 'F4 BOX-5']
-    assert ticket['total_combos'] == 18
-    assert ticket['unit_stake'] == 10.0
-    assert ticket['allocated_amount'] == 180.0
+    assert labels == ['BOX QIN-3', 'BOX QIN-4 PROTECTION', 'F4 SAVER',
+                      'BOX TRIO-5', 'F4 BOX-5']
+    assert ticket['total_combos'] == 3 + 6 + 1 + 10 + 5  # 25
+    assert ticket['unit_stake'] == 5.0  # 200 / 25 → 8 → floor-5 → 5
+    assert ticket['allocated_amount'] == 125.0
     assert ticket['model_version'] == 'm1'
 
 

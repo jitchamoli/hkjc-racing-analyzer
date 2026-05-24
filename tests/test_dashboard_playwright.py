@@ -203,16 +203,11 @@ def test_visual_bet_ticket_shows_frozen_ticket_bets(browser: Browser, tmp_path):
     page.close()
 
 
-@pytest.mark.xfail(
-    reason="Detail-panel BET TICKET is built by JS ticketLines (template.py "
-           "~1700-2240), not by iterating race.bet_ticket.bets. Same gap as "
-           "the WA generator; refactor queued to make both ticket-driven.",
-    strict=True,
-)
 def test_visual_bet_ticket_has_no_client_side_fabrication(browser: Browser, tmp_path):
     """STRICT contract: rendered ticket must NOT include MAIN bets that
-    aren't in race.bet_ticket. Currently FAILS — JS adds F4 SAVER, MAIN
-    F4 BOX-5, BOX TRIO-5, BOX TRIO-6 based on its own gate logic."""
+    aren't in race.bet_ticket. Locked in by 2026-05-24 ticket-driven
+    refactor of _buildRaceDetailPanel — JS now iterates bet_ticket.bets
+    with the gated extras suppressed when not in the ticket."""
     race = _make_race(
         race_number=8,
         bet_ticket_bets=[_qin_bet([1, 2, 3, 4])],
@@ -260,20 +255,11 @@ def test_copy_wa_payload_includes_bet_ticket_labels(browser: Browser, tmp_path):
     page.close()
 
 
-@pytest.mark.xfail(
-    reason="WA generator (template.py:955-1336) computes its own bets "
-           "client-side instead of mirroring race.bet_ticket. Known gap, "
-           "same class as the STRIKE-badge bug fixed 2026-05-24. Refactor "
-           "queued — see GPT-5.5 Playwright audit follow-up.",
-    strict=True,
-)
 def test_copy_wa_payload_has_no_client_side_fabrication(browser: Browser, tmp_path):
     """STRICT contract: WA payload must NOT include MAIN bet labels that
-    aren't in race.bet_ticket. Currently FAILS because the JS WA generator
-    does its own t5/F4 gate logic — fixing requires refactoring the WA
-    generation block to iterate `race.bet_ticket.bets` like the server-side
-    builder. xfail until that refactor lands.
-    """
+    aren't in race.bet_ticket. Locked in by 2026-05-24 ticket-driven
+    refactor of the WA generator — every MAIN/PROTECTION/SAVER emitter
+    now gates on `_waTicketHas(label)`."""
     race = _make_race(
         race_number=8,
         bet_ticket_bets=[_qin_bet([1, 2, 3, 4])],  # ONLY QIN, no MAIN bets
