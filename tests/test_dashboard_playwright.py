@@ -151,6 +151,35 @@ def browser():
         b.close()
 
 
+def test_dashboard_renders_race_cards_without_js_errors(browser: Browser, tmp_path):
+    """Smoke test: page must render race cards without throwing JS errors.
+
+    Caught a regression 2026-05-24 where a leftover `mainBetTypes` reference
+    (variable removed during the WA refactor but one usage missed) crashed
+    renderHero(), leaving the dashboard with only static chrome and no race
+    cards. Playwright contract tests didn't catch it because their fixtures
+    didn't exercise the t6 chaos path. This pins it."""
+    race = _make_race(
+        race_number=8,
+        bet_ticket_bets=[_qin_bet([1, 2, 3, 4])],
+        results_available=False,
+        conviction_tier='HIGH',
+        field_size=11,
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+    page.wait_for_timeout(300)
+    assert errors == [], f"JS errors on render: {errors}"
+    assert page.locator('[data-testid="race-card-R8"]').count() == 1, (
+        'race card must render'
+    )
+    page.close()
+
+
 def test_strike_badge_reads_from_bet_ticket_not_synthetic_top_n(browser: Browser, tmp_path):
     """R8/R11 2026-05-24 class of bug at the UI level: top-4 finishers fall
     inside top-5 ranks, but F4 BOX-5 is NOT in the bet_ticket. Old buggy
