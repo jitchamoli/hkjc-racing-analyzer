@@ -308,3 +308,122 @@ def test_copy_wa_payload_has_no_client_side_fabrication(browser: Browser, tmp_pa
         f"WA fabricated F4 BOX-5 not in ticket: {payload[:300]!r}"
     )
     page.close()
+
+
+# ---------------------------------------------------------------------------
+# STRIKE-PLACE / STRIKE-QPL — added 2026-05-25 (GPT-5.5 R8 Finding #1).
+# _didBetHit() ignored PLACE and QIN PLACE pools; replay scored those bets
+# but the dashboard badge silently said MISS on a real hit.
+# ---------------------------------------------------------------------------
+
+def _place_bet(number: int) -> dict:
+    return {
+        'label': 'PLACE',
+        'pool': 'PLACE',
+        'combos': 1,
+        'legs': [{'rank': 1, 'number': number, 'name': f'HORSE{number}'}],
+        'reason': 'recommender',
+        'unit_stake': 10.0,
+        'amount': 10.0,
+    }
+
+
+def _qpl_banker_bet(pivot: int, bankers: list[int]) -> dict:
+    legs = [{'rank': 1, 'number': pivot, 'name': f'HORSE{pivot}'}]
+    legs += [{'rank': i + 2, 'number': n, 'name': f'HORSE{n}'}
+             for i, n in enumerate(bankers)]
+    return {
+        'label': 'QIN PLACE BANKER',
+        'pool': 'QIN PLACE',
+        'combos': len(bankers),
+        'legs': legs,
+        'reason': 'qin_place_banker',
+        'unit_stake': 10.0,
+        'amount': 10.0 * len(bankers),
+    }
+
+
+def test_strike_place_badge_renders_when_pick_places(browser: Browser, tmp_path):
+    """PLACE bet on #1; horse #1 finishes 2nd (top-3). Badge must show
+    STRIKE-PLACE — prior to 2026-05-25 _didBetHit had no PLACE branch and
+    silently returned MISS even though validate_hk replay priced the win."""
+    race = _make_race(
+        race_number=8,
+        bet_ticket_bets=[_place_bet(1)],
+        horses_top4_positions=[3, 1, 5, 7],  # #1 finishes 2nd
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+
+    badge = page.locator('[data-testid="strike-badge-R8"]')
+    assert badge.count() == 1, 'expected exactly one STRIKE badge for R8'
+    badge_text = badge.inner_text()
+    assert 'PLACE' in badge_text, (
+        f"expected STRIKE-PLACE on placed pick, got: {badge_text!r}"
+    )
+    assert 'MISS' not in badge_text
+    page.close()
+
+
+def test_strike_qpl_badge_renders_when_pivot_and_banker_both_place(browser: Browser, tmp_path):
+    """QPL BANKER pivot=#1 + bankers=[#2, #3, #4]. Top-3 = [#1, #2, #5].
+    Pivot (1) and banker (2) both placed → ≥1 hit pair → STRIKE-QPL."""
+    race = _make_race(
+        race_number=9,
+        bet_ticket_bets=[_qpl_banker_bet(pivot=1, bankers=[2, 3, 4])],
+        horses_top4_positions=[1, 2, 5, 6],
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+
+    badge = page.locator('[data-testid="strike-badge-R9"]')
+    assert badge.count() == 1
+    badge_text = badge.inner_text()
+    assert 'QPL' in badge_text, (
+        f"expected STRIKE-QPL on placed QPL pair, got: {badge_text!r}"
+    )
+    page.close()
+
+
+def test_strike_qpl_miss_when_pivot_off_board(browser: Browser, tmp_path):
+    """Pivot=#1 falls off-board (5th); no pair can pay. Badge = MISS."""
+    race = _make_race(
+        race_number=10,
+        bet_ticket_bets=[_qpl_banker_bet(pivot=1, bankers=[2, 3, 4])],
+        horses_top4_positions=[2, 3, 4, 5],  # #1 off podium
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+
+    badge_text = page.locator('[data-testid="strike-badge-R10"]').inner_text()
+    assert 'QPL' not in badge_text, (
+        f"QPL must NOT fire when pivot misses top-3, got: {badge_text!r}"
+    )
+    page.close()
+
+
+def test_strike_place_priority_below_harder_hits(browser: Browser, tmp_path):
+    """Priority: WIN > QIN > QPL > F4-5 > BOX4 > TRIO5 > TRIO6 > PLACE.
+    When both PLACE and QIN hit, badge shows STRIKE-QIN (PLACE is the
+    loosest hit; should not mask the headline QIN strike)."""
+    race = _make_race(
+        race_number=11,
+        bet_ticket_bets=[_qin_bet([1, 2]), _place_bet(1)],
+        horses_top4_positions=[1, 2, 5, 6],
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+
+    badge_text = page.locator('[data-testid="strike-badge-R11"]').inner_text()
+    assert 'QIN' in badge_text and 'PLACE' not in badge_text, (
+        f"expected STRIKE-QIN (priority over PLACE), got: {badge_text!r}"
+    )
+    page.close()
