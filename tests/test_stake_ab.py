@@ -204,6 +204,118 @@ def test_append_log_partial_backfill_preserves_other_variants(tmp_path, monkeypa
 
 
 # ---------------------------------------------------------------------------
+# Ticket-driven firing (GPT-5.5 R9 2026-05-25)
+# firing_bets() must prefer race.bet_ticket.bets when present; only fall
+# back to legacy reconstruction for pre-bet_ticket JSONs. This closes the
+# drift that had stake_ab over-firing BOX TRIO-5 + F4 BOX-5 (and missing
+# BOX QIN-4 PROTECTION + F4 SAVER) vs the actual frozen ticket.
+# ---------------------------------------------------------------------------
+
+def _race_with_ticket(bets: list[dict], horses: int = 10,
+                       conviction_tier: str = 'MED') -> dict:
+    """Build a race that has BOTH a frozen bet_ticket AND horse-level
+    bet_recommendations that would drive a DIFFERENT legacy reconstruction.
+    Used to prove ticket wins over reconstruction."""
+    horse_list = [{'win_odds': 3.0 + i, 'rank': i + 1, 'number': i + 1,
+                   'name': f'H{i+1}',
+                   # All horses have rec=QIN so legacy reconstruction would
+                   # produce a giant BOX QIN-N spanning the whole field.
+                   'bet_recommendation': 'QIN'} for i in range(horses)]
+    return {
+        'horses': horse_list,
+        'conviction_tier': conviction_tier,
+        'bet_ticket': {'bets': bets},
+    }
+
+
+def test_firing_bets_prefers_frozen_ticket_over_legacy_reconstruction():
+    """When bet_ticket exists, firing_bets must report exactly the ticket
+    labels — even when horse-level bet_recommendation would re-derive
+    something completely different. This closes the drift identified by
+    GPT-5.5 R9 (over-firing BOX TRIO-5/F4 BOX-5 on real meetings).
+
+    Without the fix: 10 horses all rec=QIN reconstructs as BOX QIN-10
+    (45 combos) + BOX TRIO-5 + F4 BOX-5 because MED+field≥8 triple gate
+    passes. With the fix: just whatever's actually in the ticket."""
+    race = _race_with_ticket(
+        bets=[{'label': 'BOX QIN-3', 'combos': 3}],
+    )
+    fires = firing_bets(race)
+    assert fires == {'BOX QIN-3': 3}, (
+        f"ticket-first failed; got {fires!r}"
+    )
+
+
+def test_firing_bets_empty_ticket_returns_empty_not_legacy():
+    """A ticket with no bets means the recommender chose to skip the race
+    — that's the ground truth, not a signal to fall back to legacy. Key
+    distinction: empty BET LIST in a dict-typed ticket = skip; missing
+    bet_ticket key entirely = legacy JSON. This guards SKIP-tier races
+    from being silently bet by the fallback path."""
+    race = _race_with_ticket(bets=[])
+    fires = firing_bets(race)
+    assert fires == {}, (
+        f"empty ticket must NOT trigger legacy reconstruction; got {fires!r}"
+    )
+
+
+def test_firing_bets_missing_ticket_falls_back_to_legacy():
+    """No bet_ticket key (legacy JSON pre-ticket-system) → legacy
+    reconstruction. Preserves backward compatibility for old race JSONs
+    that were saved before build_bet_ticket existed."""
+    race = _race_with_ranks(top1_odds=3.0, tier='MED', n_horses=10)
+    # No bet_ticket key. Legacy path should fire MED/field=10 triple gate.
+    fires = firing_bets(race)
+    assert 'BOX TRIO-5' in fires
+    assert 'F4 BOX-5' in fires
+
+
+def test_firing_bets_ticket_first_preserves_chaos_filter():
+    """CHAOS filter must still apply even when ticket is present —
+    otherwise the flat_min_pre_chaos counterfactual variant breaks."""
+    race = _race_with_ticket(
+        bets=[{'label': 'BOX QIN-3', 'combos': 3}],
+    )
+    # SOFT going + Class 4 should trigger CHAOS detect → no fires regardless
+    # of what's in the ticket. (CHAOS suppression sits outside the recommender;
+    # it's a stake_ab forward-validation overlay.)
+    race['going'] = 'SOFT'
+    race['class_type'] = 'Class 4'
+    fires_chaos_on = firing_bets(race, apply_chaos=True)
+    fires_chaos_off = firing_bets(race, apply_chaos=False)
+    assert fires_chaos_on == {}, (
+        f"CHAOS must suppress even with ticket; got {fires_chaos_on!r}"
+    )
+    assert fires_chaos_off == {'BOX QIN-3': 3}, (
+        f"CHAOS-off must read ticket; got {fires_chaos_off!r}"
+    )
+
+
+def test_firing_bets_ticket_first_captures_server_side_addons():
+    """The whole point of the fix: server-side add-ons emitted by
+    build_bet_ticket (BOX QIN-4 PROTECTION, F4 SAVER, QIN PLACE BANKER)
+    must surface in firing_bets even though they have no horse-level
+    bet_recommendation backing. Legacy reconstruction silently dropped
+    these — ticket-first picks them up correctly."""
+    race = _race_with_ticket(
+        bets=[
+            {'label': 'BOX QIN-3', 'combos': 3},
+            {'label': 'BOX QIN-4 PROTECTION', 'combos': 6},
+            {'label': 'F4 SAVER', 'combos': 1},
+            {'label': 'QIN PLACE BANKER', 'combos': 3},
+        ],
+    )
+    fires = firing_bets(race)
+    expected = {
+        'BOX QIN-3': 3,
+        'BOX QIN-4 PROTECTION': 6,
+        'F4 SAVER': 1,
+        'QIN PLACE BANKER': 3,
+    }
+    assert fires == expected, f"server-side add-ons dropped; got {fires!r}"
+
+
+# ---------------------------------------------------------------------------
 # QIN PLACE BANKER firing (GPT-5.5 R8 Finding #2 2026-05-25)
 # ---------------------------------------------------------------------------
 
