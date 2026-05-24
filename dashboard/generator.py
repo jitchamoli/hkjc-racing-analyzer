@@ -26,6 +26,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def preflight_dashboard_ml() -> dict:
+    """Fail closed before race-day dashboard generation touches live data."""
+    from ml.integrity import check_dashboard_ml_integrity
+    return check_dashboard_ml_integrity()
+
+
 def _atomic_write(path: str, content: str) -> None:
     # Write to a sibling temp file then os.replace so concurrent readers
     # (the dashboard server, a browser polling the file) never see a
@@ -508,7 +514,12 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
             metadata = getattr(ml_model, '_metadata', {}) if ml_model else {}
             check_model_integrity(metadata)
             integrity_ok = True
-    except Exception:
+    except Exception as e:
+        if getattr(analyzer, 'fail_closed_ml', False):
+            raise RuntimeError(
+                f"Dashboard ML integrity check failed while building "
+                f"race {race.race_number}: {type(e).__name__}: {e}"
+            ) from e
         integrity_ok = False
 
     # Persist the just-fetched odds before computing age — otherwise
@@ -710,8 +721,23 @@ async def main():
 
     logger.info(f"Generating predictions for {race_date}")
 
+    try:
+        ml_integrity = preflight_dashboard_ml()
+    except Exception as e:
+        logger.error(
+            "Dashboard ML integrity preflight failed; refusing to generate "
+            f"predictions: {type(e).__name__}: {e}"
+        )
+        raise SystemExit(2) from e
+    logger.info(
+        "Dashboard ML integrity passed: "
+        f"model={ml_integrity.get('model_version')} "
+        f"groups={ml_integrity.get('model_fold_groups')} "
+        f"blend={ml_integrity.get('blend_version')}"
+    )
+
     fetcher = HKJCDataFetcher()
-    analyzer = CombinedRaceAnalyzer()
+    analyzer = CombinedRaceAnalyzer(fail_closed_ml=True)
     # Lazy-started Playwright browser sits on fetcher._pw_fetcher. Without an
     # explicit close() at the end the chromium subprocess lingers and stacks
     # across shadow runs that immediately follow (audit fix 2026-05-17).

@@ -478,7 +478,8 @@ class BettingStrategy:
 # ---------------------------------------------------------------------------
 
 class CombinedRaceAnalyzer:
-    def __init__(self):
+    def __init__(self, fail_closed_ml: bool = False):
+        self.fail_closed_ml = fail_closed_ml
         self.strategy = BettingStrategy()
         self.ml_analyzer = _MLAnalyzer()
         self.draw_analyzer = DrawBiasAnalyzer()
@@ -1117,15 +1118,19 @@ class CombinedRaceAnalyzer:
             "field_weights": field_weights,
         }
 
-        # Graceful degradation: if the model is missing/expired/corrupt,
-        # fall back to rule-only blending instead of crashing the dashboard.
-        # IntegrityError fires for >90-day-old models (per ml/integrity.py);
-        # RuntimeError for untrained models (F-17). Both are recoverable.
+        # Graceful degradation remains available to offline diagnostics, but
+        # race-day dashboard generation runs fail_closed_ml=True so a bad ML
+        # path aborts before writing plausible-looking rule-only predictions.
         try:
             ml_prediction = self.ml_analyzer.predict(horse_data, all_results or [], "")
             ml_available_for_horse = ML_AVAILABLE
         except Exception as e:
             from ml.model import MLPrediction
+            if self.fail_closed_ml:
+                raise RuntimeError(
+                    f"ML prediction failed in fail-closed mode for "
+                    f"{horse.name}: {type(e).__name__}: {e}"
+                ) from e
             logger.warning(
                 f"ML predict failed for {horse.name} ({type(e).__name__}: {e}); "
                 "degrading to rule-only blend"
