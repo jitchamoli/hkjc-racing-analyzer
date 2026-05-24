@@ -64,6 +64,29 @@ def test_production_model_artifact_requires_grouped_fold_metadata(tmp_path):
         check_production_model_artifact(model_path)
 
 
+def test_grouped_fold_metadata_accepts_intra_day_two_digit_race_boundary(tmp_path):
+    # ST Sundays have R10/R11. Lex compare would falsely flag '2026/01/06-10'
+    # <= '2026/01/06-9' as "folds overlap". The race-number-aware sort key
+    # must accept this boundary.
+    model_path = tmp_path / 'hkjc_racing_model.pkl'
+    payload = _valid_model_payload()
+    payload['fold_metadata'] = {
+        'n_groups': 4,
+        'folds': {
+            'train': {'n_rows': 12, 'n_groups': 1,
+                      'first_group': '2026/01/06-1', 'last_group': '2026/01/06-9'},
+            'val': {'n_rows': 12, 'n_groups': 1,
+                    'first_group': '2026/01/06-10', 'last_group': '2026/01/06-10'},
+            'calib': {'n_rows': 12, 'n_groups': 1,
+                      'first_group': '2026/01/06-11', 'last_group': '2026/01/06-11'},
+            'test': {'n_rows': 12, 'n_groups': 1,
+                     'first_group': '2026/01/07-1', 'last_group': '2026/01/07-1'},
+        },
+    }
+    _write_signed_pickle(model_path, payload)
+    check_production_model_artifact(model_path)  # must not raise
+
+
 def test_dashboard_ml_integrity_requires_blend_calibrator_sidecar(tmp_path):
     model_path = tmp_path / 'hkjc_racing_model.pkl'
     blend_path = tmp_path / 'blend_calibrator.pkl'

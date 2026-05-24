@@ -110,6 +110,20 @@ def _read_verified_pickle(path: Path, label: str) -> Dict[str, Any]:
     return payload
 
 
+def _race_key_sort_tuple(key: Any) -> tuple:
+    # Race keys are 'YYYY/MM/DD-N' (training) or 'YYYY/MM/DD-RN' (split_rows_by_race).
+    # Lexicographic compare breaks intra-day: '2024/05/29-10' < '2024/05/29-9'.
+    s = str(key)
+    idx = s.rfind('-')
+    if idx < 0:
+        return (s, 0)
+    num = s[idx + 1:].lstrip('Rr')
+    try:
+        return (s[:idx], int(num))
+    except ValueError:
+        return (s[:idx], 0)
+
+
 def check_grouped_fold_metadata(fold_metadata: Any) -> None:
     """Require a race-grouped temporal split in the saved production artifact."""
     if not isinstance(fold_metadata, dict):
@@ -142,15 +156,17 @@ def check_grouped_fold_metadata(fold_metadata: Any) -> None:
             raise IntegrityError(f"Integrity check failed: {name} fold has invalid n_groups.")
         if not first_group or not last_group:
             raise IntegrityError(f"Integrity check failed: {name} fold missing group bounds.")
-        if str(first_group) > str(last_group):
+        first_key = _race_key_sort_tuple(first_group)
+        last_key = _race_key_sort_tuple(last_group)
+        if first_key > last_key:
             raise IntegrityError(f"Integrity check failed: {name} fold group bounds are reversed.")
-        if previous_last is not None and str(first_group) <= str(previous_last):
+        if previous_last is not None and first_key <= previous_last:
             raise IntegrityError(
                 f"Integrity check failed: grouped folds overlap or are not temporal "
                 f"at {name} fold boundary."
             )
         total_groups += fold_groups
-        previous_last = last_group
+        previous_last = last_key
 
     if total_groups != n_groups:
         raise IntegrityError(
