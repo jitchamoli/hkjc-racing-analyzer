@@ -89,6 +89,37 @@ def _exotic_div(conn, d, rno, pool, combination):
     return hkjc_declared_to_unit(row[0]) if row else None
 
 
+def _win_div(conn, d, rno, horse_number):
+    """Per-$1 WIN dividend for a specific winning horse number.
+
+    Added 2026-05-25 (GPT-5.5 Finding #4): prediction_log.actual_odds is
+    populated 0 for all rows, so the prior WIN-from-actual_odds path
+    silently dropped every WIN replay. race_dividends.pool='WIN' has
+    4,611 rows — query directly.
+    """
+    row = conn.execute(
+        "SELECT dividend FROM race_dividends WHERE race_date=? AND race_number=? "
+        "AND pool='WIN' AND combination=?",
+        (d, rno, str(int(horse_number))),
+    ).fetchone()
+    return hkjc_declared_to_unit(row[0]) if row else None
+
+
+def _place_div(conn, d, rno, horse_number):
+    """Per-$1 PLACE dividend for a specific placed horse number.
+
+    pool='PLACE' has one row per placed horse per race (3 rows when 8+
+    runners, 2 rows when 4-7 runners, 1 when ≤4). Returns None if the
+    horse did not place.
+    """
+    row = conn.execute(
+        "SELECT dividend FROM race_dividends WHERE race_date=? AND race_number=? "
+        "AND pool='PLACE' AND combination=?",
+        (d, rno, str(int(horse_number))),
+    ).fetchone()
+    return hkjc_declared_to_unit(row[0]) if row else None
+
+
 def _load_cutoff(conn) -> str:
     if CUTOFF_FILE.exists():
         cutoff = CUTOFF_FILE.read_text().strip()
@@ -197,8 +228,7 @@ def _score_meeting_replay(conn, date) -> dict | None:
         return None
 
     horse_rows = conn.execute(
-        "SELECT race_number, horse_number, horse_name, actual_position, "
-        "       COALESCE(actual_odds, 0) AS actual_odds "
+        "SELECT race_number, horse_number, horse_name, actual_position "
         "FROM prediction_log WHERE race_date=? AND results_filled=1",
         (date,),
     ).fetchall()
@@ -207,7 +237,6 @@ def _score_meeting_replay(conn, date) -> dict | None:
         by_race[r["race_number"]][r["horse_name"]] = {
             "number": r["horse_number"],
             "actual_position": r["actual_position"],
-            "actual_odds": r["actual_odds"],
         }
 
     acc: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0])
@@ -270,14 +299,33 @@ def _score_meeting_replay(conn, date) -> dict | None:
                     horses[finishers[p]]["number"] for p in (1, 2, 3, 4)))
                 div_per_unit = _exotic_div(conn, date, rno, pool, combo_str)
             elif hit and pool == "WIN":
-                # Price from the winning horse's actual_odds (SP). HKJC WIN
-                # odds are already per-$1 (decimal), so div_per_unit = odds.
+                # 2026-05-25 (Finding #4): price from race_dividends pool='WIN'
+                # for the winning horse number (prediction_log.actual_odds is
+                # populated 0 for all rows, so the old path silently dropped
+                # every WIN replay).
                 winner_name = finishers.get(1)
-                div_per_unit = (horses.get(winner_name, {}).get("actual_odds") or 0) or None
-            # PLACE pool dividends aren't in race_dividends and there's no
-            # per-horse PLACE column in prediction_log — leave hit unscored.
+                winner_num = horses.get(winner_name, {}).get("number")
+                if winner_num:
+                    div_per_unit = _win_div(conn, date, rno, winner_num)
+            elif hit and pool == "PLACE":
+                # PLACE pays once per placed leg horse (1-3 placed horses per
+                # race depending on field size). Sum dividends across all leg
+                # horses that actually placed — most PLACE bets have 1 leg
+                # but the data structure supports multiple.
+                placed_legs_div = 0.0
+                placed_any = False
+                for leg_name in leg_names:
+                    if any(finishers.get(p) == leg_name for p in (1, 2, 3)):
+                        ln_num = horses.get(leg_name, {}).get("number")
+                        if ln_num:
+                            d2 = _place_div(conn, date, rno, ln_num)
+                            if d2:
+                                placed_legs_div += d2
+                                placed_any = True
+                if placed_any:
+                    div_per_unit = placed_legs_div
 
-            if hit and div_per_unit is None and pool in ("QUINELLA", "TRIO", "FIRST 4", "WIN"):
+            if hit and div_per_unit is None and pool in ("QUINELLA", "TRIO", "FIRST 4", "WIN", "PLACE"):
                 continue
 
             # Box bets: only the one winning combo pays out, NOT every combo
