@@ -95,9 +95,20 @@ LOG_HEADERS = [
 # ---------------------------------------------------------------------------
 
 def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
-    """Return {bet_label: combo_count} for all bets the dashboard fires on
-    this race. Mirrors the template.py logic so the A/B reflects what the
-    user actually sees on their dashboard.
+    """Return {bet_label: combo_count} for all bets the user actually staked
+    on this race.
+
+    Ticket-first (preferred): reads `race.bet_ticket.bets` — the frozen
+    server-side ticket that drove the dashboard, WA copy, and HKJC entries.
+    This is the SAME source `validate_hk --replay` consumes, so stake_ab's
+    ROI now matches replay exactly. Mirrors the validate_hk shift from
+    synthetic-reconstruction to ticket-driven scoring (GPT-5.5 R9 2026-05-25).
+
+    Legacy reconstruction (fallback): pre-bet_ticket JSONs reconstruct the
+    fire list from horse-level `bet_recommendation` + production gates.
+    This re-derivation drifts whenever production gates change after the
+    JSON was saved — caught when stake_ab over-fired BOX TRIO-5/F4 BOX-5
+    + missed BOX QIN-4 PROTECTION/F4 SAVER vs the actual ticket.
 
     apply_chaos: when True (default), suppresses ALL bets on soft-going
     races per the CHAOS filter shipped 2026-05-23. Set False to compute
@@ -113,6 +124,25 @@ def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
         )
         if is_chaos:
             return {}
+
+    # Ticket-first path — the frozen ticket is the only ground truth for
+    # what was actually staked. Even an empty ticket (recommender produced
+    # no bets) is informative and must NOT trigger the legacy fallback.
+    bet_ticket = race.get('bet_ticket')
+    if isinstance(bet_ticket, dict) and 'bets' in bet_ticket:
+        ticket_bets = bet_ticket.get('bets') or []
+        out: dict[str, int] = {}
+        for b in ticket_bets:
+            label = (b.get('label') or '').strip()
+            combos = int(b.get('combos', 0) or 0)
+            if label and combos > 0:
+                # If the same label appears twice (defensive — shouldn't
+                # happen with current build_bet_ticket), take the larger
+                # combo count rather than silently dropping one.
+                out[label] = max(out.get(label, 0), combos)
+        return out
+
+    # ----- legacy fallback (pre-bet_ticket JSONs only) -----------------
     bet_horse_counts = defaultdict(int)
     for h in horses:
         b = (h.get('bet_recommendation') or '').strip()
@@ -136,23 +166,12 @@ def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
             elif n >= 4:
                 out[f'BOX TRIO-{n}'] = n * (n - 1) * (n - 2) // 6
 
-    # QIN PLACE BANKER — short-favorite races (top1 ≤ $1.8). Mirrors
-    # dashboard/generator.py:428-439 (server-side build_bet_ticket).
-    # 3 combos: pivot (top1) × bankers (top2-4). Without this branch,
-    # stake_ab silently ignored every QPL BANKER bet production fired,
-    # so flat_min/production/invert ROI all undercounted on heavy-fav
-    # cards (GPT-5.5 R8 Finding #2 2026-05-25).
     horses_by_rank = sorted(horses, key=lambda h: h.get('rank') or 99)
     if (horses_by_rank
             and (horses_by_rank[0].get('win_odds') or 99) <= 1.8
             and len(horses_by_rank) >= 4):
         out['QIN PLACE BANKER'] = 3
 
-    # MAIN-tier auto-fires when top-5 exists (mirrors production
-    # build_bet_ticket triple gate). Heavy-fav-skip clause was removed
-    # 2026-05-24 to match production after user UNGATE choice (see
-    # memory: heavy-fav-skip-ungated-2026-05-24 + GPT-5.5 Finding #2).
-    # Tier + field-size gates retained.
     if len(horses) >= 5:
         tier = (race.get('conviction_tier') or 'SKIP').upper()
         field_size = len(horses)
