@@ -786,18 +786,22 @@ function renderBetCard(race) {{
           ' (rank ' + esc(_lp.best.rank) + ', @' + esc(_lp.best.win_odds) + ', -' + _lp.pct + '%)</span></div>' +
       '</div>'
     : '';
-  // EXPERIMENT (owner-only): top-2 + bolter (biggest price in rank 6-9), straight
-  // TRIO. Amber/dashed, NOT STAKED, isolated from ML. Lottery line. See _bolterTrio().
+  // EXPERIMENT (owner-only): top-1 + 1 HOT (most-steamed rank 6-12) + 1 COLD
+  // (most-drifted rank 6-12), straight TRIO. Amber/dashed, NOT STAKED, isolated
+  // from ML. Lottery line. Updated 2026/05/24. See _bolterTrio().
   var _bt = _bolterTrio(race);
   var bolterBlock = _bt
-    ? '<div class="trust-block" style="margin-top:6px;border:1px dashed #b45309;border-radius:6px;padding:6px 10px;background:rgba(180,83,9,.10)">' +
-        '<span style="background:#b45309;color:#fef3c7;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">\\uD83C\\uDF40 BOLTER TRIO \\u00b7 EXPERIMENT \\u00b7 NOT STAKED</span>' +
+    ? '<div class="trust-block" style="margin-top:6px;border:1px dashed #ec4899;border-radius:6px;padding:6px 10px;background:rgba(131,24,67,.18)">' +
+        '<span style="background:#831843;color:#fce7f3;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">\\uD83C\\uDF40 BOLTER TRIO \\u00b7 EXPERIMENT \\u00b7 NOT STAKED</span>' +
         (_bt.tag ? ' <span style="color:' + _bt.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _bt.tag + '</span>' : '') +
-        '<div style="color:var(--dim);font-size:.66rem;margin-top:3px">straight TRIO \\u00b7 top-2 + bolter: ' +
-          '<span style="color:#fcd34d;font-weight:700">' + _bt.nums.map(function(n) {{ return '#' + esc(n); }}).join('-') + '</span>' +
-          ' <span style="opacity:.75">(3rd = #' + esc(_bt.third.number) + ' ' + esc(_bt.third.name) +
-          ', rank ' + esc(_bt.third.rank) + ', @' + esc(_bt.third.win_odds) +
-          ' \\u2014 biggest price in rank 6-9)</span></div>' +
+        '<div style="color:#fbcfe8;font-size:.66rem;margin-top:3px">straight TRIO \\u00b7 top-1 + hot + cold: ' +
+          '<span style="color:#fce7f3;font-weight:700">' + _bt.nums.map(function(n) {{ return '#' + esc(n); }}).join('-') + '</span>' +
+          ' <span style="opacity:.85">(\\uD83D\\uDD25 hot #' + esc(_bt.hot.number) + ' ' + esc(_bt.hot.name) +
+          ', rank ' + esc(_bt.hot.rank) + ', @' + esc(_bt.hot.win_odds) +
+          (_bt.hotPct ? ', ' + (_bt.hotPct > 0 ? '+' : '') + _bt.hotPct.toFixed(0) + '%' : '') + ')' +
+          ' (\\u2744\\uFE0F cold #' + esc(_bt.cold.number) + ' ' + esc(_bt.cold.name) +
+          ', rank ' + esc(_bt.cold.rank) + ', @' + esc(_bt.cold.win_odds) +
+          (_bt.coldPct ? ', ' + (_bt.coldPct > 0 ? '+' : '') + _bt.coldPct.toFixed(0) + '%' : '') + ')</span></div>' +
       '</div>'
     : '';
   if (ss.amount && ss.amount > 0) {{
@@ -1515,31 +1519,45 @@ function _longshotPick(race) {{
   return {{ best: best, pct: bestPct, box6nums: box6nums, tag: tag, tagColor: tagColor }};
 }}
 
-// EXPERIMENT (owner-requested, display-only): a straight 3-horse TRIO of our
-// top-2 + a BOLTER — the biggest-priced runner in the rank 6-9 zone (the
-// live-but-underrated longshots, where the 51-1 #8 sat on 2026/05/20 R2).
-// Replicates the lose-lose-JACKPOT pattern: ~1% hit on the holdout, but it is
-// the only variant that can land a top-2 + big-longshot trio. Falls back to
-// the longest price outside the top-2 on short fields. Deterministic, stable
-// across refreshes. NOT staked, and completely isolated from the ML pipeline
-// (never a feature, never trained on, never fed to the recommender).
+// EXPERIMENT (owner-requested, display-only): a straight 3-horse TRIO mixing
+// model conviction with market signal — top-1 (our pick) + 1 HOT longshot
+// (most-steamed in rank 6-12) + 1 COLD longshot (most-drifted in rank 6-12).
+// Updated 2026/05/24 from the prior "top-2 + biggest-price rank 6-9" shape
+// — the new shape tests whether market-direction signals on longshots
+// rescue trios the model alone cannot see. Falls back to longest-price band
+// (no hot) or shortest-price band (no cold) when one direction has no
+// qualifying runner. Deterministic, stable across refreshes. NOT staked,
+// completely isolated from the ML pipeline.
 function _bolterTrio(race) {{
   if (race.conviction_tier === 'EDGE') return null;  // skip high-conviction EDGE races
-  if (!race.horses || race.horses.length < 4) return null;
+  if (!race.horses || race.horses.length < 6) return null;
   var sorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
-  var top2 = sorted.slice(0, 2);
-  var band = sorted.slice(5, 9).filter(function(h) {{ return (h.win_odds || 0) > 0; }});  // rank 6-9
-  if (band.length === 0) band = sorted.slice(2).filter(function(h) {{ return (h.win_odds || 0) > 0; }});
-  if (band.length === 0) return null;  // need odds to pick a bolter
-  var third = band.reduce(function(best, h) {{ return (h.win_odds > best.win_odds) ? h : best; }});
-  var nums = [top2[0].number, top2[1].number, third.number];
+  var top1 = sorted[0];
+  // Band: rank 6-12 (longshot zone). Need odds > 0 to read odds_movement.
+  var band = sorted.slice(5, 12).filter(function(h) {{ return (h.win_odds || 0) > 0; }});
+  if (band.length < 2) return null;  // need at least 2 to pick both hot + cold
+  function mov(h) {{ var o = h.odds_movement || {{}}; return Number(o.change_pct) || 0; }}
+  // HOT: most-steamed (largest positive change_pct). Fallback: shortest current odds.
+  var hot = band.reduce(function(best, h) {{ return (mov(h) > mov(best)) ? h : best; }});
+  if (mov(hot) <= 0) {{
+    hot = band.reduce(function(best, h) {{ return (h.win_odds < best.win_odds) ? h : best; }});
+  }}
+  // COLD: most-drifted (most-negative change_pct), excluding hot. Fallback: longest odds.
+  var coldBand = band.filter(function(h) {{ return h.number !== hot.number; }});
+  if (coldBand.length === 0) return null;
+  var cold = coldBand.reduce(function(best, h) {{ return (mov(h) < mov(best)) ? h : best; }});
+  if (mov(cold) >= 0) {{
+    cold = coldBand.reduce(function(best, h) {{ return (h.win_odds > best.win_odds) ? h : best; }});
+  }}
+  var nums = [top1.number, hot.number, cold.number];
   var tag = '', tagColor = '#94a3b8';
   if (race.results_available && Array.isArray(race.actual_top3) && race.actual_top3.length === 3) {{
     var hit = race.actual_top3.every(function(n) {{ return nums.indexOf(n) !== -1; }});
     tag = hit ? 'HIT \\u2713' : 'missed';
     tagColor = hit ? '#22c55e' : '#ef4444';
   }}
-  return {{ legs: [top2[0], top2[1], third], nums: nums, third: third, tag: tag, tagColor: tagColor }};
+  return {{ legs: [top1, hot, cold], nums: nums, third: cold, tag: tag, tagColor: tagColor,
+           hot: hot, cold: cold, hotPct: mov(hot), coldPct: mov(cold) }};
 }}
 
 function renderTopBetsView() {{
