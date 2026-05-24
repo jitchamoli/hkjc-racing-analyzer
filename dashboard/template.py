@@ -610,39 +610,74 @@ setInterval(function() {{
 var _topBetsFilter = 'next';
 
 function _didBetHit(race) {{
-  // Determine whether ANY of our recommended bets hit for a finished race.
-  // Returns one of: 'STRIKE-WIN' (rank-1 won), 'STRIKE-QIN' (top-2 quinella),
-  // 'STRIKE-BOX4' (winning quinella pair was in top-4 picks),
-  // 'STRIKE-TRIO5' (full podium in top-5), 'STRIKE-TRIO6' (full podium in top-6),
-  // 'MISS' (none), or null if the race is not finished.
+  // Returns the strongest STRIKE-* badge for any bet ACTUALLY in the frozen
+  // bet_ticket that hit. Returns 'MISS' if the ticket has bets but none hit,
+  // 'MISS' if no ticket exists (SKIP race with results), or null if the
+  // race is not finished yet.
+  //
+  // Rewritten 2026-05-24 (GPT-5.5 Playwright audit) to read from
+  // race.bet_ticket.bets instead of synthetic top-N rank slices. Old code
+  // would show STRIKE-F4-5 on R8/R11-style races where the heavy-fav gate
+  // (since lifted) had removed F4 BOX-5 from the ticket — a phantom hit
+  // badge for a bet that was never staked. See memory:
+  // post-fix-consistency-sweep.
   if (!race.results_available) return null;
   var horsesByPos = race.horses
     .filter(function(h) {{ return h.actual_position; }})
     .sort(function(a, b) {{ return a.actual_position - b.actual_position; }});
   if (horsesByPos.length < 2) return null;
-  var p1 = horsesByPos[0].number, p2 = horsesByPos[1].number;
+  var p1 = horsesByPos[0].number;
+  var p2 = horsesByPos[1].number;
   var p3 = horsesByPos.length >= 3 ? horsesByPos[2].number : null;
   var p4 = horsesByPos.length >= 4 ? horsesByPos[3].number : null;
-  var top2Nums = race.horses.slice(0, 2).map(function(h) {{ return h.number; }});
-  var top4Nums = race.horses.slice(0, 4).map(function(h) {{ return h.number; }});
-  var top5Nums = race.horses.slice(0, 5).map(function(h) {{ return h.number; }});
-  var top6Nums = race.horses.slice(0, 6).map(function(h) {{ return h.number; }});
-  var rank1 = race.horses[0];
-  if (rank1 && rank1.number === p1) return 'STRIKE-WIN';
-  if (top2Nums.indexOf(p1) >= 0 && top2Nums.indexOf(p2) >= 0) return 'STRIKE-QIN';
-  // F4 BOX-5 strike: all 4 podium horses inside top-5 picks (rarer than TRIO-5,
-  // pays bigger — shipped 2026-05-06 after 60-race backtest showed +54% ROI).
-  // Checked BEFORE BOX-4 because F4-5 is the stronger, more specific result —
-  // when both are satisfied (common: QIN pair in top-4 AND all 4 in top-5),
-  // we want the badge to reflect F4-5 not BOX-4 (was undercounting F4-5 hits).
-  if (p4 != null && top5Nums.indexOf(p1)>=0 && top5Nums.indexOf(p2)>=0 &&
-      top5Nums.indexOf(p3)>=0 && top5Nums.indexOf(p4)>=0) return 'STRIKE-F4-5';
-  if (top4Nums.indexOf(p1) >= 0 && top4Nums.indexOf(p2) >= 0) return 'STRIKE-BOX4';
-  // TRIO box checks require all 3 podium horses inside the box.
-  if (p3 != null) {{
-    if (top5Nums.indexOf(p1)>=0 && top5Nums.indexOf(p2)>=0 && top5Nums.indexOf(p3)>=0) return 'STRIKE-TRIO5';
-    if (top6Nums.indexOf(p1)>=0 && top6Nums.indexOf(p2)>=0 && top6Nums.indexOf(p3)>=0) return 'STRIKE-TRIO6';
+  var top2 = [p1, p2];
+  var top3 = p3 != null ? [p1, p2, p3] : null;
+  var top4 = p4 != null ? [p1, p2, p3, p4] : null;
+
+  var ticket = race.bet_ticket;
+  var bets = (ticket && ticket.bets) ? ticket.bets : [];
+  if (bets.length === 0) return 'MISS';
+
+  function _containsAll(legs, needed) {{
+    if (!needed) return false;
+    var nums = legs.map(function(l) {{ return l.number; }});
+    for (var i = 0; i < needed.length; i++) {{
+      if (nums.indexOf(needed[i]) < 0) return false;
+    }}
+    return true;
   }}
+
+  var hits = {{}};
+  for (var i = 0; i < bets.length; i++) {{
+    var bet = bets[i];
+    var pool = bet.pool || '';
+    var legs = bet.legs || [];
+    var nLegs = legs.length;
+
+    if (pool === 'WIN' || pool === 'BANKER WIN') {{
+      if (legs[0] && legs[0].number === p1) hits.WIN = true;
+    }} else if (pool === 'QUINELLA') {{
+      if (_containsAll(legs, top2)) {{
+        if (nLegs === 4) hits.BOX4 = true;
+        else hits.QIN = true;
+      }}
+    }} else if (pool === 'TRIO') {{
+      if (top3 && _containsAll(legs, top3)) {{
+        if (nLegs >= 6) hits.TRIO6 = true;
+        else hits.TRIO5 = true;
+      }}
+    }} else if (pool === 'FIRST 4') {{
+      if (top4 && _containsAll(legs, top4)) hits['F4-5'] = true;
+    }}
+  }}
+
+  // Priority order — most specific/strongest first, matching old taxonomy
+  if (hits.WIN) return 'STRIKE-WIN';
+  if (hits.QIN) return 'STRIKE-QIN';
+  if (hits['F4-5']) return 'STRIKE-F4-5';
+  if (hits.BOX4) return 'STRIKE-BOX4';
+  if (hits.TRIO5) return 'STRIKE-TRIO5';
+  if (hits.TRIO6) return 'STRIKE-TRIO6';
   return 'MISS';
 }}
 
@@ -682,8 +717,8 @@ function renderHero() {{
     var lbl = _topBetsFilter === 'past' ? 'PAST RESULTS' : 'NEXT BETS';
     label = 'TOP BETS · ' + lbl + ' — ' + races.length + ' RACES' +
       // Inline Next/Past toggle right after the label
-      ' &nbsp;<button class="topbets-sub-tab' + (_topBetsFilter === 'next' ? ' active' : '') + '" id="tb-next" onclick="setTopBetsFilter(&quot;next&quot;)">Next</button>' +
-      '<button class="topbets-sub-tab' + (_topBetsFilter === 'past' ? ' active' : '') + '" id="tb-past" onclick="setTopBetsFilter(&quot;past&quot;)">Past</button>';
+      ' &nbsp;<button class="topbets-sub-tab' + (_topBetsFilter === 'next' ? ' active' : '') + '" id="tb-next" data-testid="top-bets-next" onclick="setTopBetsFilter(&quot;next&quot;)">Next</button>' +
+      '<button class="topbets-sub-tab' + (_topBetsFilter === 'past' ? ' active' : '') + '" id="tb-past" data-testid="top-bets-past" onclick="setTopBetsFilter(&quot;past&quot;)">Past</button>';
   }} else {{
     races = RACES.slice().sort(function(a, b) {{ return a.race_number - b.race_number; }});
     label = 'ALL RACES — ' + races.length + ' RACES IN CHRONOLOGICAL ORDER';
@@ -1333,17 +1368,19 @@ function renderBetCard(race) {{
     : '';
 
   return '<div class="bet-card tier-' + tier + ' card-clickable" id="card-' + race.race_number +
-    '" data-race-num="' + race.race_number + '" onclick="toggleCardDetail(' + race.race_number + ', event)" ' +
+    '" data-testid="race-card-R' + race.race_number + '"' +
+    ' data-race-num="' + race.race_number + '" onclick="toggleCardDetail(' + race.race_number + ', event)" ' +
     (isEdge ? 'style="box-shadow:0 0 0 2px var(--gold), 0 4px 14px rgba(251,191,36,.35)" ' : '') +
     'title="Click anywhere on the card to see full per-horse detail, format history, speed map and reasoning">' +
     '<div class="bet-card-top">' +
       '<div>' +
         '<span class="tier-badge" style="background:' + tierColor + (isEdge ? ';box-shadow:0 0 8px rgba(251,191,36,.7)' : '') + '">' + (isEdge ? '★ EDGE · RARE' : esc(tier)) + '</span>' +
-        '<strong style="margin-left:8px">' + raceLabel + '</strong>' + strikeBadge +
+        '<strong style="margin-left:8px">' + raceLabel + '</strong>' +
+        (strikeBadge ? strikeBadge.replace('<span class="strike-badge', '<span data-testid="strike-badge-R' + race.race_number + '" class="strike-badge') : '') +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
         '<span style="font-size:.7rem;color:var(--dim)">' + esc(edgeDetail) + '</span>' +
-        '<button class="wa-btn" data-payload="' + escAttr(waPayload) +
+        '<button class="wa-btn" data-testid="copy-wa-R' + race.race_number + '" data-payload="' + escAttr(waPayload) +
           '" onclick="event.stopPropagation()">Copy WA</button>' +
         '<span class="card-expand-chevron" id="chev-' + race.race_number + '" style="font-size:.85rem;color:var(--gold);font-weight:700">▼</span>' +
       '</div>' +
@@ -2198,11 +2235,11 @@ function _buildRaceDetailPanel(race) {{
   }}
 
   var betTicketHTML = ticketLines.length
-    ? '<div class="bet-ticket" style="background:rgba(251,191,36,.08);border-left:3px solid var(--gold);padding:8px 10px;margin:10px 0;border-radius:4px">' +
+    ? '<div class="bet-ticket" data-testid="bet-ticket-R' + race.race_number + '" style="background:rgba(251,191,36,.08);border-left:3px solid var(--gold);padding:8px 10px;margin:10px 0;border-radius:4px">' +
         '<div style="font-size:.62rem;color:var(--gold);letter-spacing:.12em;font-weight:700;margin-bottom:4px">BET TICKET</div>' +
         ticketLines.join('') +
       '</div>'
-    : '<div class="bet-ticket" style="background:rgba(71,85,105,.18);border-left:3px solid var(--dim);padding:8px 10px;margin:10px 0;border-radius:4px;color:var(--dim);font-size:.78rem">' +
+    : '<div class="bet-ticket" data-testid="bet-ticket-R' + race.race_number + '" style="background:rgba(71,85,105,.18);border-left:3px solid var(--dim);padding:8px 10px;margin:10px 0;border-radius:4px;color:var(--dim);font-size:.78rem">' +
         '<strong>SKIP</strong> · No bet recommended for this race' +
       '</div>';
 
