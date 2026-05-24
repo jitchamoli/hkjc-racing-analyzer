@@ -12,6 +12,22 @@ from typing import List, Optional, Tuple
 
 
 HK_QUINELLA_TAKEOUT = 0.175  # HKJC quinella pool takeout rate
+HKJC_DECLARED_STAKE = 10.0   # HKJC dividends are declared per HK$10 stake
+
+
+def hkjc_declared_to_unit(dividend) -> Optional[float]:
+    """Convert a raw HKJC declared dividend to this repo's 1u stake basis.
+
+    HKJC result pages declare dividends per HK$10. Backtests and evaluators in
+    this repo score one unit per combo, so raw dividends must be divided by 10
+    before subtracting a 1u stake. Returns None for missing/unparseable values.
+    """
+    if dividend is None:
+        return None
+    try:
+        return float(dividend) / HKJC_DECLARED_STAKE
+    except (TypeError, ValueError):
+        return None
 
 
 def harville_pair_prob(p_a: float, p_b: float) -> float:

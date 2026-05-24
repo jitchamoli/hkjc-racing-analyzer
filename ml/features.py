@@ -72,8 +72,8 @@ _jt_pair_cache: dict = {}        # keyed by (jockey, trainer, before_date)
 _speed_fig_cache: dict = {}      # keyed by (horse_name, before_date)
 _par_times_cache: dict = {}      # keyed by before_date — par_times is O(N) to compute
 _running_pos_cache: dict = {}    # keyed by (horse_name, before_date) — v6.8 Features 22-24
-_mid_race_cache: dict = {}       # keyed by (horse_name, before_date) — v6.9 Feature 25
-_sire_going_cache: dict = {}     # keyed by (sire, going_bucket, before_date) — v6.10 Feature 26
+_mid_race_cache: dict = {}       # keyed by (horse_name, before_date) — v6.9 mid_race_pace
+_sire_going_cache: dict = {}     # keyed by (sire, going_bucket, before_date) — v6.10 sire_top3_on_going
 _horse_sire_map: dict = {}       # one-shot horse_name → sire from renavon_horses (lazy)
 _daily_variant_cache: dict = {}  # keyed by (race_date, before_race_no, before_date)
 
@@ -522,7 +522,7 @@ class FeatureEngineering:
     @staticmethod
     def calculate_mid_race_pace(horse_name: str, conn=None,
                                 before_date: str = None) -> float:
-        """v6.9 Feature 25: mid-race sectional pace ("unspent finisher" signal).
+        """v6.9 mid_race_pace: mid-race sectional pace ("unspent finisher" signal).
 
         For each of the horse's last 3 prior runs with 3+ sectionals, computes
         race-mean-normalized (800-400 split) − (last-400 split). Positive =
@@ -637,7 +637,7 @@ class FeatureEngineering:
     @staticmethod
     def calculate_sire_top3_on_going(horse_name: str, going: str, conn=None,
                                      before_date: str = None) -> float:
-        """v6.10 Feature 26: sire's top-3 rate on the current race's going.
+        """v6.10 sire_top3_on_going: sire's top-3 rate on the current race's going.
 
         Bayesian-smoothed Beta(2, 8) — prior weight 10, base rate 20%.
         Returns the smoothed rate; defaults to 0.20 (base) when sire unknown
@@ -979,11 +979,11 @@ class FeatureEngineering:
         else:
             features.append(0.5)
 
-        # Feature 3: draw advantage
+        # draw is no longer a Feature 3 (v6.11 dropped draw_advantage), but
+        # field_rel_draw (Feature 6) still needs the raw draw value below.
         draw = horse_data.get('draw', 8)
-        features.append(FeatureEngineering.calculate_draw_advantage(draw, distance))
 
-        # Feature 4: jockey win rate (prior-only to match training)
+        # Feature 3: jockey win rate (prior-only to match training)
         # Cap 0.6 + fallback 0.08 — matches FeatureEngineering.calculate_jockey_win_rate
         # cap exactly. Old caps (0.5 / 0.06) created train/predict drift after the
         # Task #51 fix routed both paths through the helper.
@@ -1196,30 +1196,18 @@ class FeatureEngineering:
         )
         features.append(min(0.5, jt_pair) if jt_pair > 0 else 0.08)
 
-        # Feature 21: speed figure of last race (v6.6). Par-time + weight
-        # normalised — independent ML signal from the 5%-weight rule
-        # engine speed_fig factor. Uses horse_name set earlier in the
-        # function (line 498) to avoid a latent shadowing trap if a caller
-        # passes a dict missing the 'name' key.
-        sf_norm = FeatureEngineering.calculate_speed_fig_norm(
-            horse_name, conn=conn, before_date=race_date or None,
-        )
-        features.append(sf_norm)
-
-        # Features 22-24 (v6.8 Path A): running-position proxies for sectional
-        # speed. Derived from race_results.running_position (99.4% DB coverage,
-        # space-separated positions at each call). Independent orthogonal channel
-        # — early/late position dynamics aren't captured by margin or speed_fig.
-        early_speed, late_kick, running_style = (
+        # Features 20-21 (v6.8 Path A): early_speed + late_kick — running-position
+        # proxies for sectional speed. v6.11 dropped running_style (r=+0.914 with
+        # early_speed — 3-bin coarsened version of the same signal).
+        early_speed, late_kick, _running_style_dropped = (
             FeatureEngineering.calculate_running_position_features(
                 horse_name, conn=conn, before_date=race_date or None,
             )
         )
         features.append(early_speed)
         features.append(late_kick)
-        features.append(running_style)
 
-        # Feature 25 (v6.9): mid-race sectional pace ("unspent finisher").
+        # Feature 22 (v6.9): mid-race sectional pace ("unspent finisher").
         # Time-based — orthogonal to late_kick (positions-based). Same helper
         # at training site for train/predict parity.
         mid_pace = FeatureEngineering.calculate_mid_race_pace(
@@ -1227,7 +1215,7 @@ class FeatureEngineering:
         )
         features.append(mid_pace)
 
-        # Feature 26 (v6.10): sire's top-3 rate on TODAY's going. Bayesian-
+        # sire_top3_rate_on_going (v6.10): sire's top-3 rate on TODAY's going. Bayesian-
         # smoothed Beta(2, 8). Orthogonal to per-horse going history (r=0.45);
         # carries information the horse's own form can't because per-sire
         # samples are 50-200× larger than per-horse samples on rare goings.

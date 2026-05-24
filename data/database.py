@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from betting.dividends import hkjc_declared_to_unit
+
 logger = logging.getLogger(__name__)
 
 DB_DIR = Path(__file__).parent.parent / 'tracking_data'
@@ -195,6 +197,22 @@ class HorseDatabase:
             c.execute("ALTER TABLE prediction_log ADD COLUMN conviction_tier TEXT DEFAULT NULL")
         except sqlite3.OperationalError:
             pass  # column already exists
+
+        # Race-level frozen bet ticket — the actual staked bets (post-gate).
+        # Added 2026-05-24 (Finding #2) so validate_hk can score what was
+        # actually recommended/staked, not synthetic strategies built from
+        # predicted_rank that ignore tier/gate filters. ticket_json is the
+        # bet_ticket dict from dashboard/generator.build_bet_ticket.
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS race_bet_ticket (
+                race_date TEXT NOT NULL,
+                race_number INTEGER NOT NULL,
+                ticket_json TEXT NOT NULL,
+                logged_at TEXT,
+                PRIMARY KEY (race_date, race_number)
+            )
+        """)
+        c.execute("CREATE INDEX IF NOT EXISTS idx_btkt_date ON race_bet_ticket(race_date)")
 
         # Race-level dividends (scraped from HKJC results pages)
         c.execute("""
@@ -1269,6 +1287,29 @@ class HorseDatabase:
             horses = race.get('horses', [])
             field_size = len(horses)
 
+            ticket = race.get('bet_ticket')
+            if ticket:
+                # Mirror prediction_log's pattern: pre-race tickets can update
+                # as odds drift, but once ANY horse in this race has a result,
+                # the ticket is frozen. Prevents post-results regen from
+                # overwriting the actual staked ticket — the "frozen" promise
+                # that validate_hk --replay depends on (GPT-5.5 Finding #3
+                # 2026-05-24).
+                results_filled = c.execute(
+                    "SELECT 1 FROM prediction_log WHERE race_date=? AND race_number=? "
+                    "AND COALESCE(results_filled, 0) = 1 LIMIT 1",
+                    (race_date, race_no),
+                ).fetchone()
+                if not results_filled:
+                    c.execute("""
+                        INSERT INTO race_bet_ticket (
+                            race_date, race_number, ticket_json, logged_at
+                        ) VALUES (?, ?, ?, ?)
+                        ON CONFLICT(race_date, race_number) DO UPDATE SET
+                            ticket_json=excluded.ticket_json,
+                            logged_at=excluded.logged_at
+                    """, (race_date, race_no, json.dumps(ticket), now))
+
             for h in horses:
                 c.execute("""
                     INSERT INTO prediction_log (
@@ -1291,6 +1332,7 @@ class HorseDatabase:
                         model_version=excluded.model_version,
                         conviction_tier=excluded.conviction_tier,
                         predicted_at=excluded.predicted_at
+                    WHERE COALESCE(prediction_log.results_filled, 0) = 0
                 """, (
                     race_date, race_no, venue, distance, class_type, going,
                     field_size, h.get('name', ''), h.get('number', 0),
@@ -1391,7 +1433,9 @@ class HorseDatabase:
         ).fetchone()
         if not row:
             return None, stake
-        dividend = float(row[0])
+        dividend = hkjc_declared_to_unit(row[0])
+        if dividend is None:
+            return None, stake
         return dividend - stake, stake
 
     def get_accuracy_summary(self, days: int = 30) -> Dict:

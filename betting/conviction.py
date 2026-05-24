@@ -13,9 +13,17 @@ class ConvictionThresholds:
 
     Raised 2026-05-17 after backtest (40-race, 90d window) showed the original
     0.33/0.42 thresholds labeled 74% of races as HIGH — no tier discrimination.
-    New 0.40/0.55: HIGH share drops to 46%, HIGH hit-rate +7pp (20.7→27.8%),
-    and MED becomes informative (was 0/7 hits, now 1/13). LOW tightened
-    proportionally so a real low-conviction race still surfaces as LOW.
+    New 0.40/0.55: HIGH share dropped to 46%, hit-rate +7pp.
+
+    v6.11 (2026-05-24) prune-and-revert episode: I patched these to +0.15 after
+    observing v6.10 → v6.11 shifted today's race-card top_2_share mean from
+    0.30 → 0.49. Quantile-matched analysis over 300 historical races
+    (scripts/quantile_match_gates.py) showed the TRUE distribution shift is
+    only +0.007 — today's card was an outlier (clear-fav-heavy: R3, R4, R8,
+    R11). Reverted back to 0.40/0.55/0.30/0.42/0.22 (quantile-matched values
+    were within 0.013 of current — effectively identical). Memory:
+    `feedback_small_sample_inflation_pattern` — tuning on n=11 is exactly
+    the trap to avoid.
     """
     high_top2: float = 0.40
     high_top3: float = 0.55

@@ -168,32 +168,32 @@ class TestRebuildStatsCurrentSeasonFilter:
 # ---------------------------------------------------------------------------
 
 class TestV66Schema:
-    def test_has_26_features(self):
+    def test_has_23_features(self):
+        # v6.11 (2026-05-24) pruned draw_advantage, speed_fig_norm, running_style
+        # from v6.10's 26 → 23. jt_pair_win_rate (v6.6) survives the prune.
         from ml.feature_schema import NUM_FEATURES, FEATURE_NAMES
-        assert NUM_FEATURES == 26
+        assert NUM_FEATURES == 23
         assert "jt_pair_win_rate" in FEATURE_NAMES
-        assert "speed_fig_norm" in FEATURE_NAMES
+        assert "speed_fig_norm" not in FEATURE_NAMES  # pruned v6.11
         assert "mid_race_pace" in FEATURE_NAMES  # v6.9
         assert "sire_top3_rate_on_going" in FEATURE_NAMES  # v6.10
-        # v6.8 additions
+        # v6.8 surviving additions (running_style pruned in v6.11)
         assert "early_speed" in FEATURE_NAMES
         assert "late_kick" in FEATURE_NAMES
-        assert "running_style" in FEATURE_NAMES
+        assert "running_style" not in FEATURE_NAMES   # pruned v6.11
 
-    def test_jt_pair_position_20(self):
+    def test_jt_pair_position(self):
+        # v6.11: jt_pair_win_rate is now at index 18 (was 19) after pruning
+        # draw_advantage which lived at index 2.
         from ml.feature_schema import FEATURE_NAMES
-        # 0-indexed: F20 is at index 19
-        assert FEATURE_NAMES[19] == "jt_pair_win_rate"
+        assert FEATURE_NAMES[18] == "jt_pair_win_rate"
 
-    def test_speed_fig_position_21(self):
+    def test_running_position_features(self):
+        # v6.11: early_speed + late_kick now at indices 19, 20 after pruning
+        # draw_advantage (idx 2) and speed_fig_norm (idx 20).
         from ml.feature_schema import FEATURE_NAMES
-        assert FEATURE_NAMES[20] == "speed_fig_norm"
-
-    def test_running_position_features_22_24(self):
-        from ml.feature_schema import FEATURE_NAMES
-        assert FEATURE_NAMES[21] == "early_speed"
-        assert FEATURE_NAMES[22] == "late_kick"
-        assert FEATURE_NAMES[23] == "running_style"
+        assert FEATURE_NAMES[19] == "early_speed"
+        assert FEATURE_NAMES[20] == "late_kick"
 
 
 # ---------------------------------------------------------------------------

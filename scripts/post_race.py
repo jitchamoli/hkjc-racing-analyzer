@@ -110,8 +110,11 @@ def main():
     # Step 4b: HK forward-validation — appends this meeting (if after the frozen
     # cutoff) to the un-burned forward log. The only honest, never-tuned-on
     # evidence of real betting performance. Runs after step 1 fills results.
-    _run("4b/6 validate_hk (forward-validation log)",
-         [sys.executable, '-m', 'scripts.validate_hk'], required=False)
+    # --replay added 2026-05-24 (GPT-5.5 Finding #1): also score the actual
+    # frozen bet_ticket so the daily report doesn't show synthetic phantom
+    # hits for bets that were gated out (R8/R11 2026-05-24 trigger).
+    _run("4b/6 validate_hk (forward-validation log + replay)",
+         [sys.executable, '-m', 'scripts.validate_hk', '--replay'], required=False)
 
     # Step 5: EDGE tracker — logs EDGE fires + outcomes; feeds dashboard banner
     _run("5/6 track_edge (banner stats)",

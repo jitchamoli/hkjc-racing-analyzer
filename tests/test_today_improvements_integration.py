@@ -151,8 +151,10 @@ class TestManualOverrideRendering:
         # fixture data; the static-HTML check just confirms the badge code
         # is present and would fire on a real swap).
         assert '🛠 MANUAL' in html, "Manual override badge code path missing"
-        # Also confirm the manual-override pre-check is shipped (race.manual_trio6_horse)
-        assert 'race.manual_trio6_horse' in html
+        # 2026-05-25: manual override moved into bet_ticket.swap server-side
+        # (GPT-5.5 Finding #2). JS reads `_swap.kind === 'manual'` instead
+        # of `race.manual_trio6_horse` directly. Pin the new access path.
+        assert "_swap.kind === 'manual'" in html or "kind === 'manual'" in html
 
     def test_manual_override_matching_rank6_suppresses_badge(self):
         """When override == current rank-6, badge must NOT render (no-op fix

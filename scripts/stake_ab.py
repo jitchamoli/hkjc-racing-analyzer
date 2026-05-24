@@ -37,6 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config
+from betting.dividends import hkjc_declared_to_unit
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOG_PATH = REPO_ROOT / 'tracking_data' / 'stake_ab_log.csv'
@@ -94,9 +95,20 @@ LOG_HEADERS = [
 # ---------------------------------------------------------------------------
 
 def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
-    """Return {bet_label: combo_count} for all bets the dashboard fires on
-    this race. Mirrors the template.py logic so the A/B reflects what the
-    user actually sees on their dashboard.
+    """Return {bet_label: combo_count} for all bets the user actually staked
+    on this race.
+
+    Ticket-first (preferred): reads `race.bet_ticket.bets` — the frozen
+    server-side ticket that drove the dashboard, WA copy, and HKJC entries.
+    This is the SAME source `validate_hk --replay` consumes, so stake_ab's
+    ROI now matches replay exactly. Mirrors the validate_hk shift from
+    synthetic-reconstruction to ticket-driven scoring (GPT-5.5 R9 2026-05-25).
+
+    Legacy reconstruction (fallback): pre-bet_ticket JSONs reconstruct the
+    fire list from horse-level `bet_recommendation` + production gates.
+    This re-derivation drifts whenever production gates change after the
+    JSON was saved — caught when stake_ab over-fired BOX TRIO-5/F4 BOX-5
+    + missed BOX QIN-4 PROTECTION/F4 SAVER vs the actual ticket.
 
     apply_chaos: when True (default), suppresses ALL bets on soft-going
     races per the CHAOS filter shipped 2026-05-23. Set False to compute
@@ -112,6 +124,25 @@ def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
         )
         if is_chaos:
             return {}
+
+    # Ticket-first path — the frozen ticket is the only ground truth for
+    # what was actually staked. Even an empty ticket (recommender produced
+    # no bets) is informative and must NOT trigger the legacy fallback.
+    bet_ticket = race.get('bet_ticket')
+    if isinstance(bet_ticket, dict) and 'bets' in bet_ticket:
+        ticket_bets = bet_ticket.get('bets') or []
+        out: dict[str, int] = {}
+        for b in ticket_bets:
+            label = (b.get('label') or '').strip()
+            combos = int(b.get('combos', 0) or 0)
+            if label and combos > 0:
+                # If the same label appears twice (defensive — shouldn't
+                # happen with current build_bet_ticket), take the larger
+                # combo count rather than silently dropping one.
+                out[label] = max(out.get(label, 0), combos)
+        return out
+
+    # ----- legacy fallback (pre-bet_ticket JSONs only) -----------------
     bet_horse_counts = defaultdict(int)
     for h in horses:
         b = (h.get('bet_recommendation') or '').strip()
@@ -135,15 +166,16 @@ def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
             elif n >= 4:
                 out[f'BOX TRIO-{n}'] = n * (n - 1) * (n - 2) // 6
 
-    # MAIN-tier auto-fires when top-5 exists (mirrors template.py:826+).
-    # BOX TRIO-5 and F4 BOX-5 share the same triple gate (widened from
-    # SKIP-only for BOX TRIO-5 on 2026-05-23 — see ship memory).
+    horses_by_rank = sorted(horses, key=lambda h: h.get('rank') or 99)
+    if (horses_by_rank
+            and (horses_by_rank[0].get('win_odds') or 99) <= 1.8
+            and len(horses_by_rank) >= 4):
+        out['QIN PLACE BANKER'] = 3
+
     if len(horses) >= 5:
         tier = (race.get('conviction_tier') or 'SKIP').upper()
-        top1_odds = horses[0].get('win_odds') or 0
         field_size = len(horses)
-        triple_gate_skip = ((top1_odds > 0 and top1_odds < 2.5) or
-                            tier not in ('EDGE', 'HIGH', 'MED') or
+        triple_gate_skip = (tier not in ('EDGE', 'HIGH', 'MED') or
                             field_size < 8)
         if not triple_gate_skip:
             out['BOX TRIO-5'] = 10
@@ -209,7 +241,8 @@ def _lookup_dividend(conn, race_date: str, race_no: int, pool: str,
         "AND race_number=? AND pool=? AND combination=?",
         (race_date, race_no, pool, combo),
     ).fetchone()
-    return (row[0] / 10.0) if row else 0.0
+    div = hkjc_declared_to_unit(row[0]) if row else None
+    return div if div is not None else 0.0
 
 
 def hit_and_dividend(bet_label: str, race: dict, conn,
@@ -237,26 +270,67 @@ def hit_and_dividend(bet_label: str, race: dict, conn,
         odds = picks[0].get('win_odds') or 0  # already per $1
         return (hit, float(odds))
 
-    # PLACE — top pick top-3. PLACE pool dividend lookup is complex (per-horse,
-    # not per-combination); skip the dividend for MVP. Hit is still logged.
+    # PLACE — top pick top-3. race_dividends pool='PLACE' rows are keyed
+    # by single horse number (combination = '7' not '7,8'). Lookup the
+    # placed pick's per-$1 dividend directly. Prior MVP returned 0.0 and
+    # under-counted every PLACE hit (GPT-5.5 R8 Finding #2 2026-05-25).
     if bet_label == 'PLACE':
         picks = _top_picks(race, 1)
         if not picks:
             return False, 0.0
-        return (picks[0]['name'] in actual_top3, 0.0)
+        pick = picks[0]
+        hit = pick['name'] in actual_top3
+        if not hit:
+            return (False, 0.0)
+        pick_num = pick.get('number')
+        if not pick_num:
+            return (True, 0.0)
+        return (True, _lookup_dividend(conn, race_date, rn, 'PLACE', str(pick_num)))
+
+    # QIN PLACE BANKER — pivot (top1) + bankers (top2-4); each (pivot, banker)
+    # pair is one combo that pays when BOTH horses place top-3. Sum
+    # per-$1 dividends across hit pairs — multi-hit cards compound.
+    # Mirrors validate_hk._score_meeting_replay QPL branch.
+    if bet_label == 'QIN PLACE BANKER':
+        picks4 = _top_picks(race, 4)
+        if len(picks4) < 4:
+            return False, 0.0
+        pivot = picks4[0]
+        bankers = picks4[1:]
+        if pivot['name'] not in actual_top3:
+            return (False, 0.0)
+        piv_num = pivot.get('number')
+        if not piv_num:
+            return (False, 0.0)
+        div_sum = 0.0
+        hit_any = False
+        for bk in bankers:
+            if bk['name'] in actual_top3:
+                bk_num = bk.get('number')
+                if not bk_num:
+                    continue
+                lo, hi = sorted([int(piv_num), int(bk_num)])
+                d2 = _lookup_dividend(conn, race_date, rn,
+                                      'QUINELLA PLACE', f"{lo},{hi}")
+                if d2 > 0:
+                    div_sum += d2
+                    hit_any = True
+        return (hit_any, div_sum)
 
     # QIN family — straight & box
     if bet_label == 'STRAIGHT QIN':
         picks = _top_picks(race, 2)
         hit = _names(picks) == actual_top2
         div = race.get('qin_top_pair_dividend')
-        return (hit, (div / 10.0) if div else 0.0)
+        unit_div = hkjc_declared_to_unit(div) if div else None
+        return (hit, unit_div if unit_div is not None else 0.0)
     if bet_label.startswith('BOX QIN-'):
         n = int(bet_label.split('-')[1])
         box = _names(_top_picks(race, n))
         hit = actual_top2.issubset(box)
         div = race.get('qin_top_pair_dividend')
-        return (hit, (div / 10.0) if div else 0.0)
+        unit_div = hkjc_declared_to_unit(div) if div else None
+        return (hit, unit_div if unit_div is not None else 0.0)
 
     # TRIO family
     if bet_label == 'STRAIGHT TRIO':
@@ -288,6 +362,121 @@ def hit_and_dividend(bet_label: str, race: dict, conn,
         return (hit, _lookup_dividend(conn, race_date, rn, 'FIRST 4', combo))
 
     return False, 0.0
+
+
+def _score_bet_from_ticket(bet: dict, race: dict, conn,
+                            race_date: str) -> tuple[bool, float]:
+    """Score a single frozen ticket bet using its pool + legs (NOT the
+    label). Mirrors validate_hk._score_meeting_replay branch-for-branch
+    so stake_ab and replay agree on every hit/miss + dividend lookup.
+
+    Fixes three bugs in the old label-parsing hit_and_dividend (GPT-5.5
+    R10 2026-05-25):
+      - `BOX QIN-4 PROTECTION` crashed: int('4 PROTECTION') raised
+        because `bet_label.split('-')[1]` ate the suffix.
+      - `F4 SAVER` had no branch → silently returned (False, 0.0).
+      - swapped `BOX TRIO-6` false-missed: scoring read rank-1..6 via
+        _top_picks instead of the ticket's actual legs (which include
+        the manual/auto rank-6 swap).
+    """
+    finishers = _finishers(race)
+    if not finishers:
+        return False, 0.0
+
+    pool = (bet.get('pool') or '').strip()
+    legs = bet.get('legs') or []
+    if not legs:
+        return False, 0.0
+
+    leg_names = {leg.get('name') for leg in legs if leg.get('name')}
+    actual_top2 = _names(finishers[:2])
+    actual_top3 = _names(finishers[:3])
+    actual_top4 = _names(finishers[:4])
+    top1 = finishers[0]['name']
+    rn = race['race_number']
+
+    if pool in ('WIN', 'BANKER WIN'):
+        first_name = legs[0].get('name') if legs else None
+        if first_name != top1:
+            return (False, 0.0)
+        winner_num = finishers[0].get('number')
+        if winner_num is None:
+            return (True, 0.0)
+        return (True, _lookup_dividend(conn, race_date, rn, 'WIN', str(winner_num)))
+
+    if pool == 'PLACE':
+        placed_div = 0.0
+        placed_any = False
+        for leg in legs:
+            if leg.get('name') in actual_top3:
+                ln_num = leg.get('number')
+                if ln_num is None:
+                    continue
+                d2 = _lookup_dividend(conn, race_date, rn, 'PLACE', str(ln_num))
+                if d2 > 0:
+                    placed_div += d2
+                    placed_any = True
+        return (placed_any, placed_div)
+
+    if pool == 'QUINELLA':
+        if not actual_top2.issubset(leg_names) or len(finishers) < 2:
+            return (False, 0.0)
+        nums = sorted(int(h['number']) for h in finishers[:2]
+                       if h.get('number') is not None)
+        if len(nums) != 2:
+            return (True, 0.0)
+        return (True, _lookup_dividend(conn, race_date, rn, 'QUINELLA',
+                                         f"{nums[0]},{nums[1]}"))
+
+    if pool == 'TRIO':
+        if not actual_top3.issubset(leg_names) or len(finishers) < 3:
+            return (False, 0.0)
+        nums = sorted(int(h['number']) for h in finishers[:3]
+                       if h.get('number') is not None)
+        if len(nums) != 3:
+            return (True, 0.0)
+        return (True, _lookup_dividend(conn, race_date, rn, 'TRIO',
+                                         ','.join(str(n) for n in nums)))
+
+    if pool == 'FIRST 4':
+        if not actual_top4.issubset(leg_names) or len(finishers) < 4:
+            return (False, 0.0)
+        nums = sorted(int(h['number']) for h in finishers[:4]
+                       if h.get('number') is not None)
+        if len(nums) != 4:
+            return (True, 0.0)
+        return (True, _lookup_dividend(conn, race_date, rn, 'FIRST 4',
+                                         ','.join(str(n) for n in nums)))
+
+    if pool == 'QIN PLACE':
+        # QPL BANKER ticket: legs[0] = pivot, legs[1:] = bankers. Each
+        # (pivot, banker_i) pair pays when BOTH place top-3. Sum across
+        # all hit pairs.
+        if len(legs) < 2:
+            return (False, 0.0)
+        pivot = legs[0]
+        pivot_name = pivot.get('name')
+        if pivot_name not in actual_top3:
+            return (False, 0.0)
+        piv_num = pivot.get('number')
+        if piv_num is None:
+            return (False, 0.0)
+        div_sum = 0.0
+        hit_any = False
+        for bk in legs[1:]:
+            if bk.get('name') in actual_top3:
+                bk_num = bk.get('number')
+                if bk_num is None:
+                    continue
+                lo, hi = sorted([int(piv_num), int(bk_num)])
+                d2 = _lookup_dividend(conn, race_date, rn,
+                                       'QUINELLA PLACE', f"{lo},{hi}")
+                if d2 > 0:
+                    div_sum += d2
+                    hit_any = True
+        return (hit_any, div_sum)
+
+    return (False, 0.0)
 
 
 def _pnl(stake: float, combos: int, hit: bool, div_per_1: float) -> float:
@@ -332,6 +521,13 @@ def evaluate_date(race_date: str, bankroll: float) -> int:
         if not race.get('results_available'):
             continue
         rn = race.get('race_number')
+        # Ticket-first scoring map: when bet_ticket exists, score each
+        # bet from its pool + legs via _score_bet_from_ticket so the
+        # numbers agree with validate_hk --replay. Falls back to legacy
+        # label parsing only for pre-bet_ticket JSONs. GPT-5.5 R10.
+        _ticket = race.get('bet_ticket') or {}
+        _bet_by_label = {b.get('label'): b for b in (_ticket.get('bets') or [])
+                         if b.get('label')}
         for variant, cfg in VARIANTS.items():
             # Fires now per-variant — `flat_min_pre_chaos` bypasses the
             # CHAOS filter; everyone else applies it (production behavior).
@@ -341,7 +537,11 @@ def evaluate_date(race_date: str, bankroll: float) -> int:
             stakes = variant_stakes(variant, race, fires, bankroll)
             for bet_label, combos in fires.items():
                 stake = stakes.get(bet_label, 0.0)
-                hit, div = hit_and_dividend(bet_label, race, conn, race_date)
+                bet_obj = _bet_by_label.get(bet_label)
+                if bet_obj is not None:
+                    hit, div = _score_bet_from_ticket(bet_obj, race, conn, race_date)
+                else:
+                    hit, div = hit_and_dividend(bet_label, race, conn, race_date)
                 pnl = _pnl(stake, combos, hit, div) if stake > 0 else 0.0
                 rows_to_log.append({
                     'race_date': race_date,
@@ -383,8 +583,11 @@ def _append_log(rows, race_date):
                         if not (r['race_date'] == race_date
                                 and r['variant'] in new_variants)]
     tmp = LOG_PATH.with_suffix(LOG_PATH.suffix + '.tmp')
+    # csv.DictWriter defaults to '\r\n' line endings even with newline=''
+    # on the file open. Force LF-only so committed log rows don't carry
+    # trailing whitespace flagged by `git show --check` (GPT-5.5 R10).
     with open(tmp, 'w', newline='') as f:
-        w = csv.DictWriter(f, fieldnames=LOG_HEADERS)
+        w = csv.DictWriter(f, fieldnames=LOG_HEADERS, lineterminator='\n')
         w.writeheader()
         for r in existing:
             w.writerow(r)

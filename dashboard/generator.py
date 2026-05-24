@@ -26,6 +26,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def preflight_dashboard_ml() -> dict:
+    """Fail closed before race-day dashboard generation touches live data."""
+    from ml.integrity import check_dashboard_ml_integrity
+    return check_dashboard_ml_integrity()
+
+
 def _atomic_write(path: str, content: str) -> None:
     # Write to a sibling temp file then os.replace so concurrent readers
     # (the dashboard server, a browser polling the file) never see a
@@ -81,6 +87,7 @@ _RESULT_KEYS_HORSE = {'actual_position'}
 # moved $7.40 → $3.10 in the post-race feed, dragging cal_probs.
 _FROZEN_PREDICTION_KEYS_RACE = {'conviction_tier', 'has_edge', 'suggested_stake',
                                  'bankroll', 'odds_age_minutes',
+                                 'bet_ticket',
                                  # Shape stats — must move in lockstep with the
                                  # frozen horse-level calibrated_prob (audit
                                  # 2026-05-17, ML expert finding HIGH-1)
@@ -99,12 +106,16 @@ _FROZEN_PREDICTION_KEYS_HORSE = {'rank', 'win_odds', 'calibrated_prob',
                                   'expected_return', 'value_score'}
 
 
-def _merge_with_existing(json_file: str, new_races: list) -> list:
+def _merge_with_existing(json_file: str, new_races: list, race_date: str | None = None) -> list:
     """Preserve result data from a prior prediction file when re-generating.
 
     If the existing file has actual_position / accuracy fields (set by
     results_fetcher), carry them forward into the new predictions so a
     re-run for fresher odds doesn't wipe scored results.
+
+    race_date (YYYY/MM/DD) gates the L5 race-has-offed restoration to
+    today's date only — historical/future regen must not treat past
+    times-of-day as if the race has off'd (Finding #3, 2026-05-24).
     """
     # Prefer _with_results variant (has scored results), fall back to base file
     results_file = json_file.replace('.json', '_with_results.json')
@@ -140,7 +151,64 @@ def _merge_with_existing(json_file: str, new_races: list) -> list:
 
     for race in new_races:
         old_race = old_by_num.get(race['race_number'])
-        if not old_race or not old_race.get('results_available'):
+        if not old_race:
+            continue
+
+        # Post-off / pre-results-merge protection: the original audit-2026-05-17
+        # freeze only fires for results_available=True races, leaving a 1-5 min
+        # window after off where bookies have settled and odds drift, but
+        # results_fetcher hasn't yet flipped results_available. In that window,
+        # fresh tier/has_edge/shape stats get computed from post-race-noisy
+        # odds. Detect "race has off'd" by checking the scheduled post time
+        # (`race['time']`, HKT) against now. If past, restore all the frozen
+        # race-level fields from the prior file. Caught on R3/R4/R5 (bet_ticket)
+        # and R7 (conviction_tier flipped LOW → EDGE post-off) 2026/05/24.
+        # race_date guard added 2026-05-24 (Finding #3): only fires when the
+        # file being generated is for today, so historical/future regen doesn't
+        # treat past times-of-day as off'd.
+        race_has_offed = False
+        race_time_str = race.get('time') or old_race.get('time')
+        today_str = datetime.now().strftime('%Y/%m/%d')
+        if race_time_str and (race_date is None or race_date == today_str):
+            try:
+                hh, mm = race_time_str.split(':')[:2]
+                now = datetime.now()
+                post_minutes = int(hh) * 60 + int(mm)
+                now_minutes = now.hour * 60 + now.minute
+                race_has_offed = now_minutes >= post_minutes
+            except (ValueError, AttributeError):
+                pass
+
+        if race_has_offed:
+            for key in _FROZEN_PREDICTION_KEYS_RACE:
+                if key in old_race:
+                    race[key] = old_race[key]
+            # Horse-level freeze added 2026-05-24 (Finding #1): the L5 block
+            # above protected race-level keys, but `database.log_predictions`
+            # later UPDATEs prediction_log.predicted_rank from race['horses'],
+            # which was still mutable in the post-off/pre-results window.
+            # That corrupted forward-validation rank → poisoned validate_hk.
+            old_horses_by_num = {h['number']: h for h in old_race.get('horses', []) if 'number' in h}
+            for horse in race.get('horses', []):
+                old_h = old_horses_by_num.get(horse.get('number'))
+                if old_h:
+                    for key in _FROZEN_PREDICTION_KEYS_HORSE:
+                        if key in old_h:
+                            horse[key] = old_h[key]
+            old_horses_by_rank = sorted(
+                (h for h in old_race.get('horses', []) if 'rank' in h),
+                key=lambda h: h.get('rank', 99)
+            )
+            if old_horses_by_rank:
+                race['horses'] = sorted(race.get('horses', []),
+                                         key=lambda h: h.get('rank', 99))
+        elif 'bet_ticket' in old_race:
+            # Pre-race: still restore bet_ticket alone (combined with Layer 3
+            # in the regen loop, prevents the rare triple-gate-boundary flip
+            # from changing the morning ticket pre-race).
+            race['bet_ticket'] = old_race['bet_ticket']
+
+        if not old_race.get('results_available'):
             continue
 
         # Copy race-level result fields
@@ -251,6 +319,216 @@ def apply_card_exposure_cap(all_races: list, bankroll: float,
         s['method'] = (s.get('method') or '') + \
             f" · card-capped ×{scale:.2f} ({int(cap_frac*100)}% day limit)"
     return scale
+
+
+def _ticket_add_bet(bets: list, label: str, pool: str, horses: list,
+                    combos: int, reason: str, swap: dict | None = None) -> None:
+    if combos <= 0 or not horses:
+        return
+    entry = {
+        'label': label,
+        'pool': pool,
+        'combos': int(combos),
+        'legs': [
+            {'rank': h.get('rank'), 'number': h.get('number'), 'name': h.get('name')}
+            for h in horses
+        ],
+        'reason': reason,
+    }
+    if swap:
+        entry['swap'] = swap
+    bets.append(entry)
+
+
+def _pick_trio6_top6(horses: list, manual_trio6_horse, manual_reason: str = ''):
+    """Return (top6_horses, swap_meta_dict_or_None) for BOX TRIO-6.
+
+    Mirrors the JS rank-6 swap logic in dashboard/template.py (moved
+    server-side 2026-05-25, GPT-5.5 audit Finding #2). Without this, the
+    ticket stored horses[:6] while the UI/WA showed a swapped top-6 →
+    validate_hk --replay scored different legs than the user staked.
+
+    Priority:
+      1. Manual override (race.manual_trio6_horse) wins outright.
+      2. Auto swap: scan ranks 7-12 for a horse with (a) odds ≤ rank-6
+         × 0.8 AND (b) gear visible. Pick the shortest-priced candidate.
+      3. Otherwise return the literal top-6 by rank.
+    """
+    if len(horses) < 6:
+        return horses[:6], None
+    top6 = horses[:6]
+    # Manual override
+    if manual_trio6_horse:
+        if top6[5].get('number') != manual_trio6_horse:
+            manual_h = next((h for h in horses if h.get('number') == manual_trio6_horse), None)
+            if manual_h:
+                return horses[:5] + [manual_h], {
+                    'kind': 'manual',
+                    'out_number': top6[5].get('number'),
+                    'in_number': manual_h.get('number'),
+                    'reason': manual_reason,
+                }
+        # else: override matches current rank-6 — no swap
+    # Auto swap
+    rank6 = top6[5]
+    rank6_odds = rank6.get('win_odds') or 0
+    if rank6_odds > 0:
+        best = None
+        for cand in horses[6:12]:
+            cand_odds = cand.get('win_odds') or 0
+            cand_gear = (cand.get('gear') or '').strip()
+            if cand_odds > 0 and cand_gear and cand_odds <= rank6_odds * 0.8:
+                if best is None or cand_odds < (best.get('win_odds') or 0):
+                    best = cand
+        if best:
+            return horses[:5] + [best], {
+                'kind': 'auto',
+                'out_number': rank6.get('number'),
+                'in_number': best.get('number'),
+                'in_rank': best.get('rank'),
+                'in_gear': (best.get('gear') or '').strip(),
+            }
+    return top6, None
+
+
+def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
+                     generated_at: str) -> dict:
+    """Server-side frozen bet ticket; dashboard/evaluators should render this.
+
+    The old UI derived extra MAIN bets client-side. Persisting the ticket here
+    makes the actual decision auditable before results land.
+    """
+    horses = sorted(race.get('horses') or [], key=lambda h: h.get('rank') or 99)
+    stake = race.get('suggested_stake') or {}
+    amount = float(stake.get('amount') or 0.0)
+    bets = []
+
+    if amount > 0 and horses:
+        by_rec = {}
+        for h in horses:
+            rec = (h.get('bet_recommendation') or '').strip()
+            if rec and rec != 'SKIP':
+                by_rec.setdefault(rec, []).append(h)
+
+        for rec, legs in by_rec.items():
+            n = len(legs)
+            if rec in ('WIN', 'BANKER WIN'):
+                _ticket_add_bet(bets, rec, 'WIN', legs[:1], 1, 'recommender')
+            elif rec == 'PLACE':
+                _ticket_add_bet(bets, 'PLACE', 'PLACE', legs[:1], 1, 'recommender')
+            elif rec == 'QIN':
+                combos = 1 if n == 2 else n * (n - 1) // 2
+                label = 'STRAIGHT QIN' if n == 2 else f'BOX QIN-{n}'
+                _ticket_add_bet(bets, label, 'QUINELLA', legs, combos, 'recommender')
+            elif rec == 'TRIO':
+                combos = 1 if n == 3 else n * (n - 1) * (n - 2) // 6
+                label = 'STRAIGHT TRIO' if n == 3 else f'BOX TRIO-{n}'
+                _ticket_add_bet(bets, label, 'TRIO', legs, combos, 'recommender')
+
+        # QIN PLACE BANKER — short-favorite races (top1 ≤ $1.8): WIN pays
+        # barely above stake. Banker the fav with next 3 picks for 3
+        # combos that hit when fav places + any banker places.
+        # Mirrors JS at template.py:1947-1959 (moved server-side 2026-05-24
+        # to make bet_ticket the single source of truth).
+        top1 = horses[0] if horses else None
+        if top1 and (top1.get('win_odds') or 99) <= 1.8 and len(horses) >= 4:
+            bankers = horses[1:4]
+            _ticket_add_bet(
+                bets, 'QIN PLACE BANKER', 'QIN PLACE',
+                [top1] + bankers, 3, 'qin_place_banker',
+            )
+
+        # BOX QIN-4 PROTECTION — always show when top-4 has horses outside
+        # primary recommender QIN bets (catches the rank 3-4 spoiler placings).
+        # Mirrors JS at template.py:1966-1980.
+        top4 = horses[:4]
+        if len(top4) == 4:
+            primary_nums = {leg['number']
+                            for b in bets for leg in b.get('legs') or []}
+            has_non_primary = any(h.get('number') not in primary_nums for h in top4)
+            if has_non_primary or not bets:
+                _ticket_add_bet(bets, 'BOX QIN-4 PROTECTION', 'QUINELLA',
+                                top4, 6, 'qin_protection')
+
+        top5 = horses[:5]
+        if len(top5) == 5:
+            tier = (race.get('conviction_tier') or 'SKIP').upper()
+            top1_odds = top5[0].get('win_odds') or 0
+            field = len(horses)
+            # F4 SAVER — 1 unit exact-order top-4. Same gates as F4 BOX-5
+            # EXCEPT heavy-fav-skip is RETAINED (exact-order F4 collapses
+            # hard on heavy favs; the box's larger payout-on-hit absorbs
+            # the cost, the saver's 1-combo stake doesn't). Mirrors JS at
+            # template.py:1988-2018 (moved server-side 2026-05-24).
+            f4_saver_skip = (
+                (top1_odds > 0 and top1_odds < 2.5) or
+                (tier not in ('EDGE', 'HIGH', 'MED')) or
+                (field < 8)
+            )
+            if not f4_saver_skip:
+                _ticket_add_bet(bets, 'F4 SAVER', 'FIRST 4', top4, 1,
+                                'f4_saver_gate')
+
+            # Heavy-fav-skip dropped 2026-05-24 per user: at flat $10/combo
+            # the downside is bounded; user prefers visible-and-staked over
+            # the "phantom-hit" recap inconsistency (R8/R11 2026-05-24).
+            triple_gate_skip = (
+                (tier not in ('EDGE', 'HIGH', 'MED')) or
+                (field < 8)
+            )
+            if not triple_gate_skip:
+                _ticket_add_bet(bets, 'BOX TRIO-5', 'TRIO', top5, 10, 'main_trio5_gate')
+                _ticket_add_bet(bets, 'F4 BOX-5', 'FIRST 4', top5, 5, 'main_f4_gate')
+
+            steam_count = sum(
+                1 for h in horses[:12]
+                if (h.get('steam_move') or {}).get('is_steam')
+            )
+            trio6_take = (
+                False if (top1_odds > 0 and top1_odds < 2.5)
+                else True if steam_count >= 2
+                else (tier == 'HIGH' and field >= 11 and 2.5 <= top1_odds <= 5.0)
+            )
+            if trio6_take and len(horses) >= 6:
+                # Apply rank-6 swap (manual override or auto longshot pick)
+                # so the ticket's legs match what UI/WA renders. Otherwise
+                # validate_hk --replay scores horses[:6] while the user
+                # staked the swapped top-6 (GPT-5.5 Finding #2, 2026-05-25).
+                top6_swapped, swap_meta = _pick_trio6_top6(
+                    horses,
+                    race.get('manual_trio6_horse'),
+                    race.get('manual_trio6_reason') or '',
+                )
+                _ticket_add_bet(
+                    bets, 'BOX TRIO-6', 'TRIO', top6_swapped, 20, 'main_trio6_gate',
+                    swap=swap_meta,
+                )
+
+    total_combos = sum(b['combos'] for b in bets)
+    unit = (amount / total_combos) if amount > 0 and total_combos > 0 else 0.0
+    unit_rounded = max(5.0, (unit // 5.0) * 5.0) if unit > 0 else 0.0
+    allocated = 0.0
+    for b in bets:
+        b['unit_stake'] = float(unit_rounded)
+        b['amount'] = float(b['combos'] * unit_rounded)
+        allocated += b['amount']
+
+    return {
+        'version': 1,
+        'race_date': race_date,
+        'race_number': race.get('race_number'),
+        'generated_at': generated_at,
+        'model_version': model_version,
+        'conviction_tier': race.get('conviction_tier'),
+        'has_edge': bool(race.get('has_edge')),
+        'odds_age_minutes': race.get('odds_age_minutes'),
+        'bankroll': race.get('bankroll'),
+        'suggested_stake': stake,
+        'total_combos': int(total_combos),
+        'unit_stake': float(unit_rounded),
+        'allocated_amount': float(allocated),
+        'bets': bets,
+    }
 
 
 def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
@@ -402,7 +680,12 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
             metadata = getattr(ml_model, '_metadata', {}) if ml_model else {}
             check_model_integrity(metadata)
             integrity_ok = True
-    except Exception:
+    except Exception as e:
+        if getattr(analyzer, 'fail_closed_ml', False):
+            raise RuntimeError(
+                f"Dashboard ML integrity check failed while building "
+                f"race {race.race_number}: {type(e).__name__}: {e}"
+            ) from e
         integrity_ok = False
 
     # Persist the just-fetched odds before computing age — otherwise
@@ -415,6 +698,11 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     # race_results — HKJC post-race odds (final SP / settled) would
     # otherwise overwrite the legitimate pre-race odds we captured earlier
     # and corrupt any future backtest that reads odds_snapshots.
+    # 2026-05-25 (GPT-5.5 Finding #3): also skip when the race scheduled
+    # post-time has passed for TODAY's card — closes the 1-5 min window
+    # between race off and results_fetcher writing race_results. Date-aware
+    # so historical/future regen does not falsely treat past-time-of-day
+    # races as off'd (same pattern as _merge_with_existing L5).
     try:
         race_finished = False
         if db is not None and hasattr(db, 'conn'):
@@ -423,7 +711,19 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
                 (race_date, race.race_number),
             ).fetchone()
             race_finished = bool(row)
-        if not race_finished:
+        race_offed = False
+        race_time_str = getattr(race, 'time', '') or ''
+        today_str = datetime.now().strftime('%Y/%m/%d')
+        if race_time_str and race_date == today_str:
+            try:
+                hh, mm = race_time_str.split(':')[:2]
+                now = datetime.now()
+                post_minutes = int(hh) * 60 + int(mm)
+                now_minutes = now.hour * 60 + now.minute
+                race_offed = now_minutes >= post_minutes
+            except (ValueError, AttributeError):
+                pass
+        if not race_finished and not race_offed:
             odds_horses = [
                 {'number': h.number, 'name': h.name,
                  'win_odds': h.win_odds or 0, 'place_odds': getattr(h, 'place_odds', 0) or 0}
@@ -604,8 +904,23 @@ async def main():
 
     logger.info(f"Generating predictions for {race_date}")
 
+    try:
+        ml_integrity = preflight_dashboard_ml()
+    except Exception as e:
+        logger.error(
+            "Dashboard ML integrity preflight failed; refusing to generate "
+            f"predictions: {type(e).__name__}: {e}"
+        )
+        raise SystemExit(2) from e
+    logger.info(
+        "Dashboard ML integrity passed: "
+        f"model={ml_integrity.get('model_version')} "
+        f"groups={ml_integrity.get('model_fold_groups')} "
+        f"blend={ml_integrity.get('blend_version')}"
+    )
+
     fetcher = HKJCDataFetcher()
-    analyzer = CombinedRaceAnalyzer()
+    analyzer = CombinedRaceAnalyzer(fail_closed_ml=True)
     # Lazy-started Playwright browser sits on fetcher._pw_fetcher. Without an
     # explicit close() at the end the chromium subprocess lingers and stacks
     # across shadow runs that immediately follow (audit fix 2026-05-17).
@@ -651,7 +966,7 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     json_file = os.path.join(results_dir, f"race_data_{date_str}.json")
 
     # Merge: preserve result fields from prior run (e.g. actual_position, accuracy)
-    all_races = _merge_with_existing(json_file, all_races)
+    all_races = _merge_with_existing(json_file, all_races, race_date=race_date)
 
     # Tier stats — load from cache (refreshed on results ingestion, Task 8)
     from betting.tier_stats import load_cached_stats
@@ -684,6 +999,45 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     apply_card_exposure_cap(all_races, _cfg.BANKROLL,
                             getattr(_cfg, 'CARD_EXPOSURE_CAP', 0.10))
 
+    model_ver = analyzer.ml_analyzer.ml_model.model_version if hasattr(analyzer, 'ml_analyzer') else ''
+    ticket_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    for r in all_races:
+        # Freeze ticket once the race has run. Two cases:
+        # (1) results_available=True → results_fetcher has merged, definitely freeze.
+        # (2) Any horse has actual_position → race off'd this cycle, freeze
+        #     (results_fetcher runs after generate in the same ./raceday live cycle,
+        #     so on the just-finished race actual_position lands first).
+        # (3) Race is in `late` state (off time past, no results yet) — guard
+        #     against the bookie-settle odds-drift window flipping the triple
+        #     gate. We detect this by NEVER EXPANDING an existing ticket: only
+        #     replace if the new ticket has the same-or-fewer bets. Pure
+        #     shrinkage is legitimate (recommender dropped a flag); expansion
+        #     while a ticket already exists is the bug signature.
+        race_off = any(h.get('actual_position') for h in (r.get('horses') or []))
+        if r.get('bet_ticket') and (r.get('results_available') or race_off):
+            continue
+        old_ticket = r.get('bet_ticket')
+        new_ticket = build_bet_ticket(
+            r, race_date=race_date, model_version=model_ver, generated_at=ticket_ts,
+        )
+        # Layer 3 (combo-aware): once a ticket exists, refuse ANY change to
+        # combo count or bet labels. R4 2026/05/24 caught the shrinkage case:
+        # post-race ticket regen reduced BOX QIN-3 → STRAIGHT QIN (3 combos
+        # → 1 combo, both "1 bet entry" — pure-count check missed it).
+        if old_ticket:
+            old_combos = old_ticket.get('total_combos', 0) or 0
+            new_combos = new_ticket.get('total_combos', 0) or 0
+            old_labels = sorted(b.get('label', '') for b in old_ticket.get('bets', []))
+            new_labels = sorted(b.get('label', '') for b in new_ticket.get('bets', []))
+            if new_combos != old_combos or new_labels != old_labels:
+                logger.warning(
+                    f"  R{r.get('race_number')}: refusing to mutate frozen bet_ticket "
+                    f"({old_combos} combos {old_labels} → {new_combos} combos {new_labels}) "
+                    f"— likely post-race odds-drift artifact."
+                )
+                continue
+        r['bet_ticket'] = new_ticket
+
     # Alerts — diff current vs previous race_data file
     from betting.alerts import compute_alerts, AlertState, load_alert_state, save_alert_state
     prev_json = _load_previous_race_data(json_file)
@@ -696,7 +1050,6 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     _atomic_write(json_file, json.dumps(all_races, indent=2))
 
     # Log predictions to DB for longitudinal accuracy tracking
-    model_ver = analyzer.ml_analyzer.ml_model.model_version if hasattr(analyzer, 'ml_analyzer') else ''
     db.log_predictions(race_date, all_races, model_version=model_ver)
 
     # Snapshot 60-day accuracy for the dashboard's "Recent accuracy" panel +

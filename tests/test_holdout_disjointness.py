@@ -1,18 +1,18 @@
-"""4-fold split invariant: calibrator window must end before backtest starts.
+"""4-fold split invariant: races must not cross train/calib/test windows.
 
 The data scientist's nightmare: training and evaluation windows accidentally
 overlap, the calibrator sees the same races the backtest uses to evaluate it,
 and metrics look great in CI but collapse in production. This test asserts
 the disjointness structurally so it can't drift.
 
-Split shape (from scripts/backtest.py + scripts/calibrate_blend.py):
-  rows[0:60%]    model train
-  rows[60:70%]   earlystop validation
-  rows[70:85%]   calibrator fit
-  rows[85:100%]  backtest holdout
+Split shape (from ml.folds + scripts/backtest.py + scripts/calibrate_blend.py):
+  race groups[0:60%]    model train
+  race groups[60:70%]   earlystop validation
+  race groups[70:85%]   calibrator fit
+  race groups[85:100%]  backtest holdout
 
 The chronological invariant we require:
-  max(calibrator_window.race_date) < min(backtest_holdout.race_date)
+  no (race_date, race_number) appears in more than one fold
 """
 import sqlite3
 
@@ -32,21 +32,17 @@ def conn():
 
 
 def _ordered_rows(conn):
-    return conn.execute(
-        "SELECT race_date FROM race_results WHERE finish_position > 0 "
-        "ORDER BY race_date, race_number"
-    ).fetchall()
+    from scripts.backtest import _load_training_window_rows
+    return _load_training_window_rows(conn)
 
 
 class TestHoldoutDisjointness:
     def test_calibrator_window_ends_before_backtest_starts(self, conn):
+        from ml.folds import split_rows_by_race
         rows = _ordered_rows(conn)
-        n = len(rows)
-        cut_val = int(n * 0.70)
-        cut_calib = int(n * 0.85)
-
-        calib_dates = [r["race_date"] for r in rows[cut_val:cut_calib]]
-        test_dates = [r["race_date"] for r in rows[cut_calib:]]
+        folds = split_rows_by_race(rows)
+        calib_dates = [r["race_date"] for r in folds["calib"]]
+        test_dates = [r["race_date"] for r in folds["test"]]
 
         assert calib_dates, "calibrator window is empty"
         assert test_dates, "backtest holdout is empty"
@@ -54,22 +50,17 @@ class TestHoldoutDisjointness:
         max_calib_date = max(calib_dates)
         min_test_date = min(test_dates)
 
-        # Strict ancestor: calibrator must end strictly before backtest starts.
-        # Equality allowed only at the boundary (one race date can span both
-        # only if the split lands mid-meeting — flag if it does).
-        assert max_calib_date < min_test_date or max_calib_date == min_test_date, (
+        assert max_calib_date <= min_test_date, (
             f"Calibrator window ends {max_calib_date} but backtest starts "
             f"{min_test_date} — windows overlap, breaks ML rule #1 (no leakage)."
         )
 
     def test_train_window_ends_before_calibrator_starts(self, conn):
+        from ml.folds import split_rows_by_race
         rows = _ordered_rows(conn)
-        n = len(rows)
-        cut_train = int(n * 0.60)
-        cut_val = int(n * 0.70)
-
-        train_dates = [r["race_date"] for r in rows[:cut_train]]
-        calib_dates = [r["race_date"] for r in rows[cut_val:int(n * 0.85)]]
+        folds = split_rows_by_race(rows)
+        train_dates = [r["race_date"] for r in folds["train"]]
+        calib_dates = [r["race_date"] for r in folds["calib"]]
 
         assert train_dates and calib_dates
 
@@ -84,13 +75,15 @@ class TestHoldoutDisjointness:
         )
 
     def test_window_sizes_match_expected_proportions(self, conn):
+        from ml.folds import split_rows_by_race
         rows = _ordered_rows(conn)
         n = len(rows)
         assert n > 1000, f"DB too small ({n}) for meaningful proportions test"
-        train_n = int(n * 0.60)
-        val_n = int(n * 0.70) - int(n * 0.60)
-        calib_n = int(n * 0.85) - int(n * 0.70)
-        test_n = n - int(n * 0.85)
+        folds = split_rows_by_race(rows)
+        train_n = len(folds["train"])
+        val_n = len(folds["val"])
+        calib_n = len(folds["calib"])
+        test_n = len(folds["test"])
         # ±1% slack on each fold for off-by-one from int() truncation
         for name, got, expected in [
             ("train", train_n, 0.60),
@@ -102,3 +95,16 @@ class TestHoldoutDisjointness:
             assert abs(actual - expected) < 0.01, (
                 f"{name} fold = {actual:.3f} of {n}, expected {expected:.2f}"
             )
+
+    def test_no_race_key_crosses_folds(self, conn):
+        from ml.folds import split_rows_by_race
+        rows = _ordered_rows(conn)
+        folds = split_rows_by_race(rows)
+        seen = {}
+        for fold_name, fold_rows in folds.items():
+            for r in fold_rows:
+                key = (r["race_date"], r["race_number"])
+                assert key not in seen or seen[key] == fold_name, (
+                    f"Race {key} appears in both {seen[key]} and {fold_name}"
+                )
+                seen[key] = fold_name
