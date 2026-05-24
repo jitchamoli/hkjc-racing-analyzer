@@ -41,6 +41,7 @@ Usage:
 from __future__ import annotations
 import argparse
 import csv
+import json
 import re
 import sqlite3
 import sys
@@ -54,6 +55,7 @@ CUTOFF_RE = re.compile(r'^\d{4}/\d{2}/\d{2}$')
 
 CUTOFF_FILE = Path(config.DB_PATH).parent / "hk_forward_cutoff.txt"
 LOG_FILE = Path(config.DB_PATH).parent / "hk_forward_validation.csv"
+REPLAY_LOG_FILE = Path(config.DB_PATH).parent / "hk_forward_validation_replay.csv"
 
 # (label, leg_n, box_n, n_combos, pool)  — leg/box define capture; pool the dividend
 STRATS = [
@@ -176,11 +178,158 @@ def _score_meeting(conn, date) -> dict:
     return acc
 
 
+def _score_meeting_replay(conn, date) -> dict | None:
+    """Score the ACTUAL frozen bet_ticket for each race on `date`.
+
+    Returns None when no race_bet_ticket rows exist (forward-only — meetings
+    before 2026-05-24 weren't logged). Returns {label: [stake_combos, ret,
+    hits]} keyed by the user-visible ticket label (BOX QIN-4, BOX TRIO-5,
+    F4 BOX-5, ...) — so the report names match what was actually staked.
+
+    Solves Finding #2 2026-05-24: the synthetic _score_meeting reported
+    F4 BOX-5 hits on R8/R11 that were never in the ticket (gated out).
+    """
+    ticket_rows = conn.execute(
+        "SELECT race_number, ticket_json FROM race_bet_ticket WHERE race_date=?",
+        (date,),
+    ).fetchall()
+    if not ticket_rows:
+        return None
+
+    horse_rows = conn.execute(
+        "SELECT race_number, horse_number, horse_name, actual_position "
+        "FROM prediction_log WHERE race_date=? AND results_filled=1",
+        (date,),
+    ).fetchall()
+    by_race: dict[int, dict[str, dict]] = defaultdict(dict)
+    for r in horse_rows:
+        by_race[r["race_number"]][r["horse_name"]] = {
+            "number": r["horse_number"],
+            "actual_position": r["actual_position"],
+        }
+
+    acc: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0])
+    n_races = 0
+    for row in ticket_rows:
+        rno = row["race_number"]
+        try:
+            ticket = json.loads(row["ticket_json"])
+        except (json.JSONDecodeError, TypeError):
+            continue
+        horses = by_race.get(rno, {})
+        finishers = {h["actual_position"]: name
+                     for name, h in horses.items()
+                     if h["actual_position"] in (1, 2, 3, 4)}
+        if not all(p in finishers for p in (1, 2)):
+            continue
+        n_races += 1
+        top2_names = {finishers[1], finishers[2]}
+        top3_names = ({finishers[p] for p in (1, 2, 3)}
+                      if all(p in finishers for p in (1, 2, 3)) else None)
+        top4_names = ({finishers[p] for p in (1, 2, 3, 4)}
+                      if all(p in finishers for p in (1, 2, 3, 4)) else None)
+
+        for bet in ticket.get("bets", []) or []:
+            label = bet.get("label", "?")
+            pool = bet.get("pool", "")
+            combos = int(bet.get("combos", 0) or 0)
+            leg_names = {leg.get("name") for leg in (bet.get("legs") or [])}
+            if not leg_names or combos <= 0:
+                continue
+
+            hit = False
+            if pool == "WIN":
+                hit = finishers.get(1) in leg_names
+            elif pool == "PLACE":
+                hit = any(finishers.get(p) in leg_names for p in (1, 2, 3))
+            elif pool == "QUINELLA":
+                hit = top2_names <= leg_names
+            elif pool == "TRIO":
+                hit = top3_names is not None and top3_names <= leg_names
+            elif pool == "FIRST 4":
+                hit = top4_names is not None and top4_names <= leg_names
+
+            div = None
+            if hit and pool == "QUINELLA":
+                top2_nums = sorted(horses[finishers[p]]["number"] for p in (1, 2))
+                div = _quin_div(conn, date, rno, *top2_nums)
+            elif hit and pool == "TRIO":
+                combo_str = ",".join(str(n) for n in sorted(
+                    horses[finishers[p]]["number"] for p in (1, 2, 3)))
+                div = _exotic_div(conn, date, rno, pool, combo_str)
+            elif hit and pool == "FIRST 4":
+                combo_str = ",".join(str(n) for n in sorted(
+                    horses[finishers[p]]["number"] for p in (1, 2, 3, 4)))
+                div = _exotic_div(conn, date, rno, pool, combo_str)
+            # WIN/PLACE dividends are per-horse and not in race_dividends; skip pricing.
+
+            if hit and div is None and pool in ("QUINELLA", "TRIO", "FIRST 4"):
+                continue
+            acc[label][0] += combos
+            acc[label][1] += div if hit else 0.0
+            acc[label][2] += 1 if hit else 0
+
+    return {"_races": n_races, "labels": dict(acc)}
+
+
 def _read_csv() -> list[dict]:
     if not LOG_FILE.exists():
         return []
     with open(LOG_FILE) as f:
         return list(csv.DictReader(f))
+
+
+def _read_replay_csv() -> list[dict]:
+    if not REPLAY_LOG_FILE.exists():
+        return []
+    with open(REPLAY_LOG_FILE) as f:
+        return list(csv.DictReader(f))
+
+
+def _append_replay_csv(date, replay):
+    rows = _read_replay_csv()
+    labels = replay["labels"]
+    newrow = {"race_date": date, "races": replay["_races"],
+              "ticket_json": json.dumps(labels)}
+    rows.append(newrow)
+    tmp = REPLAY_LOG_FILE.with_suffix(".csv.tmp")
+    cols = ["race_date", "races", "ticket_json"]
+    with open(tmp, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: r.get(k, "") for k in cols})
+    tmp.replace(REPLAY_LOG_FILE)
+
+
+def _report_replay(rows: list[dict], title: str):
+    print(f"\n{'='*68}\n  {title}\n{'='*68}")
+    if not rows:
+        print("  (no meetings with frozen tickets yet — replay-mode is forward-only)")
+        return
+    dates = sorted(r["race_date"] for r in rows)
+    print(f"  meetings: {len(dates)}  ({dates[0]} .. {dates[-1]})")
+    gate = "" if len(dates) >= 6 else "   [WARN] N<6 — DIRECTIONAL ONLY"
+    print(f"  {'bet label':<18}{'hits':>6}{'stake':>9}{'P&L':>11}{'ROI':>9}{gate}")
+    print("  " + "-" * 54)
+    totals: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0])
+    for r in rows:
+        try:
+            labels = json.loads(r.get("ticket_json", "{}"))
+        except json.JSONDecodeError:
+            continue
+        for lbl, (stake, ret, hits) in labels.items():
+            totals[lbl][0] += float(stake)
+            totals[lbl][1] += float(ret)
+            totals[lbl][2] += int(hits)
+    for lbl in sorted(totals):
+        stake, ret, hits = totals[lbl]
+        if stake <= 0:
+            continue
+        roi = 100 * (ret - stake) / stake
+        print(f"  {lbl:<18}{hits:>6}{stake:>9.0f}{ret-stake:>+11.1f}{roi:>+9.1f}%")
+    print("\n  REPLAY: scored from the actual frozen bet_ticket (not synthetic).")
+    print("  This is what was really recommended/staked, post-gate filtering.")
 
 
 def _atomic_write_text(path, text):
@@ -239,6 +388,9 @@ def main() -> int:
     p.add_argument("--include-burned", action="store_true",
                    help="also show pre-cutoff meetings (labelled, NOT written to CSV)")
     p.add_argument("--set-cutoff", metavar="YYYY/MM/DD", help="set the frozen cutoff date")
+    p.add_argument("--replay", action="store_true",
+                   help="ALSO score the actual frozen bet_ticket (Finding #2 fix). "
+                        "Forward-only — meetings before 2026-05-24 have no ticket.")
     args = p.parse_args()
 
     conn = sqlite3.connect(str(config.DB_PATH))
@@ -268,7 +420,23 @@ def main() -> int:
             print("  no new clean meetings to log.")
         logged = _read_csv()
 
-    _report(logged, "HK FORWARD VALIDATION (clean, un-burned)")
+        if args.replay:
+            replay_logged = _read_replay_csv()
+            replay_already = {r["race_date"] for r in replay_logged}
+            for d in _meeting_dates(conn, after=cutoff):
+                if d in replay_already:
+                    continue
+                replay = _score_meeting_replay(conn, d)
+                if replay is None:
+                    continue  # no frozen ticket — pre-fix meeting
+                _append_replay_csv(d, replay)
+                print(f"  [replay] logged {d}: {replay['_races']} races")
+
+    _report(logged, "HK FORWARD VALIDATION (clean, un-burned) — SYNTHETIC strategies")
+
+    if args.replay:
+        _report_replay(_read_replay_csv(),
+                       "HK FORWARD VALIDATION — REPLAY (actual staked bet_tickets)")
 
     if args.include_burned:
         burned = []

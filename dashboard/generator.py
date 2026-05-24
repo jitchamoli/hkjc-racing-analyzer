@@ -106,12 +106,16 @@ _FROZEN_PREDICTION_KEYS_HORSE = {'rank', 'win_odds', 'calibrated_prob',
                                   'expected_return', 'value_score'}
 
 
-def _merge_with_existing(json_file: str, new_races: list) -> list:
+def _merge_with_existing(json_file: str, new_races: list, race_date: str | None = None) -> list:
     """Preserve result data from a prior prediction file when re-generating.
 
     If the existing file has actual_position / accuracy fields (set by
     results_fetcher), carry them forward into the new predictions so a
     re-run for fresher odds doesn't wipe scored results.
+
+    race_date (YYYY/MM/DD) gates the L5 race-has-offed restoration to
+    today's date only — historical/future regen must not treat past
+    times-of-day as if the race has off'd (Finding #3, 2026-05-24).
     """
     # Prefer _with_results variant (has scored results), fall back to base file
     results_file = json_file.replace('.json', '_with_results.json')
@@ -159,13 +163,16 @@ def _merge_with_existing(json_file: str, new_races: list) -> list:
         # (`race['time']`, HKT) against now. If past, restore all the frozen
         # race-level fields from the prior file. Caught on R3/R4/R5 (bet_ticket)
         # and R7 (conviction_tier flipped LOW → EDGE post-off) 2026/05/24.
+        # race_date guard added 2026-05-24 (Finding #3): only fires when the
+        # file being generated is for today, so historical/future regen doesn't
+        # treat past times-of-day as off'd.
         race_has_offed = False
         race_time_str = race.get('time') or old_race.get('time')
-        if race_time_str:
+        today_str = datetime.now().strftime('%Y/%m/%d')
+        if race_time_str and (race_date is None or race_date == today_str):
             try:
-                from datetime import datetime as _dt
                 hh, mm = race_time_str.split(':')[:2]
-                now = _dt.now()
+                now = datetime.now()
                 post_minutes = int(hh) * 60 + int(mm)
                 now_minutes = now.hour * 60 + now.minute
                 race_has_offed = now_minutes >= post_minutes
@@ -176,6 +183,25 @@ def _merge_with_existing(json_file: str, new_races: list) -> list:
             for key in _FROZEN_PREDICTION_KEYS_RACE:
                 if key in old_race:
                     race[key] = old_race[key]
+            # Horse-level freeze added 2026-05-24 (Finding #1): the L5 block
+            # above protected race-level keys, but `database.log_predictions`
+            # later UPDATEs prediction_log.predicted_rank from race['horses'],
+            # which was still mutable in the post-off/pre-results window.
+            # That corrupted forward-validation rank → poisoned validate_hk.
+            old_horses_by_num = {h['number']: h for h in old_race.get('horses', []) if 'number' in h}
+            for horse in race.get('horses', []):
+                old_h = old_horses_by_num.get(horse.get('number'))
+                if old_h:
+                    for key in _FROZEN_PREDICTION_KEYS_HORSE:
+                        if key in old_h:
+                            horse[key] = old_h[key]
+            old_horses_by_rank = sorted(
+                (h for h in old_race.get('horses', []) if 'rank' in h),
+                key=lambda h: h.get('rank', 99)
+            )
+            if old_horses_by_rank:
+                race['horses'] = sorted(race.get('horses', []),
+                                         key=lambda h: h.get('rank', 99))
         elif 'bet_ticket' in old_race:
             # Pre-race: still restore bet_ticket alone (combined with Layer 3
             # in the regen loop, prevents the rare triple-gate-boundary flip
@@ -350,8 +376,10 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
             tier = (race.get('conviction_tier') or 'SKIP').upper()
             top1_odds = top5[0].get('win_odds') or 0
             field = len(horses)
+            # Heavy-fav-skip dropped 2026-05-24 per user: at flat $10/combo
+            # the downside is bounded; user prefers visible-and-staked over
+            # the "phantom-hit" recap inconsistency (R8/R11 2026-05-24).
             triple_gate_skip = (
-                (top1_odds > 0 and top1_odds < 2.5) or
                 (tier not in ('EDGE', 'HIGH', 'MED')) or
                 (field < 8)
             )
@@ -818,7 +846,7 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     json_file = os.path.join(results_dir, f"race_data_{date_str}.json")
 
     # Merge: preserve result fields from prior run (e.g. actual_position, accuracy)
-    all_races = _merge_with_existing(json_file, all_races)
+    all_races = _merge_with_existing(json_file, all_races, race_date=race_date)
 
     # Tier stats — load from cache (refreshed on results ingestion, Task 8)
     from betting.tier_stats import load_cached_stats
