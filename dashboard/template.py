@@ -870,37 +870,16 @@ function renderBetCard(race) {{
   // + F4 BOX-5) by combo-count, so the user sees how the $X splits.
   var ss = race.suggested_stake || {{}};
   var stakeHtml = '';
-  // Longshot paper bet — rendered in the ticket area on EVERY qualifying race
-  // (steamed rank 6-8 present), including SKIP races that have no stake table.
-  // Purple/dashed, explicitly NOT STAKED, never affects the real budget total.
-  var _lp = _longshotPick(race);
-  var paperBlock = _lp
-    ? '<div class="trust-block" style="margin-top:6px;border:1px dashed #5b21b6;border-radius:6px;padding:6px 10px;background:rgba(91,33,182,.10)">' +
-        '<span style="background:#5b21b6;color:#ede9fe;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">🧪 LONGSHOT-TRIO · PAPER · NOT STAKED</span>' +
-        (_lp.tag ? ' <span style="color:' + _lp.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _lp.tag + '</span>' : '') +
-        '<div style="color:var(--dim);font-size:.66rem;margin-top:3px">20-combo box · top-5 + ' +
-          '<span style="color:#c4b5fd;font-weight:700">#' + esc(_lp.best.number) + ' ' + esc(_lp.best.name) +
-          ' (rank ' + esc(_lp.best.rank) + ', @' + esc(_lp.best.win_odds) + ', -' + _lp.pct + '%)</span></div>' +
-      '</div>'
-    : '';
-  // EXPERIMENT (owner-only): top-1 + 1 HOT (most-steamed rank 6-12) + 1 COLD
-  // (most-drifted rank 6-12), straight TRIO. Amber/dashed, NOT STAKED, isolated
-  // from ML. Lottery line. Updated 2026/05/24. See _bolterTrio().
-  var _bt = _bolterTrio(race);
-  var bolterBlock = _bt
-    ? '<div class="trust-block" style="margin-top:6px;border:1px dashed #ec4899;border-radius:6px;padding:6px 10px;background:rgba(131,24,67,.18)">' +
-        '<span style="background:#831843;color:#fce7f3;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">\\uD83C\\uDF40 BOLTER TRIO \\u00b7 EXPERIMENT \\u00b7 NOT STAKED</span>' +
-        (_bt.tag ? ' <span style="color:' + _bt.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _bt.tag + '</span>' : '') +
-        '<div style="color:#fbcfe8;font-size:.66rem;margin-top:3px">straight TRIO \\u00b7 top-1 + hot + cold: ' +
-          '<span style="color:#fce7f3;font-weight:700">' + _bt.nums.map(function(n) {{ return '#' + esc(n); }}).join('-') + '</span>' +
-          ' <span style="opacity:.85">(\\uD83D\\uDD25 hot #' + esc(_bt.hot.number) + ' ' + esc(_bt.hot.name) +
-          ', rank ' + esc(_bt.hot.rank) + ', @' + esc(_bt.hot.win_odds) +
-          (_bt.hotPct ? ', ' + (_bt.hotPct > 0 ? '+' : '') + _bt.hotPct.toFixed(0) + '%' : '') + ')' +
-          ' (\\u2744\\uFE0F cold #' + esc(_bt.cold.number) + ' ' + esc(_bt.cold.name) +
-          ', rank ' + esc(_bt.cold.rank) + ', @' + esc(_bt.cold.win_odds) +
-          (_bt.coldPct ? ', ' + (_bt.coldPct > 0 ? '+' : '') + _bt.coldPct.toFixed(0) + '%' : '') + ')</span></div>' +
-      '</div>'
-    : '';
+  // LONGSHOT-TRIO 🧪 + BOLTER TRIO 🍀 removed from the live dashboard
+  // 2026-05-25 per user direction. Both still compete with real system
+  // bets in the ticket area despite EXPERIMENT/NOT STAKED labels:
+  //   - LONGSHOT-TRIO variant 1: N=7 meetings, KILL verdict
+  //     (memory: project_bolter_calc_hot_killed_2026-05-24).
+  //   - BOLTER TRIO mix_hot_cold: 3 meetings, 0/22 hits, INSUFFICIENT_DATA.
+  //     User wants tracker running silently (scripts.track_longshot_trio
+  //     still logs to tracking_data/longshot_trio_log.csv) but UI hidden
+  //     until N≥6 forward, then ROI verdict.
+  // Helper functions _longshotPick + _bolterTrio also removed (dead).
   if (ss.amount && ss.amount > 0) {{
     var br = race.bankroll || 0;
     var betLines = [];
@@ -990,10 +969,8 @@ function renderBetCard(race) {{
           '<br><span style="color:var(--dim);font-size:.65rem">' + (ss.pct||0).toFixed(2) + '% of $' + br + ' · ' + esc(ss.method||'') + '</span>' +
           breakdownHtml +
         '</div>' +
-      '</div>' + paperBlock + bolterBlock;
+      '</div>';
   }}
-  // SKIP / no-stake races still surface the paper experiments if any qualify.
-  if (!stakeHtml) stakeHtml = paperBlock + bolterBlock;
 
   // Bet type sub-label
   var betRec = topH.bet_recommendation || 'QIN';
@@ -1393,30 +1370,12 @@ function renderBetCard(race) {{
     addOns.forEach(function(a) {{ waLines.push('• ' + a); }});
   }}
 
-  // PAPER EXPERIMENT (2026-05-20): longshot-inclusive TRIO. Top-5 + most-steamed
-  // rank 6-8 horse. NOT a recommended bet — flagged explicitly so it never reads
-  // as a real add. Mirrors _select() in scripts/track_longshot_trio.py. Lives
-  // outside the *Optional adds* block on purpose, below it, with its own header.
-  if (race.horses && race.horses.length >= 8) {{
-    var _ltSorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
-    var _ltBest = null, _ltPct = -1;
-    for (var _li = 5; _li < 8; _li++) {{
-      var _lsm = _ltSorted[_li].steam_move || {{}};
-      if (!_lsm.is_steam) continue;
-      var _lm = (_lsm.label || '').match(/-(\\d+)%/);
-      var _lp = _lm ? parseInt(_lm[1], 10) : 0;
-      if (_lp > _ltPct) {{ _ltPct = _lp; _ltBest = _ltSorted[_li]; }}
-    }}
-    if (_ltBest) {{
-      var _ltNums = _ltSorted.slice(0, 5).map(function(h) {{ return '#' + h.number; }}).join(' ');
-      waLines.push('');
-      waLines.push('🧪 *PAPER EXPERIMENT — NOT A BET*');
-      waLines.push('Longshot-TRIO: ' + _ltNums + ' + #' + _ltBest.number + ' ' +
-                   (_ltBest.name || '') + ' (rank ' + _ltBest.rank + ', @$' +
-                   (_ltBest.win_odds || '?') + ', -' + _ltPct + '%)');
-      waLines.push('_Tracking only — do not stake until 6-meeting verdict._');
-    }}
-  }}
+  // PAPER EXPERIMENT Longshot-TRIO block removed from WA 2026-05-25 per
+  // user direction (same reason as the visual paperBlock removal above):
+  // even with "NOT A BET" framing, the line competed with real system
+  // bets in the WA copy. Tracker scripts still log to
+  // tracking_data/longshot_trio_log.csv; surface results only in
+  // post-race report, not live WA.
 
   // Why-strong block, italicised
   if (whyItems.length) {{
@@ -1752,79 +1711,11 @@ function setStripView(view) {{
   renderHero();
 }}
 
-// ── PAPER EXPERIMENT (2026-05-20): longshot-inclusive TRIO ──────────────
-// Selection = model top-5 + most-steamed rank 6-8 horse. Rendered as a PAPER
-// row inside the bet-ticket stake breakdown — clearly labelled, never staked,
-// excluded from the budget total. Tracking only until the N>=6 ship gate.
-// Mirrors _select() in scripts/track_longshot_trio.py so dashboard == log.
-// Returns an object (best, pct, box6nums, tag, tagColor) or null when there is
-// no qualifying horse.
-function _longshotPick(race) {{
-  if (!race.horses || race.horses.length < 8) return null;
-  var sorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
-  var top5 = sorted.slice(0, 5);
-  var best = null, bestPct = -1;
-  for (var i = 5; i < 8; i++) {{
-    var sm = sorted[i].steam_move || {{}};
-    if (!sm.is_steam) continue;
-    var m = (sm.label || '').match(/-(\\d+)%/);
-    var pct = m ? parseInt(m[1], 10) : 0;
-    if (pct > bestPct) {{ bestPct = pct; best = sorted[i]; }}
-  }}
-  if (!best) return null;  // no qualifying steamed rank 6-8 horse → no paper bet
-  var top5nums = top5.map(function(h) {{ return h.number; }});
-  var box6nums = top5nums.concat([best.number]);
-  var tag = '', tagColor = '#94a3b8';
-  if (race.results_available && Array.isArray(race.actual_top3) && race.actual_top3.length) {{
-    var boxHit = race.actual_top3.every(function(n) {{ return box6nums.indexOf(n) !== -1; }});
-    var t5Hit = race.actual_top3.every(function(n) {{ return top5nums.indexOf(n) !== -1; }});
-    if (boxHit && !t5Hit) {{ tag = 'RESCUED ✓'; tagColor = '#22c55e'; }}
-    else if (boxHit) {{ tag = 'hit'; tagColor = '#94a3b8'; }}
-    else {{ tag = 'missed'; tagColor = '#ef4444'; }}
-  }}
-  return {{ best: best, pct: bestPct, box6nums: box6nums, tag: tag, tagColor: tagColor }};
-}}
-
-// EXPERIMENT (owner-requested, display-only): a straight 3-horse TRIO mixing
-// model conviction with market signal — top-1 (our pick) + 1 HOT longshot
-// (most-steamed in rank 6-12) + 1 COLD longshot (most-drifted in rank 6-12).
-// Updated 2026/05/24 from the prior "top-2 + biggest-price rank 6-9" shape
-// — the new shape tests whether market-direction signals on longshots
-// rescue trios the model alone cannot see. Falls back to longest-price band
-// (no hot) or shortest-price band (no cold) when one direction has no
-// qualifying runner. Deterministic, stable across refreshes. NOT staked,
-// completely isolated from the ML pipeline.
-function _bolterTrio(race) {{
-  if (race.conviction_tier === 'EDGE') return null;  // skip high-conviction EDGE races
-  if (!race.horses || race.horses.length < 6) return null;
-  var sorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
-  var top1 = sorted[0];
-  // Band: rank 6-12 (longshot zone). Need odds > 0 to read odds_movement.
-  var band = sorted.slice(5, 12).filter(function(h) {{ return (h.win_odds || 0) > 0; }});
-  if (band.length < 2) return null;  // need at least 2 to pick both hot + cold
-  function mov(h) {{ var o = h.odds_movement || {{}}; return Number(o.change_pct) || 0; }}
-  // HOT: most-steamed (largest positive change_pct). Fallback: shortest current odds.
-  var hot = band.reduce(function(best, h) {{ return (mov(h) > mov(best)) ? h : best; }});
-  if (mov(hot) <= 0) {{
-    hot = band.reduce(function(best, h) {{ return (h.win_odds < best.win_odds) ? h : best; }});
-  }}
-  // COLD: most-drifted (most-negative change_pct), excluding hot. Fallback: longest odds.
-  var coldBand = band.filter(function(h) {{ return h.number !== hot.number; }});
-  if (coldBand.length === 0) return null;
-  var cold = coldBand.reduce(function(best, h) {{ return (mov(h) < mov(best)) ? h : best; }});
-  if (mov(cold) >= 0) {{
-    cold = coldBand.reduce(function(best, h) {{ return (h.win_odds > best.win_odds) ? h : best; }});
-  }}
-  var nums = [top1.number, hot.number, cold.number];
-  var tag = '', tagColor = '#94a3b8';
-  if (race.results_available && Array.isArray(race.actual_top3) && race.actual_top3.length === 3) {{
-    var hit = race.actual_top3.every(function(n) {{ return nums.indexOf(n) !== -1; }});
-    tag = hit ? 'HIT \\u2713' : 'missed';
-    tagColor = hit ? '#22c55e' : '#ef4444';
-  }}
-  return {{ legs: [top1, hot, cold], nums: nums, third: cold, tag: tag, tagColor: tagColor,
-           hot: hot, cold: cold, hotPct: mov(hot), coldPct: mov(cold) }};
-}}
+// LONGSHOT-TRIO + BOLTER TRIO removed from live UI 2026-05-25 per user
+// direction. Tracker scripts (scripts/track_longshot_trio.py) keep
+// logging silently; surface results only in post-race reports. See:
+//   feedback_hide_paper_experiments_from_live_ui_2026-05-25
+//   project_bolter_calc_hot_killed_2026-05-24 (variant 1 KILL @ N=7)
 
 function renderTopBetsView() {{
   // Stacked betting-opportunity cards: every race that has a non-SKIP bet,
