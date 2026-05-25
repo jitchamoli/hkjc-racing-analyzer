@@ -488,6 +488,65 @@ def test_visual_ticket_blocks_render_from_frozen_legs_not_rank():
         )
 
 
+def test_compact_wa_ticket_payload_reads_bet_legs_and_bet_amount_directly():
+    """GPT-5.5 R14 2026-05-25 (refined R15) — the ticket-first 'Copy WA
+    Ticket' payload must iterate frozen `bet_ticket.bets` and read
+    `bet.legs` + `bet.amount` directly (no rank slicing, no combo-math
+    redoing). Pool label must be DERIVED from bet.pool + leg count,
+    not from a hardcoded label map. Static code check; Playwright
+    counterparts in test_dashboard_playwright.py assert rendered output."""
+    src = (Path(__file__).resolve().parent.parent / 'dashboard' / 'template.py').read_text()
+    # Compact payload variable must be built from ticket bets
+    assert 'waPayloadCompact' in src, (
+        "Compact WA payload variable missing — Copy WA Ticket button "
+        "should produce its own ticket-first payload"
+    )
+    # R15 #4 — replaced hardcoded _POOL_LABEL_MAP with a derivation
+    # function so every regular box label (BOX QIN-3/4, BOX TRIO-N,
+    # STRAIGHT QIN/TRIO) renders correctly without per-label entries.
+    assert 'function _hkjcPoolLabel' in src, (
+        "Pool-label derivation function _hkjcPoolLabel missing — "
+        "compact payload should derive QIN BOX-N / TRIO BOX-N / "
+        "FIRST 4 BOX-N from bet.pool + bet.legs.length, not a "
+        "hardcoded map"
+    )
+    # The compact emitter must use bet.legs directly (via map), not
+    # race.horses.slice. Spot-check the leg iteration shape.
+    assert '(bet.legs || []).map(function(l)' in src, (
+        "Compact payload must map over bet.legs (frozen ticket legs), "
+        "not over race.horses.slice"
+    )
+    # Status guards
+    for token in ('STATUS: ', 'NO SYSTEM BET', 'LOCKED', 'STALE ODDS',
+                  'OPTIONAL FORCE PICK', 'Manual only'):
+        assert token in src, (
+            f"Compact payload missing R15-spec token: {token!r}"
+        )
+    # Two test IDs distinguish the two buttons
+    assert 'copy-wa-ticket-R' in src, (
+        "Compact Copy WA Ticket button must have distinct testid prefix"
+    )
+
+
+def test_wa_copy_ticket_blocks_render_from_frozen_legs_not_rank():
+    """GPT-5.5 R14 2026-05-25 — WA copy emitters for QPL BANKER, BOX QIN-4
+    PROTECTION, F4 SAVER, BOX TRIO-5, and F4 BOX-5 must read legs from the
+    frozen bet_ticket via _waTicketLegsFor(label). Earlier code started
+    from race.horses.slice(0, N) so WA could tell the user to bet
+    different horses than the dashboard visual + replay scored — the same
+    failure mode that R13 #6 fixed on the visual side."""
+    src = (Path(__file__).resolve().parent.parent / 'dashboard' / 'template.py').read_text()
+    assert 'function _waTicketLegsFor' in src, (
+        "_waTicketLegsFor helper missing — WA blocks still using rank slices"
+    )
+    for label in ('QIN PLACE BANKER', 'BOX QIN-4 PROTECTION', 'F4 SAVER',
+                  'BOX TRIO-5', 'F4 BOX-5'):
+        assert f"_waTicketLegsFor('{label}')" in src, (
+            f"WA copy block for {label} must read from "
+            f"_waTicketLegsFor('{label}'), not race.horses.slice"
+        )
+
+
 def test_stake_ab_firing_bets_reads_frozen_ticket_when_present():
     """Already pinned by test_firing_bets_prefers_frozen_ticket_over_legacy
     in test_stake_ab.py — included here as a cross-suite assertion that the
