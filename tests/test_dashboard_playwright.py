@@ -652,6 +652,35 @@ def test_copy_wa_ticket_qin_box4_label_derived_from_pool_and_legs(
     page.close()
 
 
+def test_copy_wa_ticket_2leg_qin_renders_as_straight_qin_not_qin_straight(
+        browser: Browser, tmp_path):
+    """Repo-wide convention is 'STRAIGHT QIN' / 'STRAIGHT TRIO' (adjective
+    first) — generator at dashboard/generator.py:506,510 + WA fallback at
+    template.py:942,945,1876,1878 all use that order. _hkjcPoolLabel must
+    match so visual, generator-emitted, and compact-derived labels stay
+    consistent in copy."""
+    race = _make_race(
+        race_number=13,
+        bet_ticket_bets=[_qin_bet([4, 9])],  # 2-leg → STRAIGHT QIN
+        results_available=False,
+        conviction_tier='EDGE',
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+    payload = page.locator(
+        '[data-testid="copy-wa-ticket-R13"]'
+    ).first.get_attribute('data-payload') or ''
+    assert 'STRAIGHT QIN' in payload, (
+        f"compact must render 'STRAIGHT QIN' (adjective first): {payload[:400]!r}"
+    )
+    assert 'QIN STRAIGHT' not in payload, (
+        f"compact must NOT render 'QIN STRAIGHT' (wrong order): {payload[:400]!r}"
+    )
+    page.close()
+
+
 def test_copy_wa_ticket_no_system_bet_and_force_pick_when_empty(
         browser: Browser, tmp_path):
     """R15 #2 — when frozen bet_ticket is empty:
