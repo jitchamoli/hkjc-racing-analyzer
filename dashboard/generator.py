@@ -1089,7 +1089,12 @@ async def _run_generation(fetcher, analyzer, race_date: str):
 
     _atomic_write(json_file, json.dumps(all_races, indent=2))
 
-    # Log predictions to DB for longitudinal accuracy tracking
+    # Log predictions to DB for longitudinal accuracy tracking.
+    # model_ver was previously read from finalize_tickets_and_stakes' local
+    # scope (worked when this lived inline); after the R13 F2 extraction
+    # the scope is no longer shared — re-derive here from the analyzer.
+    model_ver = (analyzer.ml_analyzer.ml_model.model_version
+                 if hasattr(analyzer, 'ml_analyzer') else '')
     db.log_predictions(race_date, all_races, model_version=model_ver)
 
     # Snapshot 60-day accuracy for the dashboard's "Recent accuracy" panel +
