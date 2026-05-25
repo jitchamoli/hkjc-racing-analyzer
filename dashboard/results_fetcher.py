@@ -155,8 +155,26 @@ class ResultsFetcher:
         existing = existing_merged or {}
         for race in predictions:
             race_no = race.get('race_number')
-            if race_no in actual_results:
-                race['actual_results'] = actual_results[race_no]
+            # GPT-5.5 R12 #6 2026-05-25 — partial-fresh-row guard. If the
+            # fresh fetch returns FEWER positioned horses than the prior
+            # merged record (HKJC mid-publish glitch / parse failure), the
+            # prior record is more complete and stays. Without this guard,
+            # a 1-row partial overwrites a 3-row complete top-3.
+            fresh = actual_results.get(race_no)
+            prior = existing.get(race_no)
+            prior_results = prior.get('actual_results') if prior else None
+            if (fresh is not None and prior_results is not None
+                    and len(fresh) < len(prior_results)):
+                logger.info(
+                    f"  Race {race_no}: fresh fetch has {len(fresh)} rows vs "
+                    f"prior {len(prior_results)} — keeping prior result "
+                    f"(partial-fresh guard)"
+                )
+                fresh = None  # fall through to the elif-restore branch below
+
+            if fresh is not None:
+                race['actual_results'] = fresh
+                actual_results_for_race = fresh
                 race['results_available'] = True
 
                 actual_positions = {
@@ -418,8 +436,18 @@ class ResultsFetcher:
         )
         summary = self.compute_day_summary(merged)
 
-        # Fill prediction_log with actual results for longitudinal tracking
-        self._fill_prediction_log(race_date, actual_results)
+        # GPT-5.5 R12 #7 2026-05-25 — fill from the MERGED race set, not
+        # the raw fresh fetch. The merged set includes races whose results
+        # were restored from a prior _with_results file (monotonic merge)
+        # AND races protected by the partial-fresh-row guard. Filling from
+        # raw `actual_results` would skip those, leaving prediction_log
+        # rows unfilled and validate_hk --replay silently dropping them.
+        merged_results = {
+            race.get('race_number'): race.get('actual_results')
+            for race in merged
+            if race.get('results_available') and race.get('actual_results')
+        }
+        self._fill_prediction_log(race_date, merged_results)
 
         # Refresh tier_stats cache — new results shift the windowed hit-rate
         self._refresh_tier_stats()

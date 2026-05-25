@@ -123,7 +123,12 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
     owns_db = db is None
     try:
         fetcher = fetcher or HKJCDataFetcher()
-        analyzer = analyzer or CombinedRaceAnalyzer()
+        # fail_closed_ml=True matches the generator's contract: if the ML
+        # pickle is missing/corrupt or fails the integrity check, refuse to
+        # emit recommendations instead of falling through to rule-only.
+        # Monitor used to default fail-open and could silently degrade
+        # live recs to rule-only (GPT-5.5 R12 #3 2026-05-25).
+        analyzer = analyzer or CombinedRaceAnalyzer(fail_closed_ml=True)
         db = db or HorseDatabase()
         odds_db = odds_db or OddsDatabase()
 
@@ -206,7 +211,8 @@ async def run_monitor(race_date: str):
     logger.info(f"Pre-race window: {PRE_RACE_WINDOW}s, Poll interval: {POLL_INTERVAL}s")
 
     fetcher = HKJCDataFetcher()
-    analyzer = CombinedRaceAnalyzer()
+    # fail_closed_ml=True — see comment in regenerate_dashboard above.
+    analyzer = CombinedRaceAnalyzer(fail_closed_ml=True)
     db = HorseDatabase()
     odds_db = OddsDatabase()
 

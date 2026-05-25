@@ -455,7 +455,12 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
             tier = (race.get('conviction_tier') or 'SKIP').upper()
             top1_odds = top5[0].get('win_odds') or 0
             field = len(horses)
-            # F4 SAVER — 1 unit exact-order top-4. Same gates as F4 BOX-5
+            # F4 SAVER — 1-unit FIRST 4 ANY-ORDER on the model top-4. The
+            # HKJC FIRST 4 pool is any-order top-4 (per
+            # campaign.hkjc.com/en/qtt-f4/mergedpool_oddscal.aspx); QUARTET
+            # is the exact-order product. Earlier copy strings said "exact
+            # order" which contradicted the pool we actually bet — corrected
+            # 2026-05-25 (GPT-5.5 R12 #8). Same gates as F4 BOX-5
             # EXCEPT heavy-fav-skip is RETAINED (exact-order F4 collapses
             # hard on heavy favs; the box's larger payout-on-hit absorbs
             # the cost, the saver's 1-combo stake doesn't). Mirrors JS at
@@ -506,12 +511,19 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
 
     total_combos = sum(b['combos'] for b in bets)
     unit = (amount / total_combos) if amount > 0 and total_combos > 0 else 0.0
+    # HKJC min unit is HK$5 — `max(5.0, ...)` enforces the floor. When the
+    # budget can't fund every combo at that floor, the ticket allocation
+    # EXCEEDS `amount`. Honest disclosure preferred over silent overspend:
+    # the ticket carries `over_budget` + `over_amount` so the display can
+    # show "$100 budget / $125 allocated (+$25 over)" instead of misleading
+    # the user (GPT-5.5 R12 #2 2026-05-25).
     unit_rounded = max(5.0, (unit // 5.0) * 5.0) if unit > 0 else 0.0
     allocated = 0.0
     for b in bets:
         b['unit_stake'] = float(unit_rounded)
         b['amount'] = float(b['combos'] * unit_rounded)
         allocated += b['amount']
+    over_amount = max(0.0, allocated - amount) if amount > 0 else 0.0
 
     return {
         'version': 1,
@@ -527,6 +539,11 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
         'total_combos': int(total_combos),
         'unit_stake': float(unit_rounded),
         'allocated_amount': float(allocated),
+        # Budget over/under disclosure — `over_budget=True` means the HK$5
+        # unit-stake floor pushed allocated above the suggested budget.
+        # WA + visual ticket surface this so the user sees the real spend.
+        'over_budget': bool(over_amount > 0),
+        'over_amount': float(over_amount),
         'bets': bets,
     }
 
