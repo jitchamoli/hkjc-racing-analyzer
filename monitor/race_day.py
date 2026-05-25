@@ -149,6 +149,15 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
             race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)
             all_races.append(race_data)
 
+        # GPT-5.5 R13 #2 2026-05-25 — monitor uses the same stake +
+        # bet_ticket pipeline as the main generator. Without this the
+        # live monitor dashboard rendered horses with bet_recommendation
+        # but no frozen ticket and no suggested stake → WA/detail panel
+        # showed SKIP everywhere. Shared finalize fn keeps the contract
+        # in one place; both surfaces emit identical ticket structure.
+        from dashboard.generator import finalize_tickets_and_stakes
+        finalize_tickets_and_stakes(all_races, race_date, analyzer)
+
         # Snapshot the live trust panels BEFORE closing the DB. Without these,
         # generate_html() defaults both to None and the monitor re-render wipes
         # the EDGE banner + 60-day accuracy footer on every pre-race refresh

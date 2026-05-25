@@ -29,6 +29,11 @@ DUMP_PATH = PROJECT_ROOT / 'tracking_data' / 'backup' / 'db_core_dump.sql.gz'
 CORE_TABLES = (
     'race_results', 'horses', 'jockey_stats',
     'trainer_stats', 'race_dividends', 'prediction_log',
+    # GPT-5.5 R13 #4 2026-05-25 — frozen ticket audit trail. validate_hk
+    # --replay scores from race_bet_ticket; restoring without it loses
+    # the historical staked record and silently zeroes future replay
+    # numbers on the restored DB.
+    'race_bet_ticket',
 )
 
 

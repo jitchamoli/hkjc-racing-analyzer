@@ -323,7 +323,28 @@ def apply_card_exposure_cap(all_races: list, bankroll: float,
 
 def _ticket_add_bet(bets: list, label: str, pool: str, horses: list,
                     combos: int, reason: str, swap: dict | None = None) -> None:
+    """Final ticket-level no-odds guard (GPT-5.5 R13 #1 2026-05-25).
+
+    The recommender skips no-odds horses for PRIMARY bets, but the
+    automatic add-ons (BOX QIN-4 PROTECTION, F4 SAVER, BOX TRIO-5,
+    F4 BOX-5, BOX TRIO-6) call this helper with raw top-N rank slices
+    and never re-validated odds. A horse with win_odds<=0 could enter
+    an add-on ticket and be staked.
+
+    Refuse any bet whose legs contain a horse without a live price.
+    Log + drop the bet rather than silently strip the bad leg — a
+    different combo count would change the ticket semantics."""
     if combos <= 0 or not horses:
+        return
+    bad_legs = [h for h in horses
+                if not (h.get('win_odds') and h.get('win_odds') > 0)]
+    if bad_legs:
+        bad_names = ', '.join(
+            f"#{h.get('number')} {h.get('name')}" for h in bad_legs
+        )
+        logger.warning(
+            f"Refusing to add {label} — leg(s) have no live odds: {bad_names}"
+        )
         return
     entry = {
         'label': label,
@@ -389,6 +410,70 @@ def _pick_trio6_top6(horses: list, manual_trio6_horse, manual_reason: str = ''):
                 'in_gear': (best.get('gear') or '').strip(),
             }
     return top6, None
+
+
+def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> None:
+    """Compute per-race suggested stake + apply card-level exposure cap +
+    build frozen bet_tickets with all freeze guards. Shared between
+    generator and monitor so both surfaces emit the same staking +
+    ticket structure (GPT-5.5 R13 #2 2026-05-25).
+
+    Mutates `all_races` in place: adds `suggested_stake`, `bankroll`, and
+    `bet_ticket` per race. Skips recompute on finished races (frozen
+    ticket + stake are restored by _merge_with_existing). Layer 3
+    mutation guard refuses combo-count or label changes on existing
+    tickets — see test_bet_ticket regression suite for the contract.
+    """
+    from betting.optimizer import compute_suggested_stake
+    import config as _cfg
+
+    # Per-card suggested stake — bankroll-fraction (BOX) or half-Kelly
+    # (WIN/BANKER WIN), tier-capped. See compute_suggested_stake.
+    for r in all_races:
+        if r.get('results_available'):
+            continue
+        top = (r.get('horses') or [{}])[0]
+        stake = compute_suggested_stake(
+            conviction_tier=r.get('conviction_tier') or 'SKIP',
+            bet_type=top.get('bet_recommendation') or '',
+            top_prob=top.get('calibrated_prob') or 0.0,
+            top_odds=top.get('win_odds') or 0.0,
+            bankroll=_cfg.BANKROLL,
+            top_2_share=r.get('top_2_share'),
+        )
+        r['suggested_stake'] = stake
+        r['bankroll'] = _cfg.BANKROLL
+
+    # Card-level exposure cap
+    apply_card_exposure_cap(all_races, _cfg.BANKROLL,
+                            getattr(_cfg, 'CARD_EXPOSURE_CAP', 0.10))
+
+    model_ver = (analyzer.ml_analyzer.ml_model.model_version
+                  if hasattr(analyzer, 'ml_analyzer') else '')
+    ticket_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    for r in all_races:
+        # Freeze ticket once the race has run.
+        race_off = any(h.get('actual_position') for h in (r.get('horses') or []))
+        if r.get('bet_ticket') and (r.get('results_available') or race_off):
+            continue
+        old_ticket = r.get('bet_ticket')
+        new_ticket = build_bet_ticket(
+            r, race_date=race_date, model_version=model_ver, generated_at=ticket_ts,
+        )
+        # Layer 3 (combo-aware): refuse any change to combos or labels.
+        if old_ticket:
+            old_combos = old_ticket.get('total_combos', 0) or 0
+            new_combos = new_ticket.get('total_combos', 0) or 0
+            old_labels = sorted(b.get('label', '') for b in old_ticket.get('bets', []))
+            new_labels = sorted(b.get('label', '') for b in new_ticket.get('bets', []))
+            if new_combos != old_combos or new_labels != old_labels:
+                logger.warning(
+                    f"  R{r.get('race_number')}: refusing to mutate frozen bet_ticket "
+                    f"({old_combos} combos {old_labels} → {new_combos} combos {new_labels}) "
+                    f"— likely post-race odds-drift artifact."
+                )
+                continue
+        r['bet_ticket'] = new_ticket
 
 
 def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
@@ -991,69 +1076,7 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     for r in all_races:
         r['tier_stats'] = tier_stats
 
-    # Per-card suggested stake — bankroll-fraction (BOX) or half-Kelly
-    # (WIN/BANKER WIN), tier-capped. See betting/optimizer.compute_suggested_stake.
-    # Skip recompute on finished races — _merge_with_existing already restored
-    # the frozen pre-race stake (audit 2026-05-17, Python expert finding HIGH).
-    from betting.optimizer import compute_suggested_stake
-    import config as _cfg
-    for r in all_races:
-        if r.get('results_available'):
-            continue
-        top = (r.get('horses') or [{}])[0]
-        stake = compute_suggested_stake(
-            conviction_tier=r.get('conviction_tier') or 'SKIP',
-            bet_type=top.get('bet_recommendation') or '',
-            top_prob=top.get('calibrated_prob') or 0.0,
-            top_odds=top.get('win_odds') or 0.0,
-            bankroll=_cfg.BANKROLL,
-            top_2_share=r.get('top_2_share'),
-        )
-        r['suggested_stake'] = stake
-        r['bankroll'] = _cfg.BANKROLL
-
-    # Card-level exposure cap (see _apply_card_exposure_cap).
-    apply_card_exposure_cap(all_races, _cfg.BANKROLL,
-                            getattr(_cfg, 'CARD_EXPOSURE_CAP', 0.10))
-
-    model_ver = analyzer.ml_analyzer.ml_model.model_version if hasattr(analyzer, 'ml_analyzer') else ''
-    ticket_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    for r in all_races:
-        # Freeze ticket once the race has run. Two cases:
-        # (1) results_available=True → results_fetcher has merged, definitely freeze.
-        # (2) Any horse has actual_position → race off'd this cycle, freeze
-        #     (results_fetcher runs after generate in the same ./raceday live cycle,
-        #     so on the just-finished race actual_position lands first).
-        # (3) Race is in `late` state (off time past, no results yet) — guard
-        #     against the bookie-settle odds-drift window flipping the triple
-        #     gate. We detect this by NEVER EXPANDING an existing ticket: only
-        #     replace if the new ticket has the same-or-fewer bets. Pure
-        #     shrinkage is legitimate (recommender dropped a flag); expansion
-        #     while a ticket already exists is the bug signature.
-        race_off = any(h.get('actual_position') for h in (r.get('horses') or []))
-        if r.get('bet_ticket') and (r.get('results_available') or race_off):
-            continue
-        old_ticket = r.get('bet_ticket')
-        new_ticket = build_bet_ticket(
-            r, race_date=race_date, model_version=model_ver, generated_at=ticket_ts,
-        )
-        # Layer 3 (combo-aware): once a ticket exists, refuse ANY change to
-        # combo count or bet labels. R4 2026/05/24 caught the shrinkage case:
-        # post-race ticket regen reduced BOX QIN-3 → STRAIGHT QIN (3 combos
-        # → 1 combo, both "1 bet entry" — pure-count check missed it).
-        if old_ticket:
-            old_combos = old_ticket.get('total_combos', 0) or 0
-            new_combos = new_ticket.get('total_combos', 0) or 0
-            old_labels = sorted(b.get('label', '') for b in old_ticket.get('bets', []))
-            new_labels = sorted(b.get('label', '') for b in new_ticket.get('bets', []))
-            if new_combos != old_combos or new_labels != old_labels:
-                logger.warning(
-                    f"  R{r.get('race_number')}: refusing to mutate frozen bet_ticket "
-                    f"({old_combos} combos {old_labels} → {new_combos} combos {new_labels}) "
-                    f"— likely post-race odds-drift artifact."
-                )
-                continue
-        r['bet_ticket'] = new_ticket
+    finalize_tickets_and_stakes(all_races, race_date, analyzer)
 
     # Alerts — diff current vs previous race_data file
     from betting.alerts import compute_alerts, AlertState, load_alert_state, save_alert_state

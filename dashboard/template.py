@@ -2006,15 +2006,29 @@ function _buildRaceDetailPanel(race) {{
       : '<span style="background:rgba(239,68,68,.7);color:#fff;font-weight:800;padding:1px 6px;border-radius:3px;font-size:.62rem;margin-left:8px;vertical-align:middle">✗ MISS</span>';
   }}
   function _legsToHorses(legs) {{
-    // Re-hydrate full horse objects from rank so _renderPick has odds,
-    // jockey, edge, etc. Falls back to a minimal stub when rank not found.
+    // Re-hydrate full horse objects from the frozen ticket leg numbers
+    // so _renderPick has odds, jockey, edge, etc. Resolve by NUMBER
+    // first (stable across rank shifts) then fall back to rank
+    // (GPT-5.5 R13 #6 2026-05-25 — visual must render from ticket legs,
+    // not current rank order, so display matches what replay scores).
+    var byNum = {{}};
     var byRank = {{}};
-    race.horses.forEach(function(h) {{ byRank[h.rank] = h; }});
+    race.horses.forEach(function(h) {{
+      if (h.number != null) byNum[h.number] = h;
+      if (h.rank != null) byRank[h.rank] = h;
+    }});
     return legs.map(function(l) {{
-      return byRank[l.rank] || {{
+      return byNum[l.number] || byRank[l.rank] || {{
         number: l.number, name: l.name, rank: l.rank,
       }};
     }});
+  }}
+  // _ticketLegsFor — return [{{number, name, rank, win_odds, ...}}] for the
+  // first bet matching `label` in the frozen ticket. Empty array when the
+  // label is absent (caller should also gate on _ticketHas).
+  function _ticketLegsFor(label) {{
+    var bet = _ticketBets.filter(function(b) {{ return b.label === label; }})[0];
+    return bet ? _legsToHorses(bet.legs || []) : [];
   }}
   var ticketLines = [];
   // PRIMARY block — render every recommender-driven bet from the frozen
@@ -2033,62 +2047,60 @@ function _buildRaceDetailPanel(race) {{
     );
   }});
 
-  // QIN PLACE BANKER — for short-favorite races (top pick odds <= 1.8)
-  // a straight WIN bet pays barely above stake. QIN PLACE on the
-  // favorite with the next 3 model picks gives us 3 combos that hit
-  // when the favorite finishes top-3 (very likely) AND any of the
-  // bankers finishes top-3. Much better EV than WIN at sub-2.0 odds.
-  var topH2 = race.horses[0];
-  if (_ticketHas('QIN PLACE BANKER') && topH2 && race.horses.length >= 4) {{
-    var bankers = race.horses.slice(1, 4);
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25)">' +
-        '<span style="display:inline-block;background:rgba(59,130,246,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
-          '+ QIN PLACE BANKER · 3 combos' +
-        '</span>' +
-        _ticketHitMark('QIN PLACE BANKER') +
-        '<span style="font-weight:600">#' + esc(topH2.number) + ' ' + esc(topH2.name) + ' </span>' +
-        '<span style="color:var(--dim);margin:0 4px">with</span>' +
-        bankers.map(function(h) {{ return '#' + esc(h.number) + ' ' + esc(h.name); }}).join(' / ') +
-        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when fav places (very likely at $' + esc(topH2.win_odds) + ') and any banker places. Way better ROI than straight WIN.</div>' +
-      '</div>'
-    );
+  // QIN PLACE BANKER — for short-favorite races. Read legs from the
+  // frozen ticket so display matches what replay scores (GPT-5.5 R13 #6).
+  if (_ticketHas('QIN PLACE BANKER')) {{
+    var qplLegs = _ticketLegsFor('QIN PLACE BANKER');
+    if (qplLegs.length >= 2) {{
+      var qplPivot = qplLegs[0];
+      var qplBankers = qplLegs.slice(1);
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25)">' +
+          '<span style="display:inline-block;background:rgba(59,130,246,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
+            '+ QIN PLACE BANKER · 3 combos' +
+          '</span>' +
+          _ticketHitMark('QIN PLACE BANKER') +
+          '<span style="font-weight:600">#' + esc(qplPivot.number) + ' ' + esc(qplPivot.name) + ' </span>' +
+          '<span style="color:var(--dim);margin:0 4px">with</span>' +
+          qplBankers.map(function(h) {{ return '#' + esc(h.number) + ' ' + esc(h.name); }}).join(' / ') +
+          '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when fav places (very likely at $' + esc(qplPivot.win_odds || '?') + ') and any banker places. Way better ROI than straight WIN.</div>' +
+        '</div>'
+      );
+    }}
   }}
 
-  // BOX Q4 PROTECTION — always shown when the race has at least 4 ranked
-  // horses, regardless of the recommender primary choice. Catches the
-  // R1-PACKING-KING-style upsets where the placing pair sits in model
-  // ranks 3-4 outside our straight QIN. 6 combinations.
-  var top4 = race.horses.slice(0, 4);
-  if (top4.length === 4 && _ticketHas('BOX QIN-4 PROTECTION')) {{
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25)">' +
-        '<span style="display:inline-block;background:rgba(16,185,129,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
-          '+ PROTECTION · BOX QIN-4 (6 combos)' +
-        '</span>' +
-        _ticketHitMark('BOX QIN-4 PROTECTION') +
-        top4.map(_renderPick).join('') +
-      '</div>'
-    );
+  // BOX QIN-4 PROTECTION — legs from frozen ticket.
+  if (_ticketHas('BOX QIN-4 PROTECTION')) {{
+    var box4Legs = _ticketLegsFor('BOX QIN-4 PROTECTION');
+    if (box4Legs.length === 4) {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25)">' +
+          '<span style="display:inline-block;background:rgba(16,185,129,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
+            '+ PROTECTION · BOX QIN-4 (6 combos)' +
+          '</span>' +
+          _ticketHitMark('BOX QIN-4 PROTECTION') +
+          box4Legs.map(_renderPick).join('') +
+        '</div>'
+      );
+    }}
   }}
-  if (top4.length === 4 && _ticketHas('F4 SAVER')) {{
-    // FIRST 4 ANY-ORDER — 1-unit saver on the model top-4. HKJC FIRST 4
-    // is any-order top-4 (per HKJC product page); QUARTET is exact-order.
-    // Pays the FIRST 4 dividend when actual top-4 finishers = our top-4
-    // in any order. Gated server-side (heavy fav skip, tier, field —
-    // see build_bet_ticket). Earlier copy said "exact order" which
-    // contradicted the pool — corrected 2026-05-25 (GPT-5.5 R12 #8).
-    var f4Nums = top4.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ');
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
-        '<span style="display:inline-block;background:rgba(168,85,247,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
-          'F4 SAVER · 1 unit' +
-        '</span>' +
-        _ticketHitMark('F4 SAVER') +
-        '<span style="color:var(--fg);font-weight:600">' + f4Nums + '</span>' +
-        '<span style="color:var(--dim);font-size:.7rem;margin-left:8px">(top-4 any order — FIRST 4 pool)</span>' +
-      '</div>'
-    );
+
+  // F4 SAVER — FIRST 4 ANY-ORDER 1-unit. Legs from frozen ticket.
+  if (_ticketHas('F4 SAVER')) {{
+    var f4SaverLegs = _ticketLegsFor('F4 SAVER');
+    if (f4SaverLegs.length === 4) {{
+      var f4Nums = f4SaverLegs.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ');
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+          '<span style="display:inline-block;background:rgba(168,85,247,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+            'F4 SAVER · 1 unit' +
+          '</span>' +
+          _ticketHitMark('F4 SAVER') +
+          '<span style="color:var(--fg);font-weight:600">' + f4Nums + '</span>' +
+          '<span style="color:var(--dim);font-size:.7rem;margin-left:8px">(top-4 any order — FIRST 4 pool)</span>' +
+        '</div>'
+      );
+    }}
   }}
 
   // Rank-5 swap REVERTED 2026-05-17 — see WA-path comment above for rationale.
@@ -2099,49 +2111,40 @@ function _buildRaceDetailPanel(race) {{
   var top5_swap_out = null;
   var swapBadge = '';
 
-  // F4 BOX-5 — top 5 model picks in a 5-combo F4 box (any-order).
-  // Shipped 2026-05-06 after 60-race backtest: 17% hit rate, +54% ROI
-  // ($50 stake, median $461 dividend per hit) — strictly better economics
-  // than BOX TRIO-5 (+8% ROI). Same gates as F4 SAVER apply: heavy fav,
-  // LOW conv, or small field collapse the F4 dividend pool.
-  var top5_f4 = top5_eff;
-  if (top5_f4.length === 5 && _ticketHas('F4 BOX-5')) {{
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
-        '<span style="display:inline-block;background:linear-gradient(135deg,rgba(168,85,247,.95),rgba(236,72,153,.85));color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
-          '★ MAIN · F4 BOX-5 · 5 combos' +
-        '</span>' +
-        _ticketHitMark('F4 BOX-5') +
-        swapBadge +
-        top5_f4.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
-        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when the top-4 finishers are all inside these 5. Backtest: 17% hit, +54% ROI on 60 races (median dividend ~$461 per hit, 9× the $50 stake).</div>' +
-      '</div>'
-    );
+  // F4 BOX-5 — legs from frozen ticket (GPT-5.5 R13 #6).
+  if (_ticketHas('F4 BOX-5')) {{
+    var f4BoxLegs = _ticketLegsFor('F4 BOX-5');
+    if (f4BoxLegs.length === 5) {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+          '<span style="display:inline-block;background:linear-gradient(135deg,rgba(168,85,247,.95),rgba(236,72,153,.85));color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+            '★ MAIN · F4 BOX-5 · 5 combos' +
+          '</span>' +
+          _ticketHitMark('F4 BOX-5') +
+          swapBadge +
+          f4BoxLegs.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
+          '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when the top-4 finishers are all inside these 5. Backtest: 17% hit, +54% ROI on 60 races (median dividend ~$461 per hit, 9× the $50 stake).</div>' +
+        '</div>'
+      );
+    }}
   }}
 
-  // BOX TRIO-5 protection — top 5 model picks in a 10-combo box.
-  // Hits when any 3 of the 5 finish top-3 in any order. Validated on
-  // Apr 26 R10 by a user-driven 4-horse trio that paid 12x. Adds the
-  // 5th model pick to expand placing-pool coverage beyond the QIN-4
-  // box. 10 combos at 1 unit = 10-unit stake. Uses the swapped top-5
-  // (same rank-5 swap as F4 BOX-5) for consistency.
-  // F4-style triple gate (shipped 2026-05-23, widened from SKIP-only).
-  // 668-race holdout backtest: ungated -45.4% vs gated -33.6% (+11.8pp).
-  // Heavy fav alone does 70% of the work — TRIO pool collapses on dominant
-  // favorites. Mirrors the F4 BOX-5 gate at line ~1996.
-  var top5 = top5_eff;
-  if (top5.length === 5 && _ticketHas('BOX TRIO-5')) {{
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
-        '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
-          '+ BOX TRIO-5 · 10 combos' +
-        '</span>' +
-        _ticketHitMark('BOX TRIO-5') +
-        swapBadge +
-        top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
-        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
-      '</div>'
-    );
+  // BOX TRIO-5 — legs from frozen ticket (GPT-5.5 R13 #6).
+  if (_ticketHas('BOX TRIO-5')) {{
+    var t5Legs = _ticketLegsFor('BOX TRIO-5');
+    if (t5Legs.length === 5) {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+          '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+            '+ BOX TRIO-5 · 10 combos' +
+          '</span>' +
+          _ticketHitMark('BOX TRIO-5') +
+          swapBadge +
+          t5Legs.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
+          '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
+        '</div>'
+      );
+    }}
   }}
 
   // BOX TRIO-6 — OPTIONAL high-cost protection layer.
