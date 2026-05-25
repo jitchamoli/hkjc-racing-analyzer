@@ -519,7 +519,7 @@ button {{ font-family:inherit; cursor:pointer; }}
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
     <div>
-      <span class="topbar-brand">HKJC Racing</span>
+      <span class="topbar-brand">HKJC</span>
       <span class="topbar-meta" style="margin-left:10px">{race_date} · {venue}</span>
     </div>
     <div class="view-tabs view-tabs-topbar">
