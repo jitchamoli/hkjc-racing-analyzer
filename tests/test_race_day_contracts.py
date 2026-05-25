@@ -384,6 +384,110 @@ def test_first_4_pool_scored_any_order_in_stake_ab():
 # 6. Analytics parity — diagnostics not pretending to be production
 # ---------------------------------------------------------------------------
 
+def test_no_ticket_leg_has_zero_win_odds_at_ticket_build_time():
+    """GPT-5.5 R13 #1 2026-05-25 — `_ticket_add_bet` must refuse any bet
+    whose legs contain a horse with win_odds<=0, even when called by the
+    automatic add-on builders (BOX QIN-4 PROTECTION / F4 SAVER / TRIO-5 /
+    F4 BOX-5 / TRIO-6) that iterate raw top-N rank slices."""
+    from dashboard.generator import _ticket_add_bet
+    bets = []
+    horses_with_bad_leg = [
+        {'number': 1, 'name': 'A', 'rank': 1, 'win_odds': 3.0},
+        {'number': 2, 'name': 'B', 'rank': 2, 'win_odds': 0},  # NO ODDS
+        {'number': 3, 'name': 'C', 'rank': 3, 'win_odds': 5.0},
+    ]
+    _ticket_add_bet(bets, 'TEST QIN', 'QUINELLA', horses_with_bad_leg,
+                     combos=3, reason='qin_protection')
+    assert bets == [], (
+        "_ticket_add_bet must refuse any bet whose legs contain a horse "
+        "with win_odds<=0; got bets={!r}".format(bets)
+    )
+
+    # Sanity: same call with all-good legs DOES add the bet.
+    horses_all_good = [
+        {'number': 1, 'name': 'A', 'rank': 1, 'win_odds': 3.0},
+        {'number': 2, 'name': 'B', 'rank': 2, 'win_odds': 4.0},
+        {'number': 3, 'name': 'C', 'rank': 3, 'win_odds': 5.0},
+    ]
+    _ticket_add_bet(bets, 'TEST QIN', 'QUINELLA', horses_all_good,
+                     combos=3, reason='qin_protection')
+    assert len(bets) == 1
+    assert bets[0]['label'] == 'TEST QIN'
+
+
+def test_recommender_does_not_swap_rank_for_market_fav_or_banker():
+    """GPT-5.5 R13 #3 2026-05-25 — both rank promotions REMOVED. Final
+    output must be globally sorted by combined_probability descending,
+    even when BANKER signals and a strong market favourite both exist."""
+    from unittest.mock import patch
+    from core.recommender import assign_bet_recommendations
+    fixed_probs = [0.40, 0.30, 0.18, 0.12]
+    with patch('core.recommender.calibrate_probabilities', return_value=fixed_probs):
+        a = _mk_analysis(rank=1, combined_prob=0.40, win_odds=2.0)  # mkt fav
+        b = _mk_analysis(rank=2, combined_prob=0.30, win_odds=4.0,
+                          reasoning=['BANKER (6/8 signals)'])
+        c = _mk_analysis(rank=3, combined_prob=0.18, win_odds=8.0)
+        d = _mk_analysis(rank=4, combined_prob=0.12, win_odds=15.0)
+        analyses = [a, b, c, d]
+        assign_bet_recommendations(analyses, field_size=12, distance=1200)
+    probs = [x.combined_probability for x in analyses]
+    assert probs == sorted(probs, reverse=True), (
+        "Final analyses must be sorted by calibrated_prob descending; "
+        "got {!r}".format(probs)
+    )
+
+
+def test_dump_restore_includes_race_bet_ticket():
+    """GPT-5.5 R13 #4 2026-05-25 — dump/restore must include
+    race_bet_ticket. validate_hk --replay reads this table; omitting it
+    silently zeroes replay numbers after a restore."""
+    dump = (Path(__file__).resolve().parent.parent / 'scripts' / 'dump_db.py').read_text()
+    restore = (Path(__file__).resolve().parent.parent / 'scripts' / 'restore_db.py').read_text()
+    assert 'race_bet_ticket' in dump, (
+        "scripts/dump_db.py must include race_bet_ticket in CORE_TABLES"
+    )
+    assert 'race_bet_ticket' in restore, (
+        "scripts/restore_db.py must include race_bet_ticket in drop+verify lists"
+    )
+
+
+def test_monitor_uses_finalize_tickets_and_stakes():
+    """GPT-5.5 R13 #2 2026-05-25 — monitor must call the shared
+    finalize_tickets_and_stakes (extracted from generator) so live
+    dashboards carry both bet_ticket AND suggested_stake on every race.
+    Without this, the live monitor renders horses with bet_recommendation
+    but no frozen ticket → WA/detail panel shows SKIP everywhere."""
+    monitor = (Path(__file__).resolve().parent.parent / 'monitor' / 'race_day.py').read_text()
+    assert 'finalize_tickets_and_stakes' in monitor, (
+        "monitor/race_day.py must call finalize_tickets_and_stakes "
+        "(shared with generator) — otherwise live dashboards skip the "
+        "stake+ticket pipeline"
+    )
+
+
+def test_visual_ticket_blocks_render_from_frozen_legs_not_rank():
+    """GPT-5.5 R13 #6 2026-05-25 — visual ticket blocks (QPL BANKER,
+    BOX QIN-4 PROTECTION, F4 SAVER, F4 BOX-5, BOX TRIO-5) must read
+    legs from the frozen bet_ticket via _ticketLegsFor(label), not
+    reconstruct from race.horses.slice(0, N). Diverging rank vs ticket
+    legs would show different horses than replay scores."""
+    src = (Path(__file__).resolve().parent.parent / 'dashboard' / 'template.py').read_text()
+    # The helper must exist
+    assert 'function _ticketLegsFor' in src, (
+        "_ticketLegsFor helper missing — visual blocks still using rank slices"
+    )
+    # All five protection-bet emitters must call it
+    for label in ('QIN PLACE BANKER', 'BOX QIN-4 PROTECTION', 'F4 SAVER',
+                  'F4 BOX-5', 'BOX TRIO-5'):
+        # Inside the relevant ticketLines.push block, the legs source must
+        # come through _ticketLegsFor (NOT race.horses.slice for any of
+        # these labels). Spot-check via the call presence.
+        assert f"_ticketLegsFor('{label}')" in src, (
+            f"visual ticket block for {label} must read from "
+            f"_ticketLegsFor('{label}'), not race.horses.slice"
+        )
+
+
 def test_stake_ab_firing_bets_reads_frozen_ticket_when_present():
     """Already pinned by test_firing_bets_prefers_frozen_ticket_over_legacy
     in test_stake_ab.py — included here as a cross-suite assertion that the

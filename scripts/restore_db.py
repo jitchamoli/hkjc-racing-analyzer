@@ -69,7 +69,8 @@ def main():
         # Drop the empty CREATE-TABLE-from-init versions; the dump's CREATE
         # statements will recreate them with the correct schema + indexes.
         for tbl in ('race_results', 'horses', 'jockey_stats',
-                    'trainer_stats', 'race_dividends', 'prediction_log'):
+                    'trainer_stats', 'race_dividends', 'prediction_log',
+                    'race_bet_ticket'):
             conn.execute(f"DROP TABLE IF EXISTS {tbl}")
         with gzip.open(DUMP_PATH, 'rt') as f:
             conn.executescript(f.read())
