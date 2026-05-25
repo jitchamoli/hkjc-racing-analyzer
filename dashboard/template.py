@@ -1472,8 +1472,8 @@ function renderBetCard(race) {{
     if (L === 'BOX QIN-4 PROTECTION') return 'QIN BOX-4 (PROTECTION)';
     if (L === 'F4 SAVER') return 'FIRST 4 SAVER';
     // Generic derivation: HKJC pool name + STRAIGHT/BOX-N from leg count.
-    if (p === 'QUINELLA') return n === 2 ? 'QIN STRAIGHT' : ('QIN BOX-' + n);
-    if (p === 'TRIO') return n === 3 ? 'TRIO STRAIGHT' : ('TRIO BOX-' + n);
+    if (p === 'QUINELLA') return n === 2 ? 'STRAIGHT QIN' : ('QIN BOX-' + n);
+    if (p === 'TRIO') return n === 3 ? 'STRAIGHT TRIO' : ('TRIO BOX-' + n);
     if (p === 'FIRST 4') return 'FIRST 4 BOX-' + n;
     if (p === 'QIN PLACE') return 'QPL';
     if (p === 'WIN' || p === 'PLACE') return p;
