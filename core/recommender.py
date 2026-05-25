@@ -26,6 +26,21 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
                                                distance=distance)
     apply_calibrated_probs(analyses, calibrated_probs)
 
+    # GPT-5.5 R12 #4 2026-05-25 — re-sort by calibrated_prob so `rank` is
+    # the BETTING rank (post-market-blend). The original pre-blend order
+    # is preserved on each analysis as `pre_blend_rank` for diagnostics.
+    # All downstream rank-based gates (recommender, ticket legs, dashboard,
+    # WA, stake_ab) read `rank` and thus follow the calibrated ordering.
+    for i, a in enumerate(analyses):
+        if a.pre_blend_rank is None:
+            a.pre_blend_rank = i + 1  # snapshot pre-calibration order
+    paired = sorted(zip(analyses, calibrated_probs),
+                    key=lambda t: t[1], reverse=True)
+    for i, (a, _p) in enumerate(paired):
+        analyses[i] = a
+        calibrated_probs[i] = _p
+    _resync_ranks_and_probs(analyses, calibrated_probs)
+
     top = analyses[0] if n >= 1 else None
     second = analyses[1] if n >= 2 else None
 
@@ -155,6 +170,15 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
         rank = a.rank
         has_conviction = any("WINNING TRIP" in r or "BANKER" in r for r in a.reasoning)
         has_place_value = (a.horse.place_odds > 1.2) if a.horse.place_odds > 0 else (a.horse.win_odds >= 3.0)
+
+        # Per-leg odds validity (GPT-5.5 R12 #5 2026-05-25): the race-level
+        # `has_live_odds = any(...)` gate let a horse with win_odds<=0
+        # slip into a staked leg as long as ANY horse in the race had
+        # odds. Now: any leg whose horse has no live odds is SKIP'd —
+        # we never recommend staking on a runner without a price.
+        if not (a.horse.win_odds and a.horse.win_odds > 0):
+            a.bet_recommendation = "SKIP"
+            continue
 
         if race_bet_type == "SKIP":
             a.bet_recommendation = "SKIP"

@@ -904,11 +904,23 @@ function renderBetCard(race) {{
     var br = race.bankroll || 0;
     var betLines = [];
     var totalCombos = 0;
+    var unitRounded = 0;
+    var allocated = 0;
     if (race.bet_ticket && race.bet_ticket.bets && race.bet_ticket.bets.length) {{
+      // Ticket-first: read unit_stake and per-bet amount from the frozen
+      // ticket (GPT-5.5 R12 #1 2026-05-25). Server computed them once at
+      // ticket-build time; visual + WA + replay must all read the SAME
+      // numbers so the user sees the actual stake everywhere.
+      unitRounded = race.bet_ticket.unit_stake || 0;
+      allocated = race.bet_ticket.allocated_amount || 0;
       race.bet_ticket.bets.forEach(function(b) {{
         var combos = b.combos || 0;
         if (combos > 0) {{
-          betLines.push({{lbl: b.label || b.pool || 'BET', combos: combos}});
+          betLines.push({{
+            lbl: b.label || b.pool || 'BET',
+            combos: combos,
+            amount: b.amount || (combos * unitRounded),
+          }});
           totalCombos += combos;
         }}
       }});
@@ -932,33 +944,39 @@ function renderBetCard(race) {{
           lbl = n === 3 ? 'STRAIGHT TRIO' : 'BOX TRIO-' + n;
         }}
         if (combos > 0) {{
-          betLines.push({{lbl: lbl, combos: combos}});
+          betLines.push({{lbl: lbl, combos: combos, amount: 0}});
           totalCombos += combos;
         }}
       }});
+      // Legacy path: recompute unit + per-bet amount the old way.
+      var unit = totalCombos > 0 ? (ss.amount / totalCombos) : 0;
+      unitRounded = Math.max(5, Math.floor(unit / 5) * 5);
+      betLines.forEach(function(b) {{
+        b.amount = b.combos * unitRounded;
+        allocated += b.amount;
+      }});
     }}
-    // Unit stake — divide budget across all combos. Floor to nearest $5
-    // so per-bet stakes never sum above the budget (was: round() inflated
-    // unit when amount/combos > .5 boundary, e.g., $300/16 = $18.75 → $20
-    // pushed the breakdown total to $320 over the $300 budget). Mirrors the
-    // WA-payload unit calc above to keep the two views in sync.
-    var unit = totalCombos > 0 ? (ss.amount / totalCombos) : 0;
-    var unitRounded = Math.max(5, Math.floor(unit / 5) * 5);
     var breakdownRows = '';
-    var allocated = 0;
     betLines.forEach(function(b) {{
-      var amt = b.combos * unitRounded;
-      allocated += amt;
       breakdownRows +=
         '<tr><td style="padding:1px 6px 1px 0;color:var(--dim)">' + esc(b.lbl) + '</td>' +
         '<td style="padding:1px 0;text-align:right">' + b.combos + ' × $' + unitRounded + '</td>' +
-        '<td style="padding:1px 0 1px 8px;text-align:right;color:var(--gold);font-weight:600">$' + amt + '</td></tr>';
+        '<td style="padding:1px 0 1px 8px;text-align:right;color:var(--gold);font-weight:600">$' + Math.round(b.amount) + '</td></tr>';
     }});
+    // Over-budget transparency: when ticket allocated > suggested, surface
+    // a row so the user sees the actual spend (GPT-5.5 R12 #2 2026-05-25).
+    var _overBudget = !!(race.bet_ticket && race.bet_ticket.over_budget);
+    var _overAmount = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
+    var overRow = (_overBudget && _overAmount >= 1)
+      ? '<tr><td colspan="3" style="padding:3px 0 1px 0;color:#f59e0b;font-size:.65rem;font-style:italic">⚠ $' +
+          Math.round(_overAmount) + ' over budget (HK$5 unit floor)</td></tr>'
+      : '';
     var breakdownHtml = breakdownRows
       ? '<table style="font-size:.7rem;border-collapse:collapse;margin-top:6px;width:100%">' +
           breakdownRows +
           '<tr style="border-top:1px solid var(--border)"><td style="padding:3px 0 1px 0;color:var(--dim)">Total</td>' +
-          '<td></td><td style="padding:3px 0 1px 8px;text-align:right;color:var(--gold);font-weight:600">$' + allocated + '</td></tr>' +
+          '<td></td><td style="padding:3px 0 1px 8px;text-align:right;color:var(--gold);font-weight:600">$' + Math.round(allocated) + '</td></tr>' +
+          overRow +
         '</table>'
       : '';
     stakeHtml =
@@ -1099,55 +1117,43 @@ function renderBetCard(race) {{
     ? race.bet_ticket.bets.filter(function(b) {{ return b.reason === 'recommender'; }})
     : [];
 
-  // Compute per-bet stake amounts so each MAIN block shows its $ allocation
-  // inline (matches the dashboard stake-breakdown table). Shared unit
-  // stake = ss.amount / total_combos, rounded to nearest $5.
-  var waTotalCombos = 0;
-  var waMainCombos = {{}};
-  _waRecBets.forEach(function(b) {{
-    waMainCombos[b.label] = b.combos || 0;
-    waTotalCombos += b.combos || 0;
-  }});
-  // top5/F4/T6 gating mirrors the block below — compute inline to avoid
-  // a forward reference to top5wa (declared later in the addOns section).
-  var waTop5Len = race.horses.slice(0, 5).length;
-  var waT5Combos = (waTop5Len === 5) ? 10 : 0;
-  var waF4Combos = 0;
-  var waT6Combos = 0;
-  if (waTop5Len === 5) {{
-    var f4t1 = (race.horses[0] && race.horses[0].win_odds) || 0;
-    var f4f = race.horses.length;
-    var f4Sk = (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
-                (f4f < 8);
-    if (!f4Sk) waF4Combos = 5;
-    // TRIO-6 included only when verdict is TAKE (mirrors logic at line ~1088).
-    var t6stm = race.horses.slice(0, 12).filter(function(h) {{
-      return h.steam_move && h.steam_move.is_steam;
-    }}).length;
-    var t6Tk = (f4t1 > 0 && f4t1 < 2.5) ? false :
-                (t6stm >= 2) ? true :
-                (tier === 'HIGH' && f4f >= 11 && f4t1 >= 2.5 && f4t1 <= 5.0) ? true :
-                false;
-    if (t6Tk && _waRecBets.length > 0) waT6Combos = 20;
+  // WA reads frozen bet_ticket.unit_stake / per-bet amounts (GPT-5.5 R12
+  // #1 2026-05-25). Prior code re-derived `waUnit` from ss.amount and
+  // counted combos via inline gate-clone logic — both drifted whenever
+  // production gates changed. The ticket is the single source of truth
+  // for staking; WA just renders it.
+  var _allBets = (race.bet_ticket && race.bet_ticket.bets) || [];
+  var waUnit = (race.bet_ticket && race.bet_ticket.unit_stake) || 0;
+  var waTotalCombos = _allBets.reduce(function(s, b) {{ return s + (b.combos || 0); }}, 0);
+  var _waAllocated = (race.bet_ticket && race.bet_ticket.allocated_amount) || 0;
+  var _waOverBudget = !!(race.bet_ticket && race.bet_ticket.over_budget);
+  var _waOverAmount = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
+  // Per-bet amount lookup — `bet.amount` is what the server allocated.
+  function _waAmountFor(label) {{
+    for (var i = 0; i < _allBets.length; i++) {{
+      if (_allBets[i].label === label) return _allBets[i].amount || 0;
+    }}
+    return 0;
   }}
-  waTotalCombos += waT5Combos + waF4Combos + waT6Combos;
-  // Floor (not round) to nearest $5 so the per-bet stakes never sum above
-  // the budget. Was: Math.round() inflated unit when amount/combos > .5
-  // boundary (e.g., $300/16 = $18.75 → $20 → total $320, over the $300
-  // budget). Floor gives $15 → total $240, under budget — user can manually
-  // add the residual to a preferred bet if desired.
-  var waUnit = (ss && ss.amount > 0 && waTotalCombos > 0)
-    ? Math.max(5, Math.floor((ss.amount / waTotalCombos) / 5) * 5)
-    : 0;
-  // Annotate the stake banner with unallocated residual when floor leaves
-  // budget on the table. User can then manually deploy the residual to a
-  // preferred bet (e.g., round TRIO-5 up to next $5). Skip hint when
-  // residual < $5 (rounding noise, not actionable).
-  if (_ssBannerIdx >= 0 && waUnit > 0) {{
-    var _allocated = waTotalCombos * waUnit;
-    var _unalloc = Math.round(ss.amount) - _allocated;
-    if (_unalloc >= 5) {{
-      waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(' HKD*', ' HKD — $' + _unalloc + ' unallocated*');
+
+  // Stake banner annotation: when frozen ticket exceeds budget (HK$5 unit
+  // floor pushed allocated > suggested), surface the over-spend honestly
+  // instead of silently showing the lower budget. Otherwise, show the
+  // residual when allocated < budget (existing behaviour).
+  if (_ssBannerIdx >= 0 && ss && ss.amount > 0) {{
+    if (_waOverBudget && _waOverAmount >= 1) {{
+      waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(
+        ' HKD*',
+        ' HKD — actual $' + Math.round(_waAllocated) +
+        ' (+$' + Math.round(_waOverAmount) + ' over, $5 unit floor)*'
+      );
+    }} else if (_waAllocated > 0) {{
+      var _unalloc = Math.round(ss.amount) - Math.round(_waAllocated);
+      if (_unalloc >= 5) {{
+        waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(
+          ' HKD*', ' HKD — $' + _unalloc + ' unallocated*'
+        );
+      }}
     }}
   }}
 
@@ -1164,7 +1170,9 @@ function renderBetCard(race) {{
   }}
   if (!isSkipRace) {{
     _waPrimary.forEach(function(bet) {{
-      var betStake = waUnit > 0 ? (' · $' + ((bet.combos || 0) * waUnit)) : '';
+      var betStake = (bet.amount && bet.amount > 0)
+        ? (' · $' + Math.round(bet.amount))
+        : '';
       waLines.push('');
       waLines.push('*MAIN: ' + bet.label + betStake + '*' + _waHitMark(bet.label));
       (bet.legs || []).forEach(function(leg) {{ waLines.push(_waPickFromLeg(leg)); }});
@@ -1202,7 +1210,7 @@ function renderBetCard(race) {{
   // F4 SAVER — only when server included it in bet_ticket
   if (top4wa.length === 4 && _waTicketHas('F4 SAVER')) {{
     var f4Order = top4wa.map(function(h) {{ return '#' + h.number; }}).join(' → ');
-    addOns.push('F4 SAVER (1 unit · exact 1→4): ' + f4Order + _waHitMark('F4 SAVER'));
+    addOns.push('F4 SAVER (1 unit · top-4 any order): ' + f4Order + _waHitMark('F4 SAVER'));
   }}
 
   // Rank-5 swap REVERTED 2026-05-17 after R5 forward test: shipped on N=1
@@ -1221,7 +1229,8 @@ function renderBetCard(race) {{
   var t5MainBlock = null;
   if (top5wa.length === 5 && _waTicketHas('BOX TRIO-5')) {{
     var t5Nums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    var t5Stake = waUnit > 0 ? (' · $' + (10 * waUnit)) : '';
+    var _t5Amt = _waAmountFor('BOX TRIO-5');
+    var t5Stake = _t5Amt > 0 ? (' · $' + Math.round(_t5Amt)) : '';
     var t5SwapAnno = top5waSwap
       ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
       : '';
@@ -1236,7 +1245,8 @@ function renderBetCard(race) {{
   var f4bMainBlock = null;
   if (top5wa.length === 5 && _waTicketHas('F4 BOX-5')) {{
     var f4bNums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    var f4bStake = waUnit > 0 ? (' · $' + (5 * waUnit)) : '';
+    var _f4bAmt = _waAmountFor('F4 BOX-5');
+    var f4bStake = _f4bAmt > 0 ? (' · $' + Math.round(_f4bAmt)) : '';
     var f4bSwapAnno = top5waSwap
       ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
       : '';
@@ -1302,7 +1312,8 @@ function renderBetCard(race) {{
     var isT6Take = t6Verdict.indexOf('★ TAKE') === 0;
     if (_waTicketHas('BOX TRIO-6')) {{
       if (isT6Take && !isSkipRace) {{
-        var t6Stake = waUnit > 0 ? (' · $' + (20 * waUnit)) : '';
+        var _t6Amt = _waAmountFor('BOX TRIO-6');
+        var t6Stake = _t6Amt > 0 ? (' · $' + Math.round(_t6Amt)) : '';
         t6MainBlock = ['', '*MAIN: BOX TRIO-6' + t6Stake + '* (20 combos · ' + t6Verdict + ' · CHAOS ' + chaosScore + '/4)' + swapAnno + _waHitMark('BOX TRIO-6'), t6Nums];
       }} else {{
         addOns.push('BOX TRIO-6 (20 combos · ' + t6Verdict + ' · CHAOS ' + chaosScore + '/4): ' + t6Nums + swapAnno + _waHitMark('BOX TRIO-6'));
@@ -2061,11 +2072,13 @@ function _buildRaceDetailPanel(race) {{
     );
   }}
   if (top4.length === 4 && _ticketHas('F4 SAVER')) {{
-    // FIRST 4 (exact order) — 1 unit, longshot saver. Top 4 model picks
-    // placed in 1st-2nd-3rd-4th. Pays big when it hits. Gated server-side
-    // (heavy fav skip, tier, field — see build_bet_ticket); displayed when
-    // server includes F4 SAVER in race.bet_ticket.bets.
-    var f4Nums = top4.map(function(h) {{ return '#' + esc(h.number); }}).join('  →  ');
+    // FIRST 4 ANY-ORDER — 1-unit saver on the model top-4. HKJC FIRST 4
+    // is any-order top-4 (per HKJC product page); QUARTET is exact-order.
+    // Pays the FIRST 4 dividend when actual top-4 finishers = our top-4
+    // in any order. Gated server-side (heavy fav skip, tier, field —
+    // see build_bet_ticket). Earlier copy said "exact order" which
+    // contradicted the pool — corrected 2026-05-25 (GPT-5.5 R12 #8).
+    var f4Nums = top4.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ');
     ticketLines.push(
       '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
         '<span style="display:inline-block;background:rgba(168,85,247,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
@@ -2073,7 +2086,7 @@ function _buildRaceDetailPanel(race) {{
         '</span>' +
         _ticketHitMark('F4 SAVER') +
         '<span style="color:var(--fg);font-weight:600">' + f4Nums + '</span>' +
-        '<span style="color:var(--dim);font-size:.7rem;margin-left:8px">(exact order — 1st → 4th)</span>' +
+        '<span style="color:var(--dim);font-size:.7rem;margin-left:8px">(top-4 any order — FIRST 4 pool)</span>' +
       '</div>'
     );
   }}
