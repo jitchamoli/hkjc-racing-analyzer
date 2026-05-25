@@ -123,7 +123,12 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
     owns_db = db is None
     try:
         fetcher = fetcher or HKJCDataFetcher()
-        analyzer = analyzer or CombinedRaceAnalyzer()
+        # fail_closed_ml=True matches the generator's contract: if the ML
+        # pickle is missing/corrupt or fails the integrity check, refuse to
+        # emit recommendations instead of falling through to rule-only.
+        # Monitor used to default fail-open and could silently degrade
+        # live recs to rule-only (GPT-5.5 R12 #3 2026-05-25).
+        analyzer = analyzer or CombinedRaceAnalyzer(fail_closed_ml=True)
         db = db or HorseDatabase()
         odds_db = odds_db or OddsDatabase()
 
@@ -143,6 +148,15 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
             analyses = analyzer.analyze_race(race)
             race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)
             all_races.append(race_data)
+
+        # GPT-5.5 R13 #2 2026-05-25 — monitor uses the same stake +
+        # bet_ticket pipeline as the main generator. Without this the
+        # live monitor dashboard rendered horses with bet_recommendation
+        # but no frozen ticket and no suggested stake → WA/detail panel
+        # showed SKIP everywhere. Shared finalize fn keeps the contract
+        # in one place; both surfaces emit identical ticket structure.
+        from dashboard.generator import finalize_tickets_and_stakes
+        finalize_tickets_and_stakes(all_races, race_date, analyzer)
 
         # Snapshot the live trust panels BEFORE closing the DB. Without these,
         # generate_html() defaults both to None and the monitor re-render wipes
@@ -206,7 +220,8 @@ async def run_monitor(race_date: str):
     logger.info(f"Pre-race window: {PRE_RACE_WINDOW}s, Poll interval: {POLL_INTERVAL}s")
 
     fetcher = HKJCDataFetcher()
-    analyzer = CombinedRaceAnalyzer()
+    # fail_closed_ml=True — see comment in regenerate_dashboard above.
+    analyzer = CombinedRaceAnalyzer(fail_closed_ml=True)
     db = HorseDatabase()
     odds_db = OddsDatabase()
 

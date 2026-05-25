@@ -1,21 +1,21 @@
 {
   "race_date": "2026/05/24",
-  "updated_at": "2026-05-24 17:10:41",
+  "updated_at": "2026-05-24 18:22:40",
   "day_summary": {
-    "total_races": 9,
+    "total_races": 11,
     "wins_correct": 5,
-    "win_accuracy": 55.6,
-    "top3_overlap_total": 10,
-    "top3_accuracy": 37.0,
-    "bets_hit": 1,
-    "bet_hit_rate": 11.1,
-    "avg_winner_rank": 2.9,
+    "win_accuracy": 45.5,
+    "top3_overlap_total": 13,
+    "top3_accuracy": 39.4,
+    "bets_hit": 2,
+    "bet_hit_rate": 18.2,
+    "avg_winner_rank": 3.0,
     "fav_wins": 3,
-    "fav_win_rate": 33.3,
+    "fav_win_rate": 27.3,
     "best_bet_hits": 0,
     "best_bet_hit_rate": 0.0,
-    "best_bet_roi": -6.0,
-    "random_win_rate": 7.6
+    "best_bet_roi": -7.0,
+    "random_win_rate": 7.5
   },
   "races": [
     {
@@ -1920,12 +1920,12 @@
         "trifecta": [],
         "first4": []
       },
-      "bankroll": 10000,
       "suggested_stake": {
         "amount": 0.0,
         "pct": 0.0,
         "method": "skip (bet=SKIP)"
       },
+      "bankroll": 10000,
       "bet_ticket": {
         "version": 1,
         "race_date": "2026/05/24",
@@ -1946,6 +1946,15 @@
         "allocated_amount": 0.0,
         "bets": []
       },
+      "actual_winner": 1,
+      "accuracy": {
+        "win_correct": false,
+        "top3_overlap": 1,
+        "winner_our_rank": 6,
+        "bet_hit": false,
+        "profit": 0.0
+      },
+      "results_available": true,
       "actual_top3": [
         1,
         14,
@@ -2052,15 +2061,6 @@
           "win_odds": 90.0
         }
       ],
-      "actual_winner": 1,
-      "accuracy": {
-        "win_correct": false,
-        "top3_overlap": 1,
-        "winner_our_rank": 6,
-        "bet_hit": false,
-        "profit": 0.0
-      },
-      "results_available": true,
       "tier_stats": {
         "EDGE": {
           "hit": 0,
@@ -3983,12 +3983,12 @@
         "trifecta": [],
         "first4": []
       },
-      "bankroll": 10000,
       "suggested_stake": {
         "amount": 0.0,
         "pct": 0.0,
         "method": "skip (bet=SKIP)"
       },
+      "bankroll": 10000,
       "bet_ticket": {
         "version": 1,
         "race_date": "2026/05/24",
@@ -4009,6 +4009,15 @@
         "allocated_amount": 0.0,
         "bets": []
       },
+      "actual_winner": 14,
+      "accuracy": {
+        "win_correct": true,
+        "top3_overlap": 2,
+        "winner_our_rank": 1,
+        "bet_hit": false,
+        "profit": 0.0
+      },
+      "results_available": true,
       "actual_top3": [
         1,
         2,
@@ -4115,15 +4124,6 @@
           "win_odds": 48.0
         }
       ],
-      "actual_winner": 14,
-      "accuracy": {
-        "win_correct": true,
-        "top3_overlap": 2,
-        "winner_our_rank": 1,
-        "bet_hit": false,
-        "profit": 0.0
-      },
-      "results_available": true,
       "tier_stats": {
         "EDGE": {
           "hit": 0,
@@ -6294,12 +6294,12 @@
         "trifecta": [],
         "first4": []
       },
-      "bankroll": 10000,
       "suggested_stake": {
         "amount": 100.0,
         "pct": 1.0,
         "method": "tier-fraction (MED)"
       },
+      "bankroll": 10000,
       "bet_ticket": {
         "version": 1,
         "race_date": "2026/05/24",
@@ -6347,6 +6347,15 @@
         ],
         "_corrected_post_race_regen_bug": true
       },
+      "actual_winner": 1,
+      "accuracy": {
+        "win_correct": false,
+        "top3_overlap": 1,
+        "winner_our_rank": 3,
+        "bet_hit": false,
+        "profit": 0.0
+      },
+      "results_available": true,
       "actual_top3": [
         1,
         2,
@@ -6453,15 +6462,6 @@
           "win_odds": 233.0
         }
       ],
-      "actual_winner": 1,
-      "accuracy": {
-        "win_correct": false,
-        "top3_overlap": 1,
-        "winner_our_rank": 3,
-        "bet_hit": false,
-        "profit": 0.0
-      },
-      "results_available": true,
       "tier_stats": {
         "EDGE": {
           "hit": 0,
@@ -8505,12 +8505,12 @@
         "trifecta": [],
         "first4": []
       },
-      "bankroll": 10000,
       "suggested_stake": {
         "amount": 100.0,
         "pct": 1.0,
         "method": "tier-fraction (MED)"
       },
+      "bankroll": 10000,
       "bet_ticket": {
         "version": 1,
         "race_date": "2026/05/24",
@@ -8558,6 +8558,15 @@
         ],
         "_corrected_post_race_regen_bug": true
       },
+      "actual_winner": 3,
+      "accuracy": {
+        "win_correct": true,
+        "top3_overlap": 1,
+        "winner_our_rank": 1,
+        "bet_hit": false,
+        "profit": 0.0
+      },
+      "results_available": true,
       "actual_top3": [
         11,
         9,
@@ -8664,15 +8673,6 @@
           "win_odds": 80.0
         }
       ],
-      "actual_winner": 3,
-      "accuracy": {
-        "win_correct": true,
-        "top3_overlap": 1,
-        "winner_our_rank": 1,
-        "bet_hit": false,
-        "profit": 0.0
-      },
-      "results_available": true,
       "tier_stats": {
         "EDGE": {
           "hit": 0,
@@ -10431,12 +10431,12 @@
         "trifecta": [],
         "first4": []
       },
-      "bankroll": 10000,
       "suggested_stake": {
         "amount": 100.0,
         "pct": 1.0,
         "method": "tier-fraction (MED)"
       },
+      "bankroll": 10000,
       "bet_ticket": {
         "version": 1,
         "race_date": "2026/05/24",
@@ -10484,6 +10484,15 @@
         ],
         "_corrected_post_race_regen_bug": true
       },
+      "actual_winner": 2,
+      "accuracy": {
+        "win_correct": true,
+        "top3_overlap": 1,
+        "winner_our_rank": 1,
+        "bet_hit": false,
+        "profit": 0.0
+      },
+      "results_available": true,
       "actual_top3": [
         2,
         4,
@@ -10590,15 +10599,6 @@
           "win_odds": 78.0
         }
       ],
-      "actual_winner": 2,
-      "accuracy": {
-        "win_correct": true,
-        "top3_overlap": 1,
-        "winner_our_rank": 1,
-        "bet_hit": false,
-        "profit": 0.0
-      },
-      "results_available": true,
       "tier_stats": {
         "EDGE": {
           "hit": 0,
@@ -12566,12 +12566,12 @@
         "trifecta": [],
         "first4": []
       },
-      "bankroll": 10000,
       "suggested_stake": {
         "amount": 100.0,
         "pct": 1.0,
         "method": "tier-fraction (MED)"
       },
+      "bankroll": 10000,
       "bet_ticket": {
         "version": 1,
         "race_date": "2026/05/24",
@@ -12618,6 +12618,15 @@
           }
         ]
       },
+      "actual_winner": 5,
+      "accuracy": {
+        "win_correct": false,
+        "top3_overlap": 1,
+        "winner_our_rank": 2,
+        "bet_hit": false,
+        "profit": 0.0
+      },
+      "results_available": true,
       "actual_top3": [
         8,
         9,
@@ -12724,15 +12733,6 @@
           "win_odds": 121.0
         }
       ],
-      "actual_winner": 5,
-      "accuracy": {
-        "win_correct": false,
-        "top3_overlap": 1,
-        "winner_our_rank": 2,
-        "bet_hit": false,
-        "profit": 0.0
-      },
-      "results_available": true,
       "tier_stats": {
         "EDGE": {
           "hit": 0,
@@ -14554,12 +14554,12 @@
         "trifecta": [],
         "first4": []
       },
-      "bankroll": 10000,
       "suggested_stake": {
         "amount": 0.0,
         "pct": 0.0,
         "method": "skip (bet=SKIP)"
       },
+      "bankroll": 10000,
       "bet_ticket": {
         "version": 1,
         "race_date": "2026/05/24",
@@ -14580,6 +14580,15 @@
         "allocated_amount": 0.0,
         "bets": []
       },
+      "actual_winner": 12,
+      "accuracy": {
+        "win_correct": false,
+        "top3_overlap": 0,
+        "winner_our_rank": 10,
+        "bet_hit": false,
+        "profit": 0.0
+      },
+      "results_available": true,
       "actual_top3": [
         8,
         12,
@@ -14686,15 +14695,6 @@
           "win_odds": 4.4
         }
       ],
-      "actual_winner": 12,
-      "accuracy": {
-        "win_correct": false,
-        "top3_overlap": 0,
-        "winner_our_rank": 10,
-        "bet_hit": false,
-        "profit": 0.0
-      },
-      "results_available": true,
       "tier_stats": {
         "EDGE": {
           "hit": 0,
@@ -15885,12 +15885,12 @@
         ],
         "first4": []
       },
-      "bankroll": 10000,
       "suggested_stake": {
         "amount": 300.0,
         "pct": 3.0,
         "method": "tier-fraction (EDGE)"
       },
+      "bankroll": 10000,
       "bet_ticket": {
         "version": 1,
         "race_date": "2026/05/24",
@@ -15942,6 +15942,15 @@
           }
         ]
       },
+      "actual_winner": 1,
+      "accuracy": {
+        "win_correct": true,
+        "top3_overlap": 2,
+        "winner_our_rank": 1,
+        "bet_hit": true,
+        "profit": 0.0
+      },
+      "results_available": true,
       "actual_top3": [
         1,
         2,
@@ -16013,15 +16022,6 @@
           "win_odds": 15.0
         }
       ],
-      "actual_winner": 1,
-      "accuracy": {
-        "win_correct": true,
-        "top3_overlap": 2,
-        "winner_our_rank": 1,
-        "bet_hit": true,
-        "profit": 0.0
-      },
-      "results_available": true,
       "tier_stats": {
         "EDGE": {
           "hit": 0,
@@ -17697,12 +17697,12 @@
         "trifecta": [],
         "first4": []
       },
-      "bankroll": 10000,
       "suggested_stake": {
         "amount": 100.0,
         "pct": 1.0,
         "method": "tier-fraction (MED)"
       },
+      "bankroll": 10000,
       "bet_ticket": {
         "version": 1,
         "race_date": "2026/05/24",
@@ -17819,6 +17819,15 @@
           }
         ]
       },
+      "actual_winner": 5,
+      "accuracy": {
+        "win_correct": true,
+        "top3_overlap": 1,
+        "winner_our_rank": 1,
+        "bet_hit": false,
+        "profit": 0.0
+      },
+      "results_available": true,
       "actual_top3": [
         11,
         5,
@@ -17904,15 +17913,6 @@
           "win_odds": 104.0
         }
       ],
-      "actual_winner": 5,
-      "accuracy": {
-        "win_correct": true,
-        "top3_overlap": 1,
-        "winner_our_rank": 1,
-        "bet_hit": false,
-        "profit": 0.0
-      },
-      "results_available": true,
       "tier_stats": {
         "EDGE": {
           "hit": 0,
@@ -17964,7 +17964,7 @@
           "weight": "122",
           "gear": "H",
           "rating": 67.0,
-          "win_odds": 9.0,
+          "win_odds": 6.1,
           "place_odds": 0.0,
           "last_6": "1/2/1/5",
           "age": "3",
@@ -17975,14 +17975,14 @@
           "ml_prob": 0.2063794881105423,
           "raw_ml_prob": 0.7337026000022888,
           "place_prob": 0.449403315782547,
-          "calibrated_prob": 0.08792752795811339,
-          "expected_return": -0.2086522483769795,
+          "calibrated_prob": 0.13515977107552887,
+          "expected_return": -0.1755253964392739,
           "bet_recommendation": "SKIP",
           "confidence": "MEDIUM",
           "reasoning": [
             "Rating 67 (field avg 69)",
             "Recent winner: 2W/1P (74)",
-            "Market: 11.1% implied @ $9.0",
+            "Market: 16.4% implied @ $6.1",
             "Average jockey - H Bentley (34W/427R, 8%W)",
             "Solid trainer - W Y So (27W/400R, 7%W)",
             "Good barrier (6)",
@@ -18074,25 +18074,26 @@
           "jockey_form_30d": 0.0776,
           "odds_movement": {
             "opening": 9.6,
-            "current": 9.0,
-            "change_pct": 6.2
+            "current": 6.1,
+            "change_pct": 36.5
           },
           "steam_move": {
-            "is_steam": false,
-            "severity": "",
-            "label": ""
+            "is_steam": true,
+            "severity": "STEAM",
+            "label": "STEAM -36% ($9.6\u2192$6.1)"
           },
           "cold_horse": {
             "is_cold": false,
             "label": ""
           },
           "pure_prob": 0.1208,
-          "market_prob": 0.0907,
-          "edge_pp": 3.01,
-          "ev_win": 0.087,
-          "overlay": 1.087,
+          "market_prob": 0.1328,
+          "edge_pp": -1.2,
+          "ev_win": -0.263,
+          "overlay": 0.737,
           "edge_fires": false,
-          "model_rank": 1
+          "model_rank": 1,
+          "actual_position": 8
         },
         {
           "rank": 2,
@@ -18104,7 +18105,7 @@
           "weight": "128",
           "gear": "",
           "rating": 73.0,
-          "win_odds": 3.5,
+          "win_odds": 4.3,
           "place_odds": 0.0,
           "last_6": "2/1",
           "age": "3",
@@ -18115,14 +18116,14 @@
           "ml_prob": 0.08764487504959106,
           "raw_ml_prob": 0.4715430736541748,
           "place_prob": 0.19137971103191376,
-          "calibrated_prob": 0.15158381663193649,
-          "expected_return": -0.46945664178822233,
+          "calibrated_prob": 0.15163611998059864,
+          "expected_return": -0.34796468408342585,
           "bet_recommendation": "SKIP",
           "confidence": "MEDIUM",
           "reasoning": [
             "Rating 73 (+4 vs field)",
             "Recent winner: 1W/1P (100)",
-            "Market: 28.6% implied @ $3.5",
+            "Market: 23.3% implied @ $4.3",
             "Average jockey - B Avdulla (17W/374R, 5%W)",
             "Solid trainer - D A Hayes (53W/608R, 9%W)",
             "Good barrier (4)",
@@ -18186,25 +18187,26 @@
           "jockey_form_30d": 0.0255,
           "odds_movement": {
             "opening": 4.7,
-            "current": 3.5,
-            "change_pct": 25.5
+            "current": 4.3,
+            "change_pct": 8.5
           },
           "steam_move": {
-            "is_steam": true,
-            "severity": "STRONG_SUPPORT",
-            "label": "Strong support -26% ($4.7\u2192$3.5)"
+            "is_steam": false,
+            "severity": "",
+            "label": ""
           },
           "cold_horse": {
             "is_cold": false,
             "label": ""
           },
           "pure_prob": 0.0937,
-          "market_prob": 0.2332,
-          "edge_pp": -13.96,
-          "ev_win": -0.672,
-          "overlay": 0.328,
+          "market_prob": 0.1883,
+          "edge_pp": -9.47,
+          "ev_win": -0.597,
+          "overlay": 0.403,
           "edge_fires": false,
-          "model_rank": 2
+          "model_rank": 2,
+          "actual_position": 1
         },
         {
           "rank": 3,
@@ -18216,7 +18218,7 @@
           "weight": "131",
           "gear": "TT",
           "rating": 76.0,
-          "win_odds": 6.0,
+          "win_odds": 10.0,
           "place_odds": 0.0,
           "last_6": "7/7/2/2/7/8",
           "age": "5",
@@ -18227,14 +18229,14 @@
           "ml_prob": 0.17616641521453857,
           "raw_ml_prob": 0.6198124289512634,
           "place_prob": 0.449403315782547,
-          "calibrated_prob": 0.13511315085976125,
-          "expected_return": -0.18932109484143256,
+          "calibrated_prob": 0.08795786697618257,
+          "expected_return": -0.12042133023817425,
           "bet_recommendation": "SKIP",
           "confidence": "MEDIUM",
           "reasoning": [
             "Rating 76 (+7 vs field)",
             "Consistent placer: 2P (23)",
-            "Market: 16.7% implied @ $6.0",
+            "Market: 10.0% implied @ $10.0",
             "Elite jockey - Z Purton (131W/616R, 21%W)",
             "Solid trainer - J Size (51W/550R, 9%W)",
             "Good barrier (7)",
@@ -18326,8 +18328,8 @@
           "jockey_form_30d": 0.2219,
           "odds_movement": {
             "opening": 4.8,
-            "current": 6.0,
-            "change_pct": -25.0
+            "current": 10.0,
+            "change_pct": -108.3
           },
           "steam_move": {
             "is_steam": false,
@@ -18339,12 +18341,13 @@
             "label": ""
           },
           "pure_prob": 0.0939,
-          "market_prob": 0.1361,
-          "edge_pp": -4.21,
-          "ev_win": -0.436,
-          "overlay": 0.564,
+          "market_prob": 0.081,
+          "edge_pp": 1.3,
+          "ev_win": -0.061,
+          "overlay": 0.939,
           "edge_fires": false,
-          "model_rank": 3
+          "model_rank": 3,
+          "actual_position": 10
         },
         {
           "rank": 4,
@@ -18356,7 +18359,7 @@
           "weight": "126",
           "gear": "XB",
           "rating": 71.0,
-          "win_odds": 5.8,
+          "win_odds": 3.6,
           "place_odds": 0.0,
           "last_6": "3/10/4/4/2",
           "age": "4",
@@ -18367,14 +18370,14 @@
           "ml_prob": 0.17616641521453857,
           "raw_ml_prob": 0.6349178552627563,
           "place_prob": 0.449403315782547,
-          "calibrated_prob": 0.13511315085976125,
-          "expected_return": -0.21634372501338472,
+          "calibrated_prob": 0.15163611998059864,
+          "expected_return": -0.4541099680698448,
           "bet_recommendation": "SKIP",
           "confidence": "MEDIUM",
           "reasoning": [
             "Rating 71 (field avg 69)",
             "Consistent placer: 2P (34)",
-            "Market: 17.2% implied @ $5.8",
+            "Market: 27.8% implied @ $3.6",
             "Top jockey - J McDonald (17W/107R, 16%W)",
             "Solid trainer - D J Hall (28W/378R, 7%W)",
             "Good barrier (3)",
@@ -18466,25 +18469,26 @@
           "jockey_form_30d": 0.1,
           "odds_movement": {
             "opening": 7.1,
-            "current": 5.8,
-            "change_pct": 18.3
+            "current": 3.6,
+            "change_pct": 49.3
           },
           "steam_move": {
-            "is_steam": false,
-            "severity": "",
-            "label": ""
+            "is_steam": true,
+            "severity": "STEAM",
+            "label": "STEAM -49% ($7.1\u2192$3.6)"
           },
           "cold_horse": {
             "is_cold": false,
             "label": ""
           },
           "pure_prob": 0.0956,
-          "market_prob": 0.1408,
-          "edge_pp": -4.52,
-          "ev_win": -0.446,
-          "overlay": 0.554,
+          "market_prob": 0.225,
+          "edge_pp": -12.94,
+          "ev_win": -0.656,
+          "overlay": 0.344,
           "edge_fires": false,
-          "model_rank": 4
+          "model_rank": 4,
+          "actual_position": 12
         },
         {
           "rank": 5,
@@ -18496,7 +18500,7 @@
           "weight": "128",
           "gear": "CP/TT",
           "rating": 73.0,
-          "win_odds": 15.0,
+          "win_odds": 10.0,
           "place_odds": 0.0,
           "last_6": "4/4/1/1/1/3",
           "age": "3",
@@ -18507,14 +18511,14 @@
           "ml_prob": 0.042089831084012985,
           "raw_ml_prob": 0.23157428205013275,
           "place_prob": 0.12838231027126312,
-          "calibrated_prob": 0.08684628457486976,
-          "expected_return": 0.30269426862304627,
+          "calibrated_prob": 0.08795786697618257,
+          "expected_return": -0.12042133023817425,
           "bet_recommendation": "SKIP",
           "confidence": "MEDIUM",
           "reasoning": [
             "Rating 73 (+4 vs field)",
             "Strong form: 3W in last 6 (85)",
-            "Market: 6.7% implied @ $15.0",
+            "Market: 10.0% implied @ $10.0",
             "Average jockey - J Orman (32W/418R, 8%W)",
             "Solid trainer - J Richards (24W/335R, 7%W)",
             "Wide draw (14)",
@@ -18616,25 +18620,26 @@
           "jockey_form_30d": 0.07,
           "odds_movement": {
             "opening": 16.0,
-            "current": 15.0,
-            "change_pct": 6.2
+            "current": 10.0,
+            "change_pct": 37.5
           },
           "steam_move": {
-            "is_steam": false,
-            "severity": "",
-            "label": ""
+            "is_steam": true,
+            "severity": "STEAM",
+            "label": "STEAM -38% ($16.0\u2192$10.0)"
           },
           "cold_horse": {
             "is_cold": false,
             "label": ""
           },
           "pure_prob": 0.0647,
-          "market_prob": 0.0544,
-          "edge_pp": 1.03,
-          "ev_win": -0.029,
-          "overlay": 0.971,
+          "market_prob": 0.081,
+          "edge_pp": -1.63,
+          "ev_win": -0.353,
+          "overlay": 0.647,
           "edge_fires": false,
-          "model_rank": 5
+          "model_rank": 5,
+          "actual_position": 5
         },
         {
           "rank": 6,
@@ -18646,7 +18651,7 @@
           "weight": "118",
           "gear": "B/TT",
           "rating": 63.0,
-          "win_odds": 38.0,
+          "win_odds": 59.0,
           "place_odds": 0.0,
           "last_6": "9/9/7/3/10/1",
           "age": "7",
@@ -18657,14 +18662,14 @@
           "ml_prob": 0.17616641521453857,
           "raw_ml_prob": 0.6527327299118042,
           "place_prob": 0.3987249433994293,
-          "calibrated_prob": 0.0471954969761302,
-          "expected_return": 0.7934288850929476,
+          "calibrated_prob": 0.029308770484135174,
+          "expected_return": 0.7292174585639752,
           "bet_recommendation": "SKIP",
           "confidence": "MEDIUM",
           "reasoning": [
             "Rating 63 (-6 vs field)",
             "Recent winner: 1W/1P (50)",
-            "Market: 2.6% implied @ $38.0",
+            "Market: 1.7% implied @ $59.0",
             "Solid jockey - J Moreira (12W/97R, 12%W)",
             "Solid trainer - C Fownes (56W/498R, 11%W)",
             "Average barrier (2)",
@@ -18766,8 +18771,8 @@
           "jockey_form_30d": 0.08,
           "odds_movement": {
             "opening": 23.0,
-            "current": 38.0,
-            "change_pct": -65.2
+            "current": 59.0,
+            "change_pct": -156.5
           },
           "steam_move": {
             "is_steam": false,
@@ -18779,12 +18784,13 @@
             "label": ""
           },
           "pure_prob": 0.0908,
-          "market_prob": 0.0215,
-          "edge_pp": 6.93,
-          "ev_win": 2.452,
-          "overlay": 3.452,
+          "market_prob": 0.0137,
+          "edge_pp": 7.71,
+          "ev_win": 4.359,
+          "overlay": 5.359,
           "edge_fires": false,
-          "model_rank": 6
+          "model_rank": 6,
+          "actual_position": 9
         },
         {
           "rank": 7,
@@ -18796,7 +18802,7 @@
           "weight": "116",
           "gear": "B/TT",
           "rating": 61.0,
-          "win_odds": 25.0,
+          "win_odds": 10.0,
           "place_odds": 0.0,
           "last_6": "12/2/1",
           "age": "3",
@@ -18807,14 +18813,14 @@
           "ml_prob": 0.056849151849746704,
           "raw_ml_prob": 0.366946280002594,
           "place_prob": 0.19137971103191376,
-          "calibrated_prob": 0.0471954969761302,
-          "expected_return": 0.17988742440325511,
+          "calibrated_prob": 0.08795786697618257,
+          "expected_return": -0.12042133023817425,
           "bet_recommendation": "SKIP",
           "confidence": "MEDIUM",
           "reasoning": [
             "Rating 61 (-8 below field)",
             "Recent winner: 1W/1P (87)",
-            "Market: 4.0% implied @ $25.0",
+            "Market: 10.0% implied @ $10.0",
             "Solid jockey - A Atzeni (57W/537R, 11%W)",
             "Solid trainer - K L Man (41W/439R, 9%W)",
             "Ideal barrier (5)",
@@ -18867,25 +18873,26 @@
           "jockey_form_30d": 0.1143,
           "odds_movement": {
             "opening": 28.0,
-            "current": 25.0,
-            "change_pct": 10.7
+            "current": 10.0,
+            "change_pct": 64.3
           },
           "steam_move": {
-            "is_steam": false,
-            "severity": "",
-            "label": ""
+            "is_steam": true,
+            "severity": "STEAM",
+            "label": "STEAM -64% ($28.0\u2192$10.0)"
           },
           "cold_horse": {
             "is_cold": false,
             "label": ""
           },
           "pure_prob": 0.0681,
-          "market_prob": 0.0327,
-          "edge_pp": 3.54,
-          "ev_win": 0.702,
-          "overlay": 1.702,
+          "market_prob": 0.081,
+          "edge_pp": -1.29,
+          "ev_win": -0.319,
+          "overlay": 0.681,
           "edge_fires": false,
-          "model_rank": 7
+          "model_rank": 7,
+          "actual_position": 2
         },
         {
           "rank": 8,
@@ -18897,7 +18904,7 @@
           "weight": "135",
           "gear": "TT",
           "rating": 80.0,
-          "win_odds": 11.0,
+          "win_odds": 28.0,
           "place_odds": 0.0,
           "last_6": "9/10/4/3/4/4",
           "age": "5",
@@ -18908,14 +18915,14 @@
           "ml_prob": 0.055612653493881226,
           "raw_ml_prob": 0.29953837394714355,
           "place_prob": 0.13146357238292694,
-          "calibrated_prob": 0.08684628457486976,
-          "expected_return": -0.044690869676432654,
+          "calibrated_prob": 0.04721178158083586,
+          "expected_return": 0.3219298842634042,
           "bet_recommendation": "SKIP",
           "confidence": "MEDIUM",
           "reasoning": [
             "Rating 80 (+11 vs field avg 69)",
             "Moderate form (24)",
-            "Market: 9.1% implied @ $11.0",
+            "Market: 3.6% implied @ $28.0",
             "Average jockey - Y L Chung (23W/375R, 6%W)",
             "Solid trainer - A S Cruz (46W/541R, 9%W)",
             "Wide draw (13)",
@@ -19019,8 +19026,8 @@
           "jockey_form_30d": 0.0824,
           "odds_movement": {
             "opening": 9.3,
-            "current": 11.0,
-            "change_pct": -18.3
+            "current": 28.0,
+            "change_pct": -201.1
           },
           "steam_move": {
             "is_steam": false,
@@ -19032,12 +19039,13 @@
             "label": ""
           },
           "pure_prob": 0.0581,
-          "market_prob": 0.0742,
-          "edge_pp": -1.61,
-          "ev_win": -0.36,
-          "overlay": 0.64,
+          "market_prob": 0.0289,
+          "edge_pp": 2.92,
+          "ev_win": 0.628,
+          "overlay": 1.628,
           "edge_fires": false,
-          "model_rank": 8
+          "model_rank": 8,
+          "actual_position": 3
         },
         {
           "rank": 9,
@@ -19049,7 +19057,7 @@
           "weight": "130",
           "gear": "TT1",
           "rating": 75.0,
-          "win_odds": 39.0,
+          "win_odds": 31.0,
           "place_odds": 0.0,
           "last_6": "",
           "age": "3",
@@ -19060,14 +19068,14 @@
           "ml_prob": 0.055612653493881226,
           "raw_ml_prob": 0.2796248197555542,
           "place_prob": 0.12838231027126312,
-          "calibrated_prob": 0.029298661106226486,
-          "expected_return": 0.142647783142833,
+          "calibrated_prob": 0.029308770484135174,
+          "expected_return": -0.09142811499180958,
           "bet_recommendation": "SKIP",
           "confidence": "MEDIUM",
           "reasoning": [
             "Rating 75 (+6 vs field)",
             "No recent form data",
-            "Market: 2.6% implied @ $39.0",
+            "Market: 3.2% implied @ $31.0",
             "Struggling jockey - E Brown (2W/53R, 4%W)",
             "Solid trainer - D Eustace (30W/427R, 7%W)",
             "Average barrier (1)",
@@ -19100,8 +19108,8 @@
           "jockey_form_30d": 0.0361,
           "odds_movement": {
             "opening": 15.0,
-            "current": 39.0,
-            "change_pct": -160.0
+            "current": 31.0,
+            "change_pct": -106.7
           },
           "steam_move": {
             "is_steam": false,
@@ -19113,12 +19121,13 @@
             "label": ""
           },
           "pure_prob": 0.0537,
-          "market_prob": 0.0209,
-          "edge_pp": 3.27,
-          "ev_win": 1.093,
-          "overlay": 2.093,
+          "market_prob": 0.0261,
+          "edge_pp": 2.75,
+          "ev_win": 0.664,
+          "overlay": 1.664,
           "edge_fires": false,
-          "model_rank": 9
+          "model_rank": 9,
+          "actual_position": 13
         },
         {
           "rank": 10,
@@ -19130,7 +19139,7 @@
           "weight": "124",
           "gear": "TT1",
           "rating": 69.0,
-          "win_odds": 102.0,
+          "win_odds": 138.0,
           "place_odds": 0.0,
           "last_6": "",
           "age": "3",
@@ -19141,14 +19150,14 @@
           "ml_prob": 0.055612653493881226,
           "raw_ml_prob": 0.36041033267974854,
           "place_prob": 0.12838231027126312,
-          "calibrated_prob": 0.029298661106226486,
-          "expected_return": 1.9884634328351014,
+          "calibrated_prob": 0.029308770484135174,
+          "expected_return": 3.0446103268106537,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 69 (field avg 69)",
             "No recent form data",
-            "Market: 1.0% implied @ $102.0",
+            "Market: 0.7% implied @ $138.0",
             "Solid jockey - C L Chau (40W/444R, 9%W)",
             "Solid trainer - C S Shum (54W/453R, 12%W)",
             "Average barrier (8)",
@@ -19180,8 +19189,8 @@
           "jockey_form_30d": 0.0636,
           "odds_movement": {
             "opening": 37.0,
-            "current": 102.0,
-            "change_pct": -175.7
+            "current": 138.0,
+            "change_pct": -273.0
           },
           "steam_move": {
             "is_steam": false,
@@ -19193,12 +19202,13 @@
             "label": ""
           },
           "pure_prob": 0.0606,
-          "market_prob": 0.008,
-          "edge_pp": 5.25,
-          "ev_win": 5.176,
-          "overlay": 6.176,
+          "market_prob": 0.0059,
+          "edge_pp": 5.47,
+          "ev_win": 7.356,
+          "overlay": 8.356,
           "edge_fires": false,
-          "model_rank": 10
+          "model_rank": 10,
+          "actual_position": 11
         },
         {
           "rank": 11,
@@ -19210,7 +19220,7 @@
           "weight": "127",
           "gear": "CP/XB/TT",
           "rating": 72.0,
-          "win_odds": 66.0,
+          "win_odds": 68.0,
           "place_odds": 0.0,
           "last_6": "6/10/7/10/2/2",
           "age": "5",
@@ -19221,14 +19231,14 @@
           "ml_prob": 0.0782100036740303,
           "raw_ml_prob": 0.4391244351863861,
           "place_prob": 0.258792906999588,
-          "calibrated_prob": 0.029298661106226486,
-          "expected_return": 0.9337116330109481,
+          "calibrated_prob": 0.029308770484135174,
+          "expected_return": 0.9929963929211918,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 72 (field avg 69)",
             "Consistent placer: 2P (31)",
-            "Market: 1.5% implied @ $66.0",
+            "Market: 1.5% implied @ $68.0",
             "Solid jockey - H Bowman (62W/511R, 12%W)",
             "Solid trainer - W K Mo (36W/472R, 8%W)",
             "Average barrier (12)",
@@ -19282,8 +19292,8 @@
           "jockey_form_30d": 0.1155,
           "odds_movement": {
             "opening": 35.0,
-            "current": 66.0,
-            "change_pct": -88.6
+            "current": 68.0,
+            "change_pct": -94.3
           },
           "steam_move": {
             "is_steam": false,
@@ -19295,12 +19305,13 @@
             "label": ""
           },
           "pure_prob": 0.0645,
-          "market_prob": 0.0124,
-          "edge_pp": 5.21,
-          "ev_win": 3.255,
-          "overlay": 4.255,
+          "market_prob": 0.0119,
+          "edge_pp": 5.26,
+          "ev_win": 3.384,
+          "overlay": 4.384,
           "edge_fires": false,
-          "model_rank": 11
+          "model_rank": 11,
+          "actual_position": 6
         },
         {
           "rank": 12,
@@ -19312,7 +19323,7 @@
           "weight": "120",
           "gear": "TT1",
           "rating": 65.0,
-          "win_odds": 5.5,
+          "win_odds": 10.0,
           "place_odds": 0.0,
           "last_6": "",
           "age": "3",
@@ -19323,14 +19334,14 @@
           "ml_prob": 0.0782100036740303,
           "raw_ml_prob": 0.3957720994949341,
           "place_prob": 0.19137971103191376,
-          "calibrated_prob": 0.08792752795811339,
-          "expected_return": -0.5163985962303763,
+          "calibrated_prob": 0.0868762505145265,
+          "expected_return": -0.1312374948547349,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 65 (-4 vs field)",
             "No recent form data",
-            "Market: 18.2% implied @ $5.5",
+            "Market: 10.0% implied @ $10.0",
             "Top jockey - H Y Yuen (9W/61R, 15%W)",
             "Solid trainer - P F Yiu (32W/411R, 8%W)",
             "Average barrier (9)",
@@ -19363,25 +19374,26 @@
           "jockey_form_30d": 0.1192,
           "odds_movement": {
             "opening": 8.6,
-            "current": 5.5,
-            "change_pct": 36.0
+            "current": 10.0,
+            "change_pct": -16.3
           },
           "steam_move": {
-            "is_steam": true,
-            "severity": "STEAM",
-            "label": "STEAM -36% ($8.6\u2192$5.5)"
+            "is_steam": false,
+            "severity": "",
+            "label": ""
           },
           "cold_horse": {
             "is_cold": false,
             "label": ""
           },
           "pure_prob": 0.0589,
-          "market_prob": 0.1484,
-          "edge_pp": -8.96,
-          "ev_win": -0.676,
-          "overlay": 0.324,
+          "market_prob": 0.081,
+          "edge_pp": -2.21,
+          "ev_win": -0.411,
+          "overlay": 0.589,
           "edge_fires": false,
-          "model_rank": 12
+          "model_rank": 12,
+          "actual_position": 4
         },
         {
           "rank": 13,
@@ -19393,7 +19405,7 @@
           "weight": "115",
           "gear": "XB1",
           "rating": 60.0,
-          "win_odds": 41.0,
+          "win_odds": 21.0,
           "place_odds": 0.0,
           "last_6": "13/7/2/1/6/3",
           "age": "4",
@@ -19404,14 +19416,14 @@
           "ml_prob": 0.055612653493881226,
           "raw_ml_prob": 0.33043769001960754,
           "place_prob": 0.19137971103191376,
-          "calibrated_prob": 0.029298661106226486,
-          "expected_return": 0.20124510535528595,
+          "calibrated_prob": 0.029308770484135174,
+          "expected_return": -0.3845158198331613,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 60 (-9 below field)",
             "Winner in form: 1W/2P (41)",
-            "Market: 2.4% implied @ $41.0",
+            "Market: 4.8% implied @ $21.0",
             "Average jockey - K Teetan (42W/562R, 7%W)",
             "Solid trainer - B Crawford (20W/277R, 7%W)",
             "Average barrier (10)",
@@ -19476,8 +19488,8 @@
           "jockey_form_30d": 0.1079,
           "odds_movement": {
             "opening": 21.0,
-            "current": 41.0,
-            "change_pct": -95.2
+            "current": 21.0,
+            "change_pct": 0.0
           },
           "steam_move": {
             "is_steam": false,
@@ -19489,12 +19501,13 @@
             "label": ""
           },
           "pure_prob": 0.0507,
-          "market_prob": 0.0199,
-          "edge_pp": 3.08,
-          "ev_win": 1.078,
-          "overlay": 2.078,
+          "market_prob": 0.0386,
+          "edge_pp": 1.21,
+          "ev_win": 0.064,
+          "overlay": 1.064,
           "edge_fires": false,
-          "model_rank": 13
+          "model_rank": 13,
+          "actual_position": 7
         },
         {
           "rank": 14,
@@ -19506,7 +19519,7 @@
           "weight": "119",
           "gear": "XB-/H1",
           "rating": 64.0,
-          "win_odds": 120.0,
+          "win_odds": 167.0,
           "place_odds": 0.0,
           "last_6": "",
           "age": "4",
@@ -19517,14 +19530,14 @@
           "ml_prob": 0.012749549001455307,
           "raw_ml_prob": 0.10451824218034744,
           "place_prob": 0.04819021001458168,
-          "calibrated_prob": 0.017056618205408457,
-          "expected_return": 1.046794184649015,
+          "calibrated_prob": 0.017062503518688047,
+          "expected_return": 1.849438087620904,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 64 (-5 vs field)",
             "No recent form data",
-            "Market: 0.8% implied @ $120.0",
+            "Market: 0.6% implied @ $167.0",
             "Struggling jockey - H T Mo (5W/135R, 4%W)",
             "Solid trainer - Y S Tsui (21W/327R, 6%W)",
             "Average barrier (11)",
@@ -19556,8 +19569,8 @@
           "jockey_form_30d": 0.0629,
           "odds_movement": {
             "opening": 40.0,
-            "current": 120.0,
-            "change_pct": -200.0
+            "current": 167.0,
+            "change_pct": -317.5
           },
           "steam_move": {
             "is_steam": false,
@@ -19569,12 +19582,13 @@
             "label": ""
           },
           "pure_prob": 0.026,
-          "market_prob": 0.0068,
-          "edge_pp": 1.92,
-          "ev_win": 2.125,
-          "overlay": 3.125,
+          "market_prob": 0.0048,
+          "edge_pp": 2.12,
+          "ev_win": 3.349,
+          "overlay": 4.349,
           "edge_fires": false,
-          "model_rank": 14
+          "model_rank": 14,
+          "actual_position": 14
         }
       ],
       "speed_map": [
@@ -19702,49 +19716,13 @@
             "type": "EXACTA",
             "horses": [
               12,
-              9
-            ],
-            "probability": 0.012064056313242411,
-            "min_odds": 82.89085976018904,
-            "market_prob": 0.00199149475990843,
-            "market_odds": 502.13539102959055,
-            "edge": 5.057789634252979
-          },
-          {
-            "type": "EXACTA",
-            "horses": [
-              9,
-              12
-            ],
-            "probability": 0.012475705186533213,
-            "min_odds": 80.15578959652244,
-            "market_prob": 0.0021431070081493796,
-            "market_odds": 466.61225790284834,
-            "edge": 4.8213169660185375
-          },
-          {
-            "type": "EXACTA",
-            "horses": [
-              12,
               2
             ],
             "probability": 0.009377606687197537,
             "min_odds": 106.6370166030973,
-            "market_prob": 0.0029872421398626447,
-            "market_odds": 334.7569273530604,
-            "edge": 2.139218800531759
-          },
-          {
-            "type": "EXACTA",
-            "horses": [
-              12,
-              7
-            ],
-            "probability": 0.009547382314122306,
-            "min_odds": 104.74075166350246,
-            "market_prob": 0.0030902504895130812,
-            "market_odds": 323.59836310795833,
-            "edge": 2.0895172888158493
+            "market_prob": 0.0011271762976563524,
+            "market_odds": 887.172665073973,
+            "edge": 7.31955631669655
           },
           {
             "type": "EXACTA",
@@ -19754,25 +19732,48 @@
             ],
             "probability": 0.009409689879704227,
             "min_odds": 106.27342800711226,
-            "market_prob": 0.0033834193605892723,
-            "market_odds": 295.55898735113794,
-            "edge": 1.7811184121336323
-          }
-        ],
-        "quinella": [
+            "market_prob": 0.0012096727503128923,
+            "market_odds": 826.6698573984918,
+            "edge": 6.778706991019124
+          },
           {
-            "type": "QUINELLA",
+            "type": "EXACTA",
+            "horses": [
+              12,
+              9
+            ],
+            "probability": 0.012064056313242411,
+            "min_odds": 82.89085976018904,
+            "market_prob": 0.0018478299961579548,
+            "market_odds": 541.1753256951235,
+            "edge": 5.528769604523273
+          },
+          {
+            "type": "EXACTA",
             "horses": [
               9,
               12
             ],
-            "probability": 0.03245383458345326,
-            "min_odds": 30.812999845320427,
-            "boost": 1.3224999999999998,
-            "market_prob": 0.005468010838256453,
-            "market_odds": 182.88186135323448,
-            "edge": 4.935217676671905
+            "probability": 0.012475705186533213,
+            "min_odds": 80.15578959652244,
+            "market_prob": 0.0021014717117029376,
+            "market_odds": 475.85698842914485,
+            "edge": 4.936651498593557
           },
+          {
+            "type": "EXACTA",
+            "horses": [
+              12,
+              5
+            ],
+            "probability": 0.009357633084029917,
+            "min_odds": 106.86463029915514,
+            "market_prob": 0.0026213402271077963,
+            "market_odds": 381.4842459818084,
+            "edge": 2.569789601235577
+          }
+        ],
+        "quinella": [
           {
             "type": "QUINELLA",
             "horses": [
@@ -19782,22 +19783,22 @@
             "probability": 0.024846199709727578,
             "min_odds": 40.24760372542962,
             "boost": 1.3224999999999998,
-            "market_prob": 0.0073262607255197044,
-            "market_odds": 136.49527876023862,
-            "edge": 2.3913889555118253
+            "market_prob": 0.0030904828659393258,
+            "market_odds": 323.57403143086464,
+            "edge": 7.039585005812931
           },
           {
             "type": "QUINELLA",
             "horses": [
-              7,
+              9,
               12
             ],
-            "probability": 0.02584633896793951,
-            "min_odds": 38.69019907385827,
-            "boost": 1.35,
-            "market_prob": 0.008922759062071359,
-            "market_odds": 112.07295781982671,
-            "edge": 1.896675656950828
+            "probability": 0.03245383458345326,
+            "min_odds": 30.812999845320427,
+            "boost": 1.3224999999999998,
+            "market_prob": 0.004541696964040025,
+            "market_odds": 220.1820174084136,
+            "edge": 6.14575077122368
           },
           {
             "type": "QUINELLA",
@@ -19808,19 +19809,51 @@
             "probability": 0.02530603207158339,
             "min_odds": 39.51627015927631,
             "boost": 1.35,
-            "market_prob": 0.015736019592986143,
-            "market_odds": 63.548471968458905,
-            "edge": 0.6081596697339391
+            "market_prob": 0.00783894807886571,
+            "market_odds": 127.56813668610232,
+            "edge": 2.2282433582906394
+          },
+          {
+            "type": "QUINELLA",
+            "horses": [
+              7,
+              12
+            ],
+            "probability": 0.02584633896793951,
+            "min_odds": 38.69019907385827,
+            "boost": 1.35,
+            "market_prob": 0.009605891262002116,
+            "market_odds": 104.10278158734582,
+            "edge": 1.6906757804119121
+          },
+          {
+            "type": "QUINELLA",
+            "horses": [
+              2,
+              9
+            ],
+            "probability": 0.0343173457439763,
+            "min_odds": 29.139782763517754,
+            "boost": 1.35,
+            "market_prob": 0.02993070535941484,
+            "market_odds": 33.41050563265277,
+            "edge": 0.14655987327681297
           }
         ],
         "trifecta": [],
         "first4": []
       },
+      "suggested_stake": {
+        "amount": 0.0,
+        "pct": 0.0,
+        "method": "skip (bet=SKIP)"
+      },
+      "bankroll": 10000,
       "bet_ticket": {
         "version": 1,
         "race_date": "2026/05/24",
         "race_number": 10,
-        "generated_at": "2026-05-24 17:10:32",
+        "generated_at": "2026-05-24 17:33:45",
         "model_version": "20260524-113255",
         "conviction_tier": "MED",
         "has_edge": false,
@@ -19836,6 +19869,121 @@
         "allocated_amount": 0.0,
         "bets": []
       },
+      "actual_winner": 5,
+      "accuracy": {
+        "win_correct": false,
+        "top3_overlap": 1,
+        "winner_our_rank": 2,
+        "bet_hit": false,
+        "profit": 0.0
+      },
+      "results_available": true,
+      "actual_top3": [
+        1,
+        13,
+        5
+      ],
+      "actual_win_odds": 4.3,
+      "actual_results": [
+        {
+          "position": 1,
+          "number": 5,
+          "name": "MY MARS",
+          "finish_time": "D A Hayes",
+          "win_odds": 4.3
+        },
+        {
+          "position": 2,
+          "number": 13,
+          "name": "ALMIGHTY LIGHTNING",
+          "finish_time": "K L Man",
+          "win_odds": 10.0
+        },
+        {
+          "position": 3,
+          "number": 1,
+          "name": "GUSTOSISIMO",
+          "finish_time": "A S Cruz",
+          "win_odds": 28.0
+        },
+        {
+          "position": 4,
+          "number": 10,
+          "name": "ENDURANCE EXPRESS",
+          "finish_time": "P F Yiu",
+          "win_odds": 10.0
+        },
+        {
+          "position": 5,
+          "number": 4,
+          "name": "COOL BOY",
+          "finish_time": "J Richards",
+          "win_odds": 10.0
+        },
+        {
+          "position": 6,
+          "number": 6,
+          "name": "FLYING FORTRESS",
+          "finish_time": "W K Mo",
+          "win_odds": 68.0
+        },
+        {
+          "position": 7,
+          "number": 14,
+          "name": "LUNAR DASH",
+          "finish_time": "B Crawford",
+          "win_odds": 21.0
+        },
+        {
+          "position": 8,
+          "number": 9,
+          "name": "ELITE GOLF",
+          "finish_time": "W Y So",
+          "win_odds": 6.1
+        },
+        {
+          "position": 9,
+          "number": 12,
+          "name": "SUGAR SUGAR",
+          "finish_time": "C Fownes",
+          "win_odds": 59.0
+        },
+        {
+          "position": 10,
+          "number": 2,
+          "name": "MICKLEY",
+          "finish_time": "J Size",
+          "win_odds": 10.0
+        },
+        {
+          "position": 11,
+          "number": 8,
+          "name": "COMET MAJESTY",
+          "finish_time": "C S Shum",
+          "win_odds": 138.0
+        },
+        {
+          "position": 12,
+          "number": 7,
+          "name": "STAR RISE",
+          "finish_time": "D J Hall",
+          "win_odds": 3.6
+        },
+        {
+          "position": 13,
+          "number": 3,
+          "name": "TITAN PEGASUS",
+          "finish_time": "D Eustace",
+          "win_odds": 31.0
+        },
+        {
+          "position": 14,
+          "number": 11,
+          "name": "VIGOR HAPPINESS",
+          "finish_time": "Y S Tsui",
+          "win_odds": 167.0
+        }
+      ],
       "tier_stats": {
         "EDGE": {
           "hit": 0,
@@ -19866,14 +20014,7 @@
           "ci_high": 0.5098
         }
       },
-      "suggested_stake": {
-        "amount": 0.0,
-        "pct": 0.0,
-        "method": "skip (bet=SKIP)"
-      },
-      "bankroll": 10000,
-      "alerts": [],
-      "results_available": false
+      "alerts": []
     },
     {
       "race_number": 11,
@@ -19894,7 +20035,7 @@
           "weight": "124",
           "gear": "TT",
           "rating": 68.0,
-          "win_odds": 2.3,
+          "win_odds": 2.1,
           "place_odds": 0.0,
           "last_6": "1/3/3/1",
           "age": "3",
@@ -19905,14 +20046,14 @@
           "ml_prob": 0.48563259840011597,
           "raw_ml_prob": 0.8087217807769775,
           "place_prob": 0.48563259840011597,
-          "calibrated_prob": 0.2514005012355991,
-          "expected_return": -0.4217788471581221,
+          "calibrated_prob": 0.25682291919598765,
+          "expected_return": -0.4606718696884259,
           "bet_recommendation": "QIN",
           "confidence": "HIGH",
           "reasoning": [
             "Rating 68 (field avg 67)",
             "Recent winner: 2W/2P (85)",
-            "Market: 43.5% implied @ $2.3",
+            "Market: 47.6% implied @ $2.1",
             "Solid jockey - A Atzeni (57W/537R, 11%W)",
             "Solid trainer - K W Lui (52W/470R, 11%W)",
             "Average barrier (1)",
@@ -19966,8 +20107,8 @@
           "jockey_form_30d": 0.1143,
           "odds_movement": {
             "opening": 2.3,
-            "current": 2.3,
-            "change_pct": 0.0
+            "current": 2.1,
+            "change_pct": 8.7
           },
           "steam_move": {
             "is_steam": false,
@@ -19978,13 +20119,14 @@
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.1555,
-          "market_prob": 0.3542,
-          "edge_pp": -19.86,
-          "ev_win": -0.642,
-          "overlay": 0.358,
+          "pure_prob": 0.1542,
+          "market_prob": 0.3869,
+          "edge_pp": -23.27,
+          "ev_win": -0.676,
+          "overlay": 0.324,
           "edge_fires": false,
-          "model_rank": 1
+          "model_rank": 1,
+          "actual_position": 4
         },
         {
           "rank": 2,
@@ -19996,7 +20138,7 @@
           "weight": "128",
           "gear": "H",
           "rating": 72.0,
-          "win_odds": 5.7,
+          "win_odds": 3.9,
           "place_odds": 0.0,
           "last_6": "3/2/1/9/6/1",
           "age": "4",
@@ -20007,14 +20149,14 @@
           "ml_prob": 0.12894372642040253,
           "raw_ml_prob": 0.6046731472015381,
           "place_prob": 0.3148668706417084,
-          "calibrated_prob": 0.14208052496819557,
-          "expected_return": -0.19014100768128528,
+          "calibrated_prob": 0.162276620986033,
+          "expected_return": -0.3671211781544713,
           "bet_recommendation": "QIN",
           "confidence": "MEDIUM",
           "reasoning": [
             "Rating 72 (+5 vs field)",
             "Recent winner: 2W/2P (68)",
-            "Market: 17.5% implied @ $5.7",
+            "Market: 25.6% implied @ $3.9",
             "Elite jockey - Z Purton (131W/616R, 21%W)",
             "Solid trainer - J Size (51W/550R, 9%W)",
             "Average barrier (10)",
@@ -20116,25 +20258,26 @@
           "jockey_form_30d": 0.2219,
           "odds_movement": {
             "opening": 7.4,
-            "current": 5.7,
-            "change_pct": 23.0
+            "current": 4.8,
+            "change_pct": 35.1
           },
           "steam_move": {
             "is_steam": true,
-            "severity": "STRONG_SUPPORT",
-            "label": "Strong support -23% ($7.4\u2192$5.7)"
+            "severity": "STEAM",
+            "label": "STEAM -47% ($7.4\u2192$3.9)"
           },
           "cold_horse": {
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.128,
-          "market_prob": 0.1429,
-          "edge_pp": -1.49,
-          "ev_win": -0.271,
-          "overlay": 0.729,
+          "pure_prob": 0.1269,
+          "market_prob": 0.2083,
+          "edge_pp": -8.15,
+          "ev_win": -0.505,
+          "overlay": 0.495,
           "edge_fires": false,
-          "model_rank": 2
+          "model_rank": 2,
+          "actual_position": 3
         },
         {
           "rank": 3,
@@ -20146,7 +20289,7 @@
           "weight": "129",
           "gear": "TT",
           "rating": 73.0,
-          "win_odds": 7.1,
+          "win_odds": 6.0,
           "place_odds": 0.0,
           "last_6": "1/4/2/4/2",
           "age": "4",
@@ -20157,14 +20300,14 @@
           "ml_prob": 0.17616641521453857,
           "raw_ml_prob": 0.6629089117050171,
           "place_prob": 0.449403315782547,
-          "calibrated_prob": 0.0924616830556424,
-          "expected_return": -0.343522050304939,
+          "calibrated_prob": 0.1446441055481298,
+          "expected_return": -0.13213536671122128,
           "bet_recommendation": "QIN",
           "confidence": "MEDIUM",
           "reasoning": [
             "Rating 73 (+6 vs field)",
             "Winner in form: 1W/2P (50)",
-            "Market: 14.1% implied @ $7.1",
+            "Market: 16.7% implied @ $6.0",
             "Top jockey - J McDonald (17W/107R, 16%W)",
             "Solid trainer - C S Shum (54W/453R, 12%W)",
             "Average barrier (2)",
@@ -20231,25 +20374,26 @@
           "jockey_form_30d": 0.1,
           "odds_movement": {
             "opening": 7.8,
-            "current": 7.1,
-            "change_pct": 9.0
+            "current": 6.0,
+            "change_pct": 23.1
           },
           "steam_move": {
-            "is_steam": false,
-            "severity": "",
-            "label": ""
+            "is_steam": true,
+            "severity": "STRONG_SUPPORT",
+            "label": "Strong support -23% ($7.8\u2192$6.0)"
           },
           "cold_horse": {
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.1245,
-          "market_prob": 0.1147,
-          "edge_pp": 0.98,
-          "ev_win": -0.116,
-          "overlay": 0.884,
+          "pure_prob": 0.1235,
+          "market_prob": 0.1354,
+          "edge_pp": -1.19,
+          "ev_win": -0.259,
+          "overlay": 0.741,
           "edge_fires": false,
-          "model_rank": 3
+          "model_rank": 3,
+          "actual_position": 2
         },
         {
           "rank": 4,
@@ -20261,7 +20405,7 @@
           "weight": "130",
           "gear": "XB",
           "rating": 74.0,
-          "win_odds": 12.0,
+          "win_odds": 11.0,
           "place_odds": 0.0,
           "last_6": "",
           "age": "3",
@@ -20272,14 +20416,14 @@
           "ml_prob": 0.055612653493881226,
           "raw_ml_prob": 0.35520827770233154,
           "place_prob": 0.19137971103191376,
-          "calibrated_prob": 0.09132468324080503,
-          "expected_return": 0.0958961988896605,
+          "calibrated_prob": 0.0929724684279528,
+          "expected_return": 0.02269715270748085,
           "bet_recommendation": "SKIP",
           "confidence": "MEDIUM",
           "reasoning": [
             "Rating 74 (+7 vs field)",
             "No recent form data",
-            "Market: 8.3% implied @ $12.0",
+            "Market: 9.1% implied @ $11.0",
             "Solid jockey - H Bowman (62W/511R, 12%W)",
             "Solid trainer - D Eustace (30W/427R, 7%W)",
             "Wide draw (14)",
@@ -20312,25 +20456,26 @@
           "jockey_form_30d": 0.1155,
           "odds_movement": {
             "opening": 15.0,
-            "current": 12.0,
-            "change_pct": 20.0
+            "current": 19.0,
+            "change_pct": -26.7
           },
           "steam_move": {
             "is_steam": true,
             "severity": "STRONG_SUPPORT",
-            "label": "Strong support -20% ($15.0\u2192$12.0)"
+            "label": "Strong support -27% ($15.0\u2192$11.0)"
           },
           "cold_horse": {
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.0784,
-          "market_prob": 0.0679,
-          "edge_pp": 1.05,
-          "ev_win": -0.059,
-          "overlay": 0.941,
+          "pure_prob": 0.0777,
+          "market_prob": 0.0739,
+          "edge_pp": 0.39,
+          "ev_win": -0.145,
+          "overlay": 0.855,
           "edge_fires": false,
-          "model_rank": 4
+          "model_rank": 4,
+          "actual_position": 13
         },
         {
           "rank": 5,
@@ -20353,8 +20498,8 @@
           "ml_prob": 0.0782100036740303,
           "raw_ml_prob": 0.4088078439235687,
           "place_prob": 0.13367138803005219,
-          "calibrated_prob": 0.09132468324080503,
-          "expected_return": 0.1872208821304655,
+          "calibrated_prob": 0.0929724684279528,
+          "expected_return": 0.20864208956338648,
           "bet_recommendation": "SKIP",
           "confidence": "MEDIUM",
           "reasoning": [
@@ -20475,13 +20620,14 @@
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.0819,
-          "market_prob": 0.0627,
-          "edge_pp": 1.93,
-          "ev_win": 0.065,
-          "overlay": 1.065,
+          "pure_prob": 0.0812,
+          "market_prob": 0.0625,
+          "edge_pp": 1.87,
+          "ev_win": 0.056,
+          "overlay": 1.056,
           "edge_fires": false,
-          "model_rank": 5
+          "model_rank": 5,
+          "actual_position": 1
         },
         {
           "rank": 6,
@@ -20493,7 +20639,7 @@
           "weight": "135",
           "gear": "B",
           "rating": 79.0,
-          "win_odds": 19.0,
+          "win_odds": 23.0,
           "place_odds": 0.0,
           "last_6": "10/7/6/11/8/1",
           "age": "4",
@@ -20504,14 +20650,14 @@
           "ml_prob": 0.055612653493881226,
           "raw_ml_prob": 0.265006959438324,
           "place_prob": 0.12838231027126312,
-          "calibrated_prob": 0.06948091522822059,
-          "expected_return": 0.3201373893361912,
+          "calibrated_prob": 0.050524692841315916,
+          "expected_return": 0.1620679353502661,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 79 (+12 vs field avg 67)",
             "Recent winner: 1W/0P (44)",
-            "Market: 5.3% implied @ $19.0",
+            "Market: 4.3% implied @ $23.0",
             "Average jockey - B Avdulla (17W/374R, 5%W)",
             "Solid trainer - D A Hayes (53W/608R, 9%W)",
             "Good barrier (7)",
@@ -20603,8 +20749,8 @@
           "jockey_form_30d": 0.0255,
           "odds_movement": {
             "opening": 15.0,
-            "current": 19.0,
-            "change_pct": -26.7
+            "current": 18.0,
+            "change_pct": -20.0
           },
           "steam_move": {
             "is_steam": false,
@@ -20615,13 +20761,14 @@
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.0588,
-          "market_prob": 0.0429,
-          "edge_pp": 1.59,
-          "ev_win": 0.118,
-          "overlay": 1.118,
+          "pure_prob": 0.0583,
+          "market_prob": 0.0353,
+          "edge_pp": 2.3,
+          "ev_win": 0.341,
+          "overlay": 1.341,
           "edge_fires": false,
-          "model_rank": 6
+          "model_rank": 6,
+          "actual_position": 8
         },
         {
           "rank": 7,
@@ -20633,7 +20780,7 @@
           "weight": "116",
           "gear": "B/TT",
           "rating": 60.0,
-          "win_odds": 17.0,
+          "win_odds": 37.0,
           "place_odds": 0.0,
           "last_6": "6/4/2/3/1/6",
           "age": "6",
@@ -20644,14 +20791,14 @@
           "ml_prob": 0.055612653493881226,
           "raw_ml_prob": 0.3576418459415436,
           "place_prob": 0.19137971103191376,
-          "calibrated_prob": 0.06948091522822059,
-          "expected_return": 0.1811755588797499,
+          "calibrated_prob": 0.03136540449616598,
+          "expected_return": 0.16051996635814136,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 60 (-7 vs field)",
             "Recent winner: 1W/2P (60)",
-            "Market: 5.9% implied @ $17.0",
+            "Market: 2.7% implied @ $37.0",
             "Average jockey - P N Wong (10W/152R, 7%W)",
             "Average trainer - P C Ng (24W/460R, 5%W)",
             "Good barrier (4)",
@@ -20692,8 +20839,8 @@
           "jockey_form_30d": 0.0449,
           "odds_movement": {
             "opening": 13.0,
-            "current": 17.0,
-            "change_pct": -30.8
+            "current": 24.0,
+            "change_pct": -84.6
           },
           "steam_move": {
             "is_steam": false,
@@ -20704,13 +20851,14 @@
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.069,
-          "market_prob": 0.0479,
-          "edge_pp": 2.11,
-          "ev_win": 0.173,
-          "overlay": 1.173,
+          "pure_prob": 0.0684,
+          "market_prob": 0.022,
+          "edge_pp": 4.64,
+          "ev_win": 1.531,
+          "overlay": 2.531,
           "edge_fires": false,
-          "model_rank": 7
+          "model_rank": 7,
+          "actual_position": 10
         },
         {
           "rank": 8,
@@ -20722,7 +20870,7 @@
           "weight": "119",
           "gear": "CP/TT",
           "rating": 63.0,
-          "win_odds": 27.0,
+          "win_odds": 48.0,
           "place_odds": 0.0,
           "last_6": "5/6/4/1/4/3",
           "age": "5",
@@ -20733,14 +20881,14 @@
           "ml_prob": 0.055612653493881226,
           "raw_ml_prob": 0.2594694495201111,
           "place_prob": 0.12838231027126312,
-          "calibrated_prob": 0.03080950391837578,
-          "expected_return": -0.16814339420385394,
+          "calibrated_prob": 0.03136540449616598,
+          "expected_return": 0.5055394158159672,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 63 (-4 vs field)",
             "Winner in form: 1W/1P (40)",
-            "Market: 3.7% implied @ $27.0",
+            "Market: 2.1% implied @ $48.0",
             "Average jockey - A Badel (28W/422R, 7%W)",
             "Solid trainer - J Richards (24W/335R, 7%W)",
             "Average barrier (11)",
@@ -20805,8 +20953,8 @@
           "jockey_form_30d": 0.0508,
           "odds_movement": {
             "opening": 31.0,
-            "current": 27.0,
-            "change_pct": 12.9
+            "current": 34.0,
+            "change_pct": -9.7
           },
           "steam_move": {
             "is_steam": false,
@@ -20817,13 +20965,14 @@
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.0533,
-          "market_prob": 0.0302,
-          "edge_pp": 2.32,
-          "ev_win": 0.44,
-          "overlay": 1.44,
+          "pure_prob": 0.0529,
+          "market_prob": 0.0169,
+          "edge_pp": 3.6,
+          "ev_win": 1.539,
+          "overlay": 2.539,
           "edge_fires": false,
-          "model_rank": 8
+          "model_rank": 8,
+          "actual_position": 7
         },
         {
           "rank": 9,
@@ -20835,7 +20984,7 @@
           "weight": "118",
           "gear": "B-/XB-",
           "rating": 62.0,
-          "win_odds": 31.0,
+          "win_odds": 72.0,
           "place_odds": 0.0,
           "last_6": "12/12/7/12/11/9",
           "age": "5",
@@ -20846,14 +20995,14 @@
           "ml_prob": 0.055612653493881226,
           "raw_ml_prob": 0.2768022418022156,
           "place_prob": 0.13146357238292694,
-          "calibrated_prob": 0.03080950391837578,
-          "expected_return": -0.044905378530350815,
+          "calibrated_prob": 0.03136540449616598,
+          "expected_return": 1.2583091237239508,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 62 (-5 vs field)",
             "Moderate form (3)",
-            "Market: 3.2% implied @ $31.0",
+            "Market: 1.4% implied @ $72.0",
             "Solid jockey - J Moreira (12W/97R, 12%W)",
             "Solid trainer - C Fownes (56W/498R, 11%W)",
             "Wide draw (13)",
@@ -20954,8 +21103,8 @@
           "jockey_form_30d": 0.08,
           "odds_movement": {
             "opening": 31.0,
-            "current": 31.0,
-            "change_pct": 0.0
+            "current": 47.0,
+            "change_pct": -51.6
           },
           "steam_move": {
             "is_steam": false,
@@ -20966,13 +21115,14 @@
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.0544,
-          "market_prob": 0.0263,
-          "edge_pp": 2.81,
-          "ev_win": 0.686,
-          "overlay": 1.686,
+          "pure_prob": 0.0539,
+          "market_prob": 0.0113,
+          "edge_pp": 4.26,
+          "ev_win": 2.882,
+          "overlay": 3.882,
           "edge_fires": false,
-          "model_rank": 9
+          "model_rank": 9,
+          "actual_position": 11
         },
         {
           "rank": 10,
@@ -20984,7 +21134,7 @@
           "weight": "116",
           "gear": "V/XB/TT",
           "rating": 60.0,
-          "win_odds": 22.0,
+          "win_odds": 29.0,
           "place_odds": 0.0,
           "last_6": "5/7/3/10/9/5",
           "age": "4",
@@ -20995,14 +21145,14 @@
           "ml_prob": 0.042089831084012985,
           "raw_ml_prob": 0.24284887313842773,
           "place_prob": 0.13146357238292694,
-          "calibrated_prob": 0.03080950391837578,
-          "expected_return": -0.32219091379573284,
+          "calibrated_prob": 0.03136540449616598,
+          "expected_return": -0.0904032696111865,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 60 (-7 vs field)",
             "Moderate form (13)",
-            "Market: 4.5% implied @ $22.0",
+            "Market: 3.4% implied @ $29.0",
             "Average jockey - K Teetan (42W/562R, 7%W)",
             "Solid trainer - W K Mo (36W/472R, 8%W)",
             "Average barrier (12)",
@@ -21104,8 +21254,8 @@
           "jockey_form_30d": 0.1079,
           "odds_movement": {
             "opening": 22.0,
-            "current": 22.0,
-            "change_pct": 0.0
+            "current": 24.0,
+            "change_pct": -9.1
           },
           "steam_move": {
             "is_steam": false,
@@ -21116,54 +21266,51 @@
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.0506,
-          "market_prob": 0.037,
-          "edge_pp": 1.36,
-          "ev_win": 0.114,
-          "overlay": 1.114,
+          "pure_prob": 0.0502,
+          "market_prob": 0.028,
+          "edge_pp": 2.22,
+          "ev_win": 0.455,
+          "overlay": 1.455,
           "edge_fires": false,
-          "model_rank": 10
+          "model_rank": 10,
+          "actual_position": 5
         },
         {
           "rank": 11,
           "number": 9,
           "name": "PRIME SUCCESS",
-          "jockey": "H Bentley",
-          "trainer": "D J Whyte",
-          "draw": 9,
-          "weight": "123",
-          "gear": "SR-/XB1",
-          "rating": 67.0,
-          "win_odds": 39.0,
+          "jockey": "-",
+          "trainer": "-",
+          "draw": 0,
+          "weight": "-",
+          "gear": "-",
+          "rating": 0.0,
+          "win_odds": 0.0,
           "place_odds": 0.0,
           "last_6": "",
-          "age": "3",
-          "horse_weight": 1085,
+          "age": "-",
+          "horse_weight": 0,
           "days_since_last_run": 0,
           "rating_change": 0,
-          "rule_score": 54.59640828021182,
-          "ml_prob": 0.038375385105609894,
-          "raw_ml_prob": 0.2115592509508133,
-          "place_prob": 0.09417252987623215,
-          "calibrated_prob": 0.03080950391837578,
-          "expected_return": 0.20157065281665543,
+          "rule_score": 51.0,
+          "ml_prob": 0.055612653493881226,
+          "raw_ml_prob": 0.30069321393966675,
+          "place_prob": 0.13146357238292694,
+          "calibrated_prob": 0.018259801272475576,
+          "expected_return": -1.0,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
-            "Rating 67 (field avg 67)",
+            "Rating 0",
             "No recent form data",
-            "Market: 2.6% implied @ $39.0",
-            "Average jockey - H Bentley (34W/427R, 8%W)",
-            "Solid trainer - D J Whyte (25W/399R, 6%W)",
-            "Average barrier (9)",
+            "No live odds available",
+            "Jockey: -",
+            "Trainer: -",
+            "No draw data",
             "Midfield - Neutral pace (x1.00)",
-            "Gear: Gear: SR-/XB1 (no significant impact)",
-            "Weight: Fair weight (123lbs, rated 67)",
+            "Finish: Best: -",
             "Going: Untested on Good To Firm",
-            "Jockey cold: H Bentley 0W/10R (0%)",
-            "Trainer quiet: D J Whyte 1W/10R",
-            "Field: Large field (14) \u2014 chaos risk",
-            "Age 3 (field avg 4)"
+            "Field: Large field (14) \u2014 chaos risk"
           ],
           "going_form": {
             "runs": 0,
@@ -21180,12 +21327,12 @@
           "distance_pb": "",
           "distance_record": "1:19.36",
           "format_history": [],
-          "jockey_strike_rate": 0.0679,
-          "jockey_form_30d": 0.0776,
+          "jockey_strike_rate": 0.08,
+          "jockey_form_30d": 0.08,
           "odds_movement": {
             "opening": 27.0,
-            "current": 39.0,
-            "change_pct": -44.4
+            "current": 59.0,
+            "change_pct": -118.5
           },
           "steam_move": {
             "is_steam": false,
@@ -21196,13 +21343,14 @@
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.0462,
-          "market_prob": 0.0209,
-          "edge_pp": 2.53,
-          "ev_win": 0.801,
-          "overlay": 1.801,
+          "pure_prob": 0.0542,
+          "market_prob": 0.0,
+          "edge_pp": 5.42,
+          "ev_win": -1.0,
+          "overlay": 0.0,
           "edge_fires": false,
-          "model_rank": 11
+          "model_rank": 11,
+          "actual_position": null
         },
         {
           "rank": 12,
@@ -21214,7 +21362,7 @@
           "weight": "116",
           "gear": "",
           "rating": 60.0,
-          "win_odds": 36.0,
+          "win_odds": 98.0,
           "place_odds": 0.0,
           "last_6": "9/9/2/11/9/3",
           "age": "5",
@@ -21225,14 +21373,14 @@
           "ml_prob": 0.042089831084012985,
           "raw_ml_prob": 0.22341382503509521,
           "place_prob": 0.09417252987623215,
-          "calibrated_prob": 0.03080950391837578,
-          "expected_return": 0.10914214106152809,
+          "calibrated_prob": 0.019545702770537236,
+          "expected_return": 0.9154788715126492,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 60 (-7 vs field)",
             "Consistent placer: 2P (22)",
-            "Market: 2.8% implied @ $36.0",
+            "Market: 1.0% implied @ $98.0",
             "Average jockey - M L Yeung (18W/400R, 4%W)",
             "Solid trainer - B Crawford (20W/277R, 7%W)",
             "Good barrier (6)",
@@ -21309,8 +21457,8 @@
           "jockey_form_30d": 0.0415,
           "odds_movement": {
             "opening": 27.0,
-            "current": 36.0,
-            "change_pct": -33.3
+            "current": 65.0,
+            "change_pct": -140.7
           },
           "steam_move": {
             "is_steam": false,
@@ -21321,13 +21469,14 @@
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.045,
-          "market_prob": 0.0226,
-          "edge_pp": 2.24,
-          "ev_win": 0.619,
-          "overlay": 1.619,
+          "pure_prob": 0.0446,
+          "market_prob": 0.0083,
+          "edge_pp": 3.63,
+          "ev_win": 3.371,
+          "overlay": 4.371,
           "edge_fires": false,
-          "model_rank": 12
+          "model_rank": 12,
+          "actual_position": 6
         },
         {
           "rank": 13,
@@ -21339,7 +21488,7 @@
           "weight": "123",
           "gear": "V-",
           "rating": 67.0,
-          "win_odds": 55.0,
+          "win_odds": 144.0,
           "place_odds": 0.0,
           "last_6": "13/13/12",
           "age": "4",
@@ -21350,14 +21499,14 @@
           "ml_prob": 0.01891394890844822,
           "raw_ml_prob": 0.12881766259670258,
           "place_prob": 0.09417252987623215,
-          "calibrated_prob": 0.019199287105316487,
-          "expected_return": 0.0559607907924069,
+          "calibrated_prob": 0.018259801272475576,
+          "expected_return": 1.6294113832364827,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 67 (field avg 67)",
             "Moderate form (2)",
-            "Market: 1.8% implied @ $55.0",
+            "Market: 0.7% implied @ $144.0",
             "Solid jockey - C L Chau (40W/444R, 9%W)",
             "Solid trainer - P F Yiu (32W/411R, 8%W)",
             "Ideal barrier (5)",
@@ -21422,8 +21571,8 @@
           "jockey_form_30d": 0.0636,
           "odds_movement": {
             "opening": 31.0,
-            "current": 55.0,
-            "change_pct": -77.4
+            "current": 89.0,
+            "change_pct": -187.1
           },
           "steam_move": {
             "is_steam": false,
@@ -21434,13 +21583,14 @@
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.029,
-          "market_prob": 0.0148,
-          "edge_pp": 1.41,
-          "ev_win": 0.592,
-          "overlay": 1.592,
+          "pure_prob": 0.0287,
+          "market_prob": 0.0056,
+          "edge_pp": 2.31,
+          "ev_win": 3.134,
+          "overlay": 4.134,
           "edge_fires": false,
-          "model_rank": 13
+          "model_rank": 13,
+          "actual_position": 12
         },
         {
           "rank": 14,
@@ -21452,7 +21602,7 @@
           "weight": "123",
           "gear": "V/TT",
           "rating": 67.0,
-          "win_odds": 54.0,
+          "win_odds": 147.0,
           "place_odds": 0.0,
           "last_6": "11/11/6/9",
           "age": "4",
@@ -21463,14 +21613,14 @@
           "ml_prob": 0.0031771669164299965,
           "raw_ml_prob": 0.09014354646205902,
           "place_prob": 0.04094616323709488,
-          "calibrated_prob": 0.019199287105316487,
-          "expected_return": 0.0367615036870903,
+          "calibrated_prob": 0.018259801272475576,
+          "expected_return": 1.6841907870539097,
           "bet_recommendation": "SKIP",
           "confidence": "LOW",
           "reasoning": [
             "Rating 67 (field avg 67)",
             "Moderate form (6)",
-            "Market: 1.9% implied @ $54.0",
+            "Market: 0.7% implied @ $147.0",
             "Average jockey - Y L Chung (23W/375R, 6%W)",
             "Solid trainer - A S Cruz (46W/541R, 9%W)",
             "Average barrier (8)",
@@ -21536,8 +21686,8 @@
           "jockey_form_30d": 0.0824,
           "odds_movement": {
             "opening": 29.0,
-            "current": 54.0,
-            "change_pct": -86.2
+            "current": 96.0,
+            "change_pct": -231.0
           },
           "steam_move": {
             "is_steam": false,
@@ -21548,13 +21698,14 @@
             "is_cold": false,
             "label": ""
           },
-          "pure_prob": 0.0254,
-          "market_prob": 0.0151,
-          "edge_pp": 1.03,
-          "ev_win": 0.371,
-          "overlay": 1.371,
+          "pure_prob": 0.0252,
+          "market_prob": 0.0055,
+          "edge_pp": 1.96,
+          "ev_win": 2.7,
+          "overlay": 3.7,
           "edge_fires": false,
-          "model_rank": 14
+          "model_rank": 14,
+          "actual_position": 9
         }
       ],
       "speed_map": [
@@ -21615,20 +21766,20 @@
           "draw": 7
         },
         {
-          "number": 8,
-          "name": "GOLDEN CHAMP",
-          "style": "Midfield",
-          "predicted_pos": 8,
-          "lane": "middle",
-          "draw": 8
-        },
-        {
           "number": 9,
           "name": "PRIME SUCCESS",
           "style": "Midfield",
+          "predicted_pos": 8,
+          "lane": "inside",
+          "draw": 0
+        },
+        {
+          "number": 8,
+          "name": "GOLDEN CHAMP",
+          "style": "Midfield",
           "predicted_pos": 9,
           "lane": "middle",
-          "draw": 9
+          "draw": 8
         },
         {
           "number": 5,
@@ -21674,31 +21825,43 @@
       "has_edge": false,
       "odds_age_minutes": 0,
       "conviction_tier": "MED",
-      "top_2_share": 0.3935,
-      "top_3_share": 0.4859,
+      "top_2_share": 0.3938,
+      "top_3_share": 0.5297,
       "qin_bet_ev": {
         "n_combos": 3,
         "total_stake": 3.0,
-        "expected_profit": -1.38,
-        "ev_pct": -46.0,
-        "hit_prob": 0.1758,
-        "avg_dividend": 11.83
+        "expected_profit": -1.43,
+        "ev_pct": -47.6,
+        "hit_prob": 0.2547,
+        "avg_dividend": 7.09
       },
-      "qin_top_pair_dividend": 60.04,
+      "qin_top_pair_dividend": 35.36,
       "qin_dividend_source": "harville",
       "exotic_value": {
         "exacta": [
           {
             "type": "EXACTA",
             "horses": [
+              14,
+              7
+            ],
+            "probability": 0.011321683125805067,
+            "min_odds": 88.32608975963471,
+            "market_prob": 0.008687097146260925,
+            "market_odds": 115.11325166087467,
+            "edge": 0.30327575888547686
+          },
+          {
+            "type": "EXACTA",
+            "horses": [
               6,
               4
             ],
-            "probability": 0.011106143121664306,
-            "min_odds": 90.04025871495752,
-            "market_prob": 0.007669268739898381,
-            "market_odds": 130.390527951854,
-            "edge": 0.4481358651426608
+            "probability": 0.010914453635176315,
+            "min_odds": 91.62162701182666,
+            "market_prob": 0.00902790129217894,
+            "market_odds": 110.7677152901883,
+            "edge": 0.20896909280917098
           },
           {
             "type": "EXACTA",
@@ -21706,47 +21869,11 @@
               4,
               6
             ],
-            "probability": 0.011646544831524844,
-            "min_odds": 85.86237501900152,
-            "market_prob": 0.00812034921927516,
-            "market_odds": 123.1474131218783,
-            "edge": 0.4342418678102664
-          },
-          {
-            "type": "EXACTA",
-            "horses": [
-              4,
-              2
-            ],
-            "probability": 0.011148829240434038,
-            "min_odds": 89.69551676092124,
-            "market_prob": 0.008797044987548087,
-            "market_odds": 113.67453518942615,
-            "edge": 0.26733798181262225
-          },
-          {
-            "type": "EXACTA",
-            "horses": [
-              6,
-              5
-            ],
-            "probability": 0.01141836401263479,
-            "min_odds": 87.57822039072039,
-            "market_prob": 0.009552948781276929,
-            "market_odds": 104.67971962331943,
-            "edge": 0.19527114339961038
-          },
-          {
-            "type": "EXACTA",
-            "horses": [
-              5,
-              6
-            ],
-            "probability": 0.012022018348623853,
-            "min_odds": 83.18070818070818,
-            "market_prob": 0.010447366734891045,
-            "market_odds": 95.7178995794512,
-            "edge": 0.15072234503589765
+            "probability": 0.011441186537364516,
+            "min_odds": 87.4035220677689,
+            "market_prob": 0.009789296387737477,
+            "market_odds": 102.1523877091561,
+            "edge": 0.1687445230176372
           }
         ],
         "quinella": [
@@ -21756,12 +21883,12 @@
               4,
               14
             ],
-            "probability": 0.02364678880013937,
-            "min_odds": 42.28904010823263,
+            "probability": 0.02323195196442974,
+            "min_odds": 43.044166135118225,
             "boost": 1.242,
-            "market_prob": 0.016177855538004972,
-            "market_odds": 61.81288970289065,
-            "edge": 0.4616763479305648
+            "market_prob": 0.00804811841262582,
+            "market_odds": 124.25264499478641,
+            "edge": 1.8866314799722192
           },
           {
             "type": "QUINELLA",
@@ -21769,48 +21896,28 @@
               4,
               6
             ],
-            "probability": 0.028258838437860923,
-            "min_odds": 35.38715868307629,
+            "probability": 0.027765705094295712,
+            "min_odds": 36.01565300084685,
             "boost": 1.242,
-            "market_prob": 0.01961070550529354,
-            "market_odds": 50.99255606740252,
-            "edge": 0.44099040344229246
-          },
-          {
-            "type": "QUINELLA",
-            "horses": [
-              2,
-              4
-            ],
-            "probability": 0.025000971334832475,
-            "min_odds": 39.99844592464914,
-            "boost": 1.15,
-            "market_prob": 0.019724755858553433,
-            "market_odds": 50.6977124163674,
-            "edge": 0.26749205486318184
-          },
-          {
-            "type": "QUINELLA",
-            "horses": [
-              5,
-              6
-            ],
-            "probability": 0.023440382361258644,
-            "min_odds": 42.661420133349075,
-            "boost": 1.0,
-            "market_prob": 0.020000315516167974,
-            "market_odds": 49.999211222023675,
-            "edge": 0.17200062880556888
+            "market_prob": 0.02032257349430973,
+            "market_odds": 49.20636652046049,
+            "edge": 0.3662494615689318
           }
         ],
         "trifecta": [],
         "first4": []
       },
+      "suggested_stake": {
+        "amount": 100.0,
+        "pct": 1.0,
+        "method": "tier-fraction (MED)"
+      },
+      "bankroll": 10000,
       "bet_ticket": {
         "version": 1,
         "race_date": "2026/05/24",
         "race_number": 11,
-        "generated_at": "2026-05-24 17:10:32",
+        "generated_at": "2026-05-24 18:10:31",
         "model_version": "20260524-113255",
         "conviction_tier": "MED",
         "has_edge": false,
@@ -21882,14 +21989,124 @@
           "ci_high": 0.5098
         }
       },
-      "suggested_stake": {
-        "amount": 100.0,
-        "pct": 1.0,
-        "method": "tier-fraction (MED)"
-      },
-      "bankroll": 10000,
-      "alerts": [],
-      "results_available": false
+      "alerts": [
+        {
+          "type": "STEAM",
+          "race": 11,
+          "horse": 2,
+          "ts": 1779617431,
+          "severity": "strong",
+          "detail": "19.0 \u2192 11.0"
+        }
+      ],
+      "actual_results": [
+        {
+          "position": 1,
+          "number": 6,
+          "name": "THE RED HARE",
+          "finish_time": "F C Lor",
+          "win_odds": 13.0
+        },
+        {
+          "position": 2,
+          "number": 4,
+          "name": "WITHOUT COMPARE",
+          "finish_time": "C S Shum",
+          "win_odds": 6.0
+        },
+        {
+          "position": 3,
+          "number": 5,
+          "name": "FIT FOR BEAUTY",
+          "finish_time": "J Size",
+          "win_odds": 3.9
+        },
+        {
+          "position": 4,
+          "number": 7,
+          "name": "BABY SAKURA",
+          "finish_time": "K W Lui",
+          "win_odds": 2.1
+        },
+        {
+          "position": 5,
+          "number": 12,
+          "name": "CALIFORNIA WAVES",
+          "finish_time": "W K Mo",
+          "win_odds": 29.0
+        },
+        {
+          "position": 6,
+          "number": 13,
+          "name": "KING OF FIGHTERS",
+          "finish_time": "B Crawford",
+          "win_odds": 98.0
+        },
+        {
+          "position": 7,
+          "number": 10,
+          "name": "YEE CHEONG GLORY",
+          "finish_time": "J Richards",
+          "win_odds": 48.0
+        },
+        {
+          "position": 8,
+          "number": 1,
+          "name": "AKASHVANI",
+          "finish_time": "D A Hayes",
+          "win_odds": 23.0
+        },
+        {
+          "position": 9,
+          "number": 8,
+          "name": "GOLDEN CHAMP",
+          "finish_time": "A S Cruz",
+          "win_odds": 147.0
+        },
+        {
+          "position": 10,
+          "number": 14,
+          "name": "VICTOR THE RAPID",
+          "finish_time": "P C Ng",
+          "win_odds": 37.0
+        },
+        {
+          "position": 11,
+          "number": 11,
+          "name": "CHARMING LEGEND",
+          "finish_time": "C Fownes",
+          "win_odds": 72.0
+        },
+        {
+          "position": 12,
+          "number": 3,
+          "name": "CLASS",
+          "finish_time": "P F Yiu",
+          "win_odds": 144.0
+        },
+        {
+          "position": 13,
+          "number": 2,
+          "name": "CONTINENT EXPRESS",
+          "finish_time": "D Eustace",
+          "win_odds": 11.0
+        }
+      ],
+      "results_available": true,
+      "actual_winner": 6,
+      "actual_top3": [
+        4,
+        5,
+        6
+      ],
+      "actual_win_odds": 13.0,
+      "accuracy": {
+        "win_correct": false,
+        "top3_overlap": 2,
+        "winner_our_rank": 5,
+        "bet_hit": true,
+        "profit": 0.0
+      }
     }
   ]
 }

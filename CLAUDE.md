@@ -72,7 +72,7 @@ monitor/    — race day monitor (HK)
 dashboard/  — generator + edge-first HTML template (HK)
 betting/    — edge_calculator, conviction tiers, alerts, exotic_calculator (HK)
 scripts/    — CLI entry points
-tests/      — pytest suite (~436)
+tests/      — pytest suite (694; +20 contract/Playwright tests in R11–R15 hardening)
 ```
 
 Root-level shims (e.g., `hkjc_data_fetcher.py`) re-export from packages for backwards compat. Non-HK jurisdictions have isolated `*_history.db` + `*_racing_model.pkl` + scripts; HK code untouched.
@@ -115,7 +115,7 @@ Backup: `models/hkjc_racing_model.pkl.pre-prune-tier1`. Gate-tune attempt (+0.15
 
 4. **value_score must use ML blend**: `value_score = combined_prob * 100`, NOT raw `rule_score`.
 
-5. **Probability sync after rank swaps**: when `_assign_bet_recommendations` swaps positions (favourite promotion, BANKER override), re-write `combined_probability` + `expected_return` on ALL `HorseAnalysis` from the swapped `calibrated_probs`.
+5. **No rank promotions after calibration** (GPT-5.5 R13 F3 2026-05-25): `assign_bet_recommendations` MUST emit horses strictly sorted by `calibrated_prob` desc. Market-favourite and BANKER rank swaps were REMOVED — calibrated_prob already includes the market blend, so a post-calibration swap is a second override. BANKER is reasoning/diagnostic only; BANKER WIN may fire only when the BANKER horse is already rank 1 by calibrated_prob. Snapshot pre-blend order as `pre_blend_rank` for diagnostics. Locked by `tests/test_banker_cal_prob_guard.py` + `test_race_day_contracts::test_recommender_does_not_swap_rank_for_market_fav_or_banker`.
 
 6. **ML fallback**: untrained `predict()` returns `1/field_size` (the `field_size` param, default 12) — NOT `1/len(features)`.
 
@@ -157,7 +157,7 @@ Three audit rounds found 10 date-leaking rule-engine DB lookups (no `before_date
 
 ## DB (`tracking_data/horse_history.db`)
 
-Five tables: `race_results` (primary; sectional_times 99.4%), `race_dividends` (real HKJC payouts; backfill via `scripts.backfill_dividends`), `horses` (master; `get_horse_record()` aggregates from race_results), `jockey_stats` / `trainer_stats` (season; `rebuild_stats()` from local + optional `scrape_history.py --rankings` for full-season HKJC).
+Six tables: `race_results` (primary; sectional_times 99.4%), `race_dividends` (real HKJC payouts; backfill via `scripts.backfill_dividends`), `horses` (master; `get_horse_record()` aggregates from race_results), `jockey_stats` / `trainer_stats` (season; `rebuild_stats()` from local + optional `scrape_history.py --rankings` for full-season HKJC), **`race_bet_ticket`** (NEW 2026-05-24 — frozen per-meeting bet ticket: pool/label/legs/combos/amount/reason; ground truth for `validate_hk --replay`, dashboard STRIKE, WA copy, `stake_ab`; included in dump/restore).
 
 **Data integrity**: `ingest_race_day()` calls `rebuild_stats()` which overwrites jockey/trainer stats with local-only data — re-run `--rankings` after ingest to restore. `horses` upsert derives counters from race_results via subquery (idempotent). After any DB rebuild from Renavon, re-run `scripts.backfill_from_renavon` to restore `rating_change` (lives in `renavon_race_catalog`, not `renavon_race_results`).
 
@@ -185,6 +185,35 @@ Five tables: `race_results` (primary; sectional_times 99.4%), `race_dividends` (
 - Async/await in fetcher pipeline (`HKJCDataFetcher.get_race_card`).
 - Model pickle dict keys: `model, place_model, calibrator, place_calibrator, version, n_features, n_samples, feature_names, feature_importance, trained_date`. Sidecar `.sha256` required.
 - Dashboard probabilities: stored as decimals (0.178), displayed as % (×100 in JS).
+
+## Frozen bet_ticket is the single source of truth (R6–R15 hardening, 2026-05-23 → 2026-05-25)
+
+Every betting-critical surface reads from `race_bet_ticket` instead of re-deriving from rank order. This closed a class of phantom-hit / WA-fabrication / leg-drift bugs across the dashboard, WA copy, replay scoring, and `stake_ab`.
+
+- **Visual ticket** — every block (PRIMARY / QPL BANKER / BOX QIN-4 PROTECTION / F4 SAVER / BOX TRIO-5 / F4 BOX-5 / BOX TRIO-6) reads legs via `_ticketLegsFor(label)` (resolves leg.number → horse, rank as fallback). Never `race.horses.slice(...)`.
+- **WA copy** — two buttons: **Copy WA Ticket** (compact, ticket-first, race-day entry — STAKE + BET TICKET with HKJC pool names derived via `_hkjcPoolLabel(bet)`; or NO SYSTEM BET + OPTIONAL FORCE PICK top-3 + "Manual only — not counted as model ROI ticket." footer when ticket empty) and **Copy WA Full** (rationale + edge + tier-trust). Both routed through `copyWA()` which appends the `⚠️ For entertainment only. Gamble responsibly.` disclaimer.
+- **Status guards** in compact WA: `STATUS: LIVE` / `LOCKED` (race resolved) / `STALE ODDS` (odds_age ≥ 15m).
+- **Replay scoring** — `validate_hk --replay` mode scores actual staked bets from `race_bet_ticket` (use it for post-race recaps; synthetic strategy mode is for ROI comparison only).
+- **No-odds leg guard** — `_ticket_add_bet` refuses any bet whose legs have `win_odds <= 0`.
+- **Monitor parity** — `monitor/race_day.py` calls shared `finalize_tickets_and_stakes()` + `CombinedRaceAnalyzer(fail_closed_ml=True)`.
+- **Contract tests** — `tests/test_race_day_contracts.py` pins 6 invariant groups (Ticket Parity, Results Monotonicity, ML Fail-Closed, Ranking + Odds Coherence, Betting Product Semantics, Analytics Parity). Race-day pre-check: `python3 -m pytest tests/test_dashboard_playwright.py tests/test_race_day_contracts.py tests/test_template_js_syntax.py tests/test_dashboard_e2e.py tests/test_template_empty_state.py -q`.
+
+→ When re-rendering a past meeting offline, ALWAYS load `results/race_data_{YYYYMMDD}_with_results.json` (dict with `races:` key) — NOT the predictions-only file. The predictions JSON lacks post-race fields and the dashboard will show finished races as "next race" in Top Bets. See memory: `feedback_rerender_past_dashboards_from_with_results.md`.
+
+## Feature experiment kill record (cheap-diagnostic line)
+
+9 candidates killed at Gate A1/A2/B since 2026-05-22:
+1. Sectional closing figure (diagnostic-killed, +0.33 corr with place_prob)
+2. `jockey_ae` from API (lifetime leak inflated +0.033)
+3. Pace/trip flags ×5 (base rate <0.15% or wrong-sign-redundant with field_rel_draw)
+4. `closing_position_gain` (r=+0.73 with `late_kick` — same signal smoothed)
+5. `jockey_book_quality` (wrong sign + r=+0.59 with implied_prob — market prices it)
+6. Race-shape feature (r=−0.014 wrong sign in HK — N.American 8f-dirt heuristic)
+7. Draw × style interaction (Gate A2: cell rate is 90% running_style)
+8. `jt_market_sharpness` (leak-free self-computed J×T a/e: r=−0.040, wrong sign — measures longshot fluke not skill)
+9. **Jockey ELO (3 designs)** — V1 place-anchored r=−0.14 (wrong sign); V2 raw r=+0.0986 was a +K·0.43/ride drift artifact; V2 Harville-fixed r=−0.158 (Purton at ELO −665). Market-anchored skill ratings in HK invert through favorite-longshot bias. See `memory/project_jockey_elo_v1_killed_v2_passed_2026-05-25.md`. Archived scripts: `scripts/diagnose_jockey_elo.py`, `diagnose_jockey_elo_v2.py`, `jockey_elo_shadow.py`. **Do NOT extend** — market-anchored jockey skill rating is structurally broken for HK.
+
+Next architectural swing per user roadmap (`memory/project_roadmap_jockey_elo_then_top4_ranker.md`): **top-4-set-aware ranker** as shadow second-stage. Single-feature pace/trip/style/jockey adds are pre-killed; don't propose without new data evidence.
 
 ## Renavon — frozen snapshot
 

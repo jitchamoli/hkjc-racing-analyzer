@@ -30,6 +30,16 @@ Thumbs.db
 # Model rollback backups (per-wave snapshots; rollback points live in git tags)
 models/*.pkl.*-backup
 models/*.sha256.*-backup
+models/*.pkl.pre-*
+models/blend_calibrator.pkl.pre-*
+
+# Killed-experiment archive CSVs (kept locally as evidence; do NOT consume
+# in any downstream evaluator — see memory:
+# project_jockey_elo_v1_killed_v2_passed_2026-05-25)
+tracking_data/jockey_perf_elo_shadow.csv
+
+# Stray empty DB (legacy path; real DBs live under tracking_data/)
+/data/racing_data.db
 
 # Per-date alert dedup state (ephemeral, regenerated each day)
 tracking_data/alerts_state_*.json
