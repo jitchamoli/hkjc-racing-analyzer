@@ -129,6 +129,12 @@ class HorseAnalysis:
     # model_probability preserves the original value so accuracy.py measures
     # the model, not human overrides.
     model_probability: float = None
+    # GPT-5.5 R12 #4 2026-05-25 — `rank` is reassigned after final market
+    # calibration so it reflects the BETTING rank (highest calibrated_prob
+    # first). `pre_blend_rank` preserves the pre-calibration model order
+    # for diagnostics/display. Every ticket leg + recommender assignment
+    # reads `rank` (= betting rank).
+    pre_blend_rank: int = None
 
 
 # ---------------------------------------------------------------------------

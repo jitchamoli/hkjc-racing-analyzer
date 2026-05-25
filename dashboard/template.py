@@ -323,6 +323,7 @@ button {{ font-family:inherit; cursor:pointer; }}
   display:inline-flex; align-items:center; gap:5px; transition:opacity .2s;
 }}
 .wa-btn:hover {{ opacity:.85; }}
+.wa-btn + .wa-btn {{ margin-left:6px; }}
 
 /* ── Empty state ── */
 .empty-hero {{
@@ -518,7 +519,7 @@ button {{ font-family:inherit; cursor:pointer; }}
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
     <div>
-      <span class="topbar-brand">HKJC Racing</span>
+      <span class="topbar-brand">HKJC</span>
       <span class="topbar-meta" style="margin-left:10px">{race_date} · {venue}</span>
     </div>
     <div class="view-tabs view-tabs-topbar">
@@ -869,46 +870,37 @@ function renderBetCard(race) {{
   // + F4 BOX-5) by combo-count, so the user sees how the $X splits.
   var ss = race.suggested_stake || {{}};
   var stakeHtml = '';
-  // Longshot paper bet — rendered in the ticket area on EVERY qualifying race
-  // (steamed rank 6-8 present), including SKIP races that have no stake table.
-  // Purple/dashed, explicitly NOT STAKED, never affects the real budget total.
-  var _lp = _longshotPick(race);
-  var paperBlock = _lp
-    ? '<div class="trust-block" style="margin-top:6px;border:1px dashed #5b21b6;border-radius:6px;padding:6px 10px;background:rgba(91,33,182,.10)">' +
-        '<span style="background:#5b21b6;color:#ede9fe;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">🧪 LONGSHOT-TRIO · PAPER · NOT STAKED</span>' +
-        (_lp.tag ? ' <span style="color:' + _lp.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _lp.tag + '</span>' : '') +
-        '<div style="color:var(--dim);font-size:.66rem;margin-top:3px">20-combo box · top-5 + ' +
-          '<span style="color:#c4b5fd;font-weight:700">#' + esc(_lp.best.number) + ' ' + esc(_lp.best.name) +
-          ' (rank ' + esc(_lp.best.rank) + ', @' + esc(_lp.best.win_odds) + ', -' + _lp.pct + '%)</span></div>' +
-      '</div>'
-    : '';
-  // EXPERIMENT (owner-only): top-1 + 1 HOT (most-steamed rank 6-12) + 1 COLD
-  // (most-drifted rank 6-12), straight TRIO. Amber/dashed, NOT STAKED, isolated
-  // from ML. Lottery line. Updated 2026/05/24. See _bolterTrio().
-  var _bt = _bolterTrio(race);
-  var bolterBlock = _bt
-    ? '<div class="trust-block" style="margin-top:6px;border:1px dashed #ec4899;border-radius:6px;padding:6px 10px;background:rgba(131,24,67,.18)">' +
-        '<span style="background:#831843;color:#fce7f3;font-weight:800;padding:1px 7px;border-radius:3px;font-size:.62rem">\\uD83C\\uDF40 BOLTER TRIO \\u00b7 EXPERIMENT \\u00b7 NOT STAKED</span>' +
-        (_bt.tag ? ' <span style="color:' + _bt.tagColor + ';font-weight:800;font-size:.64rem;margin-left:6px">' + _bt.tag + '</span>' : '') +
-        '<div style="color:#fbcfe8;font-size:.66rem;margin-top:3px">straight TRIO \\u00b7 top-1 + hot + cold: ' +
-          '<span style="color:#fce7f3;font-weight:700">' + _bt.nums.map(function(n) {{ return '#' + esc(n); }}).join('-') + '</span>' +
-          ' <span style="opacity:.85">(\\uD83D\\uDD25 hot #' + esc(_bt.hot.number) + ' ' + esc(_bt.hot.name) +
-          ', rank ' + esc(_bt.hot.rank) + ', @' + esc(_bt.hot.win_odds) +
-          (_bt.hotPct ? ', ' + (_bt.hotPct > 0 ? '+' : '') + _bt.hotPct.toFixed(0) + '%' : '') + ')' +
-          ' (\\u2744\\uFE0F cold #' + esc(_bt.cold.number) + ' ' + esc(_bt.cold.name) +
-          ', rank ' + esc(_bt.cold.rank) + ', @' + esc(_bt.cold.win_odds) +
-          (_bt.coldPct ? ', ' + (_bt.coldPct > 0 ? '+' : '') + _bt.coldPct.toFixed(0) + '%' : '') + ')</span></div>' +
-      '</div>'
-    : '';
+  // LONGSHOT-TRIO 🧪 + BOLTER TRIO 🍀 removed from the live dashboard
+  // 2026-05-25 per user direction. Both still compete with real system
+  // bets in the ticket area despite EXPERIMENT/NOT STAKED labels:
+  //   - LONGSHOT-TRIO variant 1: N=7 meetings, KILL verdict
+  //     (memory: project_bolter_calc_hot_killed_2026-05-24).
+  //   - BOLTER TRIO mix_hot_cold: 3 meetings, 0/22 hits, INSUFFICIENT_DATA.
+  //     User wants tracker running silently (scripts.track_longshot_trio
+  //     still logs to tracking_data/longshot_trio_log.csv) but UI hidden
+  //     until N≥6 forward, then ROI verdict.
+  // Helper functions _longshotPick + _bolterTrio also removed (dead).
   if (ss.amount && ss.amount > 0) {{
     var br = race.bankroll || 0;
     var betLines = [];
     var totalCombos = 0;
+    var unitRounded = 0;
+    var allocated = 0;
     if (race.bet_ticket && race.bet_ticket.bets && race.bet_ticket.bets.length) {{
+      // Ticket-first: read unit_stake and per-bet amount from the frozen
+      // ticket (GPT-5.5 R12 #1 2026-05-25). Server computed them once at
+      // ticket-build time; visual + WA + replay must all read the SAME
+      // numbers so the user sees the actual stake everywhere.
+      unitRounded = race.bet_ticket.unit_stake || 0;
+      allocated = race.bet_ticket.allocated_amount || 0;
       race.bet_ticket.bets.forEach(function(b) {{
         var combos = b.combos || 0;
         if (combos > 0) {{
-          betLines.push({{lbl: b.label || b.pool || 'BET', combos: combos}});
+          betLines.push({{
+            lbl: b.label || b.pool || 'BET',
+            combos: combos,
+            amount: b.amount || (combos * unitRounded),
+          }});
           totalCombos += combos;
         }}
       }});
@@ -932,33 +924,39 @@ function renderBetCard(race) {{
           lbl = n === 3 ? 'STRAIGHT TRIO' : 'BOX TRIO-' + n;
         }}
         if (combos > 0) {{
-          betLines.push({{lbl: lbl, combos: combos}});
+          betLines.push({{lbl: lbl, combos: combos, amount: 0}});
           totalCombos += combos;
         }}
       }});
+      // Legacy path: recompute unit + per-bet amount the old way.
+      var unit = totalCombos > 0 ? (ss.amount / totalCombos) : 0;
+      unitRounded = Math.max(5, Math.floor(unit / 5) * 5);
+      betLines.forEach(function(b) {{
+        b.amount = b.combos * unitRounded;
+        allocated += b.amount;
+      }});
     }}
-    // Unit stake — divide budget across all combos. Floor to nearest $5
-    // so per-bet stakes never sum above the budget (was: round() inflated
-    // unit when amount/combos > .5 boundary, e.g., $300/16 = $18.75 → $20
-    // pushed the breakdown total to $320 over the $300 budget). Mirrors the
-    // WA-payload unit calc above to keep the two views in sync.
-    var unit = totalCombos > 0 ? (ss.amount / totalCombos) : 0;
-    var unitRounded = Math.max(5, Math.floor(unit / 5) * 5);
     var breakdownRows = '';
-    var allocated = 0;
     betLines.forEach(function(b) {{
-      var amt = b.combos * unitRounded;
-      allocated += amt;
       breakdownRows +=
         '<tr><td style="padding:1px 6px 1px 0;color:var(--dim)">' + esc(b.lbl) + '</td>' +
         '<td style="padding:1px 0;text-align:right">' + b.combos + ' × $' + unitRounded + '</td>' +
-        '<td style="padding:1px 0 1px 8px;text-align:right;color:var(--gold);font-weight:600">$' + amt + '</td></tr>';
+        '<td style="padding:1px 0 1px 8px;text-align:right;color:var(--gold);font-weight:600">$' + Math.round(b.amount) + '</td></tr>';
     }});
+    // Over-budget transparency: when ticket allocated > suggested, surface
+    // a row so the user sees the actual spend (GPT-5.5 R12 #2 2026-05-25).
+    var _overBudget = !!(race.bet_ticket && race.bet_ticket.over_budget);
+    var _overAmount = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
+    var overRow = (_overBudget && _overAmount >= 1)
+      ? '<tr><td colspan="3" style="padding:3px 0 1px 0;color:#f59e0b;font-size:.65rem;font-style:italic">⚠ $' +
+          Math.round(_overAmount) + ' over budget (HK$5 unit floor)</td></tr>'
+      : '';
     var breakdownHtml = breakdownRows
       ? '<table style="font-size:.7rem;border-collapse:collapse;margin-top:6px;width:100%">' +
           breakdownRows +
           '<tr style="border-top:1px solid var(--border)"><td style="padding:3px 0 1px 0;color:var(--dim)">Total</td>' +
-          '<td></td><td style="padding:3px 0 1px 8px;text-align:right;color:var(--gold);font-weight:600">$' + allocated + '</td></tr>' +
+          '<td></td><td style="padding:3px 0 1px 8px;text-align:right;color:var(--gold);font-weight:600">$' + Math.round(allocated) + '</td></tr>' +
+          overRow +
         '</table>'
       : '';
     stakeHtml =
@@ -971,10 +969,8 @@ function renderBetCard(race) {{
           '<br><span style="color:var(--dim);font-size:.65rem">' + (ss.pct||0).toFixed(2) + '% of $' + br + ' · ' + esc(ss.method||'') + '</span>' +
           breakdownHtml +
         '</div>' +
-      '</div>' + paperBlock + bolterBlock;
+      '</div>';
   }}
-  // SKIP / no-stake races still surface the paper experiments if any qualify.
-  if (!stakeHtml) stakeHtml = paperBlock + bolterBlock;
 
   // Bet type sub-label
   var betRec = topH.bet_recommendation || 'QIN';
@@ -1047,6 +1043,28 @@ function renderBetCard(race) {{
     ? race.bet_ticket.bets.map(function(b) {{ return b.label; }})
     : [];
   function _waTicketHas(label) {{ return _waTicketLabels.indexOf(label) >= 0; }}
+  // Resolve frozen ticket legs for a given bet label, hydrating each leg
+  // into a full horse object (by number first, rank fallback) so WA picks
+  // the same legs replay scores. Mirrors visual `_ticketLegsFor`. Added
+  // 2026-05-25 (GPT-5.5 R14): without this, WA reconstructed QPL/BOX QIN-4/
+  // F4 SAVER/BOX TRIO-5/F4 BOX-5 legs from current rank order and could
+  // diverge from frozen ticket if ranks shifted after build.
+  function _waTicketLegsFor(label) {{
+    var _bets = (race.bet_ticket && race.bet_ticket.bets) || [];
+    var bet = _bets.filter(function(b) {{ return b.label === label; }})[0];
+    if (!bet) return [];
+    var byNum = {{}};
+    var byRank = {{}};
+    race.horses.forEach(function(h) {{
+      if (h.number != null) byNum[h.number] = h;
+      if (h.rank != null) byRank[h.rank] = h;
+    }});
+    return (bet.legs || []).map(function(l) {{
+      return byNum[l.number] || byRank[l.rank] || {{
+        number: l.number, name: l.name, rank: l.rank,
+      }};
+    }});
+  }}
   // Plain-text per-bet hit/miss mark for WA copy. Mirrors _ticketHitMark
   // (visual) and validate_hk replay scoring. Empty string while race
   // unresolved so live-prep messages do not carry false ✗ MISS marks.
@@ -1099,55 +1117,43 @@ function renderBetCard(race) {{
     ? race.bet_ticket.bets.filter(function(b) {{ return b.reason === 'recommender'; }})
     : [];
 
-  // Compute per-bet stake amounts so each MAIN block shows its $ allocation
-  // inline (matches the dashboard stake-breakdown table). Shared unit
-  // stake = ss.amount / total_combos, rounded to nearest $5.
-  var waTotalCombos = 0;
-  var waMainCombos = {{}};
-  _waRecBets.forEach(function(b) {{
-    waMainCombos[b.label] = b.combos || 0;
-    waTotalCombos += b.combos || 0;
-  }});
-  // top5/F4/T6 gating mirrors the block below — compute inline to avoid
-  // a forward reference to top5wa (declared later in the addOns section).
-  var waTop5Len = race.horses.slice(0, 5).length;
-  var waT5Combos = (waTop5Len === 5) ? 10 : 0;
-  var waF4Combos = 0;
-  var waT6Combos = 0;
-  if (waTop5Len === 5) {{
-    var f4t1 = (race.horses[0] && race.horses[0].win_odds) || 0;
-    var f4f = race.horses.length;
-    var f4Sk = (tier !== 'EDGE' && tier !== 'HIGH' && tier !== 'MED') ||
-                (f4f < 8);
-    if (!f4Sk) waF4Combos = 5;
-    // TRIO-6 included only when verdict is TAKE (mirrors logic at line ~1088).
-    var t6stm = race.horses.slice(0, 12).filter(function(h) {{
-      return h.steam_move && h.steam_move.is_steam;
-    }}).length;
-    var t6Tk = (f4t1 > 0 && f4t1 < 2.5) ? false :
-                (t6stm >= 2) ? true :
-                (tier === 'HIGH' && f4f >= 11 && f4t1 >= 2.5 && f4t1 <= 5.0) ? true :
-                false;
-    if (t6Tk && _waRecBets.length > 0) waT6Combos = 20;
+  // WA reads frozen bet_ticket.unit_stake / per-bet amounts (GPT-5.5 R12
+  // #1 2026-05-25). Prior code re-derived `waUnit` from ss.amount and
+  // counted combos via inline gate-clone logic — both drifted whenever
+  // production gates changed. The ticket is the single source of truth
+  // for staking; WA just renders it.
+  var _allBets = (race.bet_ticket && race.bet_ticket.bets) || [];
+  var waUnit = (race.bet_ticket && race.bet_ticket.unit_stake) || 0;
+  var waTotalCombos = _allBets.reduce(function(s, b) {{ return s + (b.combos || 0); }}, 0);
+  var _waAllocated = (race.bet_ticket && race.bet_ticket.allocated_amount) || 0;
+  var _waOverBudget = !!(race.bet_ticket && race.bet_ticket.over_budget);
+  var _waOverAmount = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
+  // Per-bet amount lookup — `bet.amount` is what the server allocated.
+  function _waAmountFor(label) {{
+    for (var i = 0; i < _allBets.length; i++) {{
+      if (_allBets[i].label === label) return _allBets[i].amount || 0;
+    }}
+    return 0;
   }}
-  waTotalCombos += waT5Combos + waF4Combos + waT6Combos;
-  // Floor (not round) to nearest $5 so the per-bet stakes never sum above
-  // the budget. Was: Math.round() inflated unit when amount/combos > .5
-  // boundary (e.g., $300/16 = $18.75 → $20 → total $320, over the $300
-  // budget). Floor gives $15 → total $240, under budget — user can manually
-  // add the residual to a preferred bet if desired.
-  var waUnit = (ss && ss.amount > 0 && waTotalCombos > 0)
-    ? Math.max(5, Math.floor((ss.amount / waTotalCombos) / 5) * 5)
-    : 0;
-  // Annotate the stake banner with unallocated residual when floor leaves
-  // budget on the table. User can then manually deploy the residual to a
-  // preferred bet (e.g., round TRIO-5 up to next $5). Skip hint when
-  // residual < $5 (rounding noise, not actionable).
-  if (_ssBannerIdx >= 0 && waUnit > 0) {{
-    var _allocated = waTotalCombos * waUnit;
-    var _unalloc = Math.round(ss.amount) - _allocated;
-    if (_unalloc >= 5) {{
-      waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(' HKD*', ' HKD — $' + _unalloc + ' unallocated*');
+
+  // Stake banner annotation: when frozen ticket exceeds budget (HK$5 unit
+  // floor pushed allocated > suggested), surface the over-spend honestly
+  // instead of silently showing the lower budget. Otherwise, show the
+  // residual when allocated < budget (existing behaviour).
+  if (_ssBannerIdx >= 0 && ss && ss.amount > 0) {{
+    if (_waOverBudget && _waOverAmount >= 1) {{
+      waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(
+        ' HKD*',
+        ' HKD — actual $' + Math.round(_waAllocated) +
+        ' (+$' + Math.round(_waOverAmount) + ' over, $5 unit floor)*'
+      );
+    }} else if (_waAllocated > 0) {{
+      var _unalloc = Math.round(ss.amount) - Math.round(_waAllocated);
+      if (_unalloc >= 5) {{
+        waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(
+          ' HKD*', ' HKD — $' + _unalloc + ' unallocated*'
+        );
+      }}
     }}
   }}
 
@@ -1164,7 +1170,9 @@ function renderBetCard(race) {{
   }}
   if (!isSkipRace) {{
     _waPrimary.forEach(function(bet) {{
-      var betStake = waUnit > 0 ? (' · $' + ((bet.combos || 0) * waUnit)) : '';
+      var betStake = (bet.amount && bet.amount > 0)
+        ? (' · $' + Math.round(bet.amount))
+        : '';
       waLines.push('');
       waLines.push('*MAIN: ' + bet.label + betStake + '*' + _waHitMark(bet.label));
       (bet.legs || []).forEach(function(leg) {{ waLines.push(_waPickFromLeg(leg)); }});
@@ -1175,34 +1183,45 @@ function renderBetCard(race) {{
       var reason = race.chaos_reason || 'chaos race';
       waLines.push('*CHAOS — NO PLAY* (' + reason + ')');
     }} else {{
-      waLines.push('*SKIP* — no bet recommended');
+      // GPT-5.5 R15 2026-05-25 — say NO SYSTEM BET explicitly before any
+      // horse suggestions so the user cannot mistake a "manual force pick"
+      // section below for a model-recommended stake.
+      waLines.push('*NO SYSTEM BET* — no frozen ticket for this race');
     }}
   }}
 
   // Optional add-on layers (BOX QIN-4, F4, TRIO-5, TRIO-6, QPL BANKER)
   // collected as bullets so the reader sees them as discretionary.
+  // All leg numbers read from the FROZEN bet_ticket so WA = visual = replay
+  // even when rank order shifts after the ticket is built (GPT-5.5 R14).
   var addOns = [];
-  var top4wa = race.horses.slice(0, 4);
-  var top5wa = race.horses.slice(0, 5);
   var top6wa = race.horses.slice(0, 6);
-  var top1Wa = race.horses[0];
 
   // QIN PLACE BANKER for short-favorite races
-  if (_waTicketHas('QIN PLACE BANKER') && top1Wa && race.horses.length >= 4) {{
-    var bnkNums = race.horses.slice(1, 4).map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    addOns.push('QPL BANKER (3 combos): #' + top1Wa.number + ' with ' + bnkNums + _waHitMark('QIN PLACE BANKER'));
+  if (_waTicketHas('QIN PLACE BANKER')) {{
+    var qplLegsWa = _waTicketLegsFor('QIN PLACE BANKER');
+    if (qplLegsWa.length >= 4) {{
+      var bnkNums = qplLegsWa.slice(1, 4).map(function(h) {{ return '#' + h.number; }}).join(' + ');
+      addOns.push('QPL BANKER (3 combos): #' + qplLegsWa[0].number + ' with ' + bnkNums + _waHitMark('QIN PLACE BANKER'));
+    }}
   }}
 
   // BOX QIN-4 PROTECTION — only when server included it in bet_ticket
-  if (top4wa.length === 4 && _waTicketHas('BOX QIN-4 PROTECTION')) {{
-    var box4Nums = top4wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    addOns.push('BOX QIN-4 (6 combos): ' + box4Nums + _waHitMark('BOX QIN-4 PROTECTION'));
+  if (_waTicketHas('BOX QIN-4 PROTECTION')) {{
+    var box4LegsWa = _waTicketLegsFor('BOX QIN-4 PROTECTION');
+    if (box4LegsWa.length === 4) {{
+      var box4Nums = box4LegsWa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+      addOns.push('BOX QIN-4 (6 combos): ' + box4Nums + _waHitMark('BOX QIN-4 PROTECTION'));
+    }}
   }}
 
   // F4 SAVER — only when server included it in bet_ticket
-  if (top4wa.length === 4 && _waTicketHas('F4 SAVER')) {{
-    var f4Order = top4wa.map(function(h) {{ return '#' + h.number; }}).join(' → ');
-    addOns.push('F4 SAVER (1 unit · exact 1→4): ' + f4Order + _waHitMark('F4 SAVER'));
+  if (_waTicketHas('F4 SAVER')) {{
+    var f4SaverLegsWa = _waTicketLegsFor('F4 SAVER');
+    if (f4SaverLegsWa.length === 4) {{
+      var f4Order = f4SaverLegsWa.map(function(h) {{ return '#' + h.number; }}).join(' → ');
+      addOns.push('F4 SAVER (1 unit · top-4 any order): ' + f4Order + _waHitMark('F4 SAVER'));
+    }}
   }}
 
   // Rank-5 swap REVERTED 2026-05-17 after R5 forward test: shipped on N=1
@@ -1219,13 +1238,17 @@ function renderBetCard(race) {{
   // for trio coverage and should never be buried as an "optional add".
   // Inserted into the lines array directly above the addOns block below.
   var t5MainBlock = null;
-  if (top5wa.length === 5 && _waTicketHas('BOX TRIO-5')) {{
-    var t5Nums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    var t5Stake = waUnit > 0 ? (' · $' + (10 * waUnit)) : '';
-    var t5SwapAnno = top5waSwap
-      ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
-      : '';
-    t5MainBlock = ['', '*MAIN: BOX TRIO-5' + t5Stake + '* (10 combos)' + t5SwapAnno + _waHitMark('BOX TRIO-5'), t5Nums];
+  if (_waTicketHas('BOX TRIO-5')) {{
+    var t5LegsWa = _waTicketLegsFor('BOX TRIO-5');
+    if (t5LegsWa.length === 5) {{
+      var t5Nums = t5LegsWa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+      var _t5Amt = _waAmountFor('BOX TRIO-5');
+      var t5Stake = _t5Amt > 0 ? (' · $' + Math.round(_t5Amt)) : '';
+      var t5SwapAnno = top5waSwap
+        ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
+        : '';
+      t5MainBlock = ['', '*MAIN: BOX TRIO-5' + t5Stake + '* (10 combos)' + t5SwapAnno + _waHitMark('BOX TRIO-5'), t5Nums];
+    }}
   }}
 
   // F4 BOX-5 — second MAIN bet block (shipped 2026-05-06, +54% ROI on 60-race
@@ -1234,13 +1257,17 @@ function renderBetCard(race) {{
   // Same gates as F4 SAVER apply. Kept TRIO-5 as parallel MAIN since they
   // cover different misses (TRIO-5 hits when 4th finisher is outside top-5).
   var f4bMainBlock = null;
-  if (top5wa.length === 5 && _waTicketHas('F4 BOX-5')) {{
-    var f4bNums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    var f4bStake = waUnit > 0 ? (' · $' + (5 * waUnit)) : '';
-    var f4bSwapAnno = top5waSwap
-      ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
-      : '';
-    f4bMainBlock = ['', '*MAIN: F4 BOX-5' + f4bStake + '* (5 combos · top-4 any order)' + f4bSwapAnno + _waHitMark('F4 BOX-5'), f4bNums];
+  if (_waTicketHas('F4 BOX-5')) {{
+    var f4bLegsWa = _waTicketLegsFor('F4 BOX-5');
+    if (f4bLegsWa.length === 5) {{
+      var f4bNums = f4bLegsWa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+      var _f4bAmt = _waAmountFor('F4 BOX-5');
+      var f4bStake = _f4bAmt > 0 ? (' · $' + Math.round(_f4bAmt)) : '';
+      var f4bSwapAnno = top5waSwap
+        ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
+        : '';
+      f4bMainBlock = ['', '*MAIN: F4 BOX-5' + f4bStake + '* (5 combos · top-4 any order)' + f4bSwapAnno + _waHitMark('F4 BOX-5'), f4bNums];
+    }}
   }}
 
   // BOX TRIO-6 — annotate with TAKE/SKIP/YOUR CALL + chaos so user sees
@@ -1302,7 +1329,8 @@ function renderBetCard(race) {{
     var isT6Take = t6Verdict.indexOf('★ TAKE') === 0;
     if (_waTicketHas('BOX TRIO-6')) {{
       if (isT6Take && !isSkipRace) {{
-        var t6Stake = waUnit > 0 ? (' · $' + (20 * waUnit)) : '';
+        var _t6Amt = _waAmountFor('BOX TRIO-6');
+        var t6Stake = _t6Amt > 0 ? (' · $' + Math.round(_t6Amt)) : '';
         t6MainBlock = ['', '*MAIN: BOX TRIO-6' + t6Stake + '* (20 combos · ' + t6Verdict + ' · CHAOS ' + chaosScore + '/4)' + swapAnno + _waHitMark('BOX TRIO-6'), t6Nums];
       }} else {{
         addOns.push('BOX TRIO-6 (20 combos · ' + t6Verdict + ' · CHAOS ' + chaosScore + '/4): ' + t6Nums + swapAnno + _waHitMark('BOX TRIO-6'));
@@ -1342,30 +1370,12 @@ function renderBetCard(race) {{
     addOns.forEach(function(a) {{ waLines.push('• ' + a); }});
   }}
 
-  // PAPER EXPERIMENT (2026-05-20): longshot-inclusive TRIO. Top-5 + most-steamed
-  // rank 6-8 horse. NOT a recommended bet — flagged explicitly so it never reads
-  // as a real add. Mirrors _select() in scripts/track_longshot_trio.py. Lives
-  // outside the *Optional adds* block on purpose, below it, with its own header.
-  if (race.horses && race.horses.length >= 8) {{
-    var _ltSorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
-    var _ltBest = null, _ltPct = -1;
-    for (var _li = 5; _li < 8; _li++) {{
-      var _lsm = _ltSorted[_li].steam_move || {{}};
-      if (!_lsm.is_steam) continue;
-      var _lm = (_lsm.label || '').match(/-(\\d+)%/);
-      var _lp = _lm ? parseInt(_lm[1], 10) : 0;
-      if (_lp > _ltPct) {{ _ltPct = _lp; _ltBest = _ltSorted[_li]; }}
-    }}
-    if (_ltBest) {{
-      var _ltNums = _ltSorted.slice(0, 5).map(function(h) {{ return '#' + h.number; }}).join(' ');
-      waLines.push('');
-      waLines.push('🧪 *PAPER EXPERIMENT — NOT A BET*');
-      waLines.push('Longshot-TRIO: ' + _ltNums + ' + #' + _ltBest.number + ' ' +
-                   (_ltBest.name || '') + ' (rank ' + _ltBest.rank + ', @$' +
-                   (_ltBest.win_odds || '?') + ', -' + _ltPct + '%)');
-      waLines.push('_Tracking only — do not stake until 6-meeting verdict._');
-    }}
-  }}
+  // PAPER EXPERIMENT Longshot-TRIO block removed from WA 2026-05-25 per
+  // user direction (same reason as the visual paperBlock removal above):
+  // even with "NOT A BET" framing, the line competed with real system
+  // bets in the WA copy. Tracker scripts still log to
+  // tracking_data/longshot_trio_log.csv; surface results only in
+  // post-race report, not live WA.
 
   // Why-strong block, italicised
   if (whyItems.length) {{
@@ -1393,6 +1403,129 @@ function renderBetCard(race) {{
   }} catch (e) {{ /* silent — never break WA copy */ }}
 
   var waPayload = waLines.join('\\n');
+
+  // ─────────────────────────────────────────────────────────────
+  // Compact ticket-first WA payload (GPT-5.5 R14 2026-05-25, refined
+  // R15 2026-05-25 per user spec).
+  //
+  // RACE-DAY rules:
+  //   - If frozen bet_ticket has bets: render STAKE + BET TICKET only.
+  //     No TOP PICK, no NOTES — those bias the user away from the
+  //     exact entry instructions at the terminal.
+  //   - If frozen bet_ticket is empty: NO STAKE / NO BET TICKET.
+  //     Show NO SYSTEM BET + OPTIONAL FORCE PICK (top-3 horses) with
+  //     a clear "manual only — not counted as model ROI" footer so
+  //     the user has manual guidance without polluting model ROI.
+  //
+  // Pool labels are DERIVED from bet.pool + combos + legs where
+  // possible, not hardcoded. Generator-emitted protection/saver
+  // variants keep their intent suffix (PROTECTION/SAVER/BANKER).
+  // ─────────────────────────────────────────────────────────────
+  function _hkjcPoolLabel(bet) {{
+    var p = (bet.pool || '').toUpperCase();
+    var L = bet.label || '';
+    var n = (bet.legs || []).length;
+    // Special generator-emitted intent variants — preserve intent
+    // suffix so the user knows why the bet exists.
+    if (L === 'QIN PLACE BANKER') return 'QPL BANKER';
+    if (L === 'BOX QIN-4 PROTECTION') return 'QIN BOX-4 (PROTECTION)';
+    if (L === 'F4 SAVER') return 'FIRST 4 SAVER';
+    // Generic derivation: HKJC pool name + STRAIGHT/BOX-N from leg count.
+    if (p === 'QUINELLA') return n === 2 ? 'STRAIGHT QIN' : ('QIN BOX-' + n);
+    if (p === 'TRIO') return n === 3 ? 'STRAIGHT TRIO' : ('TRIO BOX-' + n);
+    if (p === 'FIRST 4') return 'FIRST 4 BOX-' + n;
+    if (p === 'QIN PLACE') return 'QPL';
+    if (p === 'WIN' || p === 'PLACE') return p;
+    return L || p;
+  }}
+
+  var ticketLinesCompact = [];
+  var hdrVenue = race.venue ? ' · ' + race.venue : '';
+  var hdrTime = race.time ? ' · ' + race.time : '';
+  ticketLinesCompact.push('HKJC R' + race.race_number + hdrVenue + hdrTime);
+
+  var oa = (race.bet_ticket && race.bet_ticket.odds_age_minutes != null)
+    ? race.bet_ticket.odds_age_minutes
+    : (race.odds_age_minutes != null ? race.odds_age_minutes : null);
+  var stale = (oa != null && oa >= 15);
+  var statusWord = race.results_available ? 'LOCKED' : 'LIVE';
+  if (stale && !race.results_available) statusWord = 'LIVE · STALE ODDS';
+  var statusBits = ['STATUS: ' + statusWord];
+  if (oa != null) statusBits.push('odds age ' + Math.round(oa) + 'm');
+  var modelV = (race.bet_ticket && race.bet_ticket.model_version) || null;
+  if (modelV) statusBits.push('model ' + modelV);
+  ticketLinesCompact.push(statusBits.join(' · '));
+
+  var _ticketBetsAll = (race.bet_ticket && race.bet_ticket.bets) || [];
+  if (_ticketBetsAll.length) {{
+    // ── Real frozen system ticket: STAKE + BET TICKET only ──
+    var ssAmt = (ss && ss.amount) ? ss.amount : 0;
+    var ticketTotal = (race.bet_ticket && race.bet_ticket.allocated_amount) || 0;
+    var unitC = (race.bet_ticket && race.bet_ticket.unit_stake) || 0;
+    var overBudC = !!(race.bet_ticket && race.bet_ticket.over_budget);
+    var overAmtC = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
+    ticketLinesCompact.push('');
+    ticketLinesCompact.push('STAKE');
+    var stakeLine = 'Budget $' + Math.round(ssAmt) +
+                    ' · Ticket $' + Math.round(ticketTotal) +
+                    ' · Unit $' + Math.round(unitC);
+    if (overBudC && overAmtC > 0) {{
+      stakeLine += ' · +$' + Math.round(overAmtC) + ' over (HK$' +
+                   Math.round(unitC) + ' unit floor)';
+    }}
+    ticketLinesCompact.push(stakeLine);
+
+    ticketLinesCompact.push('');
+    ticketLinesCompact.push('BET TICKET');
+    _ticketBetsAll.forEach(function(bet, idx) {{
+      var poolLabel = _hkjcPoolLabel(bet);
+      var amtBit = (bet.amount && bet.amount > 0)
+        ? ' · $' + Math.round(bet.amount) : '';
+      var comboBit = (bet.combos && bet.combos > 1)
+        ? ' · ' + bet.combos + ' combos' : '';
+      ticketLinesCompact.push((idx + 1) + '. ' + poolLabel + amtBit +
+                              comboBit + _waHitMark(bet.label));
+      var nums = (bet.legs || []).map(function(l) {{ return '#' + l.number; }});
+      if (nums.length) {{
+        if (bet.label === 'QIN PLACE BANKER' && nums.length >= 2) {{
+          ticketLinesCompact.push('   ' + nums[0] + ' with ' +
+                                  nums.slice(1).join(' + '));
+        }} else {{
+          ticketLinesCompact.push('   ' + nums.join(' + '));
+        }}
+      }}
+    }});
+  }} else {{
+    // ── No system bet: drop STAKE/BET TICKET entirely, give the
+    // user a clearly-labelled MANUAL guidance block instead. The
+    // "Manual only" footer is load-bearing — without it the user
+    // might paste this into a ticket and expect it to count toward
+    // model ROI accounting.
+    ticketLinesCompact.push('');
+    ticketLinesCompact.push('NO SYSTEM BET');
+    var skipReason = 'Tier ' + (race.conviction_tier || 'SKIP') +
+                     ' / no frozen ticket';
+    ticketLinesCompact.push('Reason: ' + skipReason);
+    if (race.horses && race.horses.length) {{
+      ticketLinesCompact.push('');
+      ticketLinesCompact.push('OPTIONAL FORCE PICK');
+      race.horses.slice(0, 3).forEach(function(h, i) {{
+        var fp = race.horses[i];
+        if (!fp) return;
+        var prob = (fp.calibrated_prob != null)
+          ? Math.round(fp.calibrated_prob * 100) : null;
+        var bits = ['#' + fp.number + ' ' + (fp.name || '')];
+        if (fp.win_odds) bits.push('$' + fp.win_odds);
+        bits.push('rank ' + (fp.rank || (i + 1)));
+        if (prob != null) bits.push('prob ' + prob + '%');
+        ticketLinesCompact.push((i + 1) + '. ' + bits.join(' · '));
+      }});
+      ticketLinesCompact.push('');
+      ticketLinesCompact.push('Manual only — not counted as model ROI ticket.');
+    }}
+  }}
+
+  var waPayloadCompact = ticketLinesCompact.join('\\n');
 
   // Whole card is clickable → toggles the per-race detail panel below it.
   // The WA button uses stopPropagation so clicking Copy WA does not also
@@ -1439,8 +1572,10 @@ function renderBetCard(race) {{
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
         '<span style="font-size:.7rem;color:var(--dim)">' + esc(edgeDetail) + '</span>' +
+        '<button class="wa-btn" data-testid="copy-wa-ticket-R' + race.race_number + '" data-payload="' + escAttr(waPayloadCompact) +
+          '" onclick="event.stopPropagation()" title="Compact ticket-first WA copy — exact bet entry, no rationale">Copy WA Ticket</button>' +
         '<button class="wa-btn" data-testid="copy-wa-R' + race.race_number + '" data-payload="' + escAttr(waPayload) +
-          '" onclick="event.stopPropagation()">Copy WA</button>' +
+          '" onclick="event.stopPropagation()" title="Full WA copy — ticket plus rationale, edge, odds age, model info">Copy WA Full</button>' +
         '<span class="card-expand-chevron" id="chev-' + race.race_number + '" style="font-size:.85rem;color:var(--gold);font-weight:700">▼</span>' +
       '</div>' +
     '</div>' +
@@ -1576,79 +1711,11 @@ function setStripView(view) {{
   renderHero();
 }}
 
-// ── PAPER EXPERIMENT (2026-05-20): longshot-inclusive TRIO ──────────────
-// Selection = model top-5 + most-steamed rank 6-8 horse. Rendered as a PAPER
-// row inside the bet-ticket stake breakdown — clearly labelled, never staked,
-// excluded from the budget total. Tracking only until the N>=6 ship gate.
-// Mirrors _select() in scripts/track_longshot_trio.py so dashboard == log.
-// Returns an object (best, pct, box6nums, tag, tagColor) or null when there is
-// no qualifying horse.
-function _longshotPick(race) {{
-  if (!race.horses || race.horses.length < 8) return null;
-  var sorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
-  var top5 = sorted.slice(0, 5);
-  var best = null, bestPct = -1;
-  for (var i = 5; i < 8; i++) {{
-    var sm = sorted[i].steam_move || {{}};
-    if (!sm.is_steam) continue;
-    var m = (sm.label || '').match(/-(\\d+)%/);
-    var pct = m ? parseInt(m[1], 10) : 0;
-    if (pct > bestPct) {{ bestPct = pct; best = sorted[i]; }}
-  }}
-  if (!best) return null;  // no qualifying steamed rank 6-8 horse → no paper bet
-  var top5nums = top5.map(function(h) {{ return h.number; }});
-  var box6nums = top5nums.concat([best.number]);
-  var tag = '', tagColor = '#94a3b8';
-  if (race.results_available && Array.isArray(race.actual_top3) && race.actual_top3.length) {{
-    var boxHit = race.actual_top3.every(function(n) {{ return box6nums.indexOf(n) !== -1; }});
-    var t5Hit = race.actual_top3.every(function(n) {{ return top5nums.indexOf(n) !== -1; }});
-    if (boxHit && !t5Hit) {{ tag = 'RESCUED ✓'; tagColor = '#22c55e'; }}
-    else if (boxHit) {{ tag = 'hit'; tagColor = '#94a3b8'; }}
-    else {{ tag = 'missed'; tagColor = '#ef4444'; }}
-  }}
-  return {{ best: best, pct: bestPct, box6nums: box6nums, tag: tag, tagColor: tagColor }};
-}}
-
-// EXPERIMENT (owner-requested, display-only): a straight 3-horse TRIO mixing
-// model conviction with market signal — top-1 (our pick) + 1 HOT longshot
-// (most-steamed in rank 6-12) + 1 COLD longshot (most-drifted in rank 6-12).
-// Updated 2026/05/24 from the prior "top-2 + biggest-price rank 6-9" shape
-// — the new shape tests whether market-direction signals on longshots
-// rescue trios the model alone cannot see. Falls back to longest-price band
-// (no hot) or shortest-price band (no cold) when one direction has no
-// qualifying runner. Deterministic, stable across refreshes. NOT staked,
-// completely isolated from the ML pipeline.
-function _bolterTrio(race) {{
-  if (race.conviction_tier === 'EDGE') return null;  // skip high-conviction EDGE races
-  if (!race.horses || race.horses.length < 6) return null;
-  var sorted = race.horses.slice().sort(function(a, b) {{ return (a.rank || 99) - (b.rank || 99); }});
-  var top1 = sorted[0];
-  // Band: rank 6-12 (longshot zone). Need odds > 0 to read odds_movement.
-  var band = sorted.slice(5, 12).filter(function(h) {{ return (h.win_odds || 0) > 0; }});
-  if (band.length < 2) return null;  // need at least 2 to pick both hot + cold
-  function mov(h) {{ var o = h.odds_movement || {{}}; return Number(o.change_pct) || 0; }}
-  // HOT: most-steamed (largest positive change_pct). Fallback: shortest current odds.
-  var hot = band.reduce(function(best, h) {{ return (mov(h) > mov(best)) ? h : best; }});
-  if (mov(hot) <= 0) {{
-    hot = band.reduce(function(best, h) {{ return (h.win_odds < best.win_odds) ? h : best; }});
-  }}
-  // COLD: most-drifted (most-negative change_pct), excluding hot. Fallback: longest odds.
-  var coldBand = band.filter(function(h) {{ return h.number !== hot.number; }});
-  if (coldBand.length === 0) return null;
-  var cold = coldBand.reduce(function(best, h) {{ return (mov(h) < mov(best)) ? h : best; }});
-  if (mov(cold) >= 0) {{
-    cold = coldBand.reduce(function(best, h) {{ return (h.win_odds > best.win_odds) ? h : best; }});
-  }}
-  var nums = [top1.number, hot.number, cold.number];
-  var tag = '', tagColor = '#94a3b8';
-  if (race.results_available && Array.isArray(race.actual_top3) && race.actual_top3.length === 3) {{
-    var hit = race.actual_top3.every(function(n) {{ return nums.indexOf(n) !== -1; }});
-    tag = hit ? 'HIT \\u2713' : 'missed';
-    tagColor = hit ? '#22c55e' : '#ef4444';
-  }}
-  return {{ legs: [top1, hot, cold], nums: nums, third: cold, tag: tag, tagColor: tagColor,
-           hot: hot, cold: cold, hotPct: mov(hot), coldPct: mov(cold) }};
-}}
+// LONGSHOT-TRIO + BOLTER TRIO removed from live UI 2026-05-25 per user
+// direction. Tracker scripts (scripts/track_longshot_trio.py) keep
+// logging silently; surface results only in post-race reports. See:
+//   feedback_hide_paper_experiments_from_live_ui_2026-05-25
+//   project_bolter_calc_hot_killed_2026-05-24 (variant 1 KILL @ N=7)
 
 function renderTopBetsView() {{
   // Stacked betting-opportunity cards: every race that has a non-SKIP bet,
@@ -1995,15 +2062,29 @@ function _buildRaceDetailPanel(race) {{
       : '<span style="background:rgba(239,68,68,.7);color:#fff;font-weight:800;padding:1px 6px;border-radius:3px;font-size:.62rem;margin-left:8px;vertical-align:middle">✗ MISS</span>';
   }}
   function _legsToHorses(legs) {{
-    // Re-hydrate full horse objects from rank so _renderPick has odds,
-    // jockey, edge, etc. Falls back to a minimal stub when rank not found.
+    // Re-hydrate full horse objects from the frozen ticket leg numbers
+    // so _renderPick has odds, jockey, edge, etc. Resolve by NUMBER
+    // first (stable across rank shifts) then fall back to rank
+    // (GPT-5.5 R13 #6 2026-05-25 — visual must render from ticket legs,
+    // not current rank order, so display matches what replay scores).
+    var byNum = {{}};
     var byRank = {{}};
-    race.horses.forEach(function(h) {{ byRank[h.rank] = h; }});
+    race.horses.forEach(function(h) {{
+      if (h.number != null) byNum[h.number] = h;
+      if (h.rank != null) byRank[h.rank] = h;
+    }});
     return legs.map(function(l) {{
-      return byRank[l.rank] || {{
+      return byNum[l.number] || byRank[l.rank] || {{
         number: l.number, name: l.name, rank: l.rank,
       }};
     }});
+  }}
+  // _ticketLegsFor — return [{{number, name, rank, win_odds, ...}}] for the
+  // first bet matching `label` in the frozen ticket. Empty array when the
+  // label is absent (caller should also gate on _ticketHas).
+  function _ticketLegsFor(label) {{
+    var bet = _ticketBets.filter(function(b) {{ return b.label === label; }})[0];
+    return bet ? _legsToHorses(bet.legs || []) : [];
   }}
   var ticketLines = [];
   // PRIMARY block — render every recommender-driven bet from the frozen
@@ -2022,60 +2103,60 @@ function _buildRaceDetailPanel(race) {{
     );
   }});
 
-  // QIN PLACE BANKER — for short-favorite races (top pick odds <= 1.8)
-  // a straight WIN bet pays barely above stake. QIN PLACE on the
-  // favorite with the next 3 model picks gives us 3 combos that hit
-  // when the favorite finishes top-3 (very likely) AND any of the
-  // bankers finishes top-3. Much better EV than WIN at sub-2.0 odds.
-  var topH2 = race.horses[0];
-  if (_ticketHas('QIN PLACE BANKER') && topH2 && race.horses.length >= 4) {{
-    var bankers = race.horses.slice(1, 4);
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25)">' +
-        '<span style="display:inline-block;background:rgba(59,130,246,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
-          '+ QIN PLACE BANKER · 3 combos' +
-        '</span>' +
-        _ticketHitMark('QIN PLACE BANKER') +
-        '<span style="font-weight:600">#' + esc(topH2.number) + ' ' + esc(topH2.name) + ' </span>' +
-        '<span style="color:var(--dim);margin:0 4px">with</span>' +
-        bankers.map(function(h) {{ return '#' + esc(h.number) + ' ' + esc(h.name); }}).join(' / ') +
-        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when fav places (very likely at $' + esc(topH2.win_odds) + ') and any banker places. Way better ROI than straight WIN.</div>' +
-      '</div>'
-    );
+  // QIN PLACE BANKER — for short-favorite races. Read legs from the
+  // frozen ticket so display matches what replay scores (GPT-5.5 R13 #6).
+  if (_ticketHas('QIN PLACE BANKER')) {{
+    var qplLegs = _ticketLegsFor('QIN PLACE BANKER');
+    if (qplLegs.length >= 2) {{
+      var qplPivot = qplLegs[0];
+      var qplBankers = qplLegs.slice(1);
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25)">' +
+          '<span style="display:inline-block;background:rgba(59,130,246,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
+            '+ QIN PLACE BANKER · 3 combos' +
+          '</span>' +
+          _ticketHitMark('QIN PLACE BANKER') +
+          '<span style="font-weight:600">#' + esc(qplPivot.number) + ' ' + esc(qplPivot.name) + ' </span>' +
+          '<span style="color:var(--dim);margin:0 4px">with</span>' +
+          qplBankers.map(function(h) {{ return '#' + esc(h.number) + ' ' + esc(h.name); }}).join(' / ') +
+          '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when fav places (very likely at $' + esc(qplPivot.win_odds || '?') + ') and any banker places. Way better ROI than straight WIN.</div>' +
+        '</div>'
+      );
+    }}
   }}
 
-  // BOX Q4 PROTECTION — always shown when the race has at least 4 ranked
-  // horses, regardless of the recommender primary choice. Catches the
-  // R1-PACKING-KING-style upsets where the placing pair sits in model
-  // ranks 3-4 outside our straight QIN. 6 combinations.
-  var top4 = race.horses.slice(0, 4);
-  if (top4.length === 4 && _ticketHas('BOX QIN-4 PROTECTION')) {{
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25)">' +
-        '<span style="display:inline-block;background:rgba(16,185,129,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
-          '+ PROTECTION · BOX QIN-4 (6 combos)' +
-        '</span>' +
-        _ticketHitMark('BOX QIN-4 PROTECTION') +
-        top4.map(_renderPick).join('') +
-      '</div>'
-    );
+  // BOX QIN-4 PROTECTION — legs from frozen ticket.
+  if (_ticketHas('BOX QIN-4 PROTECTION')) {{
+    var box4Legs = _ticketLegsFor('BOX QIN-4 PROTECTION');
+    if (box4Legs.length === 4) {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25)">' +
+          '<span style="display:inline-block;background:rgba(16,185,129,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
+            '+ PROTECTION · BOX QIN-4 (6 combos)' +
+          '</span>' +
+          _ticketHitMark('BOX QIN-4 PROTECTION') +
+          box4Legs.map(_renderPick).join('') +
+        '</div>'
+      );
+    }}
   }}
-  if (top4.length === 4 && _ticketHas('F4 SAVER')) {{
-    // FIRST 4 (exact order) — 1 unit, longshot saver. Top 4 model picks
-    // placed in 1st-2nd-3rd-4th. Pays big when it hits. Gated server-side
-    // (heavy fav skip, tier, field — see build_bet_ticket); displayed when
-    // server includes F4 SAVER in race.bet_ticket.bets.
-    var f4Nums = top4.map(function(h) {{ return '#' + esc(h.number); }}).join('  →  ');
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
-        '<span style="display:inline-block;background:rgba(168,85,247,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
-          'F4 SAVER · 1 unit' +
-        '</span>' +
-        _ticketHitMark('F4 SAVER') +
-        '<span style="color:var(--fg);font-weight:600">' + f4Nums + '</span>' +
-        '<span style="color:var(--dim);font-size:.7rem;margin-left:8px">(exact order — 1st → 4th)</span>' +
-      '</div>'
-    );
+
+  // F4 SAVER — FIRST 4 ANY-ORDER 1-unit. Legs from frozen ticket.
+  if (_ticketHas('F4 SAVER')) {{
+    var f4SaverLegs = _ticketLegsFor('F4 SAVER');
+    if (f4SaverLegs.length === 4) {{
+      var f4Nums = f4SaverLegs.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ');
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+          '<span style="display:inline-block;background:rgba(168,85,247,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+            'F4 SAVER · 1 unit' +
+          '</span>' +
+          _ticketHitMark('F4 SAVER') +
+          '<span style="color:var(--fg);font-weight:600">' + f4Nums + '</span>' +
+          '<span style="color:var(--dim);font-size:.7rem;margin-left:8px">(top-4 any order — FIRST 4 pool)</span>' +
+        '</div>'
+      );
+    }}
   }}
 
   // Rank-5 swap REVERTED 2026-05-17 — see WA-path comment above for rationale.
@@ -2086,49 +2167,40 @@ function _buildRaceDetailPanel(race) {{
   var top5_swap_out = null;
   var swapBadge = '';
 
-  // F4 BOX-5 — top 5 model picks in a 5-combo F4 box (any-order).
-  // Shipped 2026-05-06 after 60-race backtest: 17% hit rate, +54% ROI
-  // ($50 stake, median $461 dividend per hit) — strictly better economics
-  // than BOX TRIO-5 (+8% ROI). Same gates as F4 SAVER apply: heavy fav,
-  // LOW conv, or small field collapse the F4 dividend pool.
-  var top5_f4 = top5_eff;
-  if (top5_f4.length === 5 && _ticketHas('F4 BOX-5')) {{
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
-        '<span style="display:inline-block;background:linear-gradient(135deg,rgba(168,85,247,.95),rgba(236,72,153,.85));color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
-          '★ MAIN · F4 BOX-5 · 5 combos' +
-        '</span>' +
-        _ticketHitMark('F4 BOX-5') +
-        swapBadge +
-        top5_f4.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
-        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when the top-4 finishers are all inside these 5. Backtest: 17% hit, +54% ROI on 60 races (median dividend ~$461 per hit, 9× the $50 stake).</div>' +
-      '</div>'
-    );
+  // F4 BOX-5 — legs from frozen ticket (GPT-5.5 R13 #6).
+  if (_ticketHas('F4 BOX-5')) {{
+    var f4BoxLegs = _ticketLegsFor('F4 BOX-5');
+    if (f4BoxLegs.length === 5) {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+          '<span style="display:inline-block;background:linear-gradient(135deg,rgba(168,85,247,.95),rgba(236,72,153,.85));color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+            '★ MAIN · F4 BOX-5 · 5 combos' +
+          '</span>' +
+          _ticketHitMark('F4 BOX-5') +
+          swapBadge +
+          f4BoxLegs.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
+          '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when the top-4 finishers are all inside these 5. Backtest: 17% hit, +54% ROI on 60 races (median dividend ~$461 per hit, 9× the $50 stake).</div>' +
+        '</div>'
+      );
+    }}
   }}
 
-  // BOX TRIO-5 protection — top 5 model picks in a 10-combo box.
-  // Hits when any 3 of the 5 finish top-3 in any order. Validated on
-  // Apr 26 R10 by a user-driven 4-horse trio that paid 12x. Adds the
-  // 5th model pick to expand placing-pool coverage beyond the QIN-4
-  // box. 10 combos at 1 unit = 10-unit stake. Uses the swapped top-5
-  // (same rank-5 swap as F4 BOX-5) for consistency.
-  // F4-style triple gate (shipped 2026-05-23, widened from SKIP-only).
-  // 668-race holdout backtest: ungated -45.4% vs gated -33.6% (+11.8pp).
-  // Heavy fav alone does 70% of the work — TRIO pool collapses on dominant
-  // favorites. Mirrors the F4 BOX-5 gate at line ~1996.
-  var top5 = top5_eff;
-  if (top5.length === 5 && _ticketHas('BOX TRIO-5')) {{
-    ticketLines.push(
-      '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
-        '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
-          '+ BOX TRIO-5 · 10 combos' +
-        '</span>' +
-        _ticketHitMark('BOX TRIO-5') +
-        swapBadge +
-        top5.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
-        '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
-      '</div>'
-    );
+  // BOX TRIO-5 — legs from frozen ticket (GPT-5.5 R13 #6).
+  if (_ticketHas('BOX TRIO-5')) {{
+    var t5Legs = _ticketLegsFor('BOX TRIO-5');
+    if (t5Legs.length === 5) {{
+      ticketLines.push(
+        '<div style="margin:6px 0;padding-top:6px;border-top:1px dashed rgba(251,191,36,.25);font-size:.78rem">' +
+          '<span style="display:inline-block;background:rgba(236,72,153,.85);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.7rem;margin-right:8px;vertical-align:middle">' +
+            '+ BOX TRIO-5 · 10 combos' +
+          '</span>' +
+          _ticketHitMark('BOX TRIO-5') +
+          swapBadge +
+          t5Legs.map(function(h) {{ return '#' + esc(h.number); }}).join('  +  ') +
+          '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">Hits when any 3 of these 5 finish top-3 in any order. Bigger field coverage than BOX QIN-4 — catches the rank-5/6 spoilers.</div>' +
+        '</div>'
+      );
+    }}
   }}
 
   // BOX TRIO-6 — OPTIONAL high-cost protection layer.

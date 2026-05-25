@@ -87,12 +87,94 @@ class ResultsFetcher:
         with open(filepath, 'r') as f:
             return json.load(f)
 
-    def merge_results_with_predictions(self, predictions: List, actual_results: Dict) -> List:
-        """Merge actual results into prediction data and score accuracy."""
+    def load_existing_merged(self, race_date: str) -> Dict[int, Dict]:
+        """Load the previously-merged _with_results.json (if any) and return
+        a per-race-number map of frozen result fields. Used by
+        merge_results_with_predictions to preserve results for races missing
+        from a partial fresh fetch (HKJC transient miss / mid-card re-run).
+
+        Returns an empty dict when no prior _with_results file exists or it
+        cannot be parsed. The returned dict keys are race_numbers (int);
+        each value carries every actual_* field + horse-level actual_position
+        overlay needed to reconstitute the race's results block.
+        """
+        date_str = race_date.replace('/', '')
+        filepath = os.path.join(
+            self.results_dir, f"race_data_{date_str}_with_results.json"
+        )
+        if not os.path.exists(filepath):
+            return {}
+        try:
+            with open(filepath, 'r') as f:
+                payload = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning(f"Could not parse existing _with_results: {e}")
+            return {}
+        # File schema is {race_date, updated_at, day_summary, races: [...]}
+        races = payload['races'] if isinstance(payload, dict) else payload
+        out: Dict[int, Dict] = {}
+        for race in races or []:
+            if not race.get('results_available'):
+                continue
+            rn = race.get('race_number')
+            if rn is None:
+                continue
+            out[rn] = {
+                'actual_results': race.get('actual_results'),
+                'actual_winner': race.get('actual_winner'),
+                'actual_top3': race.get('actual_top3'),
+                'actual_win_odds': race.get('actual_win_odds'),
+                'accuracy': race.get('accuracy'),
+                # Per-horse actual_position keyed by horse number — survives
+                # even when the predictions JSON has different horse ordering.
+                'horse_positions': {
+                    h.get('number'): h.get('actual_position')
+                    for h in (race.get('horses') or [])
+                    if h.get('actual_position') is not None
+                },
+            }
+        return out
+
+    def merge_results_with_predictions(
+        self,
+        predictions: List,
+        actual_results: Dict,
+        existing_merged: Optional[Dict[int, Dict]] = None,
+    ) -> List:
+        """Merge actual results into prediction data and score accuracy.
+
+        Monotonic guarantee (GPT-5.5 R11 2026-05-25): if a race already had
+        results_available=True in the existing _with_results.json, those
+        actual_* fields are preserved when the fresh fetch omits the race
+        (transient HKJC miss / mid-card partial re-run). A missing race means
+        "no update from this fetch", not "erase previous result".
+
+        Fresh fetch ALWAYS takes priority for races it does return — HKJC
+        publishes provisional results that may be corrected on republish.
+        """
+        existing = existing_merged or {}
         for race in predictions:
             race_no = race.get('race_number')
-            if race_no in actual_results:
-                race['actual_results'] = actual_results[race_no]
+            # GPT-5.5 R12 #6 2026-05-25 — partial-fresh-row guard. If the
+            # fresh fetch returns FEWER positioned horses than the prior
+            # merged record (HKJC mid-publish glitch / parse failure), the
+            # prior record is more complete and stays. Without this guard,
+            # a 1-row partial overwrites a 3-row complete top-3.
+            fresh = actual_results.get(race_no)
+            prior = existing.get(race_no)
+            prior_results = prior.get('actual_results') if prior else None
+            if (fresh is not None and prior_results is not None
+                    and len(fresh) < len(prior_results)):
+                logger.info(
+                    f"  Race {race_no}: fresh fetch has {len(fresh)} rows vs "
+                    f"prior {len(prior_results)} — keeping prior result "
+                    f"(partial-fresh guard)"
+                )
+                fresh = None  # fall through to the elif-restore branch below
+
+            if fresh is not None:
+                race['actual_results'] = fresh
+                actual_results_for_race = fresh
                 race['results_available'] = True
 
                 actual_positions = {
@@ -119,6 +201,32 @@ class ResultsFetcher:
 
                 # Score accuracy
                 race['accuracy'] = self._score_race_accuracy(race)
+            elif race_no in existing:
+                # Race omitted from fresh fetch but was previously merged —
+                # restore the frozen result block so downstream consumers
+                # (replay, stake_ab, dashboard STRIKE, bet_ticket freeze)
+                # don't see a regression to results_available=False.
+                frozen = existing[race_no]
+                if frozen.get('actual_results') is not None:
+                    race['actual_results'] = frozen['actual_results']
+                if frozen.get('actual_winner') is not None:
+                    race['actual_winner'] = frozen['actual_winner']
+                if frozen.get('actual_top3') is not None:
+                    race['actual_top3'] = frozen['actual_top3']
+                if frozen.get('actual_win_odds') is not None:
+                    race['actual_win_odds'] = frozen['actual_win_odds']
+                if frozen.get('accuracy') is not None:
+                    race['accuracy'] = frozen['accuracy']
+                race['results_available'] = True
+                horse_positions = frozen.get('horse_positions') or {}
+                for horse in race.get('horses', []):
+                    horse_no = horse.get('number')
+                    if horse_no in horse_positions:
+                        horse['actual_position'] = horse_positions[horse_no]
+                logger.info(
+                    f"  Race {race_no}: missing from fresh fetch — "
+                    f"preserved prior result (monotonic merge)"
+                )
             else:
                 race['results_available'] = False
 
@@ -319,11 +427,27 @@ class ResultsFetcher:
             logger.warning("No actual results found - races may not be finished yet")
             return None
 
-        merged = self.merge_results_with_predictions(predictions, actual_results)
+        # Load previously-merged results (if any) so a partial fresh fetch
+        # cannot erase results that were already merged. See monotonic-merge
+        # contract on merge_results_with_predictions.
+        existing_merged = self.load_existing_merged(race_date)
+        merged = self.merge_results_with_predictions(
+            predictions, actual_results, existing_merged
+        )
         summary = self.compute_day_summary(merged)
 
-        # Fill prediction_log with actual results for longitudinal tracking
-        self._fill_prediction_log(race_date, actual_results)
+        # GPT-5.5 R12 #7 2026-05-25 — fill from the MERGED race set, not
+        # the raw fresh fetch. The merged set includes races whose results
+        # were restored from a prior _with_results file (monotonic merge)
+        # AND races protected by the partial-fresh-row guard. Filling from
+        # raw `actual_results` would skip those, leaving prediction_log
+        # rows unfilled and validate_hk --replay silently dropping them.
+        merged_results = {
+            race.get('race_number'): race.get('actual_results')
+            for race in merged
+            if race.get('results_available') and race.get('actual_results')
+        }
+        self._fill_prediction_log(race_date, merged_results)
 
         # Refresh tier_stats cache — new results shift the windowed hit-rate
         self._refresh_tier_stats()
