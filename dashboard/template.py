@@ -323,6 +323,7 @@ button {{ font-family:inherit; cursor:pointer; }}
   display:inline-flex; align-items:center; gap:5px; transition:opacity .2s;
 }}
 .wa-btn:hover {{ opacity:.85; }}
+.wa-btn + .wa-btn {{ margin-left:6px; }}
 
 /* ── Empty state ── */
 .empty-hero {{
@@ -1065,6 +1066,28 @@ function renderBetCard(race) {{
     ? race.bet_ticket.bets.map(function(b) {{ return b.label; }})
     : [];
   function _waTicketHas(label) {{ return _waTicketLabels.indexOf(label) >= 0; }}
+  // Resolve frozen ticket legs for a given bet label, hydrating each leg
+  // into a full horse object (by number first, rank fallback) so WA picks
+  // the same legs replay scores. Mirrors visual `_ticketLegsFor`. Added
+  // 2026-05-25 (GPT-5.5 R14): without this, WA reconstructed QPL/BOX QIN-4/
+  // F4 SAVER/BOX TRIO-5/F4 BOX-5 legs from current rank order and could
+  // diverge from frozen ticket if ranks shifted after build.
+  function _waTicketLegsFor(label) {{
+    var _bets = (race.bet_ticket && race.bet_ticket.bets) || [];
+    var bet = _bets.filter(function(b) {{ return b.label === label; }})[0];
+    if (!bet) return [];
+    var byNum = {{}};
+    var byRank = {{}};
+    race.horses.forEach(function(h) {{
+      if (h.number != null) byNum[h.number] = h;
+      if (h.rank != null) byRank[h.rank] = h;
+    }});
+    return (bet.legs || []).map(function(l) {{
+      return byNum[l.number] || byRank[l.rank] || {{
+        number: l.number, name: l.name, rank: l.rank,
+      }};
+    }});
+  }}
   // Plain-text per-bet hit/miss mark for WA copy. Mirrors _ticketHitMark
   // (visual) and validate_hk replay scoring. Empty string while race
   // unresolved so live-prep messages do not carry false ✗ MISS marks.
@@ -1183,34 +1206,45 @@ function renderBetCard(race) {{
       var reason = race.chaos_reason || 'chaos race';
       waLines.push('*CHAOS — NO PLAY* (' + reason + ')');
     }} else {{
-      waLines.push('*SKIP* — no bet recommended');
+      // GPT-5.5 R15 2026-05-25 — say NO SYSTEM BET explicitly before any
+      // horse suggestions so the user cannot mistake a "manual force pick"
+      // section below for a model-recommended stake.
+      waLines.push('*NO SYSTEM BET* — no frozen ticket for this race');
     }}
   }}
 
   // Optional add-on layers (BOX QIN-4, F4, TRIO-5, TRIO-6, QPL BANKER)
   // collected as bullets so the reader sees them as discretionary.
+  // All leg numbers read from the FROZEN bet_ticket so WA = visual = replay
+  // even when rank order shifts after the ticket is built (GPT-5.5 R14).
   var addOns = [];
-  var top4wa = race.horses.slice(0, 4);
-  var top5wa = race.horses.slice(0, 5);
   var top6wa = race.horses.slice(0, 6);
-  var top1Wa = race.horses[0];
 
   // QIN PLACE BANKER for short-favorite races
-  if (_waTicketHas('QIN PLACE BANKER') && top1Wa && race.horses.length >= 4) {{
-    var bnkNums = race.horses.slice(1, 4).map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    addOns.push('QPL BANKER (3 combos): #' + top1Wa.number + ' with ' + bnkNums + _waHitMark('QIN PLACE BANKER'));
+  if (_waTicketHas('QIN PLACE BANKER')) {{
+    var qplLegsWa = _waTicketLegsFor('QIN PLACE BANKER');
+    if (qplLegsWa.length >= 4) {{
+      var bnkNums = qplLegsWa.slice(1, 4).map(function(h) {{ return '#' + h.number; }}).join(' + ');
+      addOns.push('QPL BANKER (3 combos): #' + qplLegsWa[0].number + ' with ' + bnkNums + _waHitMark('QIN PLACE BANKER'));
+    }}
   }}
 
   // BOX QIN-4 PROTECTION — only when server included it in bet_ticket
-  if (top4wa.length === 4 && _waTicketHas('BOX QIN-4 PROTECTION')) {{
-    var box4Nums = top4wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    addOns.push('BOX QIN-4 (6 combos): ' + box4Nums + _waHitMark('BOX QIN-4 PROTECTION'));
+  if (_waTicketHas('BOX QIN-4 PROTECTION')) {{
+    var box4LegsWa = _waTicketLegsFor('BOX QIN-4 PROTECTION');
+    if (box4LegsWa.length === 4) {{
+      var box4Nums = box4LegsWa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+      addOns.push('BOX QIN-4 (6 combos): ' + box4Nums + _waHitMark('BOX QIN-4 PROTECTION'));
+    }}
   }}
 
   // F4 SAVER — only when server included it in bet_ticket
-  if (top4wa.length === 4 && _waTicketHas('F4 SAVER')) {{
-    var f4Order = top4wa.map(function(h) {{ return '#' + h.number; }}).join(' → ');
-    addOns.push('F4 SAVER (1 unit · top-4 any order): ' + f4Order + _waHitMark('F4 SAVER'));
+  if (_waTicketHas('F4 SAVER')) {{
+    var f4SaverLegsWa = _waTicketLegsFor('F4 SAVER');
+    if (f4SaverLegsWa.length === 4) {{
+      var f4Order = f4SaverLegsWa.map(function(h) {{ return '#' + h.number; }}).join(' → ');
+      addOns.push('F4 SAVER (1 unit · top-4 any order): ' + f4Order + _waHitMark('F4 SAVER'));
+    }}
   }}
 
   // Rank-5 swap REVERTED 2026-05-17 after R5 forward test: shipped on N=1
@@ -1227,14 +1261,17 @@ function renderBetCard(race) {{
   // for trio coverage and should never be buried as an "optional add".
   // Inserted into the lines array directly above the addOns block below.
   var t5MainBlock = null;
-  if (top5wa.length === 5 && _waTicketHas('BOX TRIO-5')) {{
-    var t5Nums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    var _t5Amt = _waAmountFor('BOX TRIO-5');
-    var t5Stake = _t5Amt > 0 ? (' · $' + Math.round(_t5Amt)) : '';
-    var t5SwapAnno = top5waSwap
-      ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
-      : '';
-    t5MainBlock = ['', '*MAIN: BOX TRIO-5' + t5Stake + '* (10 combos)' + t5SwapAnno + _waHitMark('BOX TRIO-5'), t5Nums];
+  if (_waTicketHas('BOX TRIO-5')) {{
+    var t5LegsWa = _waTicketLegsFor('BOX TRIO-5');
+    if (t5LegsWa.length === 5) {{
+      var t5Nums = t5LegsWa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+      var _t5Amt = _waAmountFor('BOX TRIO-5');
+      var t5Stake = _t5Amt > 0 ? (' · $' + Math.round(_t5Amt)) : '';
+      var t5SwapAnno = top5waSwap
+        ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
+        : '';
+      t5MainBlock = ['', '*MAIN: BOX TRIO-5' + t5Stake + '* (10 combos)' + t5SwapAnno + _waHitMark('BOX TRIO-5'), t5Nums];
+    }}
   }}
 
   // F4 BOX-5 — second MAIN bet block (shipped 2026-05-06, +54% ROI on 60-race
@@ -1243,14 +1280,17 @@ function renderBetCard(race) {{
   // Same gates as F4 SAVER apply. Kept TRIO-5 as parallel MAIN since they
   // cover different misses (TRIO-5 hits when 4th finisher is outside top-5).
   var f4bMainBlock = null;
-  if (top5wa.length === 5 && _waTicketHas('F4 BOX-5')) {{
-    var f4bNums = top5wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    var _f4bAmt = _waAmountFor('F4 BOX-5');
-    var f4bStake = _f4bAmt > 0 ? (' · $' + Math.round(_f4bAmt)) : '';
-    var f4bSwapAnno = top5waSwap
-      ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
-      : '';
-    f4bMainBlock = ['', '*MAIN: F4 BOX-5' + f4bStake + '* (5 combos · top-4 any order)' + f4bSwapAnno + _waHitMark('F4 BOX-5'), f4bNums];
+  if (_waTicketHas('F4 BOX-5')) {{
+    var f4bLegsWa = _waTicketLegsFor('F4 BOX-5');
+    if (f4bLegsWa.length === 5) {{
+      var f4bNums = f4bLegsWa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
+      var _f4bAmt = _waAmountFor('F4 BOX-5');
+      var f4bStake = _f4bAmt > 0 ? (' · $' + Math.round(_f4bAmt)) : '';
+      var f4bSwapAnno = top5waSwap
+        ? ' · 🔁 swapped #' + top5waSwapOut.number + '→#' + top5waSwap.number
+        : '';
+      f4bMainBlock = ['', '*MAIN: F4 BOX-5' + f4bStake + '* (5 combos · top-4 any order)' + f4bSwapAnno + _waHitMark('F4 BOX-5'), f4bNums];
+    }}
   }}
 
   // BOX TRIO-6 — annotate with TAKE/SKIP/YOUR CALL + chaos so user sees
@@ -1405,6 +1445,129 @@ function renderBetCard(race) {{
 
   var waPayload = waLines.join('\\n');
 
+  // ─────────────────────────────────────────────────────────────
+  // Compact ticket-first WA payload (GPT-5.5 R14 2026-05-25, refined
+  // R15 2026-05-25 per user spec).
+  //
+  // RACE-DAY rules:
+  //   - If frozen bet_ticket has bets: render STAKE + BET TICKET only.
+  //     No TOP PICK, no NOTES — those bias the user away from the
+  //     exact entry instructions at the terminal.
+  //   - If frozen bet_ticket is empty: NO STAKE / NO BET TICKET.
+  //     Show NO SYSTEM BET + OPTIONAL FORCE PICK (top-3 horses) with
+  //     a clear "manual only — not counted as model ROI" footer so
+  //     the user has manual guidance without polluting model ROI.
+  //
+  // Pool labels are DERIVED from bet.pool + combos + legs where
+  // possible, not hardcoded. Generator-emitted protection/saver
+  // variants keep their intent suffix (PROTECTION/SAVER/BANKER).
+  // ─────────────────────────────────────────────────────────────
+  function _hkjcPoolLabel(bet) {{
+    var p = (bet.pool || '').toUpperCase();
+    var L = bet.label || '';
+    var n = (bet.legs || []).length;
+    // Special generator-emitted intent variants — preserve intent
+    // suffix so the user knows why the bet exists.
+    if (L === 'QIN PLACE BANKER') return 'QPL BANKER';
+    if (L === 'BOX QIN-4 PROTECTION') return 'QIN BOX-4 (PROTECTION)';
+    if (L === 'F4 SAVER') return 'FIRST 4 SAVER';
+    // Generic derivation: HKJC pool name + STRAIGHT/BOX-N from leg count.
+    if (p === 'QUINELLA') return n === 2 ? 'QIN STRAIGHT' : ('QIN BOX-' + n);
+    if (p === 'TRIO') return n === 3 ? 'TRIO STRAIGHT' : ('TRIO BOX-' + n);
+    if (p === 'FIRST 4') return 'FIRST 4 BOX-' + n;
+    if (p === 'QIN PLACE') return 'QPL';
+    if (p === 'WIN' || p === 'PLACE') return p;
+    return L || p;
+  }}
+
+  var ticketLinesCompact = [];
+  var hdrVenue = race.venue ? ' · ' + race.venue : '';
+  var hdrTime = race.time ? ' · ' + race.time : '';
+  ticketLinesCompact.push('HKJC R' + race.race_number + hdrVenue + hdrTime);
+
+  var oa = (race.bet_ticket && race.bet_ticket.odds_age_minutes != null)
+    ? race.bet_ticket.odds_age_minutes
+    : (race.odds_age_minutes != null ? race.odds_age_minutes : null);
+  var stale = (oa != null && oa >= 15);
+  var statusWord = race.results_available ? 'LOCKED' : 'LIVE';
+  if (stale && !race.results_available) statusWord = 'LIVE · STALE ODDS';
+  var statusBits = ['STATUS: ' + statusWord];
+  if (oa != null) statusBits.push('odds age ' + Math.round(oa) + 'm');
+  var modelV = (race.bet_ticket && race.bet_ticket.model_version) || null;
+  if (modelV) statusBits.push('model ' + modelV);
+  ticketLinesCompact.push(statusBits.join(' · '));
+
+  var _ticketBetsAll = (race.bet_ticket && race.bet_ticket.bets) || [];
+  if (_ticketBetsAll.length) {{
+    // ── Real frozen system ticket: STAKE + BET TICKET only ──
+    var ssAmt = (ss && ss.amount) ? ss.amount : 0;
+    var ticketTotal = (race.bet_ticket && race.bet_ticket.allocated_amount) || 0;
+    var unitC = (race.bet_ticket && race.bet_ticket.unit_stake) || 0;
+    var overBudC = !!(race.bet_ticket && race.bet_ticket.over_budget);
+    var overAmtC = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
+    ticketLinesCompact.push('');
+    ticketLinesCompact.push('STAKE');
+    var stakeLine = 'Budget $' + Math.round(ssAmt) +
+                    ' · Ticket $' + Math.round(ticketTotal) +
+                    ' · Unit $' + Math.round(unitC);
+    if (overBudC && overAmtC > 0) {{
+      stakeLine += ' · +$' + Math.round(overAmtC) + ' over (HK$' +
+                   Math.round(unitC) + ' unit floor)';
+    }}
+    ticketLinesCompact.push(stakeLine);
+
+    ticketLinesCompact.push('');
+    ticketLinesCompact.push('BET TICKET');
+    _ticketBetsAll.forEach(function(bet, idx) {{
+      var poolLabel = _hkjcPoolLabel(bet);
+      var amtBit = (bet.amount && bet.amount > 0)
+        ? ' · $' + Math.round(bet.amount) : '';
+      var comboBit = (bet.combos && bet.combos > 1)
+        ? ' · ' + bet.combos + ' combos' : '';
+      ticketLinesCompact.push((idx + 1) + '. ' + poolLabel + amtBit +
+                              comboBit + _waHitMark(bet.label));
+      var nums = (bet.legs || []).map(function(l) {{ return '#' + l.number; }});
+      if (nums.length) {{
+        if (bet.label === 'QIN PLACE BANKER' && nums.length >= 2) {{
+          ticketLinesCompact.push('   ' + nums[0] + ' with ' +
+                                  nums.slice(1).join(' + '));
+        }} else {{
+          ticketLinesCompact.push('   ' + nums.join(' + '));
+        }}
+      }}
+    }});
+  }} else {{
+    // ── No system bet: drop STAKE/BET TICKET entirely, give the
+    // user a clearly-labelled MANUAL guidance block instead. The
+    // "Manual only" footer is load-bearing — without it the user
+    // might paste this into a ticket and expect it to count toward
+    // model ROI accounting.
+    ticketLinesCompact.push('');
+    ticketLinesCompact.push('NO SYSTEM BET');
+    var skipReason = 'Tier ' + (race.conviction_tier || 'SKIP') +
+                     ' / no frozen ticket';
+    ticketLinesCompact.push('Reason: ' + skipReason);
+    if (race.horses && race.horses.length) {{
+      ticketLinesCompact.push('');
+      ticketLinesCompact.push('OPTIONAL FORCE PICK');
+      race.horses.slice(0, 3).forEach(function(h, i) {{
+        var fp = race.horses[i];
+        if (!fp) return;
+        var prob = (fp.calibrated_prob != null)
+          ? Math.round(fp.calibrated_prob * 100) : null;
+        var bits = ['#' + fp.number + ' ' + (fp.name || '')];
+        if (fp.win_odds) bits.push('$' + fp.win_odds);
+        bits.push('rank ' + (fp.rank || (i + 1)));
+        if (prob != null) bits.push('prob ' + prob + '%');
+        ticketLinesCompact.push((i + 1) + '. ' + bits.join(' · '));
+      }});
+      ticketLinesCompact.push('');
+      ticketLinesCompact.push('Manual only — not counted as model ROI ticket.');
+    }}
+  }}
+
+  var waPayloadCompact = ticketLinesCompact.join('\\n');
+
   // Whole card is clickable → toggles the per-race detail panel below it.
   // The WA button uses stopPropagation so clicking Copy WA does not also
   // toggle the expansion. The expanded indicator (▼/▲) lives in the
@@ -1450,8 +1613,10 @@ function renderBetCard(race) {{
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
         '<span style="font-size:.7rem;color:var(--dim)">' + esc(edgeDetail) + '</span>' +
+        '<button class="wa-btn" data-testid="copy-wa-ticket-R' + race.race_number + '" data-payload="' + escAttr(waPayloadCompact) +
+          '" onclick="event.stopPropagation()" title="Compact ticket-first WA copy — exact bet entry, no rationale">Copy WA Ticket</button>' +
         '<button class="wa-btn" data-testid="copy-wa-R' + race.race_number + '" data-payload="' + escAttr(waPayload) +
-          '" onclick="event.stopPropagation()">Copy WA</button>' +
+          '" onclick="event.stopPropagation()" title="Full WA copy — ticket plus rationale, edge, odds age, model info">Copy WA Full</button>' +
         '<span class="card-expand-chevron" id="chev-' + race.race_number + '" style="font-size:.85rem;color:var(--gold);font-weight:700">▼</span>' +
       '</div>' +
     '</div>' +

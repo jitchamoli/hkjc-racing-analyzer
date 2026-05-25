@@ -15,8 +15,12 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
     """Assign realistic bet recommendations based on field shape.
 
     Calibrates probabilities via softmax + market blend (dynamic weights
-    based on field size and distance), handles market-favourite promotion
-    and BANKER overrides, then assigns bet types per horse.
+    based on field size and distance), re-sorts horses by calibrated_prob
+    so `rank` is the betting rank, then assigns bet types per horse.
+    BANKER is reasoning/diagnostic only — it never promotes a horse's rank.
+    BANKER WIN may fire only when the BANKER horse is already rank 1 by
+    calibrated probability (GPT-5.5 R13 #3 2026-05-25 — old market-fav
+    and BANKER rank promotions removed).
     """
     if not analyses:
         return

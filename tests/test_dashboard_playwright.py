@@ -517,6 +517,287 @@ def test_per_bet_hit_marks_in_wa_payload(browser: Browser, tmp_path):
     page.close()
 
 
+# ---------------------------------------------------------------------------
+# Compact "Copy WA Ticket" payload — added 2026-05-25 (GPT-5.5 R14).
+# Race-day bet-entry mode: ticket-first, HKJC pool names, frozen-ticket
+# legs + amounts only. Must NEVER re-derive legs from rank order.
+# ---------------------------------------------------------------------------
+
+def test_copy_wa_ticket_button_renders_alongside_full(browser: Browser, tmp_path):
+    """Both buttons (compact + full) must appear on every bet card."""
+    race = _make_race(
+        race_number=8,
+        bet_ticket_bets=[_qin_bet([1, 2, 3, 4])],
+        results_available=False,
+        conviction_tier='EDGE',
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+    assert page.locator('[data-testid="copy-wa-ticket-R8"]').count() == 1, (
+        "Compact Copy WA Ticket button missing"
+    )
+    assert page.locator('[data-testid="copy-wa-R8"]').count() == 1, (
+        "Full Copy WA button missing (back-compat)"
+    )
+    page.close()
+
+
+def test_copy_wa_ticket_payload_renders_exact_frozen_legs_and_amounts(
+        browser: Browser, tmp_path):
+    """Compact ticket payload (frozen-bets branch) must:
+       - Use HKJC-derived pool names (QIN BOX-4, FIRST 4 BOX-5)
+       - List leg horse-numbers from frozen bet_ticket (not rank slice)
+       - Show per-bet $ amount from bet.amount (not recomputed)
+       - Show Budget / Ticket / Unit from frozen ticket fields
+       - NOT include TOP PICK or NOTES (those bias entry).
+    """
+    bets = [
+        _qin_bet([1, 3, 7, 10]),     # BOX QIN-4, amount 60, combos 6
+        _f4_box5_bet([1, 3, 7, 10, 12]),  # F4 BOX-5, amount 50, combos 5
+    ]
+    race = _make_race(
+        race_number=6,
+        bet_ticket_bets=bets,
+        results_available=False,
+        conviction_tier='EDGE',
+        field_size=12,
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+
+    payload = page.locator(
+        '[data-testid="copy-wa-ticket-R6"]'
+    ).first.get_attribute('data-payload') or ''
+
+    # Header + status guard
+    assert payload.startswith('HKJC R6'), (
+        f"compact payload missing HKJC R6 header: {payload[:200]!r}"
+    )
+    assert 'STATUS: LIVE' in payload, (
+        f"missing STATUS: LIVE guard: {payload[:200]!r}"
+    )
+
+    # Stake block (frozen ticket has bets → STAKE must appear)
+    assert 'STAKE' in payload, payload[:400]
+    assert 'Budget $' in payload and 'Ticket $' in payload and 'Unit $' in payload, (
+        f"missing Budget/Ticket/Unit: {payload[:400]!r}"
+    )
+
+    # BET TICKET block: numbered list, HKJC-derived pool names, exact legs
+    assert 'BET TICKET' in payload, payload[:400]
+    # Derived pool naming (R15 spec: not just BOX QIN-4 PROTECTION — every
+    # regular box should use HKJC-style names too).
+    assert 'QIN BOX-4' in payload, (
+        f"compact must derive QIN BOX-4 from pool=QUINELLA, n=4: {payload[:400]!r}"
+    )
+    assert 'FIRST 4 BOX-5' in payload, (
+        f"compact must derive FIRST 4 BOX-5 from pool=FIRST 4, n=5: {payload[:400]!r}"
+    )
+    # Per-bet amounts come from bet.amount
+    assert '$60' in payload, f"missing $60 QIN amount: {payload[:400]!r}"
+    assert '$50' in payload, f"missing $50 F4 amount: {payload[:400]!r}"
+    # Exact frozen legs (not rank slices — note #10 and #12 are NOT in rank 1-5)
+    for n in (1, 3, 7, 10, 12):
+        assert f'#{n}' in payload, (
+            f"compact payload missing leg #{n}: {payload[:500]!r}"
+        )
+    # #2/#4/#5 are NOT legs in this ticket, so they must be absent.
+    for n in (2, 4, 5):
+        assert f'#{n}' not in payload, (
+            f"compact payload leaked non-ticket horse #{n}: {payload[:500]!r}"
+        )
+
+    # R15 spec: compact normal-bet payload must NOT carry TOP PICK / NOTES
+    # (those belong in Full WA only — they bias entry at the terminal).
+    assert 'TOP PICK' not in payload, (
+        f"compact normal-bet payload must not carry TOP PICK: {payload[:500]!r}"
+    )
+    assert 'NOTES' not in payload, (
+        f"compact normal-bet payload must not carry NOTES: {payload[:500]!r}"
+    )
+    page.close()
+
+
+def test_copy_wa_ticket_qin_box4_label_derived_from_pool_and_legs(
+        browser: Browser, tmp_path):
+    """R15 #4 — the compact payload must DERIVE 'QIN BOX-4' from
+    pool='QUINELLA' + n=4 legs, not from a hardcoded label table.
+    Mirror assertion lives in a static contract test."""
+    race = _make_race(
+        race_number=12,
+        bet_ticket_bets=[_qin_bet([5, 8, 11, 14])],  # BOX QIN-4
+        results_available=False,
+        conviction_tier='EDGE',
+        field_size=14,
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+    payload = page.locator(
+        '[data-testid="copy-wa-ticket-R12"]'
+    ).first.get_attribute('data-payload') or ''
+    assert 'QIN BOX-4' in payload, (
+        f"compact must render QIN BOX-4 (derived): {payload[:400]!r}"
+    )
+    # Exact legs surface verbatim
+    for n in (5, 8, 11, 14):
+        assert f'#{n}' in payload, (
+            f"missing leg #{n} in QIN BOX-4 payload: {payload[:400]!r}"
+        )
+    page.close()
+
+
+def test_copy_wa_ticket_no_system_bet_and_force_pick_when_empty(
+        browser: Browser, tmp_path):
+    """R15 #2 — when frozen bet_ticket is empty:
+       - NO STAKE block
+       - NO BET TICKET block
+       - NO dollar amounts
+       - NO SYSTEM BET banner
+       - OPTIONAL FORCE PICK with top-3 horses
+       - 'Manual only — not counted as model ROI ticket.' footer.
+    """
+    race = _make_race(
+        race_number=7,
+        bet_ticket_bets=[],
+        results_available=False,
+        conviction_tier='SKIP',
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+    payload = page.locator(
+        '[data-testid="copy-wa-ticket-R7"]'
+    ).first.get_attribute('data-payload') or ''
+
+    # Positive: NO SYSTEM BET + OPTIONAL FORCE PICK + manual footer
+    assert 'NO SYSTEM BET' in payload, (
+        f"missing NO SYSTEM BET banner: {payload[:400]!r}"
+    )
+    assert 'OPTIONAL FORCE PICK' in payload, (
+        f"missing OPTIONAL FORCE PICK block: {payload[:400]!r}"
+    )
+    assert 'Manual only' in payload and 'not counted as model ROI' in payload, (
+        f"missing manual-only footer: {payload[:400]!r}"
+    )
+    # Top-3 horses present in force-pick block
+    for n in (1, 2, 3):
+        assert f'#{n}' in payload, (
+            f"force-pick missing horse #{n}: {payload[:400]!r}"
+        )
+
+    # Negative: no STAKE block, no BET TICKET block, no stake-$ labels.
+    # The OPTIONAL FORCE PICK block legitimately carries horse ODDS in
+    # `$odds` form ("#X · $2.5 · rank · prob"), so we cannot blanket-reject
+    # the `$` character — only the stake-context tokens.
+    assert 'STAKE' not in payload, (
+        f"no-bet payload must not carry STAKE block: {payload[:400]!r}"
+    )
+    assert 'BET TICKET' not in payload, (
+        f"no-bet payload must not carry BET TICKET block: {payload[:400]!r}"
+    )
+    for stake_tag in ('Budget $', 'Ticket $', 'Unit $'):
+        assert stake_tag not in payload, (
+            f"no-bet payload leaked stake-context token {stake_tag!r}: "
+            f"{payload[:400]!r}"
+        )
+    page.close()
+
+
+def test_copy_wa_full_says_no_system_bet_when_ticket_empty(
+        browser: Browser, tmp_path):
+    """R15 #3 — Full WA payload (rationale-rich) must clearly say
+    'NO SYSTEM BET' before any horse suggestions when the frozen
+    ticket is empty. Old wording 'SKIP — no bet recommended' was
+    ambiguous (user could read it as 'low conviction but still bet')."""
+    race = _make_race(
+        race_number=14,
+        bet_ticket_bets=[],
+        results_available=False,
+        conviction_tier='SKIP',
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+    payload = page.locator(
+        '[data-testid="copy-wa-R14"]'
+    ).first.get_attribute('data-payload') or ''
+    assert 'NO SYSTEM BET' in payload, (
+        f"Full WA must say NO SYSTEM BET when ticket empty: {payload[:500]!r}"
+    )
+
+
+def test_copy_wa_full_uses_frozen_ticket_legs_not_rank_slices(
+        browser: Browser, tmp_path):
+    """R15 #5 — Full WA Playwright regression. Construct a ticket whose
+    F4 BOX-5 legs include horse numbers OUTSIDE the top-5 rank slice
+    (e.g. #11 instead of #5). The Full payload must list #11 (from
+    frozen legs) and NOT #5 (which would only appear if the renderer
+    reverted to race.horses.slice(0, 5))."""
+    # Make a 12-horse field with the F4 BOX-5 legs intentionally
+    # diverging from default top-5 rank order: numbers 1,3,7,10,11
+    # are the FROZEN legs; #2/#4/#5 are NOT in the ticket.
+    bets = [_f4_box5_bet([1, 3, 7, 10, 11])]
+    race = _make_race(
+        race_number=15,
+        bet_ticket_bets=bets,
+        results_available=False,
+        conviction_tier='EDGE',
+        field_size=12,
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+    payload = page.locator(
+        '[data-testid="copy-wa-R15"]'
+    ).first.get_attribute('data-payload') or ''
+    # Frozen legs must show up
+    for n in (1, 3, 7, 10, 11):
+        assert f'#{n}' in payload, (
+            f"Full WA missing frozen leg #{n} of F4 BOX-5: {payload[:500]!r}"
+        )
+    # #2/#4/#5 must NOT show up in the F4 BOX-5 line. Look for them
+    # specifically inside an F4 BOX-5 segment (anywhere in payload is
+    # fine — but the simple field-wide check is OK because the test
+    # fixture's other bets are absent: only F4 BOX-5 is in the ticket).
+    for n in (2, 4, 5):
+        assert f'#{n}' not in payload, (
+            f"Full WA leaked non-leg horse #{n} (rank-slice fallback): "
+            f"{payload[:500]!r}"
+        )
+    page.close()
+
+
+def test_copy_wa_ticket_locked_when_results_available(browser: Browser, tmp_path):
+    """LOCKED guard replaces LIVE once the race is resolved."""
+    race = _make_race(
+        race_number=9,
+        bet_ticket_bets=[_qin_bet([1, 2, 3])],
+        horses_top4_positions=[1, 2, 3, 4],
+        results_available=True,
+        conviction_tier='EDGE',
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+    payload = page.locator(
+        '[data-testid="copy-wa-ticket-R9"]'
+    ).first.get_attribute('data-payload') or ''
+    assert 'STATUS: LOCKED' in payload, (
+        f"missing LOCKED guard: {payload[:300]!r}"
+    )
+    page.close()
+
+
 def test_hit_marks_absent_before_results(browser: Browser, tmp_path):
     """Live-prep messages (race not yet resolved) must NOT show ✗ MISS
     chips. Empty hit-mark when results_available is False."""
