@@ -1,4 +1,4 @@
-from dashboard.generator import build_bet_ticket
+from dashboard.generator import build_bet_ticket, _merge_ticket_pre_result
 
 
 def _horse(rank, rec='SKIP', odds=6.0, steam=False):
@@ -65,40 +65,199 @@ def test_bet_ticket_empty_when_skip_or_zero_stake():
     assert ticket['total_combos'] == 0
 
 
-def test_bet_ticket_freeze_guard_refuses_any_mutation():
-    """Once a bet_ticket exists, refuse ANY change to combo count or bet labels.
+def test_pre_result_merge_first_build_marks_source_and_stamps():
+    """First-time build (no prior ticket): tag source=pre_off_build, stamp
+    frozen_at + odds_snapshot_at, init empty superseded_tickets list."""
+    new = {'total_combos': 3, 'bets': [{'label': 'BOX QIN-3',
+                                        'legs': [{'number': 1}, {'number': 2}, {'number': 3}]}]}
+    merged = _merge_ticket_pre_result(None, new, '2026-05-27 10:00:00')
+    assert merged['source'] == 'pre_off_build'
+    assert merged['frozen_at'] == '2026-05-27 10:00:00'
+    assert merged['odds_snapshot_at'] == '2026-05-27 10:00:00'
+    assert merged['superseded_tickets'] == []
 
-    Two failure modes caught on 2026/05/24:
-      R3: pre-race 3 combos (BOX QIN-3 only) → post-race expansion to 18
-          (BOX QIN-3 + BOX TRIO-5 + F4 BOX-5) when top1 drifted $2.40 → $2.90.
-      R4: pre-race 3 combos (BOX QIN-3) → post-race shrinkage to 1 combo
-          (STRAIGHT QIN) when post-race odds collapsed the QIN flag set.
 
-    Both shapes — expansion and shrinkage — indicate the regen ran on
-    post-race-contaminated odds. Refuse both.
-    """
-    def should_replace(old, new):
-        old_combos = old.get('total_combos', 0) or 0
-        new_combos = new.get('total_combos', 0) or 0
-        old_labels = sorted(b.get('label', '') for b in old.get('bets', []))
-        new_labels = sorted(b.get('label', '') for b in new.get('bets', []))
-        return not (new_combos != old_combos or new_labels != old_labels)
+def test_pre_result_merge_identical_refreshes_timestamps_only():
+    """Same combos + labels + legs → keep prior superseded_tickets/source,
+    refresh frozen_at + odds_snapshot_at only. No archive."""
+    old = {
+        'total_combos': 3, 'bets': [{'label': 'BOX QIN-3',
+                                     'legs': [{'number': 1}, {'number': 2}, {'number': 3}]}],
+        'frozen_at': '2026-05-27 10:00:00', 'odds_snapshot_at': '2026-05-27 10:00:00',
+        'source': 'pre_off_build', 'superseded_tickets': [],
+    }
+    new = {'total_combos': 3, 'bets': [{'label': 'BOX QIN-3',
+                                        'legs': [{'number': 1}, {'number': 2}, {'number': 3}]}]}
+    merged = _merge_ticket_pre_result(old, new, '2026-05-27 14:00:00')
+    assert merged['source'] == 'pre_off_build'
+    assert merged['frozen_at'] == '2026-05-27 14:00:00'
+    assert merged['odds_snapshot_at'] == '2026-05-27 14:00:00'
+    assert merged['superseded_tickets'] == []
 
-    pre_race = {'total_combos': 3, 'bets': [{'label': 'BOX QIN-3'}]}
 
-    # R3 case — expansion
-    expanded = {'total_combos': 18, 'bets': [
-        {'label': 'BOX QIN-3'}, {'label': 'BOX TRIO-5'}, {'label': 'F4 BOX-5'},
+def test_pre_result_merge_combo_change_archives_old():
+    """R3 2026-05-24 pattern: 3 combos → 18 combos. Archive old, replace, mark
+    source=pre_off_refresh."""
+    old = {
+        'total_combos': 3, 'bets': [{'label': 'BOX QIN-3',
+                                     'legs': [{'number': 1}, {'number': 2}, {'number': 3}]}],
+        'frozen_at': '2026-05-27 10:00:00', 'odds_snapshot_at': '2026-05-27 10:00:00',
+        'source': 'pre_off_build', 'superseded_tickets': [],
+    }
+    new = {'total_combos': 18, 'bets': [
+        {'label': 'BOX QIN-3', 'legs': [{'number': 1}, {'number': 2}, {'number': 3}]},
+        {'label': 'BOX TRIO-5', 'legs': [{'number': i} for i in range(1, 6)]},
+        {'label': 'F4 BOX-5', 'legs': [{'number': i} for i in range(1, 6)]},
     ]}
-    assert should_replace(pre_race, expanded) is False, "Expansion is the R3 bug"
+    merged = _merge_ticket_pre_result(old, new, '2026-05-27 18:30:00')
+    assert merged['source'] == 'pre_off_refresh'
+    assert merged['frozen_at'] == '2026-05-27 18:30:00'
+    assert merged['total_combos'] == 18
+    assert len(merged['superseded_tickets']) == 1
+    archived = merged['superseded_tickets'][0]
+    assert archived['total_combos'] == 3
+    assert archived['superseded_at'] == '2026-05-27 18:30:00'
+    # Archive does NOT carry its own superseded_tickets (avoid recursion)
+    assert 'superseded_tickets' not in archived
 
-    # R4 case — shrinkage same-entry-count but different combo count
-    shrunk_same_count = {'total_combos': 1, 'bets': [{'label': 'STRAIGHT QIN'}]}
-    assert should_replace(pre_race, shrunk_same_count) is False, "Shrinkage to fewer combos is the R4 bug"
 
-    # No-op (identical ticket): allow replace (cheap, no semantic change)
-    identical = {'total_combos': 3, 'bets': [{'label': 'BOX QIN-3'}]}
-    assert should_replace(pre_race, identical) is True
+def test_pre_result_merge_label_change_archives_old():
+    """R4 2026-05-24 pattern: same combo count, different labels. Archive."""
+    old = {
+        'total_combos': 1, 'bets': [{'label': 'BOX QIN-3',
+                                     'legs': [{'number': 1}]}],
+        'frozen_at': '2026-05-27 10:00:00', 'source': 'pre_off_build',
+        'superseded_tickets': [],
+    }
+    new = {'total_combos': 1, 'bets': [{'label': 'STRAIGHT QIN',
+                                        'legs': [{'number': 1}]}]}
+    merged = _merge_ticket_pre_result(old, new, '2026-05-27 18:30:00')
+    assert merged['source'] == 'pre_off_refresh'
+    assert len(merged['superseded_tickets']) == 1
+    assert merged['superseded_tickets'][0]['bets'][0]['label'] == 'BOX QIN-3'
+
+
+def test_pre_result_merge_legs_change_archives_old():
+    """Same combos + labels but DIFFERENT leg numbers (e.g. TRIO-6 rank-6 swap
+    flipping). Must archive."""
+    old = {
+        'total_combos': 20, 'bets': [{'label': 'BOX TRIO-6',
+                                      'legs': [{'number': i} for i in [1, 2, 3, 4, 5, 6]]}],
+        'frozen_at': '2026-05-27 10:00:00', 'source': 'pre_off_build',
+        'superseded_tickets': [],
+    }
+    new = {'total_combos': 20, 'bets': [{'label': 'BOX TRIO-6',
+                                         'legs': [{'number': i} for i in [1, 2, 3, 4, 5, 7]]}]}
+    merged = _merge_ticket_pre_result(old, new, '2026-05-27 18:30:00')
+    assert merged['source'] == 'pre_off_refresh'
+    assert len(merged['superseded_tickets']) == 1
+    archived = merged['superseded_tickets'][0]
+    assert [l['number'] for l in archived['bets'][0]['legs']] == [1, 2, 3, 4, 5, 6]
+
+
+def test_pre_result_merge_accumulates_history():
+    """Multiple refreshes accumulate in superseded_tickets in order."""
+    t1 = {'total_combos': 3, 'bets': [{'label': 'BOX QIN-3', 'legs': [{'number': 1}]}],
+          'frozen_at': '2026-05-27 09:00:00', 'source': 'pre_off_build',
+          'superseded_tickets': []}
+    t2_new = {'total_combos': 6, 'bets': [{'label': 'BOX QIN-4', 'legs': [{'number': 1}]}]}
+    t2 = _merge_ticket_pre_result(t1, t2_new, '2026-05-27 12:00:00')
+    t3_new = {'total_combos': 10, 'bets': [{'label': 'BOX QIN-5', 'legs': [{'number': 1}]}]}
+    t3 = _merge_ticket_pre_result(t2, t3_new, '2026-05-27 18:00:00')
+    assert len(t3['superseded_tickets']) == 2
+    assert t3['superseded_tickets'][0]['total_combos'] == 3  # original
+    assert t3['superseded_tickets'][1]['total_combos'] == 6  # mid
+
+
+def test_finalize_tickets_post_result_blocks_replacement():
+    """Layer 1 (post-RESULT fallback): results_available=True must
+    prevent any mutation even if the rebuilt ticket would differ.
+
+    Note: the PRIMARY post-OFF freeze lives upstream in
+    `_merge_with_existing`, which uses scheduled `race['time']` (HKT) to
+    restore frozen fields once now >= post-time. This Layer 1 is the
+    belt-and-braces post-RESULT fallback for the small window between
+    off and results landing, and for non-today scenarios where the
+    scheduled-time guard intentionally doesn't fire.
+    """
+    from dashboard.generator import finalize_tickets_and_stakes
+    old_ticket = {
+        'total_combos': 3, 'bets': [{'label': 'BOX QIN-3', 'legs': [{'number': 1}]}],
+        'frozen_at': '2026-05-27 10:00:00', 'source': 'pre_off_build',
+        'superseded_tickets': [],
+    }
+    race = {
+        'race_number': 1, 'conviction_tier': 'HIGH', 'has_edge': False,
+        'odds_age_minutes': 4, 'bankroll': 10000,
+        'suggested_stake': {'amount': 200.0, 'pct': 2.0, 'method': 'tier-fraction (HIGH)'},
+        'bet_ticket': old_ticket,
+        'results_available': True,
+        'horses': [_horse(i, 'QIN' if i <= 4 else 'SKIP', odds=3.0 + i) for i in range(1, 9)],
+    }
+    finalize_tickets_and_stakes([race], '2026/05/27', analyzer=None)
+    assert race['bet_ticket'] is old_ticket, "post-result ticket must not be replaced"
+
+
+def test_finalize_tickets_actual_position_blocks_replacement():
+    """Layer 1 alt-signal: actual_position set on any horse (results landed
+    on horses but results_available flag not yet set by results_fetcher).
+    Same fail-closed behavior."""
+    from dashboard.generator import finalize_tickets_and_stakes
+    old_ticket = {
+        'total_combos': 3, 'bets': [{'label': 'BOX QIN-3', 'legs': [{'number': 1}]}],
+        'frozen_at': '2026-05-27 10:00:00', 'source': 'pre_off_build',
+        'superseded_tickets': [],
+    }
+    horses = [_horse(i, 'QIN' if i <= 4 else 'SKIP', odds=3.0 + i) for i in range(1, 9)]
+    horses[0]['actual_position'] = 1
+    race = {
+        'race_number': 1, 'conviction_tier': 'HIGH', 'has_edge': False,
+        'odds_age_minutes': 4, 'bankroll': 10000,
+        'suggested_stake': {'amount': 200.0, 'pct': 2.0, 'method': 'tier-fraction (HIGH)'},
+        'bet_ticket': old_ticket,
+        'results_available': False,
+        'horses': horses,
+    }
+    finalize_tickets_and_stakes([race], '2026/05/27', analyzer=None)
+    assert race['bet_ticket'] is old_ticket, "actual_position set must freeze ticket"
+
+
+def test_finalize_tickets_pre_result_changed_archives_old():
+    """Pre-result rebuild with a different ticket shape: replace AND archive.
+    This is the bug fix — old code refused, new code archives + replaces."""
+    from dashboard.generator import finalize_tickets_and_stakes
+    # Old ticket = a 1-combo skeleton that won't match the rebuilt shape.
+    old_ticket = {
+        'total_combos': 1, 'bets': [{'label': 'STRAIGHT QIN',
+                                     'legs': [{'number': 1}, {'number': 2}]}],
+        'frozen_at': '2026-05-27 09:00:00', 'source': 'pre_off_build',
+        'superseded_tickets': [],
+    }
+    # Fresh horses → build_bet_ticket will produce the proper HIGH-tier ticket.
+    race = {
+        'race_number': 1, 'conviction_tier': 'HIGH', 'has_edge': False,
+        'odds_age_minutes': 4, 'bankroll': 10000,
+        'suggested_stake': {'amount': 200.0, 'pct': 2.0, 'method': 'tier-fraction (HIGH)'},
+        'bet_ticket': old_ticket,
+        'results_available': False,
+        'horses': [
+            _horse(1, 'QIN', odds=3.4),
+            _horse(2, 'QIN'),
+            _horse(3, 'QIN'),
+            _horse(4, 'SKIP'),
+            _horse(5, 'SKIP'),
+            _horse(6, 'SKIP'),
+            _horse(7, 'SKIP'),
+            _horse(8, 'SKIP'),
+        ],
+    }
+    finalize_tickets_and_stakes([race], '2026/05/27', analyzer=None)
+    new_ticket = race['bet_ticket']
+    # New ticket is different shape (rebuilt) — old must be archived.
+    assert new_ticket is not old_ticket
+    assert new_ticket['source'] == 'pre_off_refresh'
+    assert len(new_ticket['superseded_tickets']) == 1
+    assert new_ticket['superseded_tickets'][0]['bets'][0]['label'] == 'STRAIGHT QIN'
 
 
 def test_bet_ticket_trio6_includes_auto_rank6_swap():

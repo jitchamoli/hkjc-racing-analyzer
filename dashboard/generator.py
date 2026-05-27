@@ -203,9 +203,13 @@ def _merge_with_existing(json_file: str, new_races: list, race_date: str | None 
                 race['horses'] = sorted(race.get('horses', []),
                                          key=lambda h: h.get('rank', 99))
         elif 'bet_ticket' in old_race:
-            # Pre-race: still restore bet_ticket alone (combined with Layer 3
-            # in the regen loop, prevents the rare triple-gate-boundary flip
-            # from changing the morning ticket pre-race).
+            # Pre-off: restore prior bet_ticket so finalize_tickets_and_stakes
+            # has the OLD ticket to compare against. Layer 2 of that function
+            # (archive-on-mutate via _merge_ticket_pre_result) needs the prior
+            # to know whether a gate flip happened — without this restore the
+            # new generation would silently skip archiving. The morning ticket
+            # may be replaced; the old one is preserved in
+            # bet_ticket.superseded_tickets[] for audit.
             race['bet_ticket'] = old_race['bet_ticket']
 
         if not old_race.get('results_available'):
@@ -412,6 +416,71 @@ def _pick_trio6_top6(horses: list, manual_trio6_horse, manual_reason: str = ''):
     return top6, None
 
 
+def _ticket_signature(t: dict) -> tuple:
+    """Identity for `bet_ticket` change detection: combos + sorted
+    (label, sorted_leg_numbers) pairs. Catches combo/label/leg drift but
+    ignores cosmetic metadata (frozen_at, source, superseded_tickets)."""
+    if not t:
+        return (0, ())
+    combos = t.get('total_combos', 0) or 0
+    pairs = []
+    for b in (t.get('bets') or []):
+        leg_nums = tuple(sorted(
+            l.get('number') for l in (b.get('legs') or []) if l.get('number') is not None
+        ))
+        pairs.append((b.get('label', ''), leg_nums))
+    return (combos, tuple(sorted(pairs)))
+
+
+def _merge_ticket_pre_result(old_ticket: dict | None, new_ticket: dict,
+                             generated_at: str) -> dict:
+    """Pre-RESULT merge with archive-on-mutate.
+
+    Where this sits in the freeze chain:
+      1. `_merge_with_existing` enforces the real post-OFF freeze for
+         today's card via scheduled `race['time']` — once past post time
+         it restores all frozen race+horse fields (including bet_ticket)
+         from the prior file, so this function never sees post-off races
+         for today's date.
+      2. `finalize_tickets_and_stakes` adds a post-RESULT fallback
+         (`results_available` / `actual_position`) for non-today
+         scenarios and as belt-and-braces after results land.
+      3. THIS helper runs only for races that survived (1) and (2) —
+         i.e. truly pre-result. It allows pre-result gate flips and
+         archives the old ticket into `superseded_tickets[]`.
+
+    Behavior:
+      - first build (old=None) → tag source=pre_off_build, stamp
+        frozen_at + odds_snapshot_at, init empty superseded_tickets.
+      - same signature → preserve prior source + superseded_tickets,
+        refresh timestamps only.
+      - different signature (combos / labels / legs) → archive old
+        into superseded_tickets[] with superseded_at, replace with
+        new, mark source=pre_off_refresh.
+    """
+    merged = dict(new_ticket)
+    merged['frozen_at'] = generated_at
+    merged['odds_snapshot_at'] = generated_at
+
+    if old_ticket is None:
+        merged['source'] = 'pre_off_build'
+        merged['superseded_tickets'] = []
+        return merged
+
+    history = list(old_ticket.get('superseded_tickets') or [])
+    if _ticket_signature(old_ticket) == _ticket_signature(new_ticket):
+        merged['source'] = old_ticket.get('source', 'pre_off_build')
+        merged['superseded_tickets'] = history
+        return merged
+
+    archived = {k: v for k, v in old_ticket.items() if k != 'superseded_tickets'}
+    archived['superseded_at'] = generated_at
+    history.append(archived)
+    merged['source'] = 'pre_off_refresh'
+    merged['superseded_tickets'] = history
+    return merged
+
+
 def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> None:
     """Compute per-race suggested stake + apply card-level exposure cap +
     build frozen bet_tickets with all freeze guards. Shared between
@@ -420,9 +489,24 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
 
     Mutates `all_races` in place: adds `suggested_stake`, `bankroll`, and
     `bet_ticket` per race. Skips recompute on finished races (frozen
-    ticket + stake are restored by _merge_with_existing). Layer 3
-    mutation guard refuses combo-count or label changes on existing
-    tickets — see test_bet_ticket regression suite for the contract.
+    ticket + stake are restored by _merge_with_existing).
+
+    Freeze chain (upstream → downstream):
+      1. `_merge_with_existing` is the primary post-OFF freeze for today:
+         once `now >= race['time']` (HKT scheduled post), it restores all
+         frozen race+horse fields (incl. bet_ticket) from the prior file.
+         So for today's card, this function never sees a post-off race.
+      2. Layer 1 here (`results_available=True` or any `actual_position`)
+         is the post-RESULT fallback — catches non-today scenarios and
+         the small window between off and results landing on dates the
+         scheduled-time guard isn't authoritative for.
+      3. Layer 2 here (`_merge_ticket_pre_result`) is pre-RESULT
+         archive-on-mutate: pre-off gate flips ARE allowed; the old
+         ticket goes to `bet_ticket.superseded_tickets[]` for audit.
+
+    Operational rule: don't run `generate_predictions.py` for a date
+    other than today after off — the scheduled-time guard only fires
+    for today's date by design (see `_merge_with_existing`).
     """
     from betting.optimizer import compute_suggested_stake
     import config as _cfg
@@ -460,20 +544,16 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
         new_ticket = build_bet_ticket(
             r, race_date=race_date, model_version=model_ver, generated_at=ticket_ts,
         )
-        # Layer 3 (combo-aware): refuse any change to combos or labels.
-        if old_ticket:
+        merged = _merge_ticket_pre_result(old_ticket, new_ticket, ticket_ts)
+        if old_ticket and merged.get('source') == 'pre_off_refresh':
             old_combos = old_ticket.get('total_combos', 0) or 0
-            new_combos = new_ticket.get('total_combos', 0) or 0
-            old_labels = sorted(b.get('label', '') for b in old_ticket.get('bets', []))
-            new_labels = sorted(b.get('label', '') for b in new_ticket.get('bets', []))
-            if new_combos != old_combos or new_labels != old_labels:
-                logger.warning(
-                    f"  R{r.get('race_number')}: refusing to mutate frozen bet_ticket "
-                    f"({old_combos} combos {old_labels} → {new_combos} combos {new_labels}) "
-                    f"— likely post-race odds-drift artifact."
-                )
-                continue
-        r['bet_ticket'] = new_ticket
+            new_combos = merged.get('total_combos', 0) or 0
+            logger.info(
+                f"  R{r.get('race_number')}: bet_ticket rebuilt "
+                f"({old_combos} → {new_combos} combos); prior ticket archived to "
+                f"superseded_tickets[{len(merged.get('superseded_tickets') or [])}]."
+            )
+        r['bet_ticket'] = merged
 
 
 def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
