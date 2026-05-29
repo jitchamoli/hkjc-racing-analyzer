@@ -98,7 +98,16 @@ _FROZEN_PREDICTION_KEYS_RACE = {'conviction_tier', 'has_edge', 'suggested_stake'
                                  'edge_horse_name',
                                  # Tactical manual override for TRIO-6 rank-6
                                  # slot (set via tracking_data/manual_overrides.json)
-                                 'manual_trio6_horse', 'manual_trio6_reason'}
+                                 'manual_trio6_horse', 'manual_trio6_reason',
+                                 # BOX TRIO-6 take/skip + chaos decision
+                                 # (_compute_trio6_decision). MUST be frozen
+                                 # alongside bet_ticket — otherwise a post-off
+                                 # re-render recomputes the verdict from drifted
+                                 # odds while the ticket stays frozen, and the
+                                 # displayed verdict disagrees with what was
+                                 # staked (audit-2026-05-29 finding A). Locked by
+                                 # tests/test_audit_2026_05_29.py::test_trio6_decision_frozen.
+                                 'trio6_decision'}
 _FROZEN_PREDICTION_KEYS_HORSE = {'rank', 'win_odds', 'calibrated_prob',
                                   'edge_pp', 'ev_win', 'overlay', 'edge_fires',
                                   'pure_prob', 'market_prob', 'model_rank',
@@ -363,6 +372,79 @@ def _ticket_add_bet(bets: list, label: str, pool: str, horses: list,
     if swap:
         entry['swap'] = swap
     bets.append(entry)
+
+
+def _compute_trio6_decision(*, horses: list, tier: str, field: int,
+                             top1_odds: float, top_2_share: float) -> dict:
+    """Single source of truth for BOX TRIO-6 take/skip + chaos annotation.
+
+    Returns a dict consumed by:
+      - build_bet_ticket (server-side gate to include BOX TRIO-6 leg)
+      - dashboard/template.py detail-panel render (verdict + chaos badge)
+      - dashboard/template.py WA compact copy (verdict in MAIN/Optional)
+
+    Before consolidation (2026-05-29) all three sites recomputed independently
+    and had drifted: WA had a top_2_share<0.40 chaos clause server lacked,
+    so the staked ticket and the displayed verdict could disagree on the
+    same race. Locked by tests/test_audit_2026_05_29.py::test_trio6_decision_single_source.
+
+    Gate logic (first match wins):
+      SKIP — heavy fav (top1 < $2.50)
+      TAKE — ≥2 morning-steam horses in top 12
+      TAKE — HIGH tier AND field ≥11 AND $2.50-$5.00 favorite
+      YOUR CALL — otherwise (and TAKE flag stays False — bet not added)
+
+    Chaos score 0-4 (independent of take/skip — pure annotation):
+      +1 field ≥13
+      +1 $2.50-$5.00 favorite
+      +1 ≥2 morning-steam horses in top 12
+      +1 top_2_share < 0.40 (model itself uncertain)
+    """
+    steam_count = sum(
+        1 for h in horses[:12]
+        if (h.get('steam_move') or {}).get('is_steam')
+    )
+
+    # Gate (whether to add BOX TRIO-6 to the ticket)
+    if top1_odds > 0 and top1_odds < 2.5:
+        take = False
+        verdict = 'SKIP heavy fav'
+    elif steam_count >= 2:
+        take = True
+        verdict = f'★ TAKE ({steam_count} steam)'
+    elif tier == 'HIGH' and field >= 11 and 2.5 <= top1_odds <= 5.0:
+        take = True
+        verdict = '★ TAKE'
+    else:
+        take = False
+        verdict = 'YOUR CALL'
+
+    # Chaos annotation (independent of take/skip)
+    factors = []
+    chaos_score = 0
+    if field >= 13:
+        chaos_score += 1
+        factors.append(f'large field {field}')
+    if 2.5 <= top1_odds <= 5.0:
+        chaos_score += 1
+        factors.append(f'competitive fav ${top1_odds:.1f}')
+    if steam_count >= 2:
+        chaos_score += 1
+        factors.append(f'{steam_count} steam horses')
+    if 0 < top_2_share < 0.40:
+        chaos_score += 1
+        factors.append(f'top-2 share {top_2_share*100:.0f}% (model uncertain)')
+
+    return {
+        'take': bool(take),
+        'verdict_label': verdict,
+        'chaos_score': int(chaos_score),
+        'chaos_factors': factors,
+        'top1_odds': float(top1_odds or 0),
+        'field_size': int(field),
+        'steam_count': int(steam_count),
+        'top_2_share': float(top_2_share or 0),
+    }
 
 
 def _pick_trio6_top6(horses: list, manual_trio6_horse, manual_reason: str = ''):
@@ -650,16 +732,19 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
                 _ticket_add_bet(bets, 'BOX TRIO-5', 'TRIO', top5, 10, 'main_trio5_gate')
                 _ticket_add_bet(bets, 'F4 BOX-5', 'FIRST 4', top5, 5, 'main_f4_gate')
 
-            steam_count = sum(
-                1 for h in horses[:12]
-                if (h.get('steam_move') or {}).get('is_steam')
+            # Single source of truth for BOX TRIO-6 take/skip + chaos badge.
+            # Both JS render sites (detail panel + WA copy) used to recompute
+            # this independently and had already drifted (WA added
+            # top_2_share<0.40, server hadn't), so the staked ticket disagreed
+            # with the displayed verdict. Now the decision lives once in
+            # _compute_trio6_decision() and rides on race_data['trio6_decision'].
+            # Locked by tests/test_audit_2026_05_29.py::test_trio6_decision_single_source.
+            decision = _compute_trio6_decision(
+                horses=horses, tier=tier, field=field, top1_odds=top1_odds,
+                top_2_share=race.get('top_2_share') or 0.0,
             )
-            trio6_take = (
-                False if (top1_odds > 0 and top1_odds < 2.5)
-                else True if steam_count >= 2
-                else (tier == 'HIGH' and field >= 11 and 2.5 <= top1_odds <= 5.0)
-            )
-            if trio6_take and len(horses) >= 6:
+            race['trio6_decision'] = decision
+            if decision['take'] and len(horses) >= 6:
                 # Apply rank-6 swap (manual override or auto longshot pick)
                 # so the ticket's legs match what UI/WA renders. Otherwise
                 # validate_hk --replay scores horses[:6] while the user

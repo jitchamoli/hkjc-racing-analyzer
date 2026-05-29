@@ -275,10 +275,18 @@ def _choose_race_bet_type(*, has_live_odds, n, top_is_banker, market_prob_top,
 
 
 def _resync_ranks_and_probs(analyses, calibrated_probs: List[float]) -> None:
-    """After a rank swap, update all ranks, probabilities, expected returns, and value_score."""
+    """After a rank swap, update all ranks, probabilities, and expected returns.
+
+    Does NOT touch `value_score`: per CLAUDE.md ML Rule 4, value_score must
+    reflect the pre-blend combined probability (the model's independent
+    opinion of the horse), NOT the post-market-blend calibrated probability.
+    Overwriting it here was making value_score market-contaminated — every
+    surface that displayed "model confidence" was actually showing
+    market-influenced confidence. Locked by
+    tests/test_audit_2026_05_29.py::test_value_score_not_overwritten_in_recommender.
+    """
     for i, a in enumerate(analyses):
         a.rank = i + 1
         a.combined_probability = calibrated_probs[i]
-        a.value_score = calibrated_probs[i] * 100
         if a.horse.win_odds and a.horse.win_odds > 0:
             a.expected_return = (a.horse.win_odds * calibrated_probs[i]) - 1
