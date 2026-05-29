@@ -165,6 +165,20 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
         json_file = str(results_dir / f"race_data_{date_str_local}.json")
         all_races = _merge_with_existing(json_file, all_races, race_date=race_date)
 
+        # Inject tier_stats so the monitor-rendered dashboard's tier
+        # track-record trust panel populates, matching the main generator
+        # (generator.py _run_generation does this before finalize). Pure
+        # read-only display data — load_cached_stats() never mutates
+        # (audit-2026-05-29 follow-up D). NOT replicated: log_predictions
+        # (would corrupt predicted_rank if re-logged mid-race — the freeze
+        # logic exists precisely to prevent that) and compute_alerts (the
+        # sharp-move path already spawns a full generate_predictions
+        # subprocess that fires alerts; recomputing here would double-fire).
+        from betting.tier_stats import load_cached_stats
+        tier_stats = load_cached_stats()
+        for r in all_races:
+            r['tier_stats'] = tier_stats
+
         # GPT-5.5 R13 #2 2026-05-25 — monitor uses the same stake +
         # bet_ticket pipeline as the main generator. Without this the
         # live monitor dashboard rendered horses with bet_recommendation

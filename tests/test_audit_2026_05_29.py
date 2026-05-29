@@ -456,3 +456,68 @@ def test_no_raw_going_string_equality_in_ml_layer():
             f"Use FeatureEngineering._going_bucket() on both sides — see "
             f"audit Finding #4 (2026-05-29) for why."
         )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Follow-up D2 — going_pref wet-slow surfaces classify as wet, not GOOD
+# ─────────────────────────────────────────────────────────────────────
+
+def test_going_pref_wet_surfaces_classified_wet():
+    """audit-2026-05-29 follow-up: WET SLOW / RAIN AFFECTED are genuinely wet
+    (~616 historical rows) but used to fall through to the wetness=1 GOOD
+    default, so the rule engine never awarded the wet-track-specialist bonus.
+    WET-FAST must STAY firm (plays fast — no mud bonus)."""
+    from analytics.going_pref import GoingPreferenceAnalyzer as G
+    assert G._classify_going('WET SLOW') == 4
+    assert G._classify_going('Wet Slow') == 4
+    assert G._classify_going('WET-SLOW') == 4
+    assert G._classify_going('Rain Affected') == 4
+    # WET-FAST is a fast surface — must NOT be treated as wet
+    assert G._classify_going('WET-FAST') < 3
+    assert G._classify_going('Wet Fast') < 3
+    # unchanged baselines
+    assert G._classify_going('GOOD TO FIRM') == 0
+    assert G._classify_going('YIELDING') == 3
+    # no duplicate keys snuck in
+    keys = list(G.GOING_WETNESS.keys())
+    assert len(keys) == len(set(keys)), f"duplicate keys: {keys}"
+
+
+def test_going_bucket_self_map_fallback_preserved():
+    """audit-2026-05-29 follow-up: _going_bucket must self-map unknown going
+    strings (return the uppercased input), NOT ''. 'Good (AWT)' (763 rows,
+    all-weather track) is a real surface with no 5-bucket home; self-mapping
+    lets an AWT horse match its own AWT priors. The live model was trained
+    with this behaviour — '' would create a train/inference skew. Empty
+    string is the only value that returns ''."""
+    from ml.features import FeatureEngineering as FE
+    assert FE._going_bucket('') == ''
+    assert FE._going_bucket('Good (AWT)') == 'GOOD (AWT)'   # self-map, not ''
+    assert FE._going_bucket('SEALED') == 'SEALED'
+    # known surfaces still bucket correctly
+    assert FE._going_bucket('GOOD TO FIRM') == 'FIRM'
+    assert FE._going_bucket('WF') == 'WET-FAST'
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Follow-up D — monitor injects tier_stats (display parity with generator)
+# ─────────────────────────────────────────────────────────────────────
+
+def test_monitor_injects_tier_stats():
+    """audit-2026-05-29 follow-up: monitor must inject tier_stats before
+    finalize so the dashboard trust panel populates, matching the main
+    generator. Must NOT call log_predictions (mid-race re-log corrupts
+    predicted_rank) or compute_alerts (sharp-move path already fires them)."""
+    src = (REPO / 'monitor' / 'race_day.py').read_text()
+    assert 'load_cached_stats' in src and "r['tier_stats']" in src, (
+        "monitor must inject tier_stats for trust-panel parity"
+    )
+    # tier_stats injection must come before finalize_tickets_and_stakes
+    ts_idx = src.find("r['tier_stats']")
+    fin_idx = src.find('finalize_tickets_and_stakes(all_races')
+    assert 0 < ts_idx < fin_idx, "tier_stats must be injected before finalize"
+    # log_predictions must NOT be called in the monitor (would corrupt rank)
+    assert 'log_predictions' not in src, (
+        "monitor must NOT call log_predictions — mid-race re-log corrupts "
+        "predicted_rank (the freeze logic guards against exactly this)"
+    )

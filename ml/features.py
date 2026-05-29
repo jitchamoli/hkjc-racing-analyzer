@@ -615,6 +615,15 @@ class FeatureEngineering:
             'RAIN AFFECTED': 'SOFT', 'RA': 'SOFT',
             'WET-FAST': 'WET-FAST', 'WET FAST': 'WET-FAST', 'WF': 'WET-FAST',
         }.get(u, u)
+        # Fallback is self-map (return the uppercased string), NOT ''. This is
+        # deliberate and verified against the DB (audit-2026-05-29 follow-up):
+        # 'Good (AWT)' (763 rows, the all-weather track) and 'SEALED'/'SE'
+        # (sealed turf) are real recurring surfaces with no 5-bucket home.
+        # Self-mapping lets an AWT horse match its own AWT priors — real
+        # signal. The model was trained with this exact behaviour, so '' here
+        # would create a train/inference skew for ~789 rows. The only genuine
+        # edge case — empty/blank going — is already handled by the guard
+        # above (`if not g: return ''`).
 
     @staticmethod
     def _sire_for_horse(horse_name: str, conn) -> str:

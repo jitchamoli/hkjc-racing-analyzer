@@ -86,3 +86,9 @@ tracking_data/fr_history.db-wal
 
 # stray root-level DB (ingest_uk should write tracking_data/uk_history.db)
 /uk_history.db
+
+# Racing API raw snapshots (theracingapi.com PRO morning lines, captured by
+# scripts/snapshot_racing_api.py for the confluence WIN-gate experiment).
+# Raw paid-API payloads — kept local only; the derived confluence_log.csv
+# (which IS tracked, like edge_log/spoilers) carries the scored result.
+tracking_data/racing_api_snapshots/
