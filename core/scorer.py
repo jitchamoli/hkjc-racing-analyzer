@@ -283,7 +283,10 @@ def calibrate_probabilities(analyses, field_size: int = 12,
 
 
 def apply_calibrated_probs(analyses, calibrated_probs: List[float]) -> None:
-    """Write calibrated probabilities, value_score, and expected returns onto analyses.
+    """Write calibrated probabilities and expected returns onto analyses.
+
+    Does NOT write value_score — that field is pinned to the pre-blend
+    combined_prob at analyzer construction time (CLAUDE.md ML Rule 4).
 
     F-19: On the first call (model_probability is still None), snapshot the
     PRE-blend pure model probability into model_probability so accuracy.py
@@ -296,8 +299,13 @@ def apply_calibrated_probs(analyses, calibrated_probs: List[float]) -> None:
     for i, a in enumerate(analyses):
         if a.model_probability is None:
             a.model_probability = a.combined_probability  # pre-blend snapshot
+        # value_score MUST stay pinned to the pre-blend combined_prob (set
+        # by analyzer.py before calibration). Per CLAUDE.md ML Rule 4 it
+        # reflects the model's independent opinion. Overwriting with the
+        # calibrated (market-blended) prob was making value_score lie about
+        # what the model actually thought. Locked by
+        # tests/test_audit_2026_05_29.py::test_value_score_not_overwritten_in_recommender.
         a.combined_probability = calibrated_probs[i]
-        a.value_score = calibrated_probs[i] * 100
         if a.horse.win_odds and a.horse.win_odds > 0:
             a.expected_return = (a.horse.win_odds * calibrated_probs[i]) - 1
         else:

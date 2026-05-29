@@ -723,22 +723,23 @@ function _allStrikeLabels(race) {{
 }}
 
 function _didBetHit(race) {{
-  // Returns the strongest STRIKE-* badge for any bet ACTUALLY in the frozen
-  // bet_ticket that hit. Returns 'MISS' if the ticket has bets but none hit,
-  // 'MISS' if no ticket exists (SKIP race with results), or null if the
-  // race is not finished yet.
+  // Returns the strongest STRIKE badge for any bet ACTUALLY in the frozen
+  // bet_ticket that hit. Returns MISS only when a ticket existed but no
+  // leg landed. Returns null for SKIP races (no ticket) so the badge is
+  // suppressed entirely — a SKIP is not a miss, we never staked. Returns
+  // null while the race is unfinished.
   //
-  // Now delegates per-bet hit detection to _betHitsTicket (shared with
-  // the detail-panel per-bet markers + multi-hit badge renderer) so all
-  // three surfaces compute hits identically. Priority order:
+  // Delegates per-bet hit detection to _betHitsTicket (shared with the
+  // detail-panel per-bet markers + multi-hit badge renderer) so all three
+  // surfaces compute hits identically. Priority order:
   // WIN > QIN > QPL > F4-5 > BOX4 > TRIO5 > TRIO6 > PLACE.
   var labels = _allStrikeLabels(race);
   if (labels === null) return null;
   if (labels.length === 0) {{
-    // SKIP race or all bets missed — distinguish by whether ticket exists.
     var ticket = race.bet_ticket;
     var bets = (ticket && ticket.bets) ? ticket.bets : [];
-    return bets.length === 0 ? 'MISS' : 'MISS';
+    // SKIP race → no badge. Real miss → MISS.
+    return bets.length === 0 ? null : 'MISS';
   }}
   return 'STRIKE-' + labels[0];
 }}
@@ -1297,26 +1298,13 @@ function renderBetCard(race) {{
   var top6waManualOut = (_swapWa && _swapWa.kind === 'manual') ? (_waByNum2[_swapWa.out_number] || null) : null;
   if (top6wa.length === 6) {{
     var t6Nums = top6wa.map(function(h) {{ return '#' + h.number; }}).join(' + ');
-    var t6Top1 = (race.horses[0] && race.horses[0].win_odds) || 0;
-    var t6Field = race.horses.length;
-    var t6Steam = race.horses.slice(0, 12).filter(function(h) {{
-      return h.steam_move && h.steam_move.is_steam;
-    }}).length;
-    // CHAOS score 0-4 — only count truly differentiating signals.
-    // 2026-05-17: dropped "tier HIGH/MED" (always-on for bettable races) and
-    // raised field-size to ≥13 (was ≥11 — most ST races already 12-14). Added
-    // top_2_share<0.40 (model itself uncertain — the strongest chaos signal).
-    var t6Top2Share = race.top_2_share || 0;
-    var chaosScore = 0;
-    if (t6Field >= 13) chaosScore++;
-    if (t6Top1 >= 2.5 && t6Top1 <= 5.0) chaosScore++;
-    if (t6Steam >= 2) chaosScore++;
-    if (t6Top2Share > 0 && t6Top2Share < 0.40) chaosScore++;
-    var t6Verdict;
-    if (t6Top1 > 0 && t6Top1 < 2.5) t6Verdict = 'SKIP heavy fav';
-    else if (t6Steam >= 2) t6Verdict = '★ TAKE (' + t6Steam + ' steam)';
-    else if (tier === 'HIGH' && t6Field >= 11 && t6Top1 >= 2.5 && t6Top1 <= 5.0) t6Verdict = '★ TAKE';
-    else t6Verdict = 'YOUR CALL';
+    // Single source of truth: server-side _compute_trio6_decision in
+    // dashboard/generator.py (race.trio6_decision). Before consolidation
+    // (2026-05-29) this site recomputed independently and had drifted from
+    // both the server gate and the detail panel.
+    var t6dec = race.trio6_decision || {{}};
+    var chaosScore = t6dec.chaos_score || 0;
+    var t6Verdict = t6dec.verdict_label || 'YOUR CALL';
     var swapAnno = top6waManual
       ? ' · 🛠 MANUAL #' + top6waManualOut.number + '→#' + top6waManual.number + (race.manual_trio6_reason ? ' (' + race.manual_trio6_reason + ')' : '')
       : top6waSwap
@@ -1607,9 +1595,16 @@ function renderBetCard(race) {{
 // WhatsApp copy
 // ─────────────────────────────────────────────────────────────
 function copyWA(text, btn) {{
+  // Per-card WA copy. Two failure paths must both work:
+  //   1. navigator.clipboard undefined on file:// + non-Chromium
+  //   2. clipboard promise rejects under Safari focus rules / sandboxed iframes
+  // The bulk Copy-All-bets handler already had the full execCommand +
+  // window.prompt fallback ladder; the per-card path silently failed
+  // until 2026-05-29 due to a missing .catch. Locked by
+  // tests/test_template_js_syntax.py.
   var fullText = text + '\\n⚠️ For entertainment only. Gamble responsibly.';
-  navigator.clipboard.writeText(fullText).then(function() {{
-    var orig = btn.textContent;
+  var orig = btn.textContent;
+  var ok = function() {{
     btn.textContent = 'Copied!';
     btn.style.background = 'var(--green)';
     btn.style.color = '#000';
@@ -1618,7 +1613,27 @@ function copyWA(text, btn) {{
       btn.style.background = '';
       btn.style.color = '';
     }}, 2000);
-  }});
+  }};
+  var fallback = function() {{
+    try {{
+      var ta = document.createElement('textarea');
+      ta.value = fullText;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      var success = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (success) {{ ok(); return; }}
+    }} catch(e) {{}}
+    btn.textContent = 'Copy failed';
+    setTimeout(function() {{ btn.textContent = orig; }}, 1800);
+    try {{ window.prompt('Copy manually (Cmd+C / Ctrl+C):', fullText); }} catch(e) {{}}
+  }};
+  if (navigator.clipboard && navigator.clipboard.writeText) {{
+    navigator.clipboard.writeText(fullText).then(ok).catch(fallback);
+  }} else {{
+    fallback();
+  }}
 }}
 
 // ─────────────────────────────────────────────────────────────
@@ -2234,47 +2249,37 @@ function _buildRaceDetailPanel(race) {{
   var manualCandidate = (_swap && _swap.kind === 'manual') ? (byNumLookup[_swap.in_number] || null) : null;
   var manualSwappedOut = (_swap && _swap.kind === 'manual') ? (byNumLookup[_swap.out_number] || null) : null;
   if (top6.length === 6) {{
-    // Practical decision rule (validated across 6 meetings, 60 races):
-    //   SKIP if heavy favorite (top1 odds < $2.5) — model+market aligned
-    //   TAKE if ≥2 morning-steam horses (smart money disagrees → spoilers)
-    //   TAKE if HIGH tier + field ≥11 + top1 odds $2.5-$5 (competitive race)
-    //   USER CALL otherwise (coin-flip economically; +10pp lift, 2× cost)
-    var top1Odds = (race.horses[0] && race.horses[0].win_odds) || 0;
-    var fieldSize = race.horses.length;
+    // Single source of truth: server-side _compute_trio6_decision in
+    // dashboard/generator.py (race.trio6_decision). Before consolidation
+    // (2026-05-29) this site recomputed independently and had drifted —
+    // the staked ticket and the displayed verdict could disagree.
+    var t6dec = race.trio6_decision || {{}};
+    var top1Odds = t6dec.top1_odds || ((race.horses[0] && race.horses[0].win_odds) || 0);
+    var fieldSize = t6dec.field_size || race.horses.length;
     var tier = race.conviction_tier || '';
-    var steamCount = race.horses.slice(0, 12).filter(function(h) {{
-      return h.steam_move && h.steam_move.is_steam;
-    }}).length;
-
-    // Chaos score 0-4: each signal that suggests rank-6 spoiler likely
-    // CHAOS score 0-4 — same tightened conditions as WA path. Tier and
-    // ≥11-field were always-on at ST; dropped/raised. Added top_2_share<0.40
-    // (model uncertain) which is the strongest chaos signal.
-    var top2ShareChaos = race.top_2_share || 0;
-    var chaosScore = 0;
-    var chaosFactors = [];
-    if (fieldSize >= 13) {{ chaosScore++; chaosFactors.push('large field ' + fieldSize); }}
-    if (top1Odds >= 2.5 && top1Odds <= 5.0) {{ chaosScore++; chaosFactors.push('competitive fav $' + top1Odds.toFixed(1)); }}
-    if (steamCount >= 2) {{ chaosScore++; chaosFactors.push(steamCount + ' steam horses'); }}
-    if (top2ShareChaos > 0 && top2ShareChaos < 0.40) {{ chaosScore++; chaosFactors.push('top-2 share ' + (top2ShareChaos*100).toFixed(0) + '% (model uncertain)'); }}
+    var steamCount = t6dec.steam_count || 0;
+    var chaosScore = t6dec.chaos_score || 0;
+    var chaosFactors = t6dec.chaos_factors || [];
     var chaosColor = chaosScore >= 3 ? 'rgba(244,63,94,.85)' :
                      chaosScore >= 2 ? 'rgba(251,191,36,.7)' :
                      'rgba(148,163,184,.3)';
     var chaosTextColor = chaosScore >= 3 ? '#fff' : (chaosScore >= 2 ? '#000' : 'var(--dim)');
     var chaosBadge = '<span style="background:' + chaosColor + ';color:' + chaosTextColor + ';padding:1px 6px;border-radius:3px;font-size:.62rem;font-weight:700;margin-left:6px" title="' + chaosFactors.join(' · ') + '">CHAOS ' + chaosScore + '/4</span>';
 
-    var rec = '';
-    var recBadge = '';
-    var recReason = '';
-    if (top1Odds > 0 && top1Odds < 2.5) {{
+    // Derive the badge + reason from the verdict label produced by
+    // _compute_trio6_decision (server-side). Keep visual styling here —
+    // the server only computes the label, never markup.
+    var verdict = t6dec.verdict_label || 'YOUR CALL';
+    var rec, recBadge, recReason;
+    if (verdict.indexOf('SKIP') === 0) {{
       rec = 'SKIP';
       recBadge = '<span style="background:rgba(148,163,184,.3);color:var(--dim);padding:2px 8px;border-radius:3px;font-size:.65rem;font-weight:700">SKIP — heavy fav ($' + top1Odds.toFixed(1) + ')</span>';
       recReason = 'Top pick is heavy favorite — podium concentrates in TOP-3, TRIO-6 wastes 2× cost.';
-    }} else if (steamCount >= 2) {{
+    }} else if (verdict.indexOf('★ TAKE') === 0 && steamCount >= 2) {{
       rec = 'TAKE';
       recBadge = '<span style="background:rgba(34,197,94,.85);color:#000;padding:2px 8px;border-radius:3px;font-size:.65rem;font-weight:800">★ TAKE — ' + steamCount + ' steam horses</span>';
       recReason = 'Multiple morning-steam horses — smart money disagrees with model, rank-6 spoiler likely.';
-    }} else if (tier === 'HIGH' && fieldSize >= 11 && top1Odds >= 2.5 && top1Odds <= 5.0) {{
+    }} else if (verdict.indexOf('★ TAKE') === 0) {{
       rec = 'TAKE';
       recBadge = '<span style="background:rgba(34,197,94,.85);color:#000;padding:2px 8px;border-radius:3px;font-size:.65rem;font-weight:800">★ TAKE — HIGH+big field+$' + top1Odds.toFixed(1) + ' fav</span>';
       recReason = 'HIGH conviction + field ≥11 + competitive favorite — chaos likely, hedge worth it.';
@@ -2608,22 +2613,53 @@ window.addEventListener('DOMContentLoaded', function() {{
   var copyAllBtn = document.getElementById('copy-all-btn');
   if (copyAllBtn) {{
     copyAllBtn.addEventListener('click', function() {{
-      var heroBtns = document.querySelectorAll('#hero .wa-btn');
-      if (heroBtns.length === 0) {{
+      // Only the COMPACT (ticket-first) buttons, one per race. The
+      // Copy-WA-Full buttons would duplicate everything with rationale —
+      // useless for a bulk dump. Filter out NO-BET cards so the paste is
+      // actionable.
+      var heroBtns = document.querySelectorAll('#hero .wa-btn[data-testid^="copy-wa-ticket-"]');
+      var payloads = [];
+      heroBtns.forEach(function(btn) {{
+        var p = btn.dataset.payload || '';
+        if (p && p.indexOf('NO SYSTEM BET') === -1) payloads.push(p);
+      }});
+      if (payloads.length === 0) {{
         copyAllBtn.textContent = 'No bets today';
         setTimeout(function() {{ copyAllBtn.textContent = 'Copy all bets'; }}, 1500);
         return;
       }}
-      var payloads = [];
-      heroBtns.forEach(function(btn) {{
-        // data-payload is a plain string (escAttr-encoded); already decoded by browser.
-        if (btn.dataset.payload) payloads.push(btn.dataset.payload);
-      }});
-      var combined = payloads.join('\\n\\n---\\n\\n');
-      navigator.clipboard.writeText(combined).then(function() {{
-        copyAllBtn.textContent = 'Copied!';
+      // Append disclaimer once (the compact per-card payloads do NOT already
+      // carry the entertainment-only footer — only copyWA() appends it for
+      // per-card buttons). Without this the bulk dump goes out unguarded.
+      var combined = payloads.join('\\n\\n---\\n\\n') +
+        '\\n\\n⚠️ For entertainment only. Gamble responsibly.';
+      var ok = function() {{
+        copyAllBtn.textContent = 'Copied ' + payloads.length + '!';
         setTimeout(function() {{ copyAllBtn.textContent = 'Copy all bets'; }}, 1500);
-      }});
+      }};
+      var fallback = function() {{
+        // execCommand fallback for insecure contexts (file://, http://) and
+        // browsers that reject clipboard.writeText silently.
+        try {{
+          var ta = document.createElement('textarea');
+          ta.value = combined;
+          ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.focus(); ta.select();
+          var success = document.execCommand('copy');
+          document.body.removeChild(ta);
+          if (success) {{ ok(); return; }}
+        }} catch(e) {{}}
+        copyAllBtn.textContent = 'Copy failed';
+        setTimeout(function() {{ copyAllBtn.textContent = 'Copy all bets'; }}, 1800);
+        // Last-resort: open prompt so user can manually copy.
+        try {{ window.prompt('Copy bets manually (Cmd+C / Ctrl+C):', combined); }} catch(e) {{}}
+      }};
+      if (navigator.clipboard && navigator.clipboard.writeText) {{
+        navigator.clipboard.writeText(combined).then(ok).catch(fallback);
+      }} else {{
+        fallback();
+      }}
     }});
   }}
 }});
