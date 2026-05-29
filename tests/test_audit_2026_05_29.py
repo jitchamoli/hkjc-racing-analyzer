@@ -516,8 +516,10 @@ def test_monitor_injects_tier_stats():
     ts_idx = src.find("r['tier_stats']")
     fin_idx = src.find('finalize_tickets_and_stakes(all_races')
     assert 0 < ts_idx < fin_idx, "tier_stats must be injected before finalize"
-    # log_predictions must NOT be called in the monitor (would corrupt rank)
-    assert 'log_predictions' not in src, (
+    # log_predictions must NOT be CALLED in the monitor (would corrupt rank).
+    # Check for the call syntax, not the bare word — the explanatory comment
+    # in monitor/race_day.py legitimately mentions log_predictions.
+    assert '.log_predictions(' not in src and 'db.log_predictions' not in src, (
         "monitor must NOT call log_predictions — mid-race re-log corrupts "
         "predicted_rank (the freeze logic guards against exactly this)"
     )
