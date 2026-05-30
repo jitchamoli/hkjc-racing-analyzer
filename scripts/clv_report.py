@@ -61,6 +61,41 @@ def _open_close(since: str | None) -> dict:
     return {k: (opens[k], closes[k], counts[k]) for k in opens}
 
 
+def _opening_by_race(since: str | None) -> dict:
+    """Return {(date, race): {horse_number: opening_win_odds}} (first snapshot)."""
+    if not ODDS_DB.exists():
+        return {}
+    con = sqlite3.connect(ODDS_DB)
+    q = ("SELECT race_date, race_number, horse_number, win_odds "
+         "FROM odds_snapshots")
+    params: tuple = ()
+    if since:
+        q += " WHERE race_date >= ?"
+        params = (since,)
+    q += " ORDER BY id ASC"
+    out: dict = {}
+    for date, race, horse, odds in con.execute(q, params):
+        if not odds or odds <= 0:
+            continue
+        field = out.setdefault((date, race), {})
+        if horse not in field:
+            field[horse] = odds  # first seen = opening
+    con.close()
+    return out
+
+
+def _market_rank(opening_map: dict, date: str, race: int, horse: int):
+    """Our pick's rank by OPENING win odds in its race (1 = market favourite)."""
+    field = opening_map.get((date, race))
+    if not field or horse not in field:
+        return None
+    ordered = sorted(field.items(), key=lambda kv: kv[1])  # ascending odds
+    for i, (h, _) in enumerate(ordered, 1):
+        if h == horse:
+            return i
+    return None
+
+
 def _picks(rank: int, since: str | None) -> list:
     """rank-N picks from prediction_log with results filled."""
     con = sqlite3.connect(HORSE_DB)
@@ -81,7 +116,90 @@ def _fmt_pct(x):
     return f"{x:+.1f}%"
 
 
-def report(rank: int, since: str | None) -> int:
+def _agg(rs: list):
+    """Aggregate stats for a list of pick rows, or None if empty."""
+    k = len(rs)
+    if not k:
+        return None
+    return {
+        'n': k,
+        'clv': sum(r['clv'] for r in rs) / k,
+        'beat': 100.0 * sum(1 for r in rs if r['clv'] > 0) / k,
+        'win': 100.0 * sum(1 for r in rs if r['won']) / k,
+        'place': 100.0 * sum(1 for r in rs if r['placed']) / k,
+    }
+
+
+def _split_by_market(rows: list, since: str | None) -> None:
+    """Print CLV split by whether our pick was the market favourite at open.
+
+    The decisive test for favourite late-money mirage vs real sharpness:
+    a pick that was NOT the opening favourite but still SHORTENED means the
+    market came to us (real edge); CLV that lives only in opening favourites
+    is the structural late-money-on-faves effect, not an edge.
+    """
+    opening_map = _opening_by_race(since)
+    for r in rows:
+        r['mkt_rank'] = _market_rank(opening_map, r['date'], r['race'], r['horse'])
+    tagged = [r for r in rows if r.get('mkt_rank')]
+
+    print("\n" + "=" * 70)
+    print("  SPLIT BY MARKET AGREEMENT  (favourite mirage vs real sharpness)")
+    print("  market rank = our pick's rank by OPENING win odds in its race")
+    print("=" * 70)
+    if not tagged:
+        print("  No picks with opening-odds market rank available.")
+        return
+
+    print(f"  {'bucket':<24}{'n':>4}{'mean CLV':>11}{'beat':>7}{'win':>7}{'place':>8}")
+    print("  " + "-" * 64)
+    fav = _agg([r for r in tagged if r['mkt_rank'] == 1])
+    nonfav = _agg([r for r in tagged if r['mkt_rank'] >= 2])
+    for label, a in (("AGREE  (pick = mkt fav)", fav),
+                     ("DISAGREE (pick != fav)", nonfav)):
+        if a:
+            print(f"  {label:<24}{a['n']:>4}{_fmt_pct(a['clv']):>11}"
+                  f"{a['beat']:>6.0f}%{a['win']:>6.0f}%{a['place']:>7.0f}%")
+        else:
+            print(f"  {label:<24}{0:>4}{'-':>11}")
+
+    print("\n  By market-rank band:")
+    bands = [("fav (rank 1)", lambda x: x == 1),
+             ("rank 2-3", lambda x: x in (2, 3)),
+             ("rank 4+", lambda x: x >= 4)]
+    for label, pred in bands:
+        a = _agg([r for r in tagged if pred(r['mkt_rank'])])
+        if a:
+            print(f"    {label:<12}{a['n']:>4}{_fmt_pct(a['clv']):>11}"
+                  f"{a['beat']:>6.0f}%{a['win']:>6.0f}%{a['place']:>7.0f}%")
+
+    print("\n  READ:")
+    print("    Real edge must CONVERT, not just shorten. The mild-disagreement")
+    print("    band (rank 2-3) is where sharpness shows AND pays. CLV% on rank-4+")
+    print("    longshots is inflated noise (small money moves big odds) — ignore a")
+    print("    high rank-4+ CLV unless those picks also win/place. CLV that lives")
+    print("    only in favourites is the late-money-on-faves mirage, not an edge.")
+
+    # Results-aware verdict: a number is only 'edge' if it converts.
+    r23 = _agg([r for r in tagged if r['mkt_rank'] in (2, 3)])
+    r4 = _agg([r for r in tagged if r['mkt_rank'] >= 4])
+    if r4 and r4['clv'] > 10 and r4['win'] < 10 and (not r23 or r23['clv'] <= 0):
+        print(f"\n    -> ARTIFACT, not edge: the positive DISAGREE CLV is driven by "
+              f"rank-4+ longshots ({_fmt_pct(r4['clv'])}, n={r4['n']}) that WIN "
+              f"{r4['win']:.0f}% / place {r4['place']:.0f}%. The mild-disagree (2-3) "
+              f"bucket is {_fmt_pct(r23['clv']) if r23 else 'n/a'}. Edge UNPROVEN.")
+    elif r23 and r23['clv'] > 1.0 and r23['place'] >= 50:
+        print(f"\n    -> Rank 2-3 CLV {_fmt_pct(r23['clv'])} with place {r23['place']:.0f}% "
+              f"(n={r23['n']}): the bucket that pays is positive AND converts. "
+              f"Tentative REAL signal — accrue to N>=10 meetings to confirm.")
+    elif fav and fav['clv'] > 1.0 and (not nonfav or fav['clv'] >= nonfav['clv']):
+        print(f"\n    -> CLV concentrates in FAVOURITES ({_fmt_pct(fav['clv'])}): "
+              f"late-money-on-faves mirage. Edge UNPROVEN.")
+    else:
+        print("\n    -> Mixed/flat. Inconclusive at this N.")
+
+
+def report(rank: int, since: str | None, split_market: bool = False) -> int:
     oc = _open_close(since)
     if not oc:
         print(f"No odds snapshots found in {ODDS_DB}"
@@ -100,6 +218,7 @@ def report(rank: int, since: str | None) -> int:
         clv = (opening - closing) / opening * 100.0
         rows.append({
             'date': p['race_date'], 'race': p['race_number'],
+            'horse': p['horse_number'],
             'tier': p['conviction_tier'] or '?',
             'opening': opening, 'closing': closing, 'clv': clv,
             'won': bool(p['actual_won']),
@@ -148,6 +267,9 @@ def report(rank: int, since: str | None) -> int:
         print(f"    {d}:  {_fmt_pct(sum(mr)/len(mr))}  (n={len(mr)})")
     print("\n  NOTE: positive & rising CLV = our picks are sharp; flat/negative = "
           "we're not beating the market. Far faster to read than flat ROI.")
+
+    if split_market:
+        _split_by_market(rows, since)
     return 0
 
 
@@ -156,8 +278,12 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--rank', type=int, default=1, help='predicted rank to analyse (default 1)')
     ap.add_argument('--since', default=None, help='YYYY/MM/DD lower bound')
+    ap.add_argument('--split-by-market-rank', dest='split_market',
+                    action='store_true',
+                    help='split CLV by whether our pick was the opening '
+                         'favourite (mirage) vs an outsider (real sharpness)')
     args = ap.parse_args()
-    return report(args.rank, args.since)
+    return report(args.rank, args.since, args.split_market)
 
 
 if __name__ == '__main__':
