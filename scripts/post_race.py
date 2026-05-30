@@ -11,6 +11,8 @@ Runs in sequence:
                                                 (NOT wired to dashboard/WA)
   5. scripts.track_edge <date>                — log EDGE fires + outcomes
                                                 (feeds dashboard banner)
+  5d. scripts.clv_report --split-by-market-rank — CLV edge gauge (rank-2-3
+                                                disagreement CLV is the signal)
   6. bash scripts/auto_dump.sh                — refresh DB snapshot, push
 
 Skips shadow step if results/shadow_race_data_<date>.json is missing.
@@ -164,6 +166,15 @@ def main():
          [sys.executable, 'scripts/track_confluence.py', args.race_date],
          required=False)
 
+    # Step 5d: CLV edge gauge — cumulative closing-line-value on rank-1 picks,
+    # split by market agreement. The fast, low-variance read on whether we have
+    # a real edge: watch the rank-2-3 (mild-disagreement) CLV line accrue toward
+    # N>=10 meetings. Immune to the favourite mirage AND the longshot artifact
+    # (the split's results-aware verdict flags both). Read-only; never blocks.
+    _run("5d/6 clv_report (market-agreement edge gauge)",
+         [sys.executable, '-m', 'scripts.clv_report', '--split-by-market-rank'],
+         required=False)
+
     # After track_edge updates stats, re-render the dashboard so the EDGE
     # banner reflects this meeting's fires too. Use fetch_results (the
     # results-overlay path) NOT generate.py: generate.py rebuilds from a fresh
@@ -200,6 +211,7 @@ def main():
     print(f"  EDGE history:                 tracking_data/edge_log.csv + edge_stats.json")
     print(f"  Longshot-TRIO experiment:     python3 -m scripts.track_longshot_trio --report")
     print(f"  Confluence log (WIN gate):    tracking_data/confluence_log.csv")
+    print(f"  CLV edge gauge (mkt split):   python3 -m scripts.clv_report --split-by-market-rank")
     return 0
 
 
