@@ -436,16 +436,18 @@ class HorseDatabase:
         logger.info(f"Ingested {len(race_data)} races into horse database")
 
         # Rebuild stats from source of truth to avoid double-counting on
-        # re-ingestion. Wrap in its own try so a stats-table failure (e.g.
-        # missing renavon ranking tables) doesn't appear to roll back the
-        # already-committed ingestion above.
+        # re-ingestion. Swallow failures here — race_results / horses are
+        # already committed and the operator should NOT see the ingest as
+        # failed if only the derived stats tables fell over (e.g. missing
+        # renavon ranking tables). Stats can be rebuilt later via
+        # `python3 -m scripts.scrape_history --rankings`.
         try:
             self.rebuild_stats()
         except Exception:
             logger.error("rebuild_stats failed after ingest — race_results "
-                         "already committed; jockey/trainer stats may be stale",
+                         "already committed; jockey/trainer stats may be stale. "
+                         "Re-run `scripts.scrape_history --rankings` to refresh.",
                          exc_info=True)
-            raise
 
     # ------------------------------------------------------------------
     # Query methods — used by analyzer at prediction time
