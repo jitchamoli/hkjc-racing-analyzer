@@ -31,6 +31,12 @@ python3 -m scripts.tier_b_evaluate [--report]
 python3 -m scripts.track_spoilers | track_edge | track_longshot_trio [--report]
 python3 -m scripts.gate_impact [--last 12 | --all]   # OLD vs NEW BOX TRIO-5 triple gate
 python3 -m scripts.clv_report                  # closing-line value on rank-1 picks
+python3 -m scripts.clv_report --split-by-market-rank  # EDGE GAUGE (auto-runs in raceday finish):
+                                               #   splits CLV by market agreement at OPEN — favourite
+                                               #   late-money MIRAGE vs real sharpness. WATCH the rank-2-3
+                                               #   (mild-disagreement) CLV + whether it converts; rank-4+
+                                               #   longshot CLV% is inflated noise. Verdict: edge UNPROVEN
+                                               #   until rank-2-3 CLV turns positive AND places over N>=10.
 
 # Backtest
 python3 -m scripts.backtest [--sweep | --exclude-date YYYY/MM/DD | --production-stakes]
@@ -154,6 +160,8 @@ Three audit rounds found 10 date-leaking rule-engine DB lookups (no `before_date
 **The PLACE model is unaffected (ML, not rule engine): BSS +0.10, ECE 0.0093** — model discriminates (rank-1 top-3 54.9% ≈ 2.2× random) but does NOT beat market + takeout on any bet type.
 
 **HONEST POSTURE: no demonstrated betting edge. PAPER-ONLY until `scripts/validate_hk.py` shows positive lower-CI over N≥250 bets.** Judge changes on place/top-4 capture, NOT top-1 win Brier. Detail: `memory/project_7expert_panel_2026-05-22.md`.
+
+**FAST EDGE GAUGE (the leading indicator while N accrues):** `scripts/clv_report --split-by-market-rank` (auto-runs in `raceday finish`). CLV converges far faster than ROI, but is read-with-care: the favourite bucket shortens structurally (late-money MIRAGE, not edge) and rank-4+ longshot CLV% is inflated noise. The ONLY monetizable signal is **rank-2-3 (mild-disagreement) CLV that also converts (places)**. As of 2026-05-30: rank-2-3 = −12.7% on n=9 → **edge UNPROVEN**. Don't touch the model; accrue to N≥10 meetings and watch that one line. See memory: `project_clv_edge_gauge_2026-05-30.md`.
 
 ## DB (`tracking_data/horse_history.db`)
 
