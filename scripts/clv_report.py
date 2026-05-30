@@ -130,6 +130,35 @@ def _agg(rs: list):
     }
 
 
+def _verdict(fav, nonfav, r23, r4):
+    """Classify the market-split CLV -> (tag, message).
+
+    Real edge must CONVERT: rank-2-3 (mild disagreement) CLV positive AND
+    placing. A rank-4+ CLV blowout with ~no wins is the longshot artifact
+    (small money moves big odds). CLV only in favourites is the late-money
+    mirage. Order matters: a genuine rank-2-3 signal is reported FIRST, so a
+    simultaneous longshot blowout cannot mask it — and conversely a weak,
+    sub-threshold rank-2-3 CLV cannot suppress the artifact diagnosis
+    (review finding 2026-05-30).
+    """
+    if r23 and r23['clv'] > 1.0 and r23['place'] >= 50:
+        return ('REAL',
+                f"Rank 2-3 CLV {_fmt_pct(r23['clv'])} with place {r23['place']:.0f}% "
+                f"(n={r23['n']}): the bucket that pays is positive AND converts. "
+                f"Tentative REAL signal — accrue to N>=10 meetings to confirm.")
+    if r4 and r4['clv'] > 10 and r4['win'] < 10:
+        return ('ARTIFACT',
+                f"ARTIFACT, not edge: the positive DISAGREE CLV is driven by "
+                f"rank-4+ longshots ({_fmt_pct(r4['clv'])}, n={r4['n']}) that WIN "
+                f"{r4['win']:.0f}% / place {r4['place']:.0f}%. The mild-disagree (2-3) "
+                f"bucket is {_fmt_pct(r23['clv']) if r23 else 'n/a'}. Edge UNPROVEN.")
+    if fav and fav['clv'] > 1.0 and (not nonfav or fav['clv'] >= nonfav['clv']):
+        return ('MIRAGE',
+                f"CLV concentrates in FAVOURITES ({_fmt_pct(fav['clv'])}): "
+                f"late-money-on-faves mirage. Edge UNPROVEN.")
+    return ('INCONCLUSIVE', "Mixed/flat. Inconclusive at this N.")
+
+
 def _split_by_market(rows: list, since: str | None) -> None:
     """Print CLV split by whether our pick was the market favourite at open.
 
@@ -172,6 +201,8 @@ def _split_by_market(rows: list, since: str | None) -> None:
         if a:
             print(f"    {label:<12}{a['n']:>4}{_fmt_pct(a['clv']):>11}"
                   f"{a['beat']:>6.0f}%{a['win']:>6.0f}%{a['place']:>7.0f}%")
+        else:
+            print(f"    {label:<12}{0:>4}{'n/a':>11}")
 
     print("\n  READ:")
     print("    Real edge must CONVERT, not just shorten. The mild-disagreement")
@@ -183,20 +214,8 @@ def _split_by_market(rows: list, since: str | None) -> None:
     # Results-aware verdict: a number is only 'edge' if it converts.
     r23 = _agg([r for r in tagged if r['mkt_rank'] in (2, 3)])
     r4 = _agg([r for r in tagged if r['mkt_rank'] >= 4])
-    if r4 and r4['clv'] > 10 and r4['win'] < 10 and (not r23 or r23['clv'] <= 0):
-        print(f"\n    -> ARTIFACT, not edge: the positive DISAGREE CLV is driven by "
-              f"rank-4+ longshots ({_fmt_pct(r4['clv'])}, n={r4['n']}) that WIN "
-              f"{r4['win']:.0f}% / place {r4['place']:.0f}%. The mild-disagree (2-3) "
-              f"bucket is {_fmt_pct(r23['clv']) if r23 else 'n/a'}. Edge UNPROVEN.")
-    elif r23 and r23['clv'] > 1.0 and r23['place'] >= 50:
-        print(f"\n    -> Rank 2-3 CLV {_fmt_pct(r23['clv'])} with place {r23['place']:.0f}% "
-              f"(n={r23['n']}): the bucket that pays is positive AND converts. "
-              f"Tentative REAL signal — accrue to N>=10 meetings to confirm.")
-    elif fav and fav['clv'] > 1.0 and (not nonfav or fav['clv'] >= nonfav['clv']):
-        print(f"\n    -> CLV concentrates in FAVOURITES ({_fmt_pct(fav['clv'])}): "
-              f"late-money-on-faves mirage. Edge UNPROVEN.")
-    else:
-        print("\n    -> Mixed/flat. Inconclusive at this N.")
+    _tag, msg = _verdict(fav, nonfav, r23, r4)
+    print(f"\n    -> {msg}")
 
 
 def report(rank: int, since: str | None, split_market: bool = False) -> int:
