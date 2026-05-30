@@ -615,6 +615,15 @@ class FeatureEngineering:
             'RAIN AFFECTED': 'SOFT', 'RA': 'SOFT',
             'WET-FAST': 'WET-FAST', 'WET FAST': 'WET-FAST', 'WF': 'WET-FAST',
         }.get(u, u)
+        # Fallback is self-map (return the uppercased string), NOT ''. This is
+        # deliberate and verified against the DB (audit-2026-05-29 follow-up):
+        # 'Good (AWT)' (763 rows, the all-weather track) and 'SEALED'/'SE'
+        # (sealed turf) are real recurring surfaces with no 5-bucket home.
+        # Self-mapping lets an AWT horse match its own AWT priors — real
+        # signal. The model was trained with this exact behaviour, so '' here
+        # would create a train/inference skew for ~789 rows. The only genuine
+        # edge case — empty/blank going — is already handled by the guard
+        # above (`if not g: return ''`).
 
     @staticmethod
     def _sire_for_horse(horse_name: str, conn) -> str:
@@ -1068,9 +1077,20 @@ class FeatureEngineering:
         # smoothing, 1 win on the going saturates to 1.0 — same as a 4/8
         # battle-tested horse. Beta(0.08, 5) prior on win rate, Beta(0.25, 5)
         # on place rate (strength=5: posterior is half-prior at n=5 prior runs).
+        #
+        # Going strings vary across years and sources ('GOOD', 'GOOD TO FIRM',
+        # 'GF', 'G' all refer to the same surface). Compare via _going_bucket
+        # so prior rows match the current race's going at the bucket level —
+        # without this, ~most horses had zero same-going priors and the
+        # feature collapsed to its 0.5 default. Same bucketing as
+        # calculate_sire_top3_on_going (v6.10). Locked by
+        # tests/test_audit_2026_05_29.py::test_going_performance_uses_bucket_not_raw_eq.
         going_perf = 0.5
         if prior and going:
-            prior_same_going = [p for p in prior if p.get('going', '') == going]
+            target_bucket = FeatureEngineering._going_bucket(going)
+            prior_same_going = [p for p in prior
+                                if target_bucket and
+                                FeatureEngineering._going_bucket(p.get('going', '') or '') == target_bucket]
             if prior_same_going:
                 g_wins = sum(1 for p in prior_same_going if p.get('is_winner', 0))
                 g_top3 = sum(1 for p in prior_same_going if p.get('is_top3', 0))

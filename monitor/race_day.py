@@ -21,7 +21,9 @@ from core.analyzer import CombinedRaceAnalyzer
 from data.database import HorseDatabase
 from data.odds_tracker import OddsDatabase
 from dashboard.template import generate_html
-from dashboard.generator import build_race_data
+from dashboard.generator import (
+    build_race_data, _merge_with_existing, finalize_tickets_and_stakes,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -149,13 +151,43 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
             race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)
             all_races.append(race_data)
 
+        # Restore frozen race-level + bet_ticket state from prior JSON
+        # BEFORE recomputing tickets. Without this _merge_with_existing
+        # step the monitor would re-derive the ticket from scratch every
+        # 6-minute refresh — gate flips driven by transient odds drift
+        # would silently replace the morning ticket with no archive in
+        # superseded_tickets[]. The main generator (generate_predictions.py
+        # line ~1227) calls this same merge step before finalize_tickets;
+        # without it the monitor violated the "ticket is truth" invariant
+        # documented in CLAUDE.md. Locked by
+        # tests/test_audit_2026_05_29.py::test_monitor_merges_existing_before_finalize.
+        date_str_local = race_date.replace('/', '')
+        json_file = str(results_dir / f"race_data_{date_str_local}.json")
+        all_races = _merge_with_existing(json_file, all_races, race_date=race_date)
+
+        # Inject tier_stats so the monitor-rendered dashboard's tier
+        # track-record trust panel populates, matching the main generator
+        # (generator.py _run_generation does this before finalize). Pure
+        # read-only display data — load_cached_stats() never mutates
+        # (audit-2026-05-29 follow-up D). NOT replicated: log_predictions
+        # (would corrupt predicted_rank if re-logged mid-race — the freeze
+        # logic exists precisely to prevent that) and compute_alerts (the
+        # sharp-move path already spawns a full generate_predictions
+        # subprocess that fires alerts; recomputing here would double-fire).
+        from betting.tier_stats import load_cached_stats
+        tier_stats = load_cached_stats()
+        for r in all_races:
+            r['tier_stats'] = tier_stats
+
         # GPT-5.5 R13 #2 2026-05-25 — monitor uses the same stake +
         # bet_ticket pipeline as the main generator. Without this the
         # live monitor dashboard rendered horses with bet_recommendation
         # but no frozen ticket and no suggested stake → WA/detail panel
         # showed SKIP everywhere. Shared finalize fn keeps the contract
         # in one place; both surfaces emit identical ticket structure.
-        from dashboard.generator import finalize_tickets_and_stakes
+        # finalize_tickets_and_stakes' Layer 2 (_merge_ticket_pre_result)
+        # now sees the prior ticket and archives it correctly on any
+        # gate flip.
         finalize_tickets_and_stakes(all_races, race_date, analyzer)
 
         # Snapshot the live trust panels BEFORE closing the DB. Without these,

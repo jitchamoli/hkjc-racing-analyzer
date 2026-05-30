@@ -309,9 +309,16 @@ def build_training_data_from_db(
 
             # Feature 11: going performance — Bayesian-smoothed (matches features.py).
             # Beta(0.08, 5) prior on win rate, Beta(0.25, 5) on top3 rate.
+            # Bucket-match going strings (mirrors features.py + _going_bucket)
+            # so a prior race stored as 'GOOD TO FIRM' is recognised as the
+            # same surface as today's 'GF'. Locked by
+            # tests/test_audit_2026_05_29.py::test_going_performance_uses_bucket_not_raw_eq.
             going_perf = 0.5
             if prior and going:
-                prior_same_going = [p for p in prior if p.get('going', '') == going]
+                target_bucket = FeatureEngineering._going_bucket(going)
+                prior_same_going = [p for p in prior
+                                    if target_bucket and
+                                    FeatureEngineering._going_bucket(p.get('going', '') or '') == target_bucket]
                 if prior_same_going:
                     g_wins = sum(1 for p in prior_same_going if p.get('is_winner', 0))
                     g_top3 = sum(1 for p in prior_same_going if p.get('is_top3', 0))

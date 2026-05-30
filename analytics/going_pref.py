@@ -29,6 +29,15 @@ class GoingPreferenceAnalyzer:
         'YIELDING TO SOFT': 3,
         'SOFT': 4,
         'HEAVY': 4,
+        # Wet-AWT surfaces added 2026-05-29. Genuinely wet (ML _going_bucket
+        # maps them to SOFT) but were falling through to the wetness=1 GOOD
+        # default, so the rule engine never awarded the wet-track-specialist
+        # bonus on wet-slow meetings (~616 historical rows). 'WET-FAST' is
+        # deliberately excluded — it plays fast and should keep the firm/GOOD
+        # default, not a wet level.
+        'WET SLOW': 4,
+        'WET-SLOW': 4,
+        'RAIN AFFECTED': 4,
     }
 
     @staticmethod

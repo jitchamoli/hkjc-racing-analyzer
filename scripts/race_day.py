@@ -72,6 +72,16 @@ def main():
         print(f"\nWARN: tier B shadow failed but production succeeded.",
               file=sys.stderr)
 
+    # Three-source confluence snapshot. Racing API only carries today/tomorrow,
+    # so the snapshot MUST be captured before midnight HKT. Forward-validation
+    # for the WIN-sidebet hypothesis from [[edge-pattern-n4]].
+    rc_c = _run("5 confluence snapshot (racing API → JSON)",
+                [sys.executable, 'scripts/snapshot_racing_api.py', args.race_date])
+    if rc_c != 0:
+        print(f"\nWARN: racing API snapshot failed (network/quota?). Confluence "
+              f"tracking will skip this meeting. Production unaffected.",
+              file=sys.stderr)
+
     date_str = args.race_date.replace('/', '')
     print(f"\n{'='*70}\n  RACE DAY READY — {args.race_date}\n{'='*70}")
     print(f"  Dashboard:           results/racing_dashboard.html")

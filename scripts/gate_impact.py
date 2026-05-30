@@ -137,20 +137,31 @@ def analyze(last_n: int | None) -> int:
             pnl = (BOX_TRIO5_STAKE_PER_COMBO * div - BOX_TRIO5_TOTAL_STAKE) \
                   if hit else -BOX_TRIO5_TOTAL_STAKE
 
-            e = per_meeting[date_str]
-            # PROD (current production): tier + field-size gates only,
-            # heavy-fav fires.
-            e['prod_stake'] += BOX_TRIO5_TOTAL_STAKE
-            e['prod_pnl'] += pnl
-            e['prod_n'] += 1
-            e['prod_hits'] += int(hit)
+            # PROD: apply the tier + field-size gates production actually
+            # ships (heavy-fav is the only gate the GATED arm adds — see
+            # _triple_gate_skip). Before 2026-05-29 the PROD arm wrote
+            # every race regardless of gates, so PROD ROI was artificially
+            # depressed by SKIP/LOW/small-field bets production never made.
+            # The whole impact comparison was off.
+            tier = (race.get('conviction_tier') or 'SKIP').upper()
+            field = len(horses)
+            prod_skips = (tier not in ('EDGE', 'HIGH', 'MED')) or (field < 8)
 
-            # GATED (deprecated alternative): PROD + heavy-fav-skip.
+            e = per_meeting[date_str]
+            if not prod_skips:
+                e['prod_stake'] += BOX_TRIO5_TOTAL_STAKE
+                e['prod_pnl'] += pnl
+                e['prod_n'] += 1
+                e['prod_hits'] += int(hit)
+
+            # GATED (deprecated alternative): PROD gates + heavy-fav-skip.
             # gated_delta_pnl is +ve when re-enabling the gate WOULD have
             # saved money vs current PROD (i.e., a skipped losing bet).
             skip, reason = _triple_gate_skip(race)
             if skip:
-                e['gated_delta_pnl'] += -pnl
+                # Only score the delta against PROD if PROD would have bet.
+                if not prod_skips:
+                    e['gated_delta_pnl'] += -pnl
                 skip_reasons[reason] += 1
             else:
                 e['gated_stake'] += BOX_TRIO5_TOTAL_STAKE
