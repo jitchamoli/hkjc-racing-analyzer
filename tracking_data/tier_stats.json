@@ -7,24 +7,31 @@
     "ci_high": 0.85
   },
   "HIGH": {
-    "hit": 14,
-    "total": 48,
-    "rate": 0.2917,
-    "ci_low": 0.1824,
-    "ci_high": 0.4318
+    "hit": 9,
+    "total": 38,
+    "rate": 0.2368,
+    "ci_low": 0.1299,
+    "ci_high": 0.3921
   },
   "LOW": {
-    "hit": 1,
-    "total": 5,
-    "rate": 0.2,
-    "ci_low": 0.0362,
-    "ci_high": 0.6245
+    "hit": 2,
+    "total": 12,
+    "rate": 0.1667,
+    "ci_low": 0.047,
+    "ci_high": 0.448
   },
   "MED": {
-    "hit": 5,
-    "total": 16,
-    "rate": 0.3125,
-    "ci_low": 0.1416,
-    "ci_high": 0.556
+    "hit": 6,
+    "total": 18,
+    "rate": 0.3333,
+    "ci_low": 0.1628,
+    "ci_high": 0.5625
+  },
+  "SKIP": {
+    "hit": 0,
+    "total": 1,
+    "rate": 0.0,
+    "ci_low": 0.0,
+    "ci_high": 0.7935
   }
 }
