@@ -151,8 +151,27 @@ class ResultsFetcher:
 
         Fresh fetch ALWAYS takes priority for races it does return — HKJC
         publishes provisional results that may be corrected on republish.
+
+        Bogus-data guard (2026-05-31): HKJC sometimes returns garbage early in
+        the card where every race shares the same winner (e.g. all #9). Mirrors
+        the guard in dashboard/generator.py — if the FRESH fetch shows ≥3 races
+        with the same position-1 horse, discard the whole fetch so the junk is
+        never written into _with_results.json. Prior frozen results are kept via
+        the monotonic-restore branch below.
         """
         existing = existing_merged or {}
+        fresh_winners = [
+            next((r['number'] for r in rows if r.get('position') == 1), None)
+            for rows in actual_results.values()
+        ]
+        fresh_winners = [w for w in fresh_winners if w is not None]
+        if len(fresh_winners) >= 3 and len(set(fresh_winners)) == 1:
+            logger.warning(
+                f"  Skipping result merge — fresh fetch has all "
+                f"{len(fresh_winners)} races won by #{fresh_winners[0]} "
+                f"(likely bogus data). Prior results preserved."
+            )
+            actual_results = {}
         for race in predictions:
             race_no = race.get('race_number')
             # GPT-5.5 R12 #6 2026-05-25 — partial-fresh-row guard. If the
