@@ -185,6 +185,67 @@ def test_load_existing_merged_tolerates_corrupt_json(tmp_path):
     assert fetcher.load_existing_merged('2026/05/24') == {}
 
 
+def test_bogus_all_same_winner_fetch_is_discarded(tmp_path):
+    """HKJC garbage where every race in the FRESH fetch is won by the same
+    horse (e.g. all #9, common early-card) must not be merged — no race is
+    falsely marked finished (2026-05-31 regression)."""
+    fetcher = _fresh_fetcher(tmp_path)
+    predictions = [_race(n) for n in range(1, 6)]
+    # Fresh fetch: every race "won" by #9 — bogus.
+    actual_results_fresh = {
+        n: [_result_row(9, 1), _result_row(1, 2), _result_row(2, 3)]
+        for n in range(1, 6)
+    }
+    merged = fetcher.merge_results_with_predictions(
+        predictions, actual_results_fresh, existing_merged={}
+    )
+    assert all(r.get('results_available') is False for r in merged)
+    assert all('actual_winner' not in r for r in merged)
+
+
+def test_bogus_fetch_preserves_prior_real_results(tmp_path):
+    """A bogus all-same-winner fresh fetch must not clobber previously-merged
+    real results — they survive via the monotonic-restore branch."""
+    fetcher = _fresh_fetcher(tmp_path)
+    existing = {
+        'race_date': '2026/05/31', 'updated_at': '', 'day_summary': {},
+        'races': [{**_race(1), 'results_available': True,
+                   'actual_results': [_result_row(7, 1)],
+                   'actual_winner': 7, 'actual_top3': [7],
+                   'actual_win_odds': 5.0,
+                   'horses': [{'number': 7, 'name': 'H7', 'rank': 1,
+                               'actual_position': 1}]}],
+    }
+    (tmp_path / 'race_data_20260531_with_results.json').write_text(json.dumps(existing))
+    predictions = [_race(n) for n in range(1, 6)]
+    actual_results_fresh = {
+        n: [_result_row(9, 1), _result_row(1, 2), _result_row(2, 3)]
+        for n in range(1, 6)
+    }
+    loaded = fetcher.load_existing_merged('2026/05/31')
+    merged = fetcher.merge_results_with_predictions(
+        predictions, actual_results_fresh, loaded
+    )
+    r1 = next(r for r in merged if r['race_number'] == 1)
+    assert r1['results_available'] is True
+    assert r1['actual_winner'] == 7  # real prior result, NOT bogus #9
+
+
+def test_legit_distinct_winners_still_merge(tmp_path):
+    """Guard must NOT fire on a real meeting with distinct winners."""
+    fetcher = _fresh_fetcher(tmp_path)
+    predictions = [_race(n) for n in range(1, 6)]
+    actual_results_fresh = {
+        n: [_result_row(n, 1), _result_row(1 if n != 1 else 2, 2)]
+        for n in range(1, 6)
+    }
+    merged = fetcher.merge_results_with_predictions(
+        predictions, actual_results_fresh, existing_merged={}
+    )
+    assert all(r['results_available'] is True for r in merged)
+    assert {r['actual_winner'] for r in merged} == {1, 2, 3, 4, 5}
+
+
 def test_merge_works_without_existing_arg(tmp_path):
     """Backward-compat: existing_merged defaults to None / empty so callers
     that don't pass it (other scripts, ad-hoc usage) keep working."""

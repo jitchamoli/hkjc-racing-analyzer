@@ -1430,7 +1430,8 @@ function renderBetCard(race) {{
   var ticketLinesCompact = [];
   var hdrVenue = race.venue ? ' · ' + race.venue : '';
   var hdrTime = race.time ? ' · ' + race.time : '';
-  ticketLinesCompact.push('HKJC R' + race.race_number + hdrVenue + hdrTime);
+  var hdrTier = ' · ' + (isEdge ? '★ EDGE' : tier);
+  ticketLinesCompact.push('HKJC R' + race.race_number + hdrVenue + hdrTime + hdrTier);
 
   var oa = (race.bet_ticket && race.bet_ticket.odds_age_minutes != null)
     ? race.bet_ticket.odds_age_minutes
@@ -1439,7 +1440,9 @@ function renderBetCard(race) {{
   var statusWord = race.results_available ? 'LOCKED' : 'LIVE';
   if (stale && !race.results_available) statusWord = 'LIVE · STALE ODDS';
   var statusBits = ['STATUS: ' + statusWord];
-  if (oa != null) statusBits.push('odds age ' + Math.round(oa) + 'm');
+  // Only surface odds age when it carries information — a freshly-fetched
+  // 0m reading is noise. Stale odds (≥15m) are flagged in statusWord anyway.
+  if (oa != null && Math.round(oa) > 0) statusBits.push('odds age ' + Math.round(oa) + 'm');
   var modelV = (race.bet_ticket && race.bet_ticket.model_version) || null;
   if (modelV) statusBits.push('model ' + modelV);
   ticketLinesCompact.push(statusBits.join(' · '));
