@@ -76,7 +76,7 @@ def main():
     # so the snapshot MUST be captured before midnight HKT. Forward-validation
     # for the WIN-sidebet hypothesis from [[edge-pattern-n4]].
     rc_c = _run("5 confluence snapshot (racing API → JSON)",
-                [sys.executable, 'scripts/snapshot_racing_api.py', args.race_date])
+                [sys.executable, '-m', 'scripts.snapshot_racing_api', args.race_date])
     if rc_c != 0:
         print(f"\nWARN: racing API snapshot failed (network/quota?). Confluence "
               f"tracking will skip this meeting. Production unaffected.",
