@@ -1430,7 +1430,7 @@ function renderBetCard(race) {{
   var ticketLinesCompact = [];
   var hdrVenue = race.venue ? ' · ' + race.venue : '';
   var hdrTime = race.time ? ' · ' + race.time : '';
-  var hdrTier = ' · ' + (isEdge ? '★ EDGE' : tier);
+  var hdrTier = isEdge ? ' · ★ EDGE' : (tier ? ' · ' + tier : '');
   ticketLinesCompact.push('HKJC R' + race.race_number + hdrVenue + hdrTime + hdrTier);
 
   var oa = (race.bet_ticket && race.bet_ticket.odds_age_minutes != null)
