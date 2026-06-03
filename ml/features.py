@@ -914,7 +914,15 @@ class FeatureEngineering:
                 return _hit
 
         features = []
-        distance = horse_data.get('distance', 1200)
+        # Coerce distance to int: the DB stores distance as INTEGER and the
+        # training site (build_training_data_from_db) compares int==int, but at
+        # inference distance arrives as a STRING ('1200'). Without this, the
+        # same-distance prior filter below (cd_form_prior) never matches live and
+        # always falls back to its default. Mirrors calculate_draw_advantage.
+        try:
+            distance = int(horse_data.get('distance', 1200))
+        except (ValueError, TypeError):
+            distance = 1200
         going = horse_data.get('going', '')
         field_size = horse_data.get('field_size', 12)
 

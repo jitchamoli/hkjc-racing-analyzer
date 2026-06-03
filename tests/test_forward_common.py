@@ -5,7 +5,62 @@ Test-engineer expert review 2026-05-23 priority #2: this function drives
 ship decisions on every shadow + tier_b + longshot_trio variant. A
 regression that flips the verdict on extreme inputs is a real bug.
 """
-from scripts.forward_common import bayesian_verdict, SHIP_THRESHOLD, KILL_THRESHOLD
+from scripts.forward_common import (
+    bayesian_verdict, SHIP_THRESHOLD, KILL_THRESHOLD, MIN_MEETINGS,
+)
+
+
+def test_n_floor_blocks_ship_below_min_meetings():
+    """10-expert review 2026-06-03: cumulative-ROI outcomes are autocorrelated,
+    so a clean lead from meeting 1 inflates the posterior. A clean all-wins
+    streak below MIN_MEETINGS must NOT SHIP — verdict is held at WATCH even
+    though the posterior is high. (Pre-fix: 4/4 -> posterior 0.969 -> SHIP.)"""
+    for n in range(1, MIN_MEETINGS):
+        v = bayesian_verdict([1] * n)
+        assert v['verdict'] == 'WATCH', (
+            f"N={n} (< {MIN_MEETINGS}) all-wins must be WATCH, got {v['verdict']} "
+            f"(posterior {v['posterior']:.3f})"
+        )
+
+
+def test_n_floor_blocks_kill_below_min_meetings():
+    """Symmetric: a short losing streak must not KILL prematurely either."""
+    for n in range(1, MIN_MEETINGS):
+        v = bayesian_verdict([0] * n)
+        assert v['verdict'] == 'WATCH', f"N={n} all-losses must be WATCH, got {v['verdict']}"
+
+
+def test_ship_allowed_at_min_meetings():
+    """At exactly MIN_MEETINGS a clean all-wins streak may SHIP."""
+    v = bayesian_verdict([1] * MIN_MEETINGS)
+    assert v['n_meetings'] == MIN_MEETINGS
+    assert v['posterior'] >= SHIP_THRESHOLD
+    assert v['verdict'] == 'SHIP'
+
+
+def test_posterior_is_exact_beta_not_raw_proportion():
+    """Finding #6: the no-scipy path used to threshold a raw proportion
+    (1/1 -> 1.0). The posterior must be the exact Beta survival regardless of
+    scipy: N=1, 1 win -> Beta(2,1) survival at 0.5 = 0.75, NOT 1.0."""
+    v = bayesian_verdict([1])
+    assert abs(v['posterior'] - 0.75) < 1e-9, (
+        f"posterior must be exact Beta(2,1) survival 0.75, got {v['posterior']}"
+    )
+
+
+def test_posterior_matches_scipy_when_available():
+    """The pure-Python posterior must equal scipy's Beta survival to machine
+    precision so removing the scipy dependency changes nothing numerically."""
+    try:
+        from scipy.stats import beta as _beta
+    except ImportError:
+        import pytest
+        pytest.skip("scipy not installed")
+    for winners in ([1] * 7, [0] * 8, [1, 0, 1, 1, 0, 1, 1, 0, 1, 0]):
+        wins = sum(winners); n = len(winners)
+        expect = float(1.0 - _beta.cdf(0.5, 1 + wins, 1 + (n - wins)))
+        got = bayesian_verdict(winners)['posterior']
+        assert abs(got - expect) < 1e-9, f"{winners}: got {got}, scipy {expect}"
 
 
 def test_empty_input_returns_watch_at_uniform_posterior():

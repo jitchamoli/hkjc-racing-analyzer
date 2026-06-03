@@ -449,8 +449,9 @@ def report() -> int:
     base_roi = (base_pay - base_stake) / base_stake * 100 if base_stake else None
 
     # Bayesian per-meeting verdict (added 2026-05-23 — replaces the aggregate
-    # N>=6 + ROI-compare heuristic above with optional-stopping-safe SHIP/KILL/
-    # WATCH on per-meeting cumulative-ROI binary outcomes). Both verdicts are
+    # N>=6 + ROI-compare heuristic above with floor-gated SHIP/KILL/WATCH on
+    # per-meeting cumulative-ROI binary outcomes; posterior is NOT optional-
+    # stopping safe — see forward_common NOTE). Both verdicts are
     # printed so the older heuristic stays interpretable in the historical log.
     by_meeting = defaultdict(lambda: {'box_stake': 0.0, 'box_pay': 0.0,
                                        'base_stake': 0.0, 'base_pay': 0.0})
