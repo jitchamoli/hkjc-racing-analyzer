@@ -2,13 +2,15 @@
 
 Runs in sequence:
   1. python3 generate_predictions.py <date>            — production dashboard + JSON
-  2. python3 -m scripts.shadow_generate <date>         — shadow rule_w=0.9
-  3. python3 -m scripts.shadow_generate <date>
+  2. python3 -m scripts.shadow_generate <date>
        --variant jockey_form                           — shadow jockey_form OFF
-  4. python3 -m scripts.tier_b_shadow <date>           — log OLD-recommender decisions
+  3. python3 -m scripts.tier_b_shadow <date>           — log OLD-recommender decisions
                                                           for Tier B forward-validation
 
-All four feed independent experiments. After the meeting finishes, run
+(rule_w=0.9 shadow RETIRED 2026-06-03 — KILL: posterior 0.016, lost 0/5
+ meetings. Keep RULE_WEIGHT=0.6. History preserved in shadow_log.csv.)
+
+These feed independent experiments. After the meeting finishes, run
 `scripts.post_race` to ingest results, evaluate all shadows vs production +
 tier B old vs new, and refresh the DB dump.
 
@@ -50,15 +52,7 @@ def main():
         print(f"\nABORT: production prediction failed. Skipping shadow.", file=sys.stderr)
         return rc
 
-    rc = _run("2/4 shadow predictions (rule_w=0.9)",
-              [sys.executable, '-m', 'scripts.shadow_generate', args.race_date])
-    if rc != 0:
-        print(f"\nWARN: rule_w shadow failed but production succeeded. "
-              f"You can bet from the production dashboard; rerun shadow later.",
-              file=sys.stderr)
-        # Don't return — other experiments are independent
-
-    rc = _run("3/4 shadow predictions (jockey_form OFF)",
+    rc = _run("2/3 shadow predictions (jockey_form OFF)",
               [sys.executable, '-m', 'scripts.shadow_generate', args.race_date,
                '--variant', 'jockey_form'])
     if rc != 0:
@@ -66,7 +60,7 @@ def main():
               file=sys.stderr)
 
     # Tier B shadow is a pure local replay of race_data JSON (no HKJC fetch)
-    rc_b = _run("4/4 tier B shadow (OLD recommender decisions)",
+    rc_b = _run("3/3 tier B shadow (OLD recommender decisions)",
                 [sys.executable, '-m', 'scripts.tier_b_shadow', args.race_date])
     if rc_b != 0:
         print(f"\nWARN: tier B shadow failed but production succeeded.",
