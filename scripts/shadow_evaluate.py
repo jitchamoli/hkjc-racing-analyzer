@@ -247,7 +247,7 @@ def _append_log(rows, race_date, log_path: Path):
         for r in rows: w.writerow(r)
 
 
-from scripts.forward_common import bayesian_verdict
+from scripts.forward_common import bayesian_verdict, MIN_MEETINGS
 
 
 def _per_meeting_winners(rows) -> list[int]:
@@ -315,9 +315,10 @@ def report(variant: str) -> int:
     print(f"Delta (shadow - production):  P&L {s_pnl-p_pnl:+.1f}u  |  ROI {s_roi-p_roi:+.1f}pp")
     print()
 
-    # Bayesian Beta-Binomial posterior — replaces the arbitrary N>=6 heuristic.
-    # Optional-stopping safe: you can check after every meeting without
-    # inflating Type I error.
+    # Bayesian Beta-Binomial posterior, gated by the MIN_MEETINGS floor.
+    # NOT optional-stopping safe: cumulative-through-meeting outcomes are
+    # autocorrelated, so the posterior overstates confidence at small N
+    # (see forward_common.bayesian_verdict NOTE). The floor is the guard.
     winners = _per_meeting_winners(rows)
     v = bayesian_verdict(winners)
     print(f"  Per-meeting outcomes (1=shadow cum ROI > prod): {winners}")
@@ -327,10 +328,13 @@ def report(variant: str) -> int:
         print(f"  → SHIP. {cfg['ship_hint']}  (posterior >= 0.95)")
     elif v['verdict'] == 'KILL':
         print(f"  → KILL. {cfg['keep_hint']}  (posterior <= 0.05)")
+    elif v['n_meetings'] < MIN_MEETINGS:
+        print(f"  → WATCH. Only {v['n_meetings']}/{MIN_MEETINGS} meetings — below the "
+              f"floor for a SHIP/KILL verdict regardless of posterior "
+              f"(posterior={v['posterior']:.3f}; cumulative-ROI outcomes are "
+              f"autocorrelated so small-N posteriors overstate confidence).")
     else:
         print(f"  → WATCH. Posterior is in [0.05, 0.95] — keep accruing meetings.")
-        if v['n_meetings'] < 3:
-            print(f"     (Posterior is noisy below ~3 meetings; current N={v['n_meetings']})")
     return 0
 
 

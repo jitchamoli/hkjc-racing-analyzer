@@ -269,8 +269,9 @@ def report(filter_date: str | None = None) -> int:
         if n_diff < 10:
             print(f"  ⚠️  Only {n_diff} disagreement(s) so far — collect ≥10 before drawing conclusions.")
 
-        # Bayesian per-meeting verdict (added 2026-05-23) — optional-stopping
-        # safe SHIP/KILL/WATCH on cumulative-ROI per meeting. Replaces the
+        # Bayesian per-meeting verdict (added 2026-05-23) — floor-gated
+        # SHIP/KILL/WATCH on cumulative-ROI per meeting (posterior is NOT
+        # optional-stopping safe — see forward_common NOTE). Replaces the
         # aggregate "NEW wins / OLD wins / tie" verdict above as the primary
         # decision rule; that line stays for context.
         winners: list[int] = []

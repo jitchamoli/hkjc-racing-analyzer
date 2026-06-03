@@ -191,6 +191,31 @@ def build_training_data(all_races: List[Dict]) -> Tuple[np.ndarray, np.ndarray]:
     return np.array(X_list), np.array(y_list)
 
 
+def _finalize_model_backup(model_file, sha_file, backup_path, sha_backup) -> bool:
+    """Resolve the backup AFTER a train() that did not raise.
+
+    train() can return normally yet write nothing — _save_model() silently
+    refuses (no exception) when n_samples < MIN_SAVE_SAMPLES. In that case the
+    new model is NOT on disk, so deleting the backup would permanently lose the
+    production model. Drop the backup ONLY when a new model actually exists;
+    otherwise restore the backup. Returns True if a new model was written.
+    """
+    if model_file.exists():
+        if backup_path.exists():
+            backup_path.unlink()
+        if sha_backup.exists():
+            sha_backup.unlink()
+        logger.info("Model trained; removed backup")
+        return True
+    # No new model written (silent save-guard) — restore so we never lose it.
+    if backup_path.exists():
+        backup_path.rename(model_file)
+        if sha_backup.exists():
+            sha_backup.rename(sha_file)
+        logger.warning("Model NOT written (sample guard) — restored from backup")
+    return False
+
+
 def main():
     logger.info("=== HKJC ML Model Training Pipeline ===")
 
@@ -296,18 +321,27 @@ def main():
                              place_labels=place_labels, groups=groups)
     except Exception as e:
         logger.error(f"Training failed: {e}")
-        if backup_path.exists():
-            backup_path.rename(model.MODEL_FILE)
-            if sha_backup.exists():
-                sha_backup.rename(model._checksum_path())
-            logger.info("Restored model from backup")
+        # A post-save audit (np.corrcoef, constant-feature check, log_experiment
+        # I/O) can raise AFTER _save_model() already wrote a valid new model.
+        # Use the same freshness-checked finalizer as the success path: keep a
+        # freshly-saved model and restore the backup ONLY when nothing was
+        # written — never clobber a good new model with the old backup.
+        if _finalize_model_backup(model.MODEL_FILE, model._checksum_path(),
+                                  backup_path, sha_backup):
+            logger.warning("New model was saved before the failure — kept it.")
+        else:
+            logger.info("No new model written — restored from backup")
         raise
 
-    # Training succeeded — remove backup
-    if backup_path.exists():
-        backup_path.unlink()
-    if sha_backup.exists():
-        sha_backup.unlink()
+    # Training returned without raising — but only drop the backup if a new
+    # model was actually written. _save_model() refuses silently below
+    # MIN_SAVE_SAMPLES; without this guard the backup (and the only copy of the
+    # production model) would be deleted. See _finalize_model_backup.
+    if not _finalize_model_backup(model.MODEL_FILE, model._checksum_path(),
+                                  backup_path, sha_backup):
+        logger.error("Training produced no saved model (sample guard); "
+                     "previous model restored from backup. Aborting.")
+        raise SystemExit(2)
     logger.info(f"Model trained: accuracy={result['accuracy']:.2%}, "
                 f"precision={result.get('precision', 0):.2%}, "
                 f"recall={result.get('recall', 0):.2%}")
