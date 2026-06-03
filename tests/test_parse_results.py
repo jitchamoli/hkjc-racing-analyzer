@@ -64,3 +64,21 @@ class TestParseResultsNameStripping:
 
     def test_empty_html_returns_empty(self):
         assert HKJCParser.parse_results("") == []
+
+    def test_finish_time_not_a_trainer_name(self):
+        """Regression (10-expert review): finish_time used to read texts[4],
+        which is the Trainer column in the results layout — so it was populated
+        with a trainer name. The canonical finish time comes from the sectional
+        scraper; parse_results must not emit a trainer name as finish_time."""
+        results = HKJCParser.parse_results(_RESULTS_HTML)
+        trainers = {"M Newnham", "D J Hall", "A S Cruz", "J Size", "C Fownes", "P Yiu"}
+        for r in results:
+            assert r["finish_time"] not in trainers, (
+                f"finish_time leaked a trainer name: {r['finish_time']!r}"
+            )
+
+    def test_win_odds_still_parsed_from_last_cell(self):
+        """The finish_time fix must not disturb win_odds (last cell)."""
+        results = HKJCParser.parse_results(_RESULTS_HTML)
+        podium = next(r for r in results if r["name"] == "PODIUM")
+        assert podium["win_odds"] == 8.9

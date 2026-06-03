@@ -632,7 +632,14 @@ class HKJCParser:
                     "position": pos,
                     "number": horse_no,
                     "name": name,
-                    "finish_time": texts[4] if len(texts) > 4 else "",
+                    # finish_time intentionally blank: the results table's column
+                    # index for the time varies by page layout (texts[4] is the
+                    # Trainer column in the common layout, not the time), and the
+                    # canonical per-horse finish time is captured from the
+                    # sectional scraper (data/sectional_scraper.py, 99.4% coverage).
+                    # No consumer reads this field — emitting a wrong-column value
+                    # would only be a latent landmine.
+                    "finish_time": "",
                     "win_odds": HKJCParser._safe_float(texts[-1]) if texts[-1] else 0,
                 })
 
