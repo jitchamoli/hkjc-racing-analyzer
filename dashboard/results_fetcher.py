@@ -638,7 +638,13 @@ def _build_races_from_json(json_races: list, race_date: str) -> list:
         entries = []
         for res in results:
             num = res.get('number')
-            name = (res.get('name') or '').split('(')[0].strip()
+            # Canonical brand-strip (matches core/fetcher.parse_results and
+            # data/scraper.py): drop only a trailing paren containing a digit
+            # (brand code like '(K123)'), KEEP letters-only country codes like
+            # '(NZ)', and upper-case. The old `.split('(')[0]` truncated
+            # 'KIWI STAR (NZ)(K123)' -> 'KIWI STAR', keying overseas runners
+            # differently from the scraper and fragmenting their history.
+            name = re.sub(r"\s*\([^)]*\d[^)]*\)\s*$", "", (res.get('name') or '')).strip().upper()
             if not name or not num:
                 # database.py:232 silently skips entries with empty horse_name,
                 # which would lose the horse from training data with no signal.
