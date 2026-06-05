@@ -265,7 +265,11 @@ def _score_meeting_replay(conn, date) -> dict | None:
             pool = bet.get("pool", "")
             combos = int(bet.get("combos", 0) or 0)
             unit_stake = float(bet.get("unit_stake", 0) or 0)
-            leg_names = {leg.get("name") for leg in (bet.get("legs") or [])}
+            # Filter falsy names — a leg with name=None would poison the set
+            # ({None} is truthy, so the guard below wouldn't skip it) and make
+            # every hit comparison silently miss, under-counting replay ROI.
+            # Mirrors stake_ab._score_bet_from_ticket.
+            leg_names = {leg.get("name") for leg in (bet.get("legs") or []) if leg.get("name")}
             if not leg_names or combos <= 0:
                 continue
             # Fall back to $1 unit if the ticket didn't size the stake — keeps
