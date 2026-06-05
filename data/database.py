@@ -284,6 +284,25 @@ class HorseDatabase:
             going = race.get('going', '')
             course = race.get('course', '')
 
+            # Dropped-finisher guard: a complete result set has contiguous
+            # placings, so max(finishing position) must equal the number of
+            # finishers. max > count means a finisher is missing — the exact
+            # signature of the dead-heat parser drop fixed 2026-06-05 (HKJC's
+            # "9 DH" cell was rejected, silently losing both tied horses).
+            # Warn loudly here so any future parse drop is caught at ingest,
+            # whatever the source (scraper OR _build_races_from_json). A
+            # correctly-kept dead heat does NOT trip this (1,2,2,4 → max==count).
+            finish_positions = [e.get('actual_position', 0) for e in race.get('entries', [])
+                                if (e.get('actual_position') or 0) >= 1]
+            if finish_positions and max(finish_positions) > len(finish_positions):
+                missing = max(finish_positions) - len(finish_positions)
+                logger.warning(
+                    f"DROPPED FINISHER(S) in {race_date} R{race_no}: "
+                    f"{len(finish_positions)} rows but top placing is {max(finish_positions)} "
+                    f"({missing} missing — likely an unparsed dead heat). "
+                    f"Re-scrape this race; check the placing parser for new markers."
+                )
+
             for entry in race.get('entries', []):
                 horse_name = entry.get('name', '')
                 if not horse_name:
@@ -326,6 +345,9 @@ class HorseDatabase:
                         gear=CASE WHEN excluded.gear != '' THEN excluded.gear ELSE race_results.gear END,
                         class_type=CASE WHEN excluded.class_type != '' THEN excluded.class_type ELSE race_results.class_type END,
                         course=CASE WHEN excluded.course != '' THEN excluded.course ELSE race_results.course END,
+                        venue=CASE WHEN excluded.venue != '' THEN excluded.venue ELSE race_results.venue END,
+                        distance=CASE WHEN excluded.distance > 0 THEN excluded.distance ELSE race_results.distance END,
+                        going=CASE WHEN excluded.going != '' THEN excluded.going ELSE race_results.going END,
                         jockey=CASE WHEN excluded.jockey != '' THEN excluded.jockey ELSE race_results.jockey END,
                         trainer=CASE WHEN excluded.trainer != '' THEN excluded.trainer ELSE race_results.trainer END,
                         draw=CASE WHEN excluded.draw > 0 THEN excluded.draw ELSE race_results.draw END,
