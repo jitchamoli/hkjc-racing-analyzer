@@ -346,6 +346,8 @@ class HorseDatabase:
                         class_type=CASE WHEN excluded.class_type != '' THEN excluded.class_type ELSE race_results.class_type END,
                         course=CASE WHEN excluded.course != '' THEN excluded.course ELSE race_results.course END,
                         venue=CASE WHEN excluded.venue != '' THEN excluded.venue ELSE race_results.venue END,
+                        distance=CASE WHEN excluded.distance > 0 THEN excluded.distance ELSE race_results.distance END,
+                        going=CASE WHEN excluded.going != '' THEN excluded.going ELSE race_results.going END,
                         jockey=CASE WHEN excluded.jockey != '' THEN excluded.jockey ELSE race_results.jockey END,
                         trainer=CASE WHEN excluded.trainer != '' THEN excluded.trainer ELSE race_results.trainer END,
                         draw=CASE WHEN excluded.draw > 0 THEN excluded.draw ELSE race_results.draw END,

@@ -48,6 +48,11 @@ _MARGIN_RE = re.compile(r"^(?:|SH|HD|NK|NS|N|DH|SHD|\d+(?:-\d+/\d+|/\d+)?)$")
 _TIME_RE = re.compile(r"\d{2}\.\d{2}")
 # Horse name + brand number: "PODIUM (H173)" (the gap is a non-breaking space).
 _NAME_BRAND_RE = re.compile(r"^(.*?)\s*\(([^)]+)\)\s*$")
+# Finishing-order cell: the placing, optionally with a dead-heat "DH" marker
+# (e.g. "9 DH"). A bare `.isdigit()` rejected the marker and silently dropped
+# BOTH dead-heating horses from the sectional table — the same class of bug
+# fixed in data/scraper.py on 2026-06-05 (see HKJC parser gotchas).
+_FINISH_ORDER_RE = re.compile(r"^(\d+)(?:\s*DH)?$")
 
 
 def _is_valid_margin(s: str) -> bool:
@@ -175,8 +180,9 @@ def parse_sectional_html(
         elif head.startswith("Finishing Order"):
             for r in rows[1:]:
                 cells = [c.get_text(strip=True) for c in r.find_all(["td", "th"])]
-                # Data rows lead with two integers (order, horse no).
-                if len(cells) >= 4 and cells[0].isdigit() and cells[1].isdigit():
+                # Data rows lead with a placing (maybe "9 DH") + horse no.
+                if (len(cells) >= 4 and _FINISH_ORDER_RE.match(cells[0].upper())
+                        and cells[1].isdigit()):
                     horse_rows.append(cells)
 
     if not horse_rows:
@@ -191,7 +197,7 @@ def parse_sectional_html(
         raw_sections.append(section_cells)
         name, brand = _split_name_brand(cells[2])
         parsed_horses.append({
-            "finishing_order": int(cells[0]),
+            "finishing_order": int(_FINISH_ORDER_RE.match(cells[0].upper()).group(1)),
             "horse_no": int(cells[1]),
             "horse_name": name,
             "horse_brand": brand,
