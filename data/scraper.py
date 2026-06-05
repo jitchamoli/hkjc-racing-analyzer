@@ -97,7 +97,14 @@ async def scrape_meeting_results(race_date: str, max_races: int = 12) -> List[Di
                     data.append([c.get_text(strip=True) for c in cells])
                 table_data.append(data)
 
-        race_data = _parse_tables(table_data, race_date, race_no)
+        # Venue now lives in a 1-row table dropped by the >=3-row filter above;
+        # scan the full page text as a fallback (HV checked first — "Sha Tin"
+        # can appear in other contexts, "Happy Valley" is unambiguous).
+        page_text = soup.get_text(" ", strip=True)
+        venue_hint = ("Happy Valley" if "Happy Valley" in page_text
+                      else "Sha Tin" if "Sha Tin" in page_text else "")
+
+        race_data = _parse_tables(table_data, race_date, race_no, venue_hint=venue_hint)
         if not race_data or not race_data.get('entries'):
             consecutive_empty += 1
             if consecutive_empty >= EMPTY_TOLERANCE:
@@ -117,7 +124,8 @@ async def scrape_meeting_results(race_date: str, max_races: int = 12) -> List[Di
     return races
 
 
-def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: int) -> Optional[Dict]:
+def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: int,
+                  venue_hint: str = "") -> Optional[Dict]:
     """Parse JS-extracted table data into a race dict.
 
     table_data is a list of tables, each table is a list of rows,
@@ -172,6 +180,14 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
         if header_parsed:
             break
 
+    # Fallback: HKJC moved the venue into a standalone 1-row table
+    # ("Happy Valley:") that the >=3-row table filter drops, so it never
+    # reaches table_data — venue detection silently failed for whole meetings
+    # (2026/05/24, 05/27, 06/03). The caller passes a page-level hint scanned
+    # from the full HTML; use it only when the header didn't prove a venue.
+    if not venue and venue_hint:
+        venue = venue_hint
+
     if not venue:
         logger.warning("Venue not detected in race header — storing UNKNOWN "
                        "(was previously defaulting to 'Sha Tin', mislabeling HV meetings)")
@@ -194,10 +210,17 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
                 continue
 
             # Position
-            pos_text = row[0].strip()
-            if not re.match(r"^\d{1,2}$", pos_text):
+            # Placing — accept a dead-heat marker after the digits, e.g.
+            # "9 DH"/"9DH" (HKJC marks both tied horses this way). A strict
+            # `^\d{1,2}$` silently DROPPED both dead-heating horses, losing
+            # them from race_results / training / dividend reconciliation
+            # (data-integrity audit 2026-06-05). Still rejects header ("Pla")
+            # and non-finishers ("WV", "PU") which don't start with a digit.
+            pos_text = row[0].strip().upper()
+            pos_match = re.match(r"^(\d{1,2})(?:\s*DH)?$", pos_text)
+            if not pos_match:
                 continue
-            pos = int(pos_text)
+            pos = int(pos_match.group(1))
             if pos < 1 or pos > 24:
                 continue
 
