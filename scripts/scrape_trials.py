@@ -44,15 +44,19 @@ def site_trial_dates() -> list:
     return out
 
 
+# The venue lives in the page's "<Venue> Barrier Trial" header. A page-wide
+# substring match is WRONG: every page carries 7+ "Conghua Racecourse" nav links
+# (crc.hkjc.com), which over-tagged Sha Tin trials as Conghua in the first
+# backfill. Match the header specifically.
+_VENUE_RE = re.compile(r"(Sha Tin|Happy Valley|Conghua)\s+Barrier Trial", re.I)
+
+
 def _detect_venue(html: str) -> str:
-    low = (html or "").lower()
-    if "happy valley" in low:
-        return "HV"
-    if "conghua" in low:
-        return "Conghua"
-    if "sha tin" in low:
-        return "ST"
-    return ""
+    m = _VENUE_RE.search(html or "")
+    if not m:
+        return ""
+    v = m.group(1).lower()
+    return "ST" if "sha" in v else ("HV" if "happy" in v else "Conghua")
 
 
 def scrape_one(api: HKJCApiClient, db: HorseDatabase, date: str) -> int:
