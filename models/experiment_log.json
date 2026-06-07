@@ -1909,5 +1909,46 @@
       "jockey_win_rate \u00d7 jockey_form_30d": 0.738,
       "jockey_win_rate \u00d7 jt_pair_win_rate": 0.737
     }
+  },
+  {
+    "timestamp": "2026-06-07T21:39:31.765329",
+    "model_version": "20260607-213931",
+    "accuracy": 0.7194581592606659,
+    "precision": 0.14895509115162295,
+    "recall": 0.5259026687598116,
+    "logloss": 0.2644974859502723,
+    "brier_score": 0.07151372860748169,
+    "place_accuracy": 0.6545132295227244,
+    "n_samples": 50793,
+    "n_features": 23,
+    "feature_importance": {
+      "prior_win_rate": 0.03648275509476662,
+      "recent_form": 0.06555204093456268,
+      "jockey_win_rate": 0.07465948909521103,
+      "trainer_win_rate": 0.03284420073032379,
+      "field_size": 0.031557440757751465,
+      "field_rel_draw": 0.042424388229846954,
+      "cd_form_prior": 0.03699657693505287,
+      "class_level": 0.04123448207974434,
+      "freshness": 0.034053340554237366,
+      "going_performance": 0.03284117579460144,
+      "weight_vs_field": 0.033964645117521286,
+      "jockey_horse_coop": 0.034355804324150085,
+      "last_start_margin": 0.16625770926475525,
+      "class_change": 0.030192794278264046,
+      "horse_weight_change": 0.03303015977144241,
+      "horse_age": 0.03990942984819412,
+      "rating_change": 0.03686249628663063,
+      "jockey_form_30d": 0.033336423337459564,
+      "jt_pair_win_rate": 0.03138989582657814,
+      "early_speed": 0.03637513518333435,
+      "late_kick": 0.03297121450304985,
+      "mid_race_pace": 0.030646586790680885,
+      "sire_top3_rate_on_going": 0.03206188231706619
+    },
+    "high_correlations": {
+      "jockey_win_rate \u00d7 jockey_form_30d": 0.738,
+      "jockey_win_rate \u00d7 jt_pair_win_rate": 0.737
+    }
   }
 ]
