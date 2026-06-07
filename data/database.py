@@ -228,6 +228,31 @@ class HorseDatabase:
         c.execute("CREATE INDEX IF NOT EXISTS idx_dividends_date ON race_dividends(race_date, race_number)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_dividends_pool ON race_dividends(pool)")
 
+        # Barrier-trial results (scraped from Trackwork/BTResult.aspx). One row
+        # per (trial day, heat, horse). Source for candidate trial-form features
+        # — query with trial_date < race_date for leak-free priors. finish_position
+        # is the 1-based finishing order within the heat; margin is LBW.
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS barrier_trials (
+                trial_date TEXT NOT NULL,
+                venue TEXT,
+                heat INTEGER NOT NULL,
+                horse_name TEXT NOT NULL,
+                finish_position INTEGER,
+                margin TEXT,
+                finish_time TEXT,
+                running_position TEXT,
+                jockey TEXT,
+                trainer TEXT,
+                draw TEXT,
+                gear TEXT,
+                scraped_at TEXT,
+                PRIMARY KEY (trial_date, heat, horse_name)
+            )
+        """)
+        c.execute("CREATE INDEX IF NOT EXISTS idx_trials_horse_date ON barrier_trials(horse_name, trial_date)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_trials_date ON barrier_trials(trial_date)")
+
         # Indexes
         c.execute("CREATE INDEX IF NOT EXISTS idx_plog_date_filled ON prediction_log(race_date, results_filled)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_plog_date ON prediction_log(race_date)")
@@ -249,6 +274,37 @@ class HorseDatabase:
         c.execute("CREATE INDEX IF NOT EXISTS idx_results_jt_pair_date ON race_results(jockey, trainer, race_date)")
 
         self.conn.commit()
+
+    # ------------------------------------------------------------------
+    # Ingest barrier trials
+    # ------------------------------------------------------------------
+
+    def ingest_barrier_trials(self, trials: List[Dict], venue: str = "") -> int:
+        """Upsert parsed barrier-trial rows into barrier_trials. Idempotent
+        (INSERT OR REPLACE on (trial_date, heat, horse_name)). Returns rows written.
+
+        `trials` are dicts from HKJCParser.parse_barrier_trials (must carry
+        'date' = trial_date in YYYY/MM/DD)."""
+        if not trials:
+            return 0
+        now = datetime.now().strftime('%Y-%m-%d %H:%M')
+        n = 0
+        for t in trials:
+            if not t.get("date") or not t.get("horse_name"):
+                continue
+            self.conn.execute(
+                """INSERT OR REPLACE INTO barrier_trials (
+                    trial_date, venue, heat, horse_name, finish_position, margin,
+                    finish_time, running_position, jockey, trainer, draw, gear, scraped_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (t.get("date"), venue, t.get("heat"), t.get("horse_name"),
+                 t.get("position"), t.get("margin"), t.get("time"),
+                 t.get("running_position"), t.get("jockey"), t.get("trainer"),
+                 t.get("draw"), t.get("gear"), now),
+            )
+            n += 1
+        self.conn.commit()
+        return n
 
     # ------------------------------------------------------------------
     # Ingest race results
