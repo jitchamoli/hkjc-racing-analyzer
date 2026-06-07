@@ -58,6 +58,17 @@ BANKROLL = 10000
 # unfinished race's stake down proportionally if the sum exceeds it.
 CARD_EXPOSURE_CAP = 0.10
 
+# Bankroll guard (stop-loss / daily caps) — betting/bankroll_guard.py. A
+# STATEFUL discipline layer that recomputes the day's realised P&L from
+# race_bet_ticket + results and HALTS further betting once a cap is hit (the
+# anti-chase mechanism CARD_EXPOSURE_CAP does NOT provide — that only pro-rates
+# forward stakes within a card, it never stops you after a losing run). No edge
+# is assumed; this is pure wallet protection (tip #5: max daily loss, stop after
+# limit, no doubling). Set BANKROLL above to your real rolling bankroll.
+MAX_STAKE_PER_RACE_PCT = 0.03   # cap any single race's stake at 3% of bankroll
+DAILY_EXPOSURE_CAP_PCT = 0.10   # block NEW bets once cumulative stake >= 10%
+DAILY_LOSS_CAP_PCT = 0.08       # hard STOP once realised loss >= 8% of bankroll
+
 # Monitor
 POLL_INTERVAL = 300  # seconds
 PRE_RACE_WINDOW = 360  # seconds
