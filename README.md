@@ -4,6 +4,18 @@ Real-time horse racing analysis for the Hong Kong Jockey Club (HKJC). Combines a
 
 > **Multi-jurisdiction expansion (2026-05-17):** HK remains the primary, production pipeline. Four additional jurisdictions ship as **isolated, experimental pipelines** sharing only the API client — see [Multi-jurisdiction pipelines](#multi-jurisdiction-pipelines-uk--fr--au--jp) below.
 
+## What's New (2026-06-07) — barrier-trial angle closed + bankroll guard + injectable blend
+
+**Barrier-trial investigation — built, tested across 4 gates, KILLED (infra kept).** Added a full new orthogonal data source: a trial scraper (`scripts/scrape_trials.py`), the `barrier_trials` table, and a 13-month backfill (8,460 runners / 177 dates, 90% join to results). It was the **only** candidate ever to pass the cheap diagnostic — first-up trial winners place **35.6% vs 16.9%** (r=+0.193, the strongest signal in project history) — yet it still died downstream: the beats-price test showed the headline +30.4% WIN ROI was a 3-longshot mirage (capped −3% to −13%; no win edge, 13.8% ≈ market-implied 14%), the re-rank was null, and a multi-seed trained A/B was noise. After an independent code+racing+ML review flagged that only the *finishing-position* signal had been tested, we ran the decisive follow-up (`scripts/ab_trials_time_trained.py`): the untested trial **clock** (time-vs-par, first-up ≥90d, ST/HV-only, multi-seed, scored only on the 344 first-up-affected races) is **also noise** (capture flips sign across seeds, place-Brier Δ −0.00026). Both the placing *and* clock signals are null → trials are public, the market prices them. Textbook efficient-market wall on genuinely-new data. Infrastructure is retained and keeps accruing (`scrape_trials --since-last`).
+
+**Bankroll guard — stateful stop-loss / daily-cap discipline.** New `betting/bankroll_guard.py` + `scripts/bankroll_status.py`: a thin discipline layer over the frozen `race_bet_ticket` ledger that tracks per-race stake, daily exposure, and daily loss against caps in `config.py` (`MAX_STAKE_PER_RACE_PCT`, `DAILY_EXPOSURE_CAP_PCT`, `DAILY_LOSS_CAP_PCT`). It reuses `validate_hk._score_meeting_replay` so resolved-stake math is identical to the replay scorer (no second source of truth). Advisory only — does not auto-block bets.
+
+**Injectable blend (DI refactor).** All model/market blend weights now live in `core/scorer.BlendConfig` (a frozen dataclass) and the post-blend calibrator is injectable, both threaded through `calibrate_probabilities` and `assign_bet_recommendations`. Defaults are unchanged (45/55, production calibrator via a sentinel); the point is clean A/B and future extension without touching the rule engine. A recalibrated 634-race holdout A/B of 60/40 vs 45/55 was a wash — kept 45/55.
+
+**UK model retrained** to current form (gap-filled `uk_history.db` through 2026-06-05, 52,300 samples). Holdout still level with the market (AUC 0.782 vs SP 0.785) — no new edge, paper-only.
+
+> Net posture is unchanged: **no demonstrated betting edge, paper-only.** The session's durable wins are defensive (bankroll discipline, injectable blend, stronger A/B methodology — multi-seed + permutation-safe alignment), not a new edge.
+
 ## What's New (2026-05-25) — race-day integrity hardening (R6–R15) + ticket-first WA + jockey-ELO killed
 
 **Frozen `race_bet_ticket` as single source of truth.** A new `race_bet_ticket` DB table records every per-meeting bet (label, pool, legs, combos, unit_stake, amount, reason). Every betting-critical surface — visual ticket, both WA buttons, `validate_hk --replay`, dashboard STRIKE badge, `stake_ab` — now reads from this table instead of re-deriving from rank order. Closes the entire phantom-hit / WA-fabrication / leg-drift class of bugs that R8/R11 exposed.
