@@ -3,11 +3,44 @@
 
 import math
 import logging
+from dataclasses import dataclass
 from typing import List, Dict, Tuple
 
 import config
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class BlendConfig:
+    """Tunables for the dynamic model/market blend in calibrate_probabilities.
+
+    Defaults reproduce the F-09 production schedule EXACTLY (base 45/55
+    model/market, ±0.15 ramps, sprint 1200m, field 10). Inject a variant to
+    experiment with the blend without monkeypatching module globals — e.g.
+    `BlendConfig(base_model_w=0.30)` for a more-market blend. This is the
+    supported extension point for blend research (see scripts/backtest).
+    """
+    base_model_w: float = 0.45
+    shift: float = 0.15                      # max ramp magnitude
+    sprint_threshold: float = 1200.0
+    sprint_tau: float = 100.0
+    field_threshold: float = 10.0
+    field_tau: float = 1.5
+    long_distance_threshold: float = 1800.0
+    distance_tau: float = 100.0
+    model_w_floor: float = 0.30
+    model_w_ceil: float = 0.70
+
+
+_DEFAULT_BLEND = BlendConfig()
+
+# Sentinel for calibrate_probabilities(calibrator=...): the default lazy-loads
+# the signed production blend_calibrator.pkl. Pass an explicit IsotonicRegression
+# to inject a variant, or None to disable calibration entirely. A plain None
+# default would silently DISABLE calibration for every production caller, hence
+# the sentinel.
+USE_PRODUCTION_CALIBRATOR = object()
 
 
 class BettingWeights:
@@ -92,7 +125,8 @@ def compute_weighted_score(factors: Dict[str, float]) -> float:
     return 50.0
 
 
-def _dynamic_blend_weights(field_size: int, distance: int) -> Tuple[float, float]:
+def _dynamic_blend_weights(field_size: int, distance: int,
+                           cfg: BlendConfig = None) -> Tuple[float, float]:
     """Compute dynamic market/model blend weights based on race characteristics.
 
     HK bettors are sharp — larger fields and shorter races benefit from
@@ -106,32 +140,37 @@ def _dynamic_blend_weights(field_size: int, distance: int) -> Tuple[float, float
     selected base_model_w=0.45 over the prior heuristic 0.60.
     See docs/audits/2026-04-23/raw/wave2-sweep-summary.json.
 
+    `cfg` (BlendConfig) holds the tunables; defaults reproduce the F-09
+    production schedule exactly. Pass a variant to experiment — no monkeypatch.
+
     Returns (model_weight, market_weight) summing to 1.0.
     """
+    if cfg is None:
+        cfg = _DEFAULT_BLEND
     # F-09 empirically chosen base 45/55 model/market, sprint threshold 1200m,
     # field threshold 10. Replaced hard cutoffs (40pp swing on field_size
     # differing by 1 horse, e.g. 10 vs 9 at 1200m) with logistic ramps so
     # the weight changes smoothly across boundaries — no noise amplification
     # at exactly threshold values.
-    base_model_w = 0.45
+    base_model_w = cfg.base_model_w
 
     # Sigmoid ramps: σ(x/τ) is 0 far below threshold, 1 far above, ~0.5 at threshold.
     # τ = scale (smoothness): larger = smoother transition.
-    sprint_factor = 1.0 / (1.0 + math.exp(-(1200 - distance) / 100.0))   # high for sprints
-    big_field_factor = 1.0 / (1.0 + math.exp(-(field_size - 10) / 1.5))  # high for ≥10 horses
-    long_distance_factor = 1.0 / (1.0 + math.exp(-(distance - 1800) / 100.0))  # high for ≥1800m
-    small_field_factor = 1.0 / (1.0 + math.exp(-(10 - field_size) / 1.5))   # high for <10 horses
+    sprint_factor = 1.0 / (1.0 + math.exp(-(cfg.sprint_threshold - distance) / cfg.sprint_tau))
+    big_field_factor = 1.0 / (1.0 + math.exp(-(field_size - cfg.field_threshold) / cfg.field_tau))
+    long_distance_factor = 1.0 / (1.0 + math.exp(-(distance - cfg.long_distance_threshold) / cfg.distance_tau))
+    small_field_factor = 1.0 / (1.0 + math.exp(-(cfg.field_threshold - field_size) / cfg.field_tau))
 
-    # Large field + sprint → market sharper → shift toward market (max +0.15)
-    market_shift = 0.15 * sprint_factor * big_field_factor
-    # Small field OR long distance → thinner pool → shift toward model (max +0.15)
+    # Large field + sprint → market sharper → shift toward market (max +shift)
+    market_shift = cfg.shift * sprint_factor * big_field_factor
+    # Small field OR long distance → thinner pool → shift toward model (max +shift)
     # Use OR via algebraic combination: 1 - (1-small)(1-long)
     pool_thinness = 1.0 - (1.0 - small_field_factor) * (1.0 - long_distance_factor)
-    model_shift = 0.15 * pool_thinness
+    model_shift = cfg.shift * pool_thinness
 
     # Apply both shifts (they can partially offset on edge cases)
     model_w = base_model_w + model_shift - market_shift
-    model_w = max(0.30, min(0.70, model_w))
+    model_w = max(cfg.model_w_floor, min(cfg.model_w_ceil, model_w))
     market_w = 1.0 - model_w
 
     return model_w, market_w
@@ -189,7 +228,9 @@ def _load_blend_calibrator():
 
 
 def calibrate_probabilities(analyses, field_size: int = 12,
-                            distance: int = 1200) -> List[float]:
+                            distance: int = 1200,
+                            blend_config: BlendConfig = None,
+                            calibrator=USE_PRODUCTION_CALIBRATOR) -> List[float]:
     """Convert combined_probability scores into calibrated race-level probabilities.
 
     Pipeline:
@@ -197,6 +238,12 @@ def calibrate_probabilities(analyses, field_size: int = 12,
       2. Dynamic blend with market-implied probs → blended
       3. (optional) Apply post-blend isotonic calibrator if present
       4. Normalize so sum==1
+
+    Injection points (defaults reproduce production exactly):
+      blend_config — a BlendConfig to override the model/market schedule.
+      calibrator   — USE_PRODUCTION_CALIBRATOR (default) lazy-loads the signed
+                     blend_calibrator.pkl; pass an IsotonicRegression to inject
+                     a variant, or None to disable calibration.
 
     The post-blend calibrator (step 3) corrects a residual under-prediction
     bias on the post-C1 anchored-sigmoid distribution — top picks were
@@ -231,7 +278,7 @@ def calibrate_probabilities(analyses, field_size: int = 12,
     market_probs = [p / market_total for p in market_probs]
 
     # Dynamic blend weights based on race characteristics
-    model_w, market_w = _dynamic_blend_weights(field_size, distance)
+    model_w, market_w = _dynamic_blend_weights(field_size, distance, blend_config)
 
     blended = []
     for i in range(len(cal_probs)):
@@ -263,7 +310,7 @@ def calibrate_probabilities(analyses, field_size: int = 12,
     blend_total = sum(blended) or 1.0
     blended = [p / blend_total for p in blended]
 
-    iso = _load_blend_calibrator()
+    iso = _load_blend_calibrator() if calibrator is USE_PRODUCTION_CALIBRATOR else calibrator
     if iso is not None:
         try:
             import numpy as _np

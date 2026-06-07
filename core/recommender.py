@@ -5,13 +5,18 @@ import logging
 from typing import List
 
 import config
-from core.scorer import calibrate_probabilities, apply_calibrated_probs
+from core.scorer import (
+    calibrate_probabilities, apply_calibrated_probs,
+    BlendConfig, USE_PRODUCTION_CALIBRATOR,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def assign_bet_recommendations(analyses, field_size: int = 12,
-                               distance: int = 1200) -> None:
+                               distance: int = 1200,
+                               blend_config: BlendConfig = None,
+                               blend_calibrator=USE_PRODUCTION_CALIBRATOR) -> None:
     """Assign realistic bet recommendations based on field shape.
 
     Calibrates probabilities via softmax + market blend (dynamic weights
@@ -21,13 +26,20 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
     BANKER WIN may fire only when the BANKER horse is already rank 1 by
     calibrated probability (GPT-5.5 R13 #3 2026-05-25 — old market-fav
     and BANKER rank promotions removed).
+
+    `blend_config` / `blend_calibrator` are passed through to
+    calibrate_probabilities; defaults reproduce production exactly. They let
+    callers (backtest, experiments) inject a blend variant without
+    monkeypatching module globals.
     """
     if not analyses:
         return
 
     n = len(analyses)
     calibrated_probs = calibrate_probabilities(analyses, field_size=field_size,
-                                               distance=distance)
+                                               distance=distance,
+                                               blend_config=blend_config,
+                                               calibrator=blend_calibrator)
     apply_calibrated_probs(analyses, calibrated_probs)
 
     # GPT-5.5 R12 #4 2026-05-25 — re-sort by calibrated_prob so `rank` is
