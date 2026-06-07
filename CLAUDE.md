@@ -53,6 +53,12 @@ python3 -m scripts.dump_db     # → tracking_data/backup/db_core_dump.sql.gz (~
 python3 -m scripts.restore_db  # replay SQL + reload Renavon CSVs; idempotent
 python3 -m scripts.backfill_dividends [--last 20 | --force]
 
+# Bankroll discipline (stateful stop-loss / daily caps; reads frozen tickets)
+python3 -m scripts.bankroll_status [DATE]      # daily exposure vs caps (config.py pcts)
+
+# Barrier trials (data infra only — feature KILLED; keep accruing for the record)
+python3 -m scripts.scrape_trials --since-last  # → barrier_trials table (ST/HV/Conghua)
+
 # Multi-jurisdiction (UK/FR via theracingapi.com; AU/JP reference-only)
 python3 -m scripts.ingest_{uk,fr,au,jp} --since-last
 python3 -m scripts.{train,backtest,validate}_{uk,fr} [--since-cutoff]
@@ -138,6 +144,12 @@ pure_prob = softmax(rule×0.6 + ml×0.4)         # independent opinion, pre-mark
 
 → dynamic blend: model × (30-60%) + market × (40-70%)
   (base 45/55, sprint threshold 1200m, field threshold 10)
+  All weights live in `core/scorer.BlendConfig` (frozen dataclass, injectable via
+  `blend_config=` on calibrate_probabilities / assign_bet_recommendations; default
+  = `_DEFAULT_BLEND`). Calibrator likewise injectable (`USE_PRODUCTION_CALIBRATOR`
+  sentinel loads the pickle; pass an explicit one for A/B, None to disable).
+  60/40 vs 45/55 was A/B'd on a recalibrated 634-race holdout = wash (more-market
+  loses slightly less). Don't re-tune without a fresh calibrator + ≥250-bet forward.
 → post-blend isotonic calibrator (blend_calibrator.pkl, lazy)
 → calibrated_prob (normalized sum=1.0)
 → expected_return = odds × calibrated_prob - 1
@@ -210,7 +222,7 @@ Every betting-critical surface reads from `race_bet_ticket` instead of re-derivi
 
 ## Feature experiment kill record (cheap-diagnostic line)
 
-9 candidates killed at Gate A1/A2/B since 2026-05-22:
+10 candidates killed since 2026-05-22 (1–9 at Gate A1/A2/B; #10 passed the diagnostic but died at the price/trained-A/B gate):
 1. Sectional closing figure (diagnostic-killed, +0.33 corr with place_prob)
 2. `jockey_ae` from API (lifetime leak inflated +0.033)
 3. Pace/trip flags ×5 (base rate <0.15% or wrong-sign-redundant with field_rel_draw)
@@ -220,6 +232,7 @@ Every betting-critical surface reads from `race_bet_ticket` instead of re-derivi
 7. Draw × style interaction (Gate A2: cell rate is 90% running_style)
 8. `jt_market_sharpness` (leak-free self-computed J×T a/e: r=−0.040, wrong sign — measures longshot fluke not skill)
 9. **Jockey ELO (3 designs)** — V1 place-anchored r=−0.14 (wrong sign); V2 raw r=+0.0986 was a +K·0.43/ride drift artifact; V2 Harville-fixed r=−0.158 (Purton at ELO −665). Market-anchored skill ratings in HK invert through favorite-longshot bias. See `memory/project_jockey_elo_v1_killed_v2_passed_2026-05-25.md`. Archived scripts: `scripts/diagnose_jockey_elo.py`, `diagnose_jockey_elo_v2.py`, `jockey_elo_shadow.py`. **Do NOT extend** — market-anchored jockey skill rating is structurally broken for HK.
+10. **Barrier trials (full 4-gate investigation, 2026-06-07)** — the ONLY candidate to PASS the cheap diagnostic (first-up trial winners place 35.6% vs 16.9%, r=+0.193 — strongest in project history) yet still die downstream. Beats-price: +30.4% WIN ROI was a 3-longshot mirage (odds-capped −3% to −13%); no win edge (13.8% ≈ implied 14%). Re-rank null. Trained A/B on the finishing-position signal = multi-seed noise. **Decisive follow-up after indep review (`scripts/ab_trials_time_trained.py`):** the untested trial CLOCK (time-vs-par, first-up ≥90d, ST/HV-only, multi-seed, scored on 344 affected races) is ALSO noise (capture flips sign, place-Brier Δ−0.00026). Both placing AND clock null → trials public → market prices them. Infra KEPT (`barrier_trials` table + `scripts/scrape_trials.py`, accrues via `--since-last`). See `memory/project_barrier_trials_pipeline_2026-06-07.md`. Predicts ≠ tradeable — textbook efficient-market wall on genuinely-new data.
 
 Next architectural swing per user roadmap (`memory/project_roadmap_jockey_elo_then_top4_ranker.md`): **top-4-set-aware ranker** as shadow second-stage. Single-feature pace/trip/style/jockey adds are pre-killed; don't propose without new data evidence.
 
