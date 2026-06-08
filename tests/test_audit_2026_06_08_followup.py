@@ -151,6 +151,64 @@ class TestBankrollGuardEnforced:
 
 
 # ---------------------------------------------------------------------------
+# #3 — ticket scoring keys by horse_number, not name (survives name drift)
+# ---------------------------------------------------------------------------
+
+class _FakeConn:
+    """Returns no dividend rows — keeps _lookup_dividend at 0.0 so the test
+    isolates the HIT/miss decision, not the payout."""
+    def execute(self, *a, **k):
+        class _Cur:
+            def fetchone(self_inner):
+                return None
+        return _Cur()
+
+
+def _scoring_race():
+    horses = [
+        {'name': 'ALPHA', 'number': 1, 'actual_position': 1, 'rank': 1},
+        {'name': 'BRAVO', 'number': 2, 'actual_position': 2, 'rank': 2},
+        {'name': 'CHARLIE', 'number': 3, 'actual_position': 3, 'rank': 3},
+        {'name': 'DELTA', 'number': 4, 'actual_position': 4, 'rank': 4},
+    ]
+    return {'race_number': 1, 'horses': horses}
+
+
+class TestTicketScoringByNumber:
+    def test_trio_hits_despite_name_drift(self):
+        """Legs carry correct NUMBERS but mis-cased/mis-spelled names. The old
+        name-keyed logic false-missed; number-keyed scoring must hit."""
+        from scripts.stake_ab import _score_bet_from_ticket
+        bet = {'pool': 'TRIO', 'combos': 1, 'unit_stake': 10.0,
+               'legs': [{'number': 1, 'name': 'alpha'},
+                        {'number': 2, 'name': 'BRAVO (NZ)'},
+                        {'number': 3, 'name': 'charlie'}]}
+        hit, _div = _score_bet_from_ticket(bet, _scoring_race(), _FakeConn(),
+                                           '2026/06/07')
+        assert hit is True
+
+    def test_win_hits_by_number_with_wrong_name(self):
+        from scripts.stake_ab import _score_bet_from_ticket
+        bet = {'pool': 'WIN', 'combos': 1, 'unit_stake': 10.0,
+               'legs': [{'number': 1, 'name': 'al-pha'}]}
+        hit, _div = _score_bet_from_ticket(bet, _scoring_race(), _FakeConn(),
+                                           '2026/06/07')
+        assert hit is True
+
+    def test_trio_misses_when_numbers_wrong(self):
+        """Sanity: a genuinely wrong leg set (numbers don't cover the top-3)
+        must still miss — number keying isn't a free pass."""
+        from scripts.stake_ab import _score_bet_from_ticket
+        bet = {'pool': 'TRIO', 'combos': 1, 'unit_stake': 10.0,
+               'legs': [{'number': 1, 'name': 'ALPHA'},
+                        {'number': 5, 'name': 'ECHO'},
+                        {'number': 6, 'name': 'FOXTROT'}]}
+        hit, _div = _score_bet_from_ticket(bet, _scoring_race(), _FakeConn(),
+                                           '2026/06/07')
+        assert hit is False
+
+
+# ---------------------------------------------------------------------------
 # #1 — dashboard generation already fail-closes on a bad blend calibrator
 # ---------------------------------------------------------------------------
 

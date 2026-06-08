@@ -553,16 +553,13 @@ def simulate_bets(races, conn):
         trio6_hit = len(actual_top3) == 3 and actual_top3.issubset(our_top6_names)
         f4box5_hit = len(actual_top4) == 4 and actual_top4.issubset(our_top5_names)
         f4box6_hit = len(actual_top4) == 4 and actual_top4.issubset(our_top6_names)
-        # F4 SAVER: exact-order top-4 — our rank-N must have finished at
-        # position N for N in 1..4. Needed for the reward-max policy A/B
-        # (F4 SAVER pays the FIRST 4 dividend on a 1-combo exact-order
-        # ticket, much rarer than f4box5 but big payout when it hits).
-        f4saver_hit = (
-            top_h_row.get('finish_position') == 1
-            and rank2_h_row is not None and rank2_h_row.get('finish_position') == 2
-            and rank3_h_row is not None and rank3_h_row.get('finish_position') == 3
-            and rank4_h_row is not None and rank4_h_row.get('finish_position') == 4
-        )
+        # F4 SAVER: 1-combo FIRST 4 ANY-ORDER on our model top-4 — hits when
+        # the actual top-4 finishers all fall inside our top-4 set. Production
+        # (dashboard/generator build_bet_ticket) + replay (validate_hk) both
+        # bet/score this as FIRST 4 any-order; the backtest previously used
+        # exact-order semantics (rank-N must finish position N), which
+        # understated F4 SAVER hits and broke parity (audit 2026-06-08 #5).
+        f4saver_hit = len(actual_top4) == 4 and actual_top4.issubset(our_top4_names)
         trio_dividend = get_real_exotic_dividend(conn, date, race_no, 'TRIO')
         f4_dividend = get_real_exotic_dividend(conn, date, race_no, 'FIRST 4')
 
