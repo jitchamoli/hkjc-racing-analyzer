@@ -689,7 +689,7 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
 
     # Card-level allocated-spend disclosure (audit 2026-06-08 #1). The
     # pre-build apply_card_exposure_cap pro-rates the SUGGESTED budget, but the
-    # HK$5 unit floor + automatic add-ons push the actual frozen allocation
+    # HK$10 unit floor + automatic add-ons push the actual frozen allocation
     # above it — and that overshoot was never surfaced, so the card LOOKED
     # capped while real exposure was 2x+ the limit. Per user decision we do NOT
     # drop bets (all MAIN reward-max boxes are kept); instead we compute the
@@ -841,13 +841,16 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
 
     total_combos = sum(b['combos'] for b in bets)
     unit = (amount / total_combos) if amount > 0 and total_combos > 0 else 0.0
-    # HKJC min unit is HK$5 — `max(5.0, ...)` enforces the floor. When the
+    # HKJC minimum bet is HK$10 — WIN / PLACE / QUINELLA / QUINELLA PLACE are
+    # not accepted below $10, so a $5 unit produced un-placeable tickets
+    # (user-reported 2026-06-08). Floor every pool at HK$10 and round to $10
+    # increments, matching the user's actual flat-$10/combo betting. When the
     # budget can't fund every combo at that floor, the ticket allocation
     # EXCEEDS `amount`. Honest disclosure preferred over silent overspend:
     # the ticket carries `over_budget` + `over_amount` so the display can
-    # show "$100 budget / $125 allocated (+$25 over)" instead of misleading
+    # show "$100 budget / $150 allocated (+$50 over)" instead of misleading
     # the user (GPT-5.5 R12 #2 2026-05-25).
-    unit_rounded = max(5.0, (unit // 5.0) * 5.0) if unit > 0 else 0.0
+    unit_rounded = max(10.0, (unit // 10.0) * 10.0) if unit > 0 else 0.0
     allocated = 0.0
     for b in bets:
         b['unit_stake'] = float(unit_rounded)
@@ -869,7 +872,7 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
         'total_combos': int(total_combos),
         'unit_stake': float(unit_rounded),
         'allocated_amount': float(allocated),
-        # Budget over/under disclosure — `over_budget=True` means the HK$5
+        # Budget over/under disclosure — `over_budget=True` means the HK$10
         # unit-stake floor pushed allocated above the suggested budget.
         # WA + visual ticket surface this so the user sees the real spend.
         'over_budget': bool(over_amount > 0),

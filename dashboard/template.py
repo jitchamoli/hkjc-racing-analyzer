@@ -931,7 +931,7 @@ function renderBetCard(race) {{
       }});
       // Legacy path: recompute unit + per-bet amount the old way.
       var unit = totalCombos > 0 ? (ss.amount / totalCombos) : 0;
-      unitRounded = Math.max(5, Math.floor(unit / 5) * 5);
+      unitRounded = Math.max(10, Math.floor(unit / 10) * 10);
       betLines.forEach(function(b) {{
         b.amount = b.combos * unitRounded;
         allocated += b.amount;
@@ -963,7 +963,7 @@ function renderBetCard(race) {{
     stakeHtml =
       '<div class="trust-block">' +
         '<div class="trust-label">Suggested Stake ' +
-          '<span class="info-tip" onclick="showInfoPop(event, &quot;Suggested Stake&quot;, &quot;Per-card stake sized off your bankroll (config.BANKROLL = $' + br + ' HKD). EDGE 3%, HIGH 2%, MED 1%, LOW 0.5%. WIN bets use half-Kelly capped at the tier %. The budget is split across firing MAIN bets by combo count — unit stake is rounded to the nearest $5 for clean bet entry. Adjust BANKROLL in config.py to match your rolling bankroll.&quot;)">ⓘ</span>' +
+          '<span class="info-tip" onclick="showInfoPop(event, &quot;Suggested Stake&quot;, &quot;Per-card stake sized off your bankroll (config.BANKROLL = $' + br + ' HKD). EDGE 3%, HIGH 2%, MED 1%, LOW 0.5%. WIN bets use half-Kelly capped at the tier %. The budget is split across firing MAIN bets by combo count — unit stake is floored at the HK$10 HKJC minimum and rounded to $10. Adjust BANKROLL in config.py to match your rolling bankroll.&quot;)">ⓘ</span>' +
         '</div>' +
         '<div class="trust-body" style="margin-top:4px;font-size:.85rem">' +
           '<strong style="color:var(--gold)">$' + Math.round(ss.amount) + '</strong> HKD budget' +
