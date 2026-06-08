@@ -81,8 +81,12 @@ _daily_variant_cache: dict = {}  # keyed by (race_date, before_race_no, before_d
 # v6.10: going bucket → list of raw going strings to match in SQL.
 # Hardcoded (no user input) — used by calculate_sire_top3_on_going.
 _GOING_REVERSE = {
+    # AWT (all-weather track) surfaces are fast/firm-equivalent; HKJC reports
+    # them as 'Good (AWT)'/'Sealed'. Fold into FIRM so Feature 23 doesn't
+    # silently drop ~763 AWT rows (going-map gap found 2026-06-08).
     'FIRM': ['GOOD', 'GOOD TO FIRM', 'FIRM', 'FAST',
-             'GD', 'G', 'GF', 'FT'],
+             'GD', 'G', 'GF', 'FT',
+             'GOOD (AWT)', 'SEALED', 'SE'],
     'GY':       ['GOOD TO YIELDING', 'GY'],
     'YIELDING': ['YIELDING', 'Y', 'YIELDING TO SOFT', 'YS'],
     'SOFT':     ['SOFT', 'HEAVY', 'S', 'H',
