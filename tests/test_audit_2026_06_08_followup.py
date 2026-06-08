@@ -151,6 +151,51 @@ class TestBankrollGuardEnforced:
 
 
 # ---------------------------------------------------------------------------
+# #1 — card-exposure over-cap is disclosed honestly, no bets dropped
+# ---------------------------------------------------------------------------
+
+def _busy_edge_race(n=8):
+    """An 8-horse EDGE race that builds a large multi-box ticket (QIN-4 +
+    protection + TRIO-5 + F4 BOX-5 + ...), so allocated spend overshoots a
+    small card cap."""
+    horses = []
+    for i in range(n):
+        horses.append({
+            'number': i + 1, 'name': f'H{i + 1}', 'rank': i + 1,
+            'bet_recommendation': 'QIN' if i < 4 else 'SKIP',
+            'win_odds': 4.0 + i, 'calibrated_prob': max(0.05, 0.40 - i * 0.04),
+        })
+    return {'race_number': 1, 'horses': horses, 'conviction_tier': 'EDGE',
+            'top_2_share': 0.45, 'results_available': False}
+
+
+class TestCardCapDisclosure:
+    def test_over_cap_flagged_and_nothing_dropped(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, 'BANKROLL', 1000)  # cap = $100
+        _patch_guard(monkeypatch, halted=False)
+        from dashboard.generator import finalize_tickets_and_stakes
+        races = [_busy_edge_race()]
+        finalize_tickets_and_stakes(races, '2026/06/07', object())
+
+        r = races[0]
+        assert r['card_over_cap'] is True
+        assert r['card_over_cap_amount'] > 0
+        assert r['card_allocated_total'] > r['card_exposure_cap']
+        # Disclosure-only: the ticket must still carry its bets (nothing dropped).
+        assert r['bet_ticket']['bets'], "bets must NOT be dropped (disclosure only)"
+
+    def test_under_cap_not_flagged(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, 'BANKROLL', 100000)  # cap = $10,000
+        _patch_guard(monkeypatch, halted=False)
+        from dashboard.generator import finalize_tickets_and_stakes
+        races = [_busy_edge_race()]
+        finalize_tickets_and_stakes(races, '2026/06/07', object())
+        assert races[0]['card_over_cap'] is False
+
+
+# ---------------------------------------------------------------------------
 # #3 — ticket scoring keys by horse_number, not name (survives name drift)
 # ---------------------------------------------------------------------------
 

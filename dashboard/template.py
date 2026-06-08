@@ -983,6 +983,18 @@ function renderBetCard(race) {{
         '</div>' +
       '</div>';
   }}
+  // Card-exposure over-cap disclosure (audit 2026-06-08 #1). Bets are NOT
+  // dropped; the real allocated total simply exceeds the day cap, so flag it
+  // honestly for a manual trim. Hidden on a halted day (already NO SYSTEM BET).
+  if (race.card_over_cap && !race.bankroll_halt) {{
+    stakeHtml +=
+      '<div style="margin-top:6px;font-size:.7rem;color:#f59e0b;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:6px 10px">' +
+        '⚠ Card exposure $' + Math.round(race.card_allocated_total||0) +
+        ' exceeds ' + (race.card_exposure_cap_pct||10) + '% cap ($' +
+        Math.round(race.card_exposure_cap||0) + ') by $' +
+        Math.round(race.card_over_cap_amount||0) + ' — trim manually.' +
+      '</div>';
+  }}
 
   // Bet type sub-label
   var betRec = topH.bet_recommendation || 'QIN';
