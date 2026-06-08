@@ -972,6 +972,17 @@ function renderBetCard(race) {{
         '</div>' +
       '</div>';
   }}
+  // Bankroll guard STOP — daily loss/exposure cap hit (server zeroed the
+  // suggested stake; audit 2026-06-08 #5). Show NO SYSTEM BET + the reason.
+  if (race.bankroll_halt) {{
+    stakeHtml =
+      '<div class="trust-block" style="border-color:rgba(239,68,68,.4)">' +
+        '<div class="trust-label" style="color:#fca5a5">⛔ BANKROLL STOP</div>' +
+        '<div class="trust-body" style="margin-top:4px;font-size:.78rem;color:#fca5a5">' +
+          'NO SYSTEM BET — ' + esc(race.bankroll_halt) +
+        '</div>' +
+      '</div>';
+  }}
 
   // Bet type sub-label
   var betRec = topH.bet_recommendation || 'QIN';
