@@ -1104,7 +1104,13 @@ function renderBetCard(race) {{
     _ssBannerIdx = waLines.length;
     waLines.push('💰 *Suggested stake: $' + Math.round(ss.amount) + ' HKD*' + ssPctTxt);
   }}
-  if (tier === 'EDGE') {{
+  // Only show betting copy when a real system ticket exists. A halted
+  // day (bankroll STOP) or an empty/SKIP ticket has bet_ticket.bets=[], and
+  // the WA-copy + visual ticket render from bet_ticket.bets — so the EDGE
+  // "anchor TRIO-5/F4 with this horse" banner must not fire when there is no
+  // TRIO-5/F4 in the ticket (audit 2026-06-08 #2).
+  var hasSystemTicket = !!(race.bet_ticket && race.bet_ticket.bets && race.bet_ticket.bets.length);
+  if (tier === 'EDGE' && hasSystemTicket) {{
     // Banner text reads live stats from EDGE_STATS (track_edge.py). Falls
     // back to generic "place > win" framing when no stats file present.
     var _es = (typeof EDGE_STATS !== 'undefined' && EDGE_STATS) ? EDGE_STATS : {{}};
@@ -1544,7 +1550,10 @@ function renderBetCard(race) {{
   var edgeWho = (edgeRank === 1)
     ? 'top pick'
     : 'rank-' + edgeRank + ' pick #' + esc(race.edge_horse_number) + ' ' + esc(race.edge_horse_name);
-  var edgeAlertHTML = isEdge
+  // Suppress the EDGE staking banner when there is no system ticket to
+  // anchor (halted day / empty ticket — audit 2026-06-08 #2).
+  var _edgeHasTicket = !!(race.bet_ticket && race.bet_ticket.bets && race.bet_ticket.bets.length);
+  var edgeAlertHTML = (isEdge && _edgeHasTicket)
     ? '<div style="background:linear-gradient(135deg,rgba(251,191,36,.25),rgba(251,191,36,.08));border:2px solid var(--gold);border-radius:6px;padding:8px 12px;margin:6px 0 10px 0;font-size:.78rem">' +
         '<span style="color:var(--gold);font-weight:800;letter-spacing:.06em">★ RARE EDGE — anchor TRIO-5 with this horse</span>' +
         '<div style="color:var(--fg);margin-top:3px;font-size:.72rem;line-height:1.4">' +
