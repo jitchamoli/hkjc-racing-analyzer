@@ -46,3 +46,40 @@ def test_stray_four_digit_does_not_override_distance():
     td = _results_table("Sha Tin, 2000M, Good, Class 2, HK$1,500,000")
     race = _parse_tables(td, "2026/06/08", 1)
     assert race["distance"] == 2000
+
+
+def test_distance_in_later_header_row_than_venue():
+    # Venue on one header row, distance on a LATER row — the parser must keep
+    # scanning after the venue match (the "no early break" guarantee).
+    td = [
+        [["Sha Tin"], ["Class 3, 1400M, Going: Good"]],   # header table, 2 rows
+        [
+            ["Pla", "Horse No", "Horse", "Jockey", "Trainer", "Act.Wt",
+             "Horse Wt", "Dr", "LBW", "RunPos", "Time", "WinOdds"],
+            ["1", "5", "TEST HORSE", "Z Purton", "J Size", "126", "1100", "4", "-",
+             "5 4 1", "1:22.30", "3.2"],
+            ["2", "7", "OTHER HORSE", "J Moreira", "C Fownes", "124", "1090", "2",
+             "1", "3 2 2", "1:22.55", "5.5"],
+        ],
+    ]
+    race = _parse_tables(td, "2026/06/08", 1)
+    assert race["venue"] == "Sha Tin"
+    assert race["distance"] == 1400
+
+
+def test_first_distance_match_wins_over_later_stray():
+    # A stray 4-digit+M in a later header row must NOT clobber the real distance
+    # found first (the 1800->1400 re-scrape corruption, 2026-06-08).
+    td = [
+        [["Sha Tin, 1800M, Good, Class 2"], ["Sectional up to 1400M split"]],
+        [
+            ["Pla", "Horse No", "Horse", "Jockey", "Trainer", "Act.Wt",
+             "Horse Wt", "Dr", "LBW", "RunPos", "Time", "WinOdds"],
+            ["1", "5", "TEST HORSE", "Z Purton", "J Size", "126", "1100", "4", "-",
+             "5 4 1", "1:48.20", "3.2"],
+            ["2", "7", "OTHER HORSE", "J Moreira", "C Fownes", "124", "1090", "2",
+             "1", "3 2 2", "1:48.40", "5.5"],
+        ],
+    ]
+    race = _parse_tables(td, "2026/06/08", 1)
+    assert race["distance"] == 1800   # NOT 1400 from the later stray

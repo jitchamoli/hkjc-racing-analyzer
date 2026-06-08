@@ -611,6 +611,13 @@ class FeatureEngineering:
             'GOOD': 'FIRM', 'GOOD TO FIRM': 'FIRM', 'FIRM': 'FIRM',
             'FAST': 'FIRM', 'GD': 'FIRM', 'G': 'FIRM', 'GF': 'FIRM',
             'FT': 'FIRM',
+            # AWT (all-weather) surfaces → FIRM. MUST mirror _GOING_REVERSE['FIRM']
+            # in BOTH directions: this forward map decides the bucket, and the
+            # reverse map expands the bucket back to DB going-strings. Omitting it
+            # here (only adding to the reverse list) makes _going_bucket self-map
+            # to 'GOOD (AWT)' → _GOING_REVERSE.get returns [] → sire feature
+            # silently returns the 0.20 default for AWT (review finding 2026-06-08).
+            'GOOD (AWT)': 'FIRM', 'SEALED': 'FIRM', 'SE': 'FIRM',
             'GOOD TO YIELDING': 'GY', 'GY': 'GY',
             'YIELDING': 'YIELDING', 'Y': 'YIELDING',
             'YIELDING TO SOFT': 'YIELDING', 'YS': 'YIELDING',

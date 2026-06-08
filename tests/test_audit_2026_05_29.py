@@ -483,17 +483,22 @@ def test_going_pref_wet_surfaces_classified_wet():
     assert len(keys) == len(set(keys)), f"duplicate keys: {keys}"
 
 
-def test_going_bucket_self_map_fallback_preserved():
-    """audit-2026-05-29 follow-up: _going_bucket must self-map unknown going
-    strings (return the uppercased input), NOT ''. 'Good (AWT)' (763 rows,
-    all-weather track) is a real surface with no 5-bucket home; self-mapping
-    lets an AWT horse match its own AWT priors. The live model was trained
-    with this behaviour — '' would create a train/inference skew. Empty
-    string is the only value that returns ''."""
-    from ml.features import FeatureEngineering as FE
+def test_going_bucket_awt_maps_to_firm():
+    """2026-06-08 review fix: AWT goings MUST bucket to FIRM in BOTH directions.
+    The earlier self-map ('Good (AWT)' -> 'GOOD (AWT)') was a bug: 'GOOD (AWT)'
+    is not a key of _GOING_REVERSE, so _GOING_REVERSE.get() returned [] and the
+    sire-going feature silently fell back to its 0.20 prior for every AWT row.
+    Mapping AWT -> FIRM (matching _GOING_REVERSE['FIRM']) lets AWT horses match
+    their FIRM priors. The model was retrained with this behaviour, so train and
+    inference agree. Empty string is still the only value that returns ''."""
+    from ml.features import FeatureEngineering as FE, _GOING_REVERSE
     assert FE._going_bucket('') == ''
-    assert FE._going_bucket('Good (AWT)') == 'GOOD (AWT)'   # self-map, not ''
-    assert FE._going_bucket('SEALED') == 'SEALED'
+    assert FE._going_bucket('Good (AWT)') == 'FIRM'
+    assert FE._going_bucket('SEALED') == 'FIRM'
+    assert FE._going_bucket('SE') == 'FIRM'
+    # round-trip: the reverse list must contain the DB going string (the gap
+    # that caused the bug — bucket maps forward, reverse expands back)
+    assert 'GOOD (AWT)' in _GOING_REVERSE['FIRM']
     # known surfaces still bucket correctly
     assert FE._going_bucket('GOOD TO FIRM') == 'FIRM'
     assert FE._going_bucket('WF') == 'WET-FAST'
