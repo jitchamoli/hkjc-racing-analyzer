@@ -687,6 +687,36 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
             )
         r['bet_ticket'] = merged
 
+    # Card-level allocated-spend disclosure (audit 2026-06-08 #1). The
+    # pre-build apply_card_exposure_cap pro-rates the SUGGESTED budget, but the
+    # HK$5 unit floor + automatic add-ons push the actual frozen allocation
+    # above it — and that overshoot was never surfaced, so the card LOOKED
+    # capped while real exposure was 2x+ the limit. Per user decision we do NOT
+    # drop bets (all MAIN reward-max boxes are kept); instead we compute the
+    # true allocated total and flag the residual honestly so the dashboard +
+    # bankroll guard show real exposure and the user can trim manually.
+    cap_frac = getattr(_cfg, 'CARD_EXPOSURE_CAP', 0.10)
+    cap_amount = _cfg.BANKROLL * cap_frac
+    pending = [r for r in all_races
+               if _is_unresolved(r) and not r.get('bankroll_halt')
+               and r.get('bet_ticket')]
+    card_allocated = sum((r['bet_ticket'].get('allocated_amount') or 0.0)
+                         for r in pending)
+    over_cap = max(0.0, card_allocated - cap_amount) if cap_amount > 0 else 0.0
+    for r in pending:
+        r['card_allocated_total'] = round(card_allocated, 2)
+        r['card_exposure_cap'] = round(cap_amount, 2)
+        r['card_exposure_cap_pct'] = round(cap_frac * 100, 1)
+        r['card_over_cap'] = over_cap > 0
+        r['card_over_cap_amount'] = round(over_cap, 2)
+    if over_cap > 0:
+        logger.warning(
+            f"Card exposure ${card_allocated:.0f} exceeds "
+            f"{cap_frac*100:.0f}% cap (${cap_amount:.0f}) by ${over_cap:.0f} on "
+            f"{race_date} — bets NOT dropped (MAIN bets kept); flagged for "
+            f"manual trim."
+        )
+
 
 def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
                      generated_at: str) -> dict:
