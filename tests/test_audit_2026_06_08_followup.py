@@ -83,19 +83,21 @@ def _resolved_race():
             'conviction_tier': 'HIGH', 'results_available': True}
 
 
-def _patch_guard(monkeypatch, *, halted, reason=''):
+def _patch_guard(monkeypatch, *, halted, reason='', realized_pnl_pct=0.0):
     import betting.bankroll_guard as bg
     monkeypatch.setattr(
         bg, 'daily_status',
-        lambda *a, **k: types.SimpleNamespace(halted=halted, halt_reason=reason),
+        lambda *a, **k: types.SimpleNamespace(
+            halted=halted, halt_reason=reason, realized_pnl_pct=realized_pnl_pct),
     )
 
 
 class TestBankrollGuardEnforced:
     def test_halted_day_zeroes_stake_and_flags(self, monkeypatch):
         from dashboard.generator import finalize_tickets_and_stakes
+        # Realized stop-loss (pnl% past the loss cap) -> blank the card.
         _patch_guard(monkeypatch, halted=True,
-                     reason='DAILY LOSS CAP (-8%)')
+                     reason='DAILY LOSS CAP (-8%)', realized_pnl_pct=-0.10)
         races = [_unresolved_win_race(), _resolved_race()]
         finalize_tickets_and_stakes(races, '2026/06/07', object())
 
@@ -114,6 +116,19 @@ class TestBankrollGuardEnforced:
         assert tk.get('bankroll_halt') == 'DAILY LOSS CAP (-8%)'
         # Resolved race must NOT be touched by the halt gate.
         assert 'bankroll_halt' not in races[1]
+
+    def test_exposure_cap_halt_does_not_blank_card(self, monkeypatch):
+        """The EXPOSURE cap (halted=True but no realized loss) must NOT blank
+        the card — after the HK$10 floor doubled allocation it trips on a busy
+        card's own pending tickets every re-run. The #1 card-over-cap banner
+        carries that signal instead (audit follow-up 2026-06-08)."""
+        from dashboard.generator import finalize_tickets_and_stakes
+        _patch_guard(monkeypatch, halted=True,
+                     reason='DAILY EXPOSURE CAP (10%)', realized_pnl_pct=0.0)
+        races = [_unresolved_win_race()]
+        finalize_tickets_and_stakes(races, '2026/06/07', object())
+        assert 'bankroll_halt' not in races[0]
+        assert races[0]['bet_ticket']['bets'], "exposure cap must not blank the ticket"
 
     def test_non_halted_day_keeps_payable_ticket(self, monkeypatch):
         """Control: a non-halted HIGH WIN race keeps a real payable ticket."""

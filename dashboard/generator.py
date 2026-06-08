@@ -624,11 +624,19 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
     # ticket render from bet_ticket.bets, so zeroing only suggested_stake would
     # still show/copy a live bet (audit follow-up 2026-06-08 #1). Guarded: a
     # guard failure must never block prediction generation.
+    # Only a realized STOP-LOSS blanks the card. The guard ALSO halts on the
+    # daily EXPOSURE cap (cumulative pending+resolved stake >= 10%), but after
+    # the HK$10 unit floor ~doubled allocation that cap is tripped by a busy
+    # card's own pending tickets on every live/finish re-run — blanking the
+    # whole card as NO SYSTEM BET with zero losses. That "you've planned a lot"
+    # signal is already surfaced honestly by the #1 card-over-cap banner below,
+    # so here we react ONLY to a genuine realized loss (chase-prevention).
     halt_reason = None
     try:
         from betting.bankroll_guard import daily_status
         guard = daily_status(race_date, _cfg.BANKROLL)
-        if guard.halted:
+        loss_cap_pct = getattr(_cfg, 'DAILY_LOSS_CAP_PCT', 0.08)
+        if guard.halted and guard.realized_pnl_pct <= -loss_cap_pct:
             halt_reason = guard.halt_reason
     except Exception as e:
         logger.debug(f"bankroll guard check skipped: {e}")
