@@ -950,7 +950,7 @@ function renderBetCard(race) {{
     var _overAmount = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
     var overRow = (_overBudget && _overAmount >= 1)
       ? '<tr><td colspan="3" style="padding:3px 0 1px 0;color:#f59e0b;font-size:.65rem;font-style:italic">⚠ $' +
-          Math.round(_overAmount) + ' over budget (HK$5 unit floor)</td></tr>'
+          Math.round(_overAmount) + ' over budget (HK$10 unit floor)</td></tr>'
       : '';
     var breakdownHtml = breakdownRows
       ? '<table style="font-size:.7rem;border-collapse:collapse;margin-top:6px;width:100%">' +
@@ -1175,7 +1175,7 @@ function renderBetCard(race) {{
       waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(
         ' HKD*',
         ' HKD — actual $' + Math.round(_waAllocated) +
-        ' (+$' + Math.round(_waOverAmount) + ' over, $5 unit floor)*'
+        ' (+$' + Math.round(_waOverAmount) + ' over, $10 unit floor)*'
       );
     }} else if (_waAllocated > 0) {{
       var _unalloc = Math.round(ss.amount) - Math.round(_waAllocated);
