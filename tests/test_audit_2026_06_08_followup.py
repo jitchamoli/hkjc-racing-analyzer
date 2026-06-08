@@ -103,8 +103,28 @@ class TestBankrollGuardEnforced:
         assert races[0]['bankroll_halt'] == 'DAILY LOSS CAP (-8%)'
         assert races[0]['suggested_stake']['amount'] == 0.0
         assert 'STOP' in races[0]['suggested_stake']['method']
+        # The FROZEN TICKET ITSELF must carry no payable bets — the WA-copy +
+        # visual ticket render from bet_ticket.bets, not suggested_stake, so a
+        # stopped day must not leave a copyable live ticket (audit 2026-06-08 #1).
+        tk = races[0]['bet_ticket']
+        assert tk['bets'] == []
+        assert tk['total_combos'] == 0
+        assert tk['allocated_amount'] == 0.0
+        assert tk['unit_stake'] == 0.0
+        assert tk.get('bankroll_halt') == 'DAILY LOSS CAP (-8%)'
         # Resolved race must NOT be touched by the halt gate.
         assert 'bankroll_halt' not in races[1]
+
+    def test_non_halted_day_keeps_payable_ticket(self, monkeypatch):
+        """Control: a non-halted HIGH WIN race keeps a real payable ticket."""
+        from dashboard.generator import finalize_tickets_and_stakes
+        _patch_guard(monkeypatch, halted=False)
+        races = [_unresolved_win_race()]
+        finalize_tickets_and_stakes(races, '2026/06/07', object())
+        tk = races[0]['bet_ticket']
+        assert tk['bets'], "non-halted WIN race should produce a payable ticket"
+        assert tk['allocated_amount'] > 0.0
+        assert 'bankroll_halt' not in tk
 
     def test_non_halted_day_leaves_stake(self, monkeypatch):
         from dashboard.generator import finalize_tickets_and_stakes
@@ -138,7 +158,7 @@ class TestBlendCalibratorFailClosed:
     def test_blend_calibrator_artifact_rejects_missing_file(self):
         from pathlib import Path
         from ml.integrity import check_blend_calibrator_artifact, IntegrityError
-        with pytest.raises((IntegrityError, FileNotFoundError, Exception)):
+        with pytest.raises(IntegrityError, match='missing'):
             check_blend_calibrator_artifact(Path('/nonexistent/blend_calibrator.pkl'))
 
     def test_preflight_aborts_generation_on_integrity_failure(self):

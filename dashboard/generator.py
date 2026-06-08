@@ -614,6 +614,43 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
     apply_card_exposure_cap(all_races, _cfg.BANKROLL,
                             getattr(_cfg, 'CARD_EXPOSURE_CAP', 0.10))
 
+    # Bankroll discipline — enforce the daily stop-loss / exposure cap that
+    # betting/bankroll_guard exposes. It was previously advisory-only: no
+    # generation path called it, so the system kept recommending fresh money
+    # after the day's loss/exposure cap was hit (audit 2026-06-08 #5). When the
+    # day is HALTED, zero the suggested stake on every not-yet-resolved race
+    # BEFORE the ticket is built — so build_bet_ticket (which only adds bets
+    # when amount>0) produces an EMPTY system ticket. The WA-copy + visual
+    # ticket render from bet_ticket.bets, so zeroing only suggested_stake would
+    # still show/copy a live bet (audit follow-up 2026-06-08 #1). Guarded: a
+    # guard failure must never block prediction generation.
+    halt_reason = None
+    try:
+        from betting.bankroll_guard import daily_status
+        guard = daily_status(race_date, _cfg.BANKROLL)
+        if guard.halted:
+            halt_reason = guard.halt_reason
+    except Exception as e:
+        logger.debug(f"bankroll guard check skipped: {e}")
+
+    def _is_unresolved(r):
+        if r.get('results_available'):
+            return False
+        return not any(h.get('actual_position') for h in (r.get('horses') or []))
+
+    if halt_reason:
+        for r in all_races:
+            if _is_unresolved(r):
+                r['suggested_stake'] = {
+                    'amount': 0.0, 'pct': 0.0,
+                    'method': f'STOP: {halt_reason}',
+                }
+                r['bankroll_halt'] = halt_reason
+        logger.warning(
+            f"Bankroll guard HALTED for {race_date} ({halt_reason}); "
+            f"suggested stakes + system tickets zeroed on unresolved races."
+        )
+
     model_ver = (analyzer.ml_analyzer.ml_model.model_version
                   if hasattr(analyzer, 'ml_analyzer') else '')
     ticket_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -627,7 +664,20 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
             r, race_date=race_date, model_version=model_ver, generated_at=ticket_ts,
         )
         merged = _merge_ticket_pre_result(old_ticket, new_ticket, ticket_ts)
-        if old_ticket and merged.get('source') == 'pre_off_refresh':
+        # Halted day: force the frozen ticket itself to a zero/empty system
+        # ticket (belt-and-braces over the amount=0 build above, in case an
+        # older non-empty ticket survives the merge). This is the ticket the
+        # WA-copy + visual renderers read, so it must carry no payable bets.
+        if halt_reason and _is_unresolved(r):
+            merged['bets'] = []
+            merged['total_combos'] = 0
+            merged['unit_stake'] = 0.0
+            merged['allocated_amount'] = 0.0
+            merged['over_budget'] = False
+            merged['over_amount'] = 0.0
+            merged['bankroll_halt'] = halt_reason
+            merged['no_bet_reason'] = f'STOP: {halt_reason}'
+        elif old_ticket and merged.get('source') == 'pre_off_refresh':
             old_combos = old_ticket.get('total_combos', 0) or 0
             new_combos = merged.get('total_combos', 0) or 0
             logger.info(
@@ -636,36 +686,6 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
                 f"superseded_tickets[{len(merged.get('superseded_tickets') or [])}]."
             )
         r['bet_ticket'] = merged
-
-    # Bankroll discipline — enforce the daily stop-loss / exposure cap that
-    # betting/bankroll_guard exposes. It was previously advisory-only: no
-    # generation path called it, so the system kept recommending fresh money
-    # after the day's loss/exposure cap was hit (audit 2026-06-08 #5). When the
-    # day is HALTED, zero the suggested stake on every not-yet-resolved race and
-    # stamp a halt reason, so the dashboard shows NO SYSTEM BET instead of a
-    # stake. Frozen ticket legs are left intact (ticket-parity contract) — the
-    # zeroed stake + halt banner is the enforced signal. Guarded: a guard
-    # failure must never block prediction generation.
-    try:
-        from betting.bankroll_guard import daily_status
-        guard = daily_status(race_date, _cfg.BANKROLL)
-        if guard.halted:
-            for r in all_races:
-                if r.get('results_available'):
-                    continue
-                if any(h.get('actual_position') for h in (r.get('horses') or [])):
-                    continue
-                r['suggested_stake'] = {
-                    'amount': 0.0, 'pct': 0.0,
-                    'method': f'STOP: {guard.halt_reason}',
-                }
-                r['bankroll_halt'] = guard.halt_reason
-            logger.warning(
-                f"Bankroll guard HALTED for {race_date} ({guard.halt_reason}); "
-                f"suggested stakes zeroed on unresolved races."
-            )
-    except Exception as e:
-        logger.debug(f"bankroll guard check skipped: {e}")
 
 
 def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
