@@ -18,6 +18,12 @@ from betting.dividends import hkjc_declared_to_unit
 
 logger = logging.getLogger(__name__)
 
+# The complete set of real HKJC race distances (turf + AWT, ST + HV). Used to
+# validate ingested distance and to gate the authoritative JSON backfill, so a
+# fragile results-page header parse can never silently store a bogus distance
+# (the 1200-default corruption fixed 2026-06-08).
+_VALID_HK_DISTANCES = {1000, 1200, 1400, 1600, 1650, 1800, 2000, 2200, 2400}
+
 DB_DIR = Path(__file__).parent.parent / 'tracking_data'
 DB_DIR.mkdir(exist_ok=True)
 DB_FILE = DB_DIR / 'horse_history.db'
@@ -359,6 +365,26 @@ class HorseDatabase:
                     f"Re-scrape this race; check the placing parser for new markers."
                 )
 
+            # Distance-validity guard: catch the header-parse failure that
+            # silently stored a bogus distance (the 1200-default corruption
+            # fixed 2026-06-08). A finished race whose distance isn't a real
+            # HKJC distance means the scrape missed it — backfill_card_fields
+            # should correct it from the JSON, so warn loudly to surface a gap.
+            # Scope to venued HK races — overseas-runner rows (venue NULL, HK
+            # horses racing in Dubai/Saudi/Japan) legitimately carry foreign
+            # distances and would otherwise cry wolf here.
+            if finish_positions and venue and distance not in _VALID_HK_DISTANCES:
+                logger.warning(
+                    f"INVALID DISTANCE in {race_date} R{race_no}: {distance}m is not a "
+                    f"real HKJC distance — header parse likely failed (defaulted). "
+                    f"Ensure the prediction JSON backfill runs to correct it."
+                )
+            if finish_positions and venue and not str(class_type).strip():
+                logger.warning(
+                    f"MISSING class_type in {race_date} R{race_no} — header parse gap; "
+                    f"JSON backfill should fill it (else it defaults to class 3)."
+                )
+
             for entry in race.get('entries', []):
                 horse_name = entry.get('name', '')
                 if not horse_name:
@@ -442,6 +468,28 @@ class HorseDatabase:
                     horse_name, entry.get('trainer', ''), entry.get('rating', 0),
                     is_winner, is_top3, race_date,
                 ))
+
+        # Meeting-level distance guard: if every finished race in a meeting got
+        # the SAME distance, the header parse almost certainly failed and they
+        # all fell back to the 1200 default (a real HK card mixes distances).
+        # This catches the case the per-race guard can't — where the bogus value
+        # is itself a valid distance (1200). Surfaces 2026-06-08 corruption shape.
+        by_meeting = {}
+        for race in race_data:
+            if race.get('venue', '') and any((e.get('actual_position') or 0) >= 1
+                                             for e in race.get('entries', [])):
+                d = int(race.get('distance', 0) or 0)
+                by_meeting.setdefault(race.get('date', ''), set()).add(d)
+        for mdate, dists in by_meeting.items():
+            if len(dists) == 1 and sum(1 for r in race_data
+                                       if r.get('date') == mdate and r.get('venue', '')
+                                       and any((e.get('actual_position') or 0) >= 1
+                                               for e in r.get('entries', []))) >= 4:
+                logger.warning(
+                    f"SUSPECT DISTANCES on {mdate}: all {len(by_meeting)} races share "
+                    f"distance {dists.pop()}m — a real HK card mixes distances. Header "
+                    f"parse likely defaulted; verify against the prediction JSON."
+                )
 
         # Ingest dividends if present on the race dict
         for race in race_data:
@@ -1312,6 +1360,38 @@ class HorseDatabase:
         n_updated = 0
         for race in race_data:
             race_no = race.get('race_number') or race.get('race_no') or 0
+
+            # Race-level card fields are AUTHORITATIVE from the prediction JSON
+            # (captured from the official race card). The results-page header
+            # parse is fragile — a miss defaults distance to 1200 — so overwrite
+            # distance/class_type/venue here whenever the JSON carries a valid
+            # value. This is the safety net behind the scraper header-parse fix
+            # (the distance-corruption bug fixed 2026-06-08). NOTE: going is
+            # deliberately NOT overwritten — actual race-day going can change
+            # with weather, so the results page is more authoritative than the
+            # pre-race card for going.
+            try:
+                j_dist = int(str(race.get('distance') or 0).strip() or 0)
+            except (ValueError, TypeError):
+                j_dist = 0
+            j_class = (race.get('class_type') or race.get('class') or '').strip()
+            j_venue = (race.get('venue') or '').strip()
+            if j_dist in _VALID_HK_DISTANCES:
+                c.execute("UPDATE race_results SET distance=? WHERE race_date=? "
+                          "AND race_number=? AND distance!=?",
+                          (j_dist, race_date, race_no, j_dist))
+                n_updated += c.rowcount
+            if j_class:
+                c.execute("UPDATE race_results SET class_type=? WHERE race_date=? "
+                          "AND race_number=? AND IFNULL(class_type,'')!=?",
+                          (j_class, race_date, race_no, j_class))
+                n_updated += c.rowcount
+            if j_venue:
+                c.execute("UPDATE race_results SET venue=? WHERE race_date=? "
+                          "AND race_number=? AND IFNULL(venue,'')!=?",
+                          (j_venue, race_date, race_no, j_venue))
+                n_updated += c.rowcount
+
             for h in race.get('horses', []):
                 horse_name = h.get('name', '')
                 if not horse_name:
