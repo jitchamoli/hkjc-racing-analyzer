@@ -142,6 +142,10 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
                  # Sha Tin (a parse miss was mislabeling every HV meeting as ST,
                  # poisoning venue/draw/C&D features). Empty degrades gracefully.
     distance = 1200
+    distance_found = False   # lock on the FIRST valid distance match so a stray
+                            # 4-digit+M token in a later header row can't clobber
+                            # the real race distance (caused a 1800→1400 overwrite
+                            # on a re-scrape — review finding 2026-06-08)
     going = "Good"
     class_type = ""
     course = ""
@@ -165,9 +169,11 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
                     venue = "Happy Valley"
                 elif "Sha Tin" in full_text:
                     venue = "Sha Tin"
-            dm = re.search(r"(\d{4})\s*M", full_text)
-            if dm and 800 <= int(dm.group(1)) <= 3000:
-                distance = int(dm.group(1))
+            if not distance_found:
+                dm = re.search(r"(\d{4})\s*M", full_text)
+                if dm and 800 <= int(dm.group(1)) <= 3000:
+                    distance = int(dm.group(1))
+                    distance_found = True
             for g in ["Good To Firm", "Good To Yielding", "Good", "Yielding To Soft",
                        "Yielding", "Soft", "Heavy", "Wet Fast", "Wet Slow"]:
                 if g.lower() in full_text.lower():

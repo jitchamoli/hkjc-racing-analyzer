@@ -123,8 +123,12 @@ class TestFTwentyFallbackSymmetry:
         ]
         out = calibrate_probabilities(analyses, field_size=10, distance=1400)
         assert sum(out) == pytest.approx(1.0, abs=1e-6)
-        # Higher input → higher output (rank order preserved)
-        assert out[0] > out[1] > out[2]
+        # Rank order must not REVERSE. Use >= not >: the post-blend isotonic
+        # calibrator is only weakly monotonic, so two close inputs can map to
+        # the same output (a flat isotonic region) — a legitimate tie, not a
+        # bug. A strict > spuriously fails whenever a retrain's calibrator
+        # develops a plateau across this input range (seen 2026-06-08).
+        assert out[0] >= out[1] >= out[2]
 
     def test_mixed_odds_no_systematic_inflation(self):
         # Horse with odds vs horse without — equal pure_prob inputs should

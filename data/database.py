@@ -481,14 +481,15 @@ class HorseDatabase:
                 d = int(race.get('distance', 0) or 0)
                 by_meeting.setdefault(race.get('date', ''), set()).add(d)
         for mdate, dists in by_meeting.items():
-            if len(dists) == 1 and sum(1 for r in race_data
-                                       if r.get('date') == mdate and r.get('venue', '')
-                                       and any((e.get('actual_position') or 0) >= 1
-                                               for e in r.get('entries', []))) >= 4:
+            n_races = sum(1 for r in race_data
+                          if r.get('date') == mdate and r.get('venue', '')
+                          and any((e.get('actual_position') or 0) >= 1
+                                  for e in r.get('entries', [])))
+            if len(dists) == 1 and n_races >= 4:
                 logger.warning(
-                    f"SUSPECT DISTANCES on {mdate}: all {len(by_meeting)} races share "
-                    f"distance {dists.pop()}m — a real HK card mixes distances. Header "
-                    f"parse likely defaulted; verify against the prediction JSON."
+                    f"SUSPECT DISTANCES on {mdate}: all {n_races} venued races share "
+                    f"distance {next(iter(dists))}m — a real HK card mixes distances. "
+                    f"Header parse likely defaulted; verify against the prediction JSON."
                 )
 
         # Ingest dividends if present on the race dict
@@ -1376,20 +1377,24 @@ class HorseDatabase:
                 j_dist = 0
             j_class = (race.get('class_type') or race.get('class') or '').strip()
             j_venue = (race.get('venue') or '').strip()
-            if j_dist in _VALID_HK_DISTANCES:
-                c.execute("UPDATE race_results SET distance=? WHERE race_date=? "
-                          "AND race_number=? AND distance!=?",
-                          (j_dist, race_date, race_no, j_dist))
-                n_updated += c.rowcount
-            if j_class:
-                c.execute("UPDATE race_results SET class_type=? WHERE race_date=? "
-                          "AND race_number=? AND IFNULL(class_type,'')!=?",
-                          (j_class, race_date, race_no, j_class))
-                n_updated += c.rowcount
+            # Venue first, so a row that just had its venue filled is then
+            # eligible for the venue-guarded distance/class corrections below.
             if j_venue:
                 c.execute("UPDATE race_results SET venue=? WHERE race_date=? "
                           "AND race_number=? AND IFNULL(venue,'')!=?",
                           (j_venue, race_date, race_no, j_venue))
+                n_updated += c.rowcount
+            # distance/class are venue-guarded: never overwrite an overseas
+            # (venue-NULL) runner's foreign distance/class with HK card values.
+            if j_dist in _VALID_HK_DISTANCES:
+                c.execute("UPDATE race_results SET distance=? WHERE race_date=? "
+                          "AND race_number=? AND distance!=? AND IFNULL(venue,'')!=''",
+                          (j_dist, race_date, race_no, j_dist))
+                n_updated += c.rowcount
+            if j_class:
+                c.execute("UPDATE race_results SET class_type=? WHERE race_date=? "
+                          "AND race_number=? AND IFNULL(class_type,'')!=? AND IFNULL(venue,'')!=''",
+                          (j_class, race_date, race_no, j_class))
                 n_updated += c.rowcount
 
             for h in race.get('horses', []):
