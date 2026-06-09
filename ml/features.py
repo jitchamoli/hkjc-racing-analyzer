@@ -81,8 +81,12 @@ _daily_variant_cache: dict = {}  # keyed by (race_date, before_race_no, before_d
 # v6.10: going bucket → list of raw going strings to match in SQL.
 # Hardcoded (no user input) — used by calculate_sire_top3_on_going.
 _GOING_REVERSE = {
+    # AWT (all-weather track) surfaces are fast/firm-equivalent; HKJC reports
+    # them as 'Good (AWT)'/'Sealed'. Fold into FIRM so Feature 23 doesn't
+    # silently drop ~763 AWT rows (going-map gap found 2026-06-08).
     'FIRM': ['GOOD', 'GOOD TO FIRM', 'FIRM', 'FAST',
-             'GD', 'G', 'GF', 'FT'],
+             'GD', 'G', 'GF', 'FT',
+             'GOOD (AWT)', 'SEALED', 'SE'],
     'GY':       ['GOOD TO YIELDING', 'GY'],
     'YIELDING': ['YIELDING', 'Y', 'YIELDING TO SOFT', 'YS'],
     'SOFT':     ['SOFT', 'HEAVY', 'S', 'H',
@@ -607,6 +611,13 @@ class FeatureEngineering:
             'GOOD': 'FIRM', 'GOOD TO FIRM': 'FIRM', 'FIRM': 'FIRM',
             'FAST': 'FIRM', 'GD': 'FIRM', 'G': 'FIRM', 'GF': 'FIRM',
             'FT': 'FIRM',
+            # AWT (all-weather) surfaces → FIRM. MUST mirror _GOING_REVERSE['FIRM']
+            # in BOTH directions: this forward map decides the bucket, and the
+            # reverse map expands the bucket back to DB going-strings. Omitting it
+            # here (only adding to the reverse list) makes _going_bucket self-map
+            # to 'GOOD (AWT)' → _GOING_REVERSE.get returns [] → sire feature
+            # silently returns the 0.20 default for AWT (review finding 2026-06-08).
+            'GOOD (AWT)': 'FIRM', 'SEALED': 'FIRM', 'SE': 'FIRM',
             'GOOD TO YIELDING': 'GY', 'GY': 'GY',
             'YIELDING': 'YIELDING', 'Y': 'YIELDING',
             'YIELDING TO SOFT': 'YIELDING', 'YS': 'YIELDING',

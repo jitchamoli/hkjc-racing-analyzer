@@ -164,22 +164,29 @@ def _score_meeting(conn, date) -> dict:
     n_races = 0
     for rno, horses in races.items():
         ranked = sorted([h for h in horses if h["predicted_rank"]], key=lambda h: h["predicted_rank"])
-        if len(ranked) < 6:
-            continue
-        our = {n: set(h["horse_name"] for h in ranked[:n]) for n in (2, 3, 4, 5, 6)}
+        if len(ranked) < 2:
+            continue  # need a pair to price even the smallest (straight QIN) bet
+        # Key picks/finishers by horse NUMBER (saddle), not name — robust to the
+        # name casing/brand-suffix drift in the HKJC parser gotchas, and
+        # consistent with _score_meeting_replay (audit 2026-06-09 #1).
+        max_box = min(6, len(ranked))
+        our = {n: set(str(h["horse_number"]).strip() for h in ranked[:n])
+               for n in range(2, max_box + 1)}
         finishers = {pos: [h for h in horses if h["actual_position"] == pos] for pos in (1, 2, 3, 4)}
         if not all(len(finishers[p]) == 1 for p in (1, 2)):
             continue  # need a clean top-2 to price anything
         n_races += 1
-        actual = {p: {finishers[p][0]["horse_name"]} for p in (1, 2)}
-        a3 = set().union(*[ {finishers[p][0]["horse_name"]} for p in (1,2,3) if finishers[p] ]) \
+        actual = {p: {str(finishers[p][0]["horse_number"]).strip()} for p in (1, 2)}
+        a3 = set().union(*[ {str(finishers[p][0]["horse_number"]).strip()} for p in (1,2,3) if finishers[p] ]) \
             if all(len(finishers[p]) == 1 for p in (1,2,3)) else None
-        a4 = set().union(*[ {finishers[p][0]["horse_name"]} for p in (1,2,3,4) if finishers[p] ]) \
+        a4 = set().union(*[ {str(finishers[p][0]["horse_number"]).strip()} for p in (1,2,3,4) if finishers[p] ]) \
             if all(len(finishers[p]) == 1 for p in (1,2,3,4)) else None
         top2_actual = actual[1] | actual[2]
         top2_nums = sorted(int(finishers[p][0]["horse_number"]) for p in (1, 2))
 
         for label, leg, box, ncombo, pool in STRATS:
+            if box > len(ranked):
+                continue  # not enough ranked horses to fill this box this race
             if leg == 2:
                 hit = (our[box] >= top2_actual) if box > 2 else (our[2] == top2_actual)
             elif leg == 3:
@@ -248,82 +255,101 @@ def _score_meeting_replay(conn, date) -> dict | None:
         except (json.JSONDecodeError, TypeError):
             continue
         horses = by_race.get(rno, {})
-        finishers = {h["actual_position"]: name
-                     for name, h in horses.items()
-                     if h["actual_position"] in (1, 2, 3, 4)}
+        # position -> {"name", "number"} so hit logic can key by NUMBER
+        # (robust to name casing/spelling drift between ticket legs and
+        # prediction_log rows — audit 2026-06-08 #3) and the dividend lookups
+        # below can read the saddle number directly.
+        finishers = {
+            h["actual_position"]: {"name": name, "number": h["number"]}
+            for name, h in horses.items()
+            if h["actual_position"] in (1, 2, 3, 4)
+        }
         if not all(p in finishers for p in (1, 2)):
             continue
         n_races += 1
-        top2_names = {finishers[1], finishers[2]}
-        top3_names = ({finishers[p] for p in (1, 2, 3)}
-                      if all(p in finishers for p in (1, 2, 3)) else None)
-        top4_names = ({finishers[p] for p in (1, 2, 3, 4)}
-                      if all(p in finishers for p in (1, 2, 3, 4)) else None)
+        # Normalized-name -> number map for the legacy (no-leg-number) fallback.
+        name_to_num = {(n or "").strip().upper(): h["number"]
+                       for n, h in horses.items()}
 
         for bet in ticket.get("bets", []) or []:
             label = bet.get("label", "?")
             pool = bet.get("pool", "")
             combos = int(bet.get("combos", 0) or 0)
             unit_stake = float(bet.get("unit_stake", 0) or 0)
-            # Filter falsy names — a leg with name=None would poison the set
-            # ({None} is truthy, so the guard below wouldn't skip it) and make
-            # every hit comparison silently miss, under-counting replay ROI.
-            # Mirrors stake_ab._score_bet_from_ticket.
-            leg_names = {leg.get("name") for leg in (bet.get("legs") or []) if leg.get("name")}
-            if not leg_names or combos <= 0:
+            legs = bet.get("legs") or []
+            if not legs or combos <= 0:
                 continue
             # Fall back to $1 unit if the ticket didn't size the stake — keeps
             # ROI% meaningful even on legacy tickets without unit_stake.
             stake_per_combo = unit_stake if unit_stake > 0 else 1.0
 
+            # Hit key: prefer horse_number; fall back to a normalized name for
+            # legacy tickets/rows missing numbers. Kept in sync with
+            # stake_ab._score_key (not imported — bankroll_guard imports this
+            # module, so a back-import would risk a cycle).
+            legs_have = all(l.get("number") is not None for l in legs)
+            fin_have = all(finishers[p]["number"] is not None for p in finishers)
+            if legs_have and fin_have:
+                def _key_leg(l): return str(l.get("number")).strip()
+                def _key_fin(p): return str(finishers[p]["number"]).strip()
+            else:
+                def _key_leg(l): return (l.get("name") or "").strip().upper()
+                def _key_fin(p): return (finishers[p]["name"] or "").strip().upper()
+
+            leg_ids = {_key_leg(l) for l in legs if _key_leg(l)}
+            if not leg_ids:
+                continue
+            top2_ids = {_key_fin(p) for p in (1, 2)}
+            top3_ids = ({_key_fin(p) for p in (1, 2, 3)}
+                        if all(p in finishers for p in (1, 2, 3)) else None)
+            top4_ids = ({_key_fin(p) for p in (1, 2, 3, 4)}
+                        if all(p in finishers for p in (1, 2, 3, 4)) else None)
+            placed_top3 = {_key_fin(p) for p in (1, 2, 3) if p in finishers}
+
             hit = False
             # QPL ticket structure: legs[0] is the pivot, legs[1:] are bankers
             # (server-side build_bet_ticket). Each (pivot, banker_i) pair is
             # one combo and pays independently when both horses place top-3.
-            ordered_legs = bet.get("legs") or []
-            qpl_pivot = ordered_legs[0].get("name") if ordered_legs and pool == "QIN PLACE" else None
-            qpl_bankers = [l.get("name") for l in ordered_legs[1:]] if pool == "QIN PLACE" else []
-            qpl_hit_pairs: list[tuple[str, str]] = []
-            placed_top3 = {finishers.get(p) for p in (1, 2, 3) if finishers.get(p)}
+            qpl_hit_pairs: list[tuple[dict, dict]] = []   # (pivot_leg, banker_leg)
 
             if pool == "WIN":
-                hit = finishers.get(1) in leg_names
+                hit = (1 in finishers) and _key_fin(1) in leg_ids
             elif pool == "PLACE":
-                hit = any(finishers.get(p) in leg_names for p in (1, 2, 3))
+                hit = any(p in finishers and _key_fin(p) in leg_ids
+                          for p in (1, 2, 3))
             elif pool == "QUINELLA":
-                hit = top2_names <= leg_names
+                hit = top2_ids <= leg_ids
             elif pool == "TRIO":
-                hit = top3_names is not None and top3_names <= leg_names
+                hit = top3_ids is not None and top3_ids <= leg_ids
             elif pool == "FIRST 4":
-                hit = top4_names is not None and top4_names <= leg_names
+                hit = top4_ids is not None and top4_ids <= leg_ids
             elif pool == "QIN PLACE":
-                if qpl_pivot and qpl_pivot in placed_top3:
-                    for bk in qpl_bankers:
-                        if bk and bk in placed_top3:
-                            qpl_hit_pairs.append((qpl_pivot, bk))
+                if _key_leg(legs[0]) in placed_top3:
+                    for bk_leg in legs[1:]:
+                        if _key_leg(bk_leg) in placed_top3:
+                            qpl_hit_pairs.append((legs[0], bk_leg))
                 hit = len(qpl_hit_pairs) > 0
 
             # `div_per_unit` is the payout PER HK$1 of stake on a winning combo.
             # Multiply by stake_per_combo to get actual dollar return per combo.
             div_per_unit: float | None = None
             if hit and pool == "QUINELLA":
-                top2_nums = sorted(horses[finishers[p]]["number"] for p in (1, 2))
+                top2_nums = sorted(finishers[p]["number"] for p in (1, 2))
                 div_per_unit = _quin_div(conn, date, rno, *top2_nums)
             elif hit and pool == "TRIO":
                 combo_str = ",".join(str(n) for n in sorted(
-                    horses[finishers[p]]["number"] for p in (1, 2, 3)))
+                    finishers[p]["number"] for p in (1, 2, 3)))
                 div_per_unit = _exotic_div(conn, date, rno, pool, combo_str)
             elif hit and pool == "FIRST 4":
                 combo_str = ",".join(str(n) for n in sorted(
-                    horses[finishers[p]]["number"] for p in (1, 2, 3, 4)))
+                    finishers[p]["number"] for p in (1, 2, 3, 4)))
                 div_per_unit = _exotic_div(conn, date, rno, pool, combo_str)
             elif hit and pool == "WIN":
                 # 2026-05-25 (Finding #4): price from race_dividends pool='WIN'
                 # for the winning horse number (prediction_log.actual_odds is
                 # populated 0 for all rows, so the old path silently dropped
                 # every WIN replay).
-                winner_name = finishers.get(1)
-                winner_num = horses.get(winner_name, {}).get("number")
+                winner_num = finishers[1]["number"]
                 if winner_num:
                     div_per_unit = _win_div(conn, date, rno, winner_num)
             elif hit and pool == "PLACE":
@@ -333,9 +359,11 @@ def _score_meeting_replay(conn, date) -> dict | None:
                 # but the data structure supports multiple.
                 placed_legs_div = 0.0
                 placed_any = False
-                for leg_name in leg_names:
-                    if any(finishers.get(p) == leg_name for p in (1, 2, 3)):
-                        ln_num = horses.get(leg_name, {}).get("number")
+                for leg in legs:
+                    if _key_leg(leg) in placed_top3:
+                        ln_num = leg.get("number")
+                        if ln_num is None:
+                            ln_num = name_to_num.get(_key_leg(leg))
                         if ln_num:
                             d2 = _place_div(conn, date, rno, ln_num)
                             if d2:
@@ -350,9 +378,9 @@ def _score_meeting_replay(conn, date) -> dict | None:
                 # across hit pairs — multi-pair hits compound the payout.
                 qpl_div_sum = 0.0
                 priced_any = False
-                for piv, bk in qpl_hit_pairs:
-                    piv_num = horses.get(piv, {}).get("number")
-                    bk_num = horses.get(bk, {}).get("number")
+                for piv_leg, bk_leg in qpl_hit_pairs:
+                    piv_num = piv_leg.get("number") or name_to_num.get(_key_leg(piv_leg))
+                    bk_num = bk_leg.get("number") or name_to_num.get(_key_leg(bk_leg))
                     if piv_num and bk_num:
                         lo, hi = sorted([int(piv_num), int(bk_num)])
                         row = conn.execute(
@@ -491,7 +519,8 @@ def _report(logged: list[dict], title: str):
     print("\n  NOTE: real HKJC dividends, per-$1 basis. This is the un-burned forward")
     print("  sample — never used for tuning. Trust it over the burned backtest.")
     if "SYNTHETIC" in title:
-        print("\n  ⚠ SYNTHETIC = pre-gate UPPER BOUND. Scores every race with rank>=6 picks;")
+        print("\n  ⚠ SYNTHETIC = pre-gate UPPER BOUND. Scores each strategy on every")
+        print("    race with enough ranked horses to fill its box (>=2);")
         print("    production skips LOW/SKIP tier and field<8. Real-money ROI is what the")
         print("    REPLAY report shows (frozen race_bet_ticket). Pass --replay to see it.")
 
