@@ -344,24 +344,33 @@ def get_real_quinella_dividend(conn, race_date, race_no, horse_num_a, horse_num_
     return hkjc_declared_to_unit(row[0]) if row else None
 
 
-def get_real_exotic_dividend(conn, race_date, race_no, pool):
-    """Look up the single winning dividend for a pool with one combo/race
-    (TRIO, FIRST 4). Returns dollars, or None if not present.
+def get_real_exotic_dividend(conn, race_date, race_no, pool, combination=None):
+    """Look up the winning dividend for a box pool (TRIO, FIRST 4).
+    Returns dollars per $1 staked, or None if not present.
 
-    There is exactly one winning combination per race for these pools (the
-    actual top-3 / top-4 in any order), so we don't need to match the combo —
-    the lone row IS the winner. Used for box-bet P&L (we collect this dividend
-    when the actual finishers fall inside our box).
+    When `combination` (the sorted actual finisher numbers, comma-joined) is
+    given, match it explicitly — dead-heats can declare more than one winning
+    row per pool/race (2026-06-05 dead-heat fix), and a bare pool-only fetchone()
+    would return an arbitrary one. Falls back to the lone-row lookup when no
+    combination is supplied (incomplete finishers). Mirrors get_real_quinella_
+    dividend, which already matches on combination.
 
     Returns the payout PER $1 STAKED (HKJC declares per HK$10 → divide by 10),
     consistent with the $1-per-combo stake basis used in the box-bet P&L
     (trio5_stake=10 combos, etc.).
     """
-    row = conn.execute(
-        "SELECT dividend FROM race_dividends "
-        "WHERE race_date = ? AND race_number = ? AND pool = ?",
-        (race_date, race_no, pool)
-    ).fetchone()
+    if combination is not None:
+        row = conn.execute(
+            "SELECT dividend FROM race_dividends "
+            "WHERE race_date = ? AND race_number = ? AND pool = ? AND combination = ?",
+            (race_date, race_no, pool, combination)
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT dividend FROM race_dividends "
+            "WHERE race_date = ? AND race_number = ? AND pool = ?",
+            (race_date, race_no, pool)
+        ).fetchone()
     return hkjc_declared_to_unit(row[0]) if row else None
 
 
@@ -459,14 +468,17 @@ def simulate_bets(races, conn):
         actual_top4 = {h['horse_name'] for h in horses
                        if h.get('finish_position') in (1, 2, 3, 4)}
 
-        won = bool(top_h_row.get('is_winner'))
+        # Use finish_position (the field every other hit check uses) rather than
+        # the stored is_winner column, which the dead-heat/data-loss audits showed
+        # can be stale/NULL while finish_position is correct (audit 2026-06-09 #4).
+        won = top_h_row.get('finish_position') == 1
         ev = top_odds * top_prob - 1
         pnl_flat = (top_odds - 1) if won else -1
 
         # Market favourite baseline (by market_prob)
         mkt_idx = max(range(len(preds)), key=lambda i: preds[i][2])
         mkt_h_row = preds[mkt_idx][0]
-        mkt_won = bool(mkt_h_row.get('is_winner'))
+        mkt_won = mkt_h_row.get('finish_position') == 1
         mkt_odds = mkt_h_row.get('win_odds') or 0
         mkt_pnl = (mkt_odds - 1) if mkt_won else -1
 
@@ -560,8 +572,16 @@ def simulate_bets(races, conn):
         # exact-order semantics (rank-N must finish position N), which
         # understated F4 SAVER hits and broke parity (audit 2026-06-08 #5).
         f4saver_hit = len(actual_top4) == 4 and actual_top4.issubset(our_top4_names)
-        trio_dividend = get_real_exotic_dividend(conn, date, race_no, 'TRIO')
-        f4_dividend = get_real_exotic_dividend(conn, date, race_no, 'FIRST 4')
+        # Match the actual finishing combo so dead-heat races (>1 winning row)
+        # resolve to the right dividend instead of an arbitrary fetchone().
+        top3_nums = sorted(int(h['horse_number']) for h in horses
+                           if h.get('finish_position') in (1, 2, 3) and h.get('horse_number'))
+        top4_nums = sorted(int(h['horse_number']) for h in horses
+                           if h.get('finish_position') in (1, 2, 3, 4) and h.get('horse_number'))
+        trio_combo = ",".join(str(n) for n in top3_nums) if len(top3_nums) == 3 else None
+        f4_combo = ",".join(str(n) for n in top4_nums) if len(top4_nums) == 4 else None
+        trio_dividend = get_real_exotic_dividend(conn, date, race_no, 'TRIO', trio_combo)
+        f4_dividend = get_real_exotic_dividend(conn, date, race_no, 'FIRST 4', f4_combo)
 
         # F4-style triple-gate skip test for BOX TRIO-5 (user A/B 2026-05-23).
         # Mirrors the existing F4 BOX-5 gate in dashboard/template.py:1129-1131:

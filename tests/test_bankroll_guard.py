@@ -52,6 +52,21 @@ def test_ticket_total_stake_skips_invalid():
     assert bg._ticket_total_stake("not json") == (0.0, 0)
 
 
+def test_ticket_total_stake_counts_number_only_legs():
+    # audit 2026-06-09 #9: a leg with a number but no name still counts toward
+    # exposure (the replay scorer keys by number-or-name); only legs with neither
+    # identifier are dropped.
+    s, n = bg._ticket_total_stake(json.dumps(_ticket([
+        {"combos": 4, "unit_stake": 1.0, "legs": [{"number": 5}, {"number": 7}]},
+    ])))
+    assert (s, n) == (4.0, 1)
+    # legs with neither name nor number are still skipped
+    s2, n2 = bg._ticket_total_stake(json.dumps(_ticket([
+        {"combos": 3, "unit_stake": 1.0, "legs": [{"foo": 1}]},
+    ])))
+    assert (s2, n2) == (0.0, 0)
+
+
 def test_ticket_total_stake_unit_fallback():
     # missing unit_stake falls back to $1/combo
     s, n = bg._ticket_total_stake(json.dumps(_ticket([

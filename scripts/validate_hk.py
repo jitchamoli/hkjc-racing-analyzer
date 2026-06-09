@@ -164,22 +164,29 @@ def _score_meeting(conn, date) -> dict:
     n_races = 0
     for rno, horses in races.items():
         ranked = sorted([h for h in horses if h["predicted_rank"]], key=lambda h: h["predicted_rank"])
-        if len(ranked) < 6:
-            continue
-        our = {n: set(h["horse_name"] for h in ranked[:n]) for n in (2, 3, 4, 5, 6)}
+        if len(ranked) < 2:
+            continue  # need a pair to price even the smallest (straight QIN) bet
+        # Key picks/finishers by horse NUMBER (saddle), not name — robust to the
+        # name casing/brand-suffix drift in the HKJC parser gotchas, and
+        # consistent with _score_meeting_replay (audit 2026-06-09 #1).
+        max_box = min(6, len(ranked))
+        our = {n: set(str(h["horse_number"]).strip() for h in ranked[:n])
+               for n in range(2, max_box + 1)}
         finishers = {pos: [h for h in horses if h["actual_position"] == pos] for pos in (1, 2, 3, 4)}
         if not all(len(finishers[p]) == 1 for p in (1, 2)):
             continue  # need a clean top-2 to price anything
         n_races += 1
-        actual = {p: {finishers[p][0]["horse_name"]} for p in (1, 2)}
-        a3 = set().union(*[ {finishers[p][0]["horse_name"]} for p in (1,2,3) if finishers[p] ]) \
+        actual = {p: {str(finishers[p][0]["horse_number"]).strip()} for p in (1, 2)}
+        a3 = set().union(*[ {str(finishers[p][0]["horse_number"]).strip()} for p in (1,2,3) if finishers[p] ]) \
             if all(len(finishers[p]) == 1 for p in (1,2,3)) else None
-        a4 = set().union(*[ {finishers[p][0]["horse_name"]} for p in (1,2,3,4) if finishers[p] ]) \
+        a4 = set().union(*[ {str(finishers[p][0]["horse_number"]).strip()} for p in (1,2,3,4) if finishers[p] ]) \
             if all(len(finishers[p]) == 1 for p in (1,2,3,4)) else None
         top2_actual = actual[1] | actual[2]
         top2_nums = sorted(int(finishers[p][0]["horse_number"]) for p in (1, 2))
 
         for label, leg, box, ncombo, pool in STRATS:
+            if box > len(ranked):
+                continue  # not enough ranked horses to fill this box this race
             if leg == 2:
                 hit = (our[box] >= top2_actual) if box > 2 else (our[2] == top2_actual)
             elif leg == 3:

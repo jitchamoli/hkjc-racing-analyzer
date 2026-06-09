@@ -556,7 +556,7 @@ button {{ font-family:inherit; cursor:pointer; }}
     <div id="race-detail"></div>
     {accuracy_panel_html}
     <div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>
-    <div class="footer">HKJC Racing Analyzer v6.6 — Generated: {now}</div>
+    <div class="footer">HKJC Racing Analyzer v6.11 — Generated: {now}</div>
   </div>
   <div class="alerts-rail" id="alerts-rail"></div>
 </div>
@@ -839,6 +839,7 @@ function renderHero() {{
 }}
 
 function renderBetCard(race) {{
+  if (!race.horses || !race.horses.length) return '';
   var topH = race.horses[0];
   var tier = race.conviction_tier;
   var isEdge = tier === 'EDGE';
