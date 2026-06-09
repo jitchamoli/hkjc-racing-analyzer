@@ -61,9 +61,12 @@ def _ticket_total_stake(ticket_json: str) -> Tuple[float, int]:
     """Total $ stake + bet-line count across one ticket.
 
     Mirrors the stake formula in validate_hk._score_meeting_replay exactly
-    (combos x unit_stake, $1 fallback, skip combos<=0 or no named legs) so the
-    pending+resolved total stays consistent with the replay scorer. The parity
-    is pinned by test_resolved_stake_matches_replay_scorer.
+    (combos x unit_stake, $1 fallback, skip combos<=0 or no usable legs) so the
+    pending+resolved total stays consistent with the replay scorer. The replay
+    scorer keys legs by number-or-name, so a number-only leg (no name) must still
+    count toward exposure — accept a leg with a name OR a number, only drop legs
+    that carry neither identifier (audit 2026-06-09 #9). The parity is pinned by
+    test_resolved_stake_matches_replay_scorer.
     """
     try:
         ticket = json.loads(ticket_json)
@@ -73,7 +76,8 @@ def _ticket_total_stake(ticket_json: str) -> Tuple[float, int]:
     n = 0
     for bet in ticket.get("bets", []) or []:
         combos = int(bet.get("combos", 0) or 0)
-        legs = [l for l in (bet.get("legs") or []) if l.get("name")]
+        legs = [l for l in (bet.get("legs") or [])
+                if l.get("name") or l.get("number") is not None]
         if combos <= 0 or not legs:
             continue
         unit = float(bet.get("unit_stake", 0) or 0) or 1.0
