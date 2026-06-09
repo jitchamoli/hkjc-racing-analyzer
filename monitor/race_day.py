@@ -84,19 +84,15 @@ async def fetch_race_times(fetcher: HKJCDataFetcher, race_date: str) -> list:
         *(fetcher.get_race_card(race_date, rn, venue=venue) for rn in range(1, 12)),
         return_exceptions=True,
     )
-    # This runs ONCE at startup to schedule every race window, so a single
-    # transient empty/error must not blind the monitor for the rest of the
-    # meeting. Tolerate one miss; stop only after 2 consecutive empties (mirrors
-    # results_fetcher.fetch_day_results).
-    consecutive_empty = 0
+    # All 11 cards are already fetched concurrently above, so there is no cost
+    # to inspecting every one. Do NOT break on an empty/error race — a single
+    # transient miss on an early race must not drop the schedule for every later
+    # race (which would blind the monitor for the rest of the meeting). Just skip
+    # empties; non-existent races (meetings with <11) simply have no time.
     for race_no, race in enumerate(fetched, start=1):
         if isinstance(race, Exception) or not race or not race.horses:
-            consecutive_empty += 1
-            if consecutive_empty >= 2:
-                break
-            logger.warning(f"Race {race_no}: empty/error — tolerating one miss")
+            logger.warning(f"Race {race_no}: empty/error — skipping (later races still scheduled)")
             continue
-        consecutive_empty = 0
         race_time = parse_race_time(race.time, race_date)
         if race_time:
             race_times.append((race_no, race_time))
