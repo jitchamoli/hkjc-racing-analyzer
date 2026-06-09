@@ -8,18 +8,22 @@ import pandas as pd
 
 from ml.fr_features import FEATURE_COLS, TARGET, build_training_table
 from ml.fr_model import FRRacingModel
+from scripts.oos_common import resolve_oos_cutoff
 
 
 def main():
     print("Loading data + model...")
     df = build_training_table()
     df = df.sort_values(["date", "race_id"], kind="stable").reset_index(drop=True)
-    cut_cal = int(len(df) * 0.85)
-    test = df.iloc[cut_cal:].copy()
-    print(f"  Test fold: {len(test):,} rows, "
-          f"{test['date'].min().date()} → {test['date'].max().date()}")
-
     model = FRRacingModel.load()
+    # Slice the test fold by the cutoff FROZEN at train time, not int(len*0.85)
+    # on the live row count — the latter drifts as new data is ingested (audit M1).
+    cutoff, cutoff_src = resolve_oos_cutoff(model, df)
+    test = df[df["date"] > cutoff].copy()
+    print(f"  Test fold: {len(test):,} rows, "
+          f"{test['date'].min().date()} → {test['date'].max().date()}  "
+          f"(cutoff {cutoff.date()} [{cutoff_src}])")
+
     test["model_p"] = model.predict_proba(test[FEATURE_COLS])
 
     test["model_rank"] = test.groupby("race_id")["model_p"].rank(method="first", ascending=False)

@@ -18,12 +18,7 @@ import pandas as pd
 
 from ml.fr_features import FEATURE_COLS, TARGET, build_training_table
 from ml.fr_model import FRRacingModel
-
-
-def _training_cutoff(df: pd.DataFrame) -> pd.Timestamp:
-    df_sorted = df.sort_values(["date", "race_id"], kind="stable").reset_index(drop=True)
-    cut = int(len(df_sorted) * 0.85)
-    return df_sorted.iloc[cut - 1]["date"]
+from scripts.oos_common import resolve_oos_cutoff
 
 
 def _flat_win(picks: pd.DataFrame, label: str) -> dict:
@@ -57,10 +52,13 @@ def main() -> int:
     print("Loading data + features...")
     df = build_training_table()
     df = df.sort_values(["date", "race_id"], kind="stable").reset_index(drop=True)
-    cutoff = _training_cutoff(df)
+    # Use the cutoff FROZEN in the model payload at train time — recomputing it
+    # from the (growing) live row count drifts the OOS window (audit M1).
+    model = FRRacingModel.load()
+    cutoff, cutoff_src = resolve_oos_cutoff(model, df)
     print(f"  Total rows: {len(df):,}  "
           f"date range: {df['date'].min().date()} → {df['date'].max().date()}")
-    print(f"  Training cutoff (in-sample max): {cutoff.date()}")
+    print(f"  Training cutoff (in-sample max): {cutoff.date()}  [{cutoff_src}]")
 
     if args.since_cutoff:
         window = df[df["date"] > cutoff].copy()
@@ -94,7 +92,7 @@ def main() -> int:
     n_races = window["race_id"].nunique()
     print(f"\nWindow: {label}  |  {n_races:,} races, {len(window):,} runners")
 
-    model = FRRacingModel.load()
+    # model already loaded above for the frozen cutoff
     window["model_p"] = model.predict_proba(window[FEATURE_COLS])
 
     window["model_rank"] = window.groupby("race_id")["model_p"].rank(
