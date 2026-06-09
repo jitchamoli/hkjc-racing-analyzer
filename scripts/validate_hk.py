@@ -519,7 +519,8 @@ def _report(logged: list[dict], title: str):
     print("\n  NOTE: real HKJC dividends, per-$1 basis. This is the un-burned forward")
     print("  sample — never used for tuning. Trust it over the burned backtest.")
     if "SYNTHETIC" in title:
-        print("\n  ⚠ SYNTHETIC = pre-gate UPPER BOUND. Scores every race with rank>=6 picks;")
+        print("\n  ⚠ SYNTHETIC = pre-gate UPPER BOUND. Scores each strategy on every")
+        print("    race with enough ranked horses to fill its box (>=2);")
         print("    production skips LOW/SKIP tier and field<8. Real-money ROI is what the")
         print("    REPLAY report shows (frozen race_bet_ticket). Pass --replay to see it.")
 
