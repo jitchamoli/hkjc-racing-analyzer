@@ -8,9 +8,12 @@ Covers the behavioral changes:
 """
 import sqlite3
 
+import pytest
+
 import scripts.validate_hk as vh
 from scripts.backtest import get_real_exotic_dividend
 from betting.dividends import hkjc_declared_to_unit
+from ml.features import FeatureEngineering
 
 
 def _conn_with_predlog(rows):
@@ -77,6 +80,16 @@ def test_score_meeting_hits_by_number():
     acc = vh._score_meeting(conn, "2026/06/03")
     assert acc["straight_QIN"][2] == 1                       # 1 hit
     assert acc["straight_QIN"][1] == hkjc_declared_to_unit(80.0)
+
+
+def test_extract_features_refuses_empty_race_date_with_conn():
+    # audit 2026-06-09 #5: with a DB conn but no race_date, the before_date filter
+    # would coerce to None and leak the current race's own results. Fail closed.
+    conn = sqlite3.connect(":memory:")
+    horse_data = {"name": "ALPHA", "distance": "1200", "going": "GOOD",
+                  "field_size": 12}  # no race_date
+    with pytest.raises(ValueError, match="race_date is empty"):
+        FeatureEngineering.extract_features(horse_data, [], "Sha Tin", conn=conn)
 
 
 def test_exotic_dividend_matches_combination():

@@ -17,7 +17,9 @@
 #     return the first failing exit code.
 set -euo pipefail
 
-PROJECT_ROOT="/Users/jitendrachamoli/Code/hkjc_racing_analyzer"
+# Derive the repo root from this script's location (scripts/auto_dump.sh) so the
+# dump still works if the repo is moved or cloned elsewhere. Matches ./raceday.
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="$PROJECT_ROOT/logs"
 LOG="$LOG_DIR/auto_dump.log"
 

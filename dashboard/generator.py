@@ -635,8 +635,12 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
     try:
         from betting.bankroll_guard import daily_status
         guard = daily_status(race_date, _cfg.BANKROLL)
-        loss_cap_pct = getattr(_cfg, 'DAILY_LOSS_CAP_PCT', 0.08)
-        if guard.halted and guard.realized_pnl_pct <= -loss_cap_pct:
+        # React ONLY to a realized stop-loss, not the exposure cap. Inspect the
+        # guard's own halt_reason rather than re-deriving the loss threshold from
+        # config — a local getattr fallback could silently diverge from the value
+        # the guard actually halted on. daily_status sets halt_reason to
+        # "DAILY LOSS CAP ..." or "DAILY EXPOSURE CAP ..." (bankroll_guard.py).
+        if guard.halted and 'LOSS CAP' in (guard.halt_reason or ''):
             halt_reason = guard.halt_reason
     except Exception as e:
         logger.debug(f"bankroll guard check skipped: {e}")
