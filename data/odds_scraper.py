@@ -79,7 +79,7 @@ class OddsScraper:
                     odds_val = float(match[1])
                     if odds_val > 0:
                         odds[horse_no] = odds_val
-                except:
+                except Exception:
                     continue
         
         return odds
@@ -125,11 +125,11 @@ class OddsScraper:
                                 odds_val = float(value['odds'])
                                 if odds_val > 0:
                                     odds[horse_no] = odds_val
-                            except:
+                            except Exception:
                                 pass
                         else:
                             odds.update(self._extract_odds_from_json(value))
-        except:
+        except Exception:
             pass
         
         return odds

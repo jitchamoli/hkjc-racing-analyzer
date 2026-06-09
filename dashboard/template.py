@@ -2555,7 +2555,7 @@ function hardReload() {{
   // Force a fresh fetch by appending a timestamp query string. Works
   // for both file:// and http:// — the new URL guarantees the browser
   // cannot serve a cached copy. Strips any prior ?v= cache-buster first.
-  var cleanPath = location.pathname + location.hash.replace(/[?&]v=\d+/, '');
+  var cleanPath = location.pathname + location.hash.replace(/[?&]v=\\d+/, '');
   location.href = cleanPath + '?v=' + Date.now();
 }}
 

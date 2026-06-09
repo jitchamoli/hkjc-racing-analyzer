@@ -711,6 +711,10 @@ async def _scrape_and_store_rankings(db):
     """
     from datetime import datetime
     now = datetime.now().strftime('%Y-%m-%d')
+    # Derive the season from the date instead of hardcoding — the literal
+    # '2025-26' would mislabel every scraped row once the 2026-27 season opens
+    # (~Jul 2026). Matches db.rebuild_stats(), which also uses _current_season().
+    season = db._current_season()
 
     jockeys = await scrape_jockey_rankings()
     if jockeys:
@@ -718,12 +722,12 @@ async def _scrape_and_store_rankings(db):
         for j in jockeys:
             c.execute("""
                 INSERT INTO jockey_stats (name, season, rides, wins, places, win_rate, place_rate, last_updated)
-                VALUES (?, '2025-26', ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(name) DO UPDATE SET
                     rides=excluded.rides, wins=excluded.wins, places=excluded.places,
                     win_rate=excluded.win_rate, place_rate=excluded.place_rate,
                     last_updated=excluded.last_updated
-            """, (j['name'], j['rides'], j['wins'], j['places'],
+            """, (j['name'], season, j['rides'], j['wins'], j['places'],
                   j['win_rate'], j['place_rate'], now))
         db.conn.commit()
         logger.info(f"Updated {len(jockeys)} jockey rankings in DB")
@@ -736,12 +740,12 @@ async def _scrape_and_store_rankings(db):
         for t in trainers:
             c.execute("""
                 INSERT INTO trainer_stats (name, season, runners, wins, places, win_rate, place_rate, last_updated)
-                VALUES (?, '2025-26', ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(name) DO UPDATE SET
                     runners=excluded.runners, wins=excluded.wins, places=excluded.places,
                     win_rate=excluded.win_rate, place_rate=excluded.place_rate,
                     last_updated=excluded.last_updated
-            """, (t['name'], t['runners'], t['wins'], t['places'],
+            """, (t['name'], season, t['runners'], t['wins'], t['places'],
                   t['win_rate'], t['place_rate'], now))
         db.conn.commit()
         logger.info(f"Updated {len(trainers)} trainer rankings in DB")
