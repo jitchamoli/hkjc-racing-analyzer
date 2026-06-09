@@ -20,6 +20,11 @@ def main():
     # on the live row count — the latter drifts as new data is ingested (audit M1).
     cutoff, cutoff_src = resolve_oos_cutoff(model, df)
     test = df[df["date"] > cutoff].copy()
+    if test.empty:
+        print(f"  No OOS rows after cutoff {cutoff.date()} [{cutoff_src}] — "
+              f"the model was trained through the latest data. Ingest newer races "
+              f"or retrain on an earlier cutoff.")
+        return 1
     print(f"  Test fold: {len(test):,} rows, "
           f"{test['date'].min().date()} → {test['date'].max().date()}  "
           f"(cutoff {cutoff.date()} [{cutoff_src}])")

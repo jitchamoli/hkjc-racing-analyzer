@@ -103,12 +103,14 @@ async def fetch_race_times(fetcher: HKJCDataFetcher, race_date: str) -> list:
 
 
 async def snapshot_odds(fetcher: HKJCDataFetcher, race_date: str, race_no: int,
-                        odds_db: OddsDatabase = None):
+                        odds_db: OddsDatabase = None, venue: str = ""):
     """Fetch and store current odds for a race."""
     owns_db = odds_db is None
     odds_db = odds_db or OddsDatabase()
     try:
-        race = await fetcher.get_race_card(race_date, race_no)
+        # Pass the pre-detected venue so get_race_card skips its own detect_venue
+        # HTTP call on every pre-race snapshot.
+        race = await fetcher.get_race_card(race_date, race_no, venue=venue)
         if race and race.horses:
             horses = [
                 {
@@ -160,7 +162,11 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
         )
         for race_no, race in enumerate(fetched, start=1):
             if isinstance(race, Exception) or not race or not race.horses:
-                break
+                # Skip, do NOT break: all 11 are already fetched, so a transient
+                # empty/error on an early race must not drop every later race from
+                # the live dashboard (same rationale as fetch_race_times).
+                logger.warning(f"R{race_no}: empty/error — skipping (later races still rendered)")
+                continue
             analyses = analyzer.analyze_race(race)
             race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)
             all_races.append(race_data)
@@ -302,6 +308,10 @@ async def run_monitor(race_date: str):
 
         logger.info(f"Found {len(race_times)} races")
 
+        # Detect the meeting venue once and reuse it for every snapshot (avoids a
+        # redundant detect_venue HTTP call per pre-race window).
+        meeting_venue = fetcher.api.detect_venue(race_date)
+
         # Step 2: Process each race
         for race_no, race_time in race_times:
             wake_time = race_time - timedelta(seconds=PRE_RACE_WINDOW)
@@ -317,7 +327,7 @@ async def run_monitor(race_date: str):
 
             # Snapshot and regenerate
             logger.info(f"R{race_no}: Pre-race window active")
-            await snapshot_odds(fetcher, race_date, race_no, odds_db=odds_db)
+            await snapshot_odds(fetcher, race_date, race_no, odds_db=odds_db, venue=meeting_venue)
 
             # Sharp-move auto-rerun trigger (spec §7): if any top-2 pick moved
             # ≥ 25% (steam) or ≥ 40% (cold), force a full re-run.

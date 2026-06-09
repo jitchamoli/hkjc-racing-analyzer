@@ -1949,6 +1949,11 @@ class HorseDatabase:
         return result
 
     def close(self):
+        # Idempotent: a second close() (e.g. explicit close() then GC) on an
+        # already-closed connection would otherwise raise ProgrammingError, which
+        # is NOT a DatabaseError and wouldn't be caught below.
+        if getattr(self, "conn", None) is None:
+            return
         # Per SQLite recommendation: run `PRAGMA optimize` just before close
         # so the query planner's per-index statistics stay fresh. Cheap
         # (~50ms) — only re-ANALYZEs indexes that were materially updated
@@ -1957,7 +1962,11 @@ class HorseDatabase:
             self.conn.execute("PRAGMA optimize")
         except sqlite3.DatabaseError:
             pass
-        self.conn.close()
+        try:
+            self.conn.close()
+        except sqlite3.ProgrammingError:
+            pass
+        self.conn = None
 
 
 # ------------------------------------------------------------------

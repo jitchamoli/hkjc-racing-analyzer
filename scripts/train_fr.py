@@ -35,6 +35,9 @@ def main():
 
     folds = split_temporal(df)
     for name, fold in folds.items():
+        if fold.empty:
+            print(f"  {name:<10} n=     0  EMPTY (dataset too small to fill this fold)")
+            continue
         print(f"  {name:<10} n={len(fold):>6}  "
               f"dates {fold['date'].min().date()} → {fold['date'].max().date()}  "
               f"win_rate={fold[TARGET].mean()*100:.2f}%")
@@ -45,7 +48,12 @@ def main():
 
     print("\nTraining XGBoost (early stopping on earlystop fold)...")
     model = FRRacingModel()
-    model.fit(X_tr, y_tr, X_es, y_es)
+    # An empty earlystop fold (tiny dataset) would crash XGBoost's eval_set —
+    # pass None so fit() trains without early stopping instead.
+    if X_es.empty:
+        model.fit(X_tr, y_tr)
+    else:
+        model.fit(X_tr, y_tr, X_es, y_es)
     print(f"  Trained in {time.time()-t0:.1f}s on {len(X_tr):,} samples")
 
     print("\n=== Metrics ===")

@@ -1188,7 +1188,12 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
         for h in horses_json:
             h['bet_recommendation'] = None
 
-    # Quinella dividend estimate + EV (only when QIN bet is active)
+    # Quinella dividend estimate + EV (only when QIN bet is active).
+    # Re-derive qin_indices from the CURRENT recommendations: the snapshot taken
+    # earlier predates the CHAOS override, which nullifies all bet_recommendations
+    # — without this, a CHAOS (no-bet) race would still compute+display QIN EV.
+    qin_indices = [i for i, h in enumerate(horses_json)
+                   if h.get('bet_recommendation') == 'QIN']
     if len(qin_indices) >= 2:
         pair_combos = list(itertools.combinations(qin_indices, 2))
         # Edge/EV math uses pure_prob (pre-market-blend), NOT calibrated_prob —
@@ -1321,12 +1326,15 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     )
 
     for race_no, race in enumerate(fetched, start=1):
+        # Skip, do NOT break: all 11 cards are already fetched concurrently, so a
+        # transient miss on one race must not drop every later race from the
+        # generated dashboard (non-existent races on a <11-race card just skip).
         if isinstance(race, Exception):
-            logger.warning(f"Race {race_no} fetch failed: {race}, stopping")
-            break
+            logger.warning(f"Race {race_no} fetch failed: {race} — skipping")
+            continue
         if not race or not race.horses:
-            logger.info(f"No data for Race {race_no}, stopping")
-            break
+            logger.info(f"No data for Race {race_no} — skipping")
+            continue
 
         analyses = analyzer.analyze_race(race)
         race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)

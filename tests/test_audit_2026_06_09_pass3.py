@@ -45,15 +45,26 @@ def test_quinella_ev_depends_on_which_prob_is_passed():
 
 
 def test_generator_qin_ev_block_uses_pure_prob():
-    # Guard the wiring: the QIN EV block must pull pure_prob for the EV call.
-    # (model_probs stays calibrated because it drives the conviction-tier shares.)
+    # Guard the wiring via AST (not a substring grep — can't be fooled by a
+    # comment): the quinella_bet_ev call's FIRST positional arg must be the
+    # `pure_probs` variable, never `model_probs` (which is calibrated and only
+    # drives the conviction-tier shares). A revert to model_probs fails here.
+    import ast
     import inspect
     import dashboard.generator as g
-    src = inspect.getsource(g.build_race_data)
-    assert "quinella_bet_ev(pure_probs" in src, \
-        "QIN EV must be computed from pure_prob (audit pass-3 Fix 2)"
-    assert "quinella_bet_ev(model_probs" not in src, \
-        "QIN EV must NOT use calibrated model_probs"
+
+    tree = ast.parse(inspect.getsource(g.build_race_data))
+    calls = [n for n in ast.walk(tree)
+             if isinstance(n, ast.Call)
+             and isinstance(n.func, ast.Name) and n.func.id == "quinella_bet_ev"]
+    assert calls, "quinella_bet_ev call not found in build_race_data"
+    for call in calls:
+        assert call.args, "quinella_bet_ev called with no positional args"
+        first = call.args[0]
+        assert isinstance(first, ast.Name) and first.id == "pure_probs", (
+            "QIN EV must be computed from pure_prob (audit pass-3 Fix 2); "
+            f"got first arg {ast.dump(first)}"
+        )
 
 
 # ---------------------------------------------------------------------------
