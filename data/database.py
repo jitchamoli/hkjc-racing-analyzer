@@ -41,6 +41,8 @@ def apply_perf_pragmas(conn: sqlite3.Connection) -> None:
     falls back to read() if the mapping fails.
     """
     try:
+        conn.execute("PRAGMA busy_timeout = 30000")   # wait up to 30s for a lock
+                                                       # (monitor + subprocess writers)
         conn.execute("PRAGMA cache_size = -20000")    # 20MB page cache (was 2MB)
         conn.execute("PRAGMA mmap_size = 268435456")  # 256MB memory-mapped IO
         conn.execute("PRAGMA temp_store = MEMORY")    # temp tables/sorts in RAM
@@ -1460,20 +1462,25 @@ class HorseDatabase:
                 # overwriting the actual staked ticket — the "frozen" promise
                 # that validate_hk --replay depends on (GPT-5.5 Finding #3
                 # 2026-05-24).
-                results_filled = c.execute(
-                    "SELECT 1 FROM prediction_log WHERE race_date=? AND race_number=? "
-                    "AND COALESCE(results_filled, 0) = 1 LIMIT 1",
-                    (race_date, race_no),
-                ).fetchone()
-                if not results_filled:
-                    c.execute("""
-                        INSERT INTO race_bet_ticket (
-                            race_date, race_number, ticket_json, logged_at
-                        ) VALUES (?, ?, ?, ?)
-                        ON CONFLICT(race_date, race_number) DO UPDATE SET
-                            ticket_json=excluded.ticket_json,
-                            logged_at=excluded.logged_at
-                    """, (race_date, race_no, json.dumps(ticket), now))
+                # Single atomic statement — NOT check-then-act. The freeze guard
+                # (WHERE NOT EXISTS ... results_filled=1) and the upsert run as
+                # one statement, so a concurrent results_fetcher subprocess can't
+                # set results_filled=1 between a separate SELECT and INSERT and
+                # have us overwrite the frozen ticket (audit 2026-06-09 pass-3).
+                c.execute("""
+                    INSERT INTO race_bet_ticket (
+                        race_date, race_number, ticket_json, logged_at
+                    )
+                    SELECT ?, ?, ?, ?
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM prediction_log
+                        WHERE race_date=? AND race_number=?
+                          AND COALESCE(results_filled, 0) = 1
+                    )
+                    ON CONFLICT(race_date, race_number) DO UPDATE SET
+                        ticket_json=excluded.ticket_json,
+                        logged_at=excluded.logged_at
+                """, (race_date, race_no, json.dumps(ticket), now, race_date, race_no))
 
             for h in horses:
                 c.execute("""

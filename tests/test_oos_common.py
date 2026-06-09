@@ -67,6 +67,18 @@ def test_resolve_prefers_frozen_cutoff_over_recompute():
     assert "RECOMPUTED" in src2
 
 
+def test_cutoff_date_robust_on_single_date_dataset():
+    # audit pass-3: a tiny/single-date dataset can snap the calibrate fold empty.
+    # cutoff_date_for must NOT return NaT (which would crash .strftime at the
+    # train site) — it falls back to the max over all in-sample folds.
+    df = _df(n_dates=1, runners_per_race=8)  # all rows share one date
+    cutoff = cutoff_date_for(df)
+    assert pd.notna(cutoff)
+    assert cutoff == pd.Timestamp("2026-01-01")
+    # the train site does this — must not raise
+    assert cutoff.strftime("%Y-%m-%d") == "2026-01-01"
+
+
 def test_frozen_cutoff_does_not_drift_when_more_data_is_appended():
     # The whole point of M1: ingesting more rows must NOT move a frozen cutoff.
     small = _df(n_dates=10, runners_per_race=8)

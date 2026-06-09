@@ -223,7 +223,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -290,7 +290,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -360,7 +360,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -427,7 +427,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -554,7 +554,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -676,7 +676,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -749,7 +749,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -824,7 +824,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn

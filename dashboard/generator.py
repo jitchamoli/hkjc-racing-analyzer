@@ -1191,7 +1191,13 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
     # Quinella dividend estimate + EV (only when QIN bet is active)
     if len(qin_indices) >= 2:
         pair_combos = list(itertools.combinations(qin_indices, 2))
-        ev_result = quinella_bet_ev(model_probs, market_probs, pair_combos)
+        # Edge/EV math uses pure_prob (pre-market-blend), NOT calibrated_prob —
+        # else our P(hit) is dragged toward the market and the EV is mechanically
+        # understated (CLAUDE.md "edge math uses pure_prob"). model_probs above
+        # stays calibrated because it drives the conviction-tier shares, which
+        # were tuned on calibrated probabilities.
+        pure_probs = [h.get('pure_prob') or 0 for h in horses_json]
+        ev_result = quinella_bet_ev(pure_probs, market_probs, pair_combos)
         race_data['qin_bet_ev'] = {
             'n_combos': len(pair_combos),
             'total_stake': ev_result['total_stake'],

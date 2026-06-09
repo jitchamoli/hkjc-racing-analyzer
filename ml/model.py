@@ -637,7 +637,7 @@ class CombinedRacingAnalyzer:
         # Shared DB connection for feature extraction (avoids per-horse connection churn)
         self._conn = None
         if config.DB_PATH.exists():
-            self._conn = sqlite3.connect(str(config.DB_PATH))
+            self._conn = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
             self._conn.row_factory = sqlite3.Row
 
         if ML_AVAILABLE and not self.ml_model.is_trained:
@@ -672,6 +672,21 @@ class CombinedRacingAnalyzer:
                     f"synthetic training data on a live process. Either fix the "
                     f"DB connection or restore models/win_model.pkl from backup."
                 )
+
+    def close(self):
+        """Release the shared DB connection. Without this the connection lives
+        for the whole process (a 6-9h meeting in the monitor), holding a WAL
+        read lock that blocks checkpointing. Safe to call multiple times."""
+        if getattr(self, "_conn", None) is not None:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
+
+    def __del__(self):
+        # Best-effort GC-time cleanup so a forgotten close() still frees the conn.
+        self.close()
 
     def predict(self, horse_data: dict, all_results, venue: str) -> MLPrediction:
         features = self.feature_eng.extract_features(horse_data, all_results, venue,

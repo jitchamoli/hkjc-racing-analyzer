@@ -45,9 +45,20 @@ def grouped_temporal_folds(df: pd.DataFrame) -> dict:
 
 
 def cutoff_date_for(df: pd.DataFrame) -> pd.Timestamp:
-    """Highest in-sample date (last date of the calibrate fold). Anything
-    strictly greater is true OOS. Call at TRAIN time to freeze the cutoff."""
-    return grouped_temporal_folds(df)["calibrate"]["date"].max()
+    """Highest in-sample date = last date of all non-test (train+earlystop+
+    calibrate) folds. Anything strictly greater is true OOS. Call at TRAIN time
+    to freeze the cutoff.
+
+    On a tiny/single-date dataset a fold can snap empty, so we take the max over
+    all three in-sample folds (not just calibrate) to avoid an empty .max() ->
+    NaT, which would crash .strftime() at the train site."""
+    folds = grouped_temporal_folds(df)
+    in_sample = pd.concat([folds["train"], folds["earlystop"], folds["calibrate"]])
+    if in_sample.empty:
+        # Degenerate: everything snapped into the test fold (or df empty). Fall
+        # back to the global max so callers still get a usable Timestamp.
+        return df["date"].max() if not df.empty else pd.NaT
+    return in_sample["date"].max()
 
 
 def resolve_oos_cutoff(model, df: pd.DataFrame):
