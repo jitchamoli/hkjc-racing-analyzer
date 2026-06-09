@@ -86,7 +86,6 @@ def compute_par_times(conn: sqlite3.Connection, before_date: str = None) -> Dict
 
     # Compute medians with fallback
     par_times = {}
-    all_keys = set(buckets_full.keys()) | {(d, g, '') for d, g in buckets_dg} | {(d, '', '') for (d,) in buckets_d}
 
     for key in buckets_full:
         dist, going, cls = key

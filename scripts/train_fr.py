@@ -16,19 +16,13 @@ from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
 
 from ml.fr_features import FEATURE_COLS, TARGET, build_training_table
 from ml.fr_model import FRRacingModel
+from scripts.oos_common import grouped_temporal_folds
 
 
 def split_temporal(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    n = len(df)
-    cut_train = int(n * 0.60)
-    cut_es = int(n * 0.70)
-    cut_cal = int(n * 0.85)
-    return {
-        "train": df.iloc[:cut_train],
-        "earlystop": df.iloc[cut_train:cut_es],
-        "calibrate": df.iloc[cut_es:cut_cal],
-        "test": df.iloc[cut_cal:],
-    }
+    """4-fold temporal split with date-boundary snapping (no race split across
+    folds). df must already be sorted by date."""
+    return grouped_temporal_folds(df)
 
 
 def main():
@@ -85,6 +79,9 @@ def main():
         "test_auc": float(roc_auc_score(y_te, p_te)),
         "sp_baseline_brier": float(brier_score_loss(y_te_sp, sp_p)),
         "sp_baseline_auc": float(roc_auc_score(y_te_sp, sp_p)),
+        # Freeze the OOS cutoff so validate/backtest don't recompute it from the
+        # (growing) live DB row count — see scripts/oos_common.py.
+        "cutoff_date": folds["calibrate"]["date"].max().strftime("%Y-%m-%d"),
     }
     saved = model.save()
     print(f"\nSaved model to {saved}")

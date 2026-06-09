@@ -1305,9 +1305,12 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     # Fetch all race cards concurrently (was sequential 1→11 — the main
     # generate_predictions bottleneck). analyze/build stay sequential below
     # since they touch the DB; only the network fetch is parallelized.
+    # Detect venue once up front — otherwise all 11 get_race_card calls each
+    # fire their own detect_venue HTTP request and could disagree mid-gather.
     logger.info("Fetching all race cards concurrently...")
+    detected_venue = fetcher.api.detect_venue(race_date)
     fetched = await asyncio.gather(
-        *(fetcher.get_race_card(race_date, rn) for rn in range(1, 12)),
+        *(fetcher.get_race_card(race_date, rn, venue=detected_venue) for rn in range(1, 12)),
         return_exceptions=True,
     )
 
