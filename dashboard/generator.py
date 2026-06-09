@@ -614,6 +614,51 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
     apply_card_exposure_cap(all_races, _cfg.BANKROLL,
                             getattr(_cfg, 'CARD_EXPOSURE_CAP', 0.10))
 
+    # Bankroll discipline — enforce the daily stop-loss / exposure cap that
+    # betting/bankroll_guard exposes. It was previously advisory-only: no
+    # generation path called it, so the system kept recommending fresh money
+    # after the day's loss/exposure cap was hit (audit 2026-06-08 #5). When the
+    # day is HALTED, zero the suggested stake on every not-yet-resolved race
+    # BEFORE the ticket is built — so build_bet_ticket (which only adds bets
+    # when amount>0) produces an EMPTY system ticket. The WA-copy + visual
+    # ticket render from bet_ticket.bets, so zeroing only suggested_stake would
+    # still show/copy a live bet (audit follow-up 2026-06-08 #1). Guarded: a
+    # guard failure must never block prediction generation.
+    # Only a realized STOP-LOSS blanks the card. The guard ALSO halts on the
+    # daily EXPOSURE cap (cumulative pending+resolved stake >= 10%), but after
+    # the HK$10 unit floor ~doubled allocation that cap is tripped by a busy
+    # card's own pending tickets on every live/finish re-run — blanking the
+    # whole card as NO SYSTEM BET with zero losses. That "you've planned a lot"
+    # signal is already surfaced honestly by the #1 card-over-cap banner below,
+    # so here we react ONLY to a genuine realized loss (chase-prevention).
+    halt_reason = None
+    try:
+        from betting.bankroll_guard import daily_status
+        guard = daily_status(race_date, _cfg.BANKROLL)
+        loss_cap_pct = getattr(_cfg, 'DAILY_LOSS_CAP_PCT', 0.08)
+        if guard.halted and guard.realized_pnl_pct <= -loss_cap_pct:
+            halt_reason = guard.halt_reason
+    except Exception as e:
+        logger.debug(f"bankroll guard check skipped: {e}")
+
+    def _is_unresolved(r):
+        if r.get('results_available'):
+            return False
+        return not any(h.get('actual_position') for h in (r.get('horses') or []))
+
+    if halt_reason:
+        for r in all_races:
+            if _is_unresolved(r):
+                r['suggested_stake'] = {
+                    'amount': 0.0, 'pct': 0.0,
+                    'method': f'STOP: {halt_reason}',
+                }
+                r['bankroll_halt'] = halt_reason
+        logger.warning(
+            f"Bankroll guard HALTED for {race_date} ({halt_reason}); "
+            f"suggested stakes + system tickets zeroed on unresolved races."
+        )
+
     model_ver = (analyzer.ml_analyzer.ml_model.model_version
                   if hasattr(analyzer, 'ml_analyzer') else '')
     ticket_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -627,7 +672,20 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
             r, race_date=race_date, model_version=model_ver, generated_at=ticket_ts,
         )
         merged = _merge_ticket_pre_result(old_ticket, new_ticket, ticket_ts)
-        if old_ticket and merged.get('source') == 'pre_off_refresh':
+        # Halted day: force the frozen ticket itself to a zero/empty system
+        # ticket (belt-and-braces over the amount=0 build above, in case an
+        # older non-empty ticket survives the merge). This is the ticket the
+        # WA-copy + visual renderers read, so it must carry no payable bets.
+        if halt_reason and _is_unresolved(r):
+            merged['bets'] = []
+            merged['total_combos'] = 0
+            merged['unit_stake'] = 0.0
+            merged['allocated_amount'] = 0.0
+            merged['over_budget'] = False
+            merged['over_amount'] = 0.0
+            merged['bankroll_halt'] = halt_reason
+            merged['no_bet_reason'] = f'STOP: {halt_reason}'
+        elif old_ticket and merged.get('source') == 'pre_off_refresh':
             old_combos = old_ticket.get('total_combos', 0) or 0
             new_combos = merged.get('total_combos', 0) or 0
             logger.info(
@@ -636,6 +694,36 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
                 f"superseded_tickets[{len(merged.get('superseded_tickets') or [])}]."
             )
         r['bet_ticket'] = merged
+
+    # Card-level allocated-spend disclosure (audit 2026-06-08 #1). The
+    # pre-build apply_card_exposure_cap pro-rates the SUGGESTED budget, but the
+    # HK$10 unit floor + automatic add-ons push the actual frozen allocation
+    # above it — and that overshoot was never surfaced, so the card LOOKED
+    # capped while real exposure was 2x+ the limit. Per user decision we do NOT
+    # drop bets (all MAIN reward-max boxes are kept); instead we compute the
+    # true allocated total and flag the residual honestly so the dashboard +
+    # bankroll guard show real exposure and the user can trim manually.
+    cap_frac = getattr(_cfg, 'CARD_EXPOSURE_CAP', 0.10)
+    cap_amount = _cfg.BANKROLL * cap_frac
+    pending = [r for r in all_races
+               if _is_unresolved(r) and not r.get('bankroll_halt')
+               and r.get('bet_ticket')]
+    card_allocated = sum((r['bet_ticket'].get('allocated_amount') or 0.0)
+                         for r in pending)
+    over_cap = max(0.0, card_allocated - cap_amount) if cap_amount > 0 else 0.0
+    for r in pending:
+        r['card_allocated_total'] = round(card_allocated, 2)
+        r['card_exposure_cap'] = round(cap_amount, 2)
+        r['card_exposure_cap_pct'] = round(cap_frac * 100, 1)
+        r['card_over_cap'] = over_cap > 0
+        r['card_over_cap_amount'] = round(over_cap, 2)
+    if over_cap > 0:
+        logger.warning(
+            f"Card exposure ${card_allocated:.0f} exceeds "
+            f"{cap_frac*100:.0f}% cap (${cap_amount:.0f}) by ${over_cap:.0f} on "
+            f"{race_date} — bets NOT dropped (MAIN bets kept); flagged for "
+            f"manual trim."
+        )
 
 
 def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
@@ -761,13 +849,16 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
 
     total_combos = sum(b['combos'] for b in bets)
     unit = (amount / total_combos) if amount > 0 and total_combos > 0 else 0.0
-    # HKJC min unit is HK$5 — `max(5.0, ...)` enforces the floor. When the
+    # HKJC minimum bet is HK$10 — WIN / PLACE / QUINELLA / QUINELLA PLACE are
+    # not accepted below $10, so a $5 unit produced un-placeable tickets
+    # (user-reported 2026-06-08). Floor every pool at HK$10 and round to $10
+    # increments, matching the user's actual flat-$10/combo betting. When the
     # budget can't fund every combo at that floor, the ticket allocation
     # EXCEEDS `amount`. Honest disclosure preferred over silent overspend:
     # the ticket carries `over_budget` + `over_amount` so the display can
-    # show "$100 budget / $125 allocated (+$25 over)" instead of misleading
+    # show "$100 budget / $150 allocated (+$50 over)" instead of misleading
     # the user (GPT-5.5 R12 #2 2026-05-25).
-    unit_rounded = max(5.0, (unit // 5.0) * 5.0) if unit > 0 else 0.0
+    unit_rounded = max(10.0, (unit // 10.0) * 10.0) if unit > 0 else 0.0
     allocated = 0.0
     for b in bets:
         b['unit_stake'] = float(unit_rounded)
@@ -789,7 +880,7 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
         'total_combos': int(total_combos),
         'unit_stake': float(unit_rounded),
         'allocated_amount': float(allocated),
-        # Budget over/under disclosure — `over_budget=True` means the HK$5
+        # Budget over/under disclosure — `over_budget=True` means the HK$10
         # unit-stake floor pushed allocated above the suggested budget.
         # WA + visual ticket surface this so the user sees the real spend.
         'over_budget': bool(over_amount > 0),

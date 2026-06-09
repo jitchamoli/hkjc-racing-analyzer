@@ -45,8 +45,9 @@ def test_bet_ticket_persists_recommender_and_main_extras():
     assert labels == ['BOX QIN-3', 'BOX QIN-4 PROTECTION', 'F4 SAVER',
                       'BOX TRIO-5', 'F4 BOX-5']
     assert ticket['total_combos'] == 3 + 6 + 1 + 10 + 5  # 25
-    assert ticket['unit_stake'] == 5.0  # 200 / 25 → 8 → floor-5 → 5
-    assert ticket['allocated_amount'] == 125.0
+    # HK$10 HKJC minimum floor (2026-06-08): 200 / 25 → 8 → floor-10 → 10.
+    assert ticket['unit_stake'] == 10.0
+    assert ticket['allocated_amount'] == 250.0
     assert ticket['model_version'] == 'm1'
 
 

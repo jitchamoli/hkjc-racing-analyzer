@@ -236,13 +236,22 @@ class HKJCApiClient:
     # -- Barrier trial results ------------------------------------------------
 
     def fetch_barrier_trial_html(self, date: str = "") -> Optional[str]:
-        """Fetch barrier trial results page."""
+        """Fetch the barrier-trial results page (Trackwork/BTResult.aspx).
+
+        `date` is internal YYYY/MM/DD; converted to the page's DD/MM/YYYY. The
+        `&__d=1` flag is REQUIRED for the date param to take effect — without it
+        the page serves the latest meeting regardless of Date= (verified
+        2026-06-07). No date → latest meeting.
+        """
         url = (
             f"{self.BASE}/information/English/Trackwork/"
-            f"TrackworkResult.aspx"
+            f"BTResult.aspx"
         )
         if date:
-            url += f"?Date={date}"
+            parts = date.split("/")
+            if len(parts) == 3:
+                y, m, d = parts
+                url += f"?Date={d}/{m}/{y}&__d=1"
         try:
             resp = self.session.get(url, timeout=30)
             resp.raise_for_status()
@@ -812,61 +821,69 @@ class HKJCParser:
     # -- Barrier trial parsing -------------------------------------------------
 
     @staticmethod
-    def parse_barrier_trials(html: str) -> List[Dict]:
-        """Parse barrier trial results page → list of trial results.
+    def parse_barrier_trials(html: str, trial_date: str = "") -> List[Dict]:
+        """Parse the barrier-trial results page (BTResult.aspx) → trial runners.
 
-        Returns list of dicts: {horse_name, position, time, margin, date}
+        The page renders one table per trial heat with a header row:
+            Horse | Jockey | Trainer | Draw | Gear | LBW | Running Position | Time
+        Runner rows are listed in finishing order, so finishing position is the
+        1-based row index within the heat. Verified live 2026-06-07 across the
+        05/06, 02/06 and 29/05 2026 trial cards.
+
+        Returns list of dicts: {horse_name, position, margin, time,
+        running_position, jockey, trainer, draw, gear, heat, date}. The first
+        five keys are backward-compatible with the prior parser + get_horse_trials.
         """
         if not html:
             return []
         soup = BeautifulSoup(html, "html.parser")
         trials: List[Dict] = []
+        heat = 0
 
-        tables = soup.select("table.tableBorderBlue, table.table_bd, table")
-        for table in tables:
+        for table in soup.find_all("table"):
             rows = table.find_all("tr")
-            if len(rows) < 3:
+            if len(rows) < 2:
                 continue
-
-            header = rows[0].get_text(" ", strip=True).lower()
-            if "horse" not in header and "name" not in header:
+            header = [c.get_text(" ", strip=True).lower()
+                      for c in rows[0].find_all(["td", "th"])]
+            # A trial heat table has Horse + Time + (LBW or Gear). Skips the
+            # page's nav / layout / date-selector tables.
+            if "horse" not in header or "time" not in header or \
+                    not ("lbw" in header or "gear" in header):
                 continue
-
-            for row in rows[1:]:
-                cells = [c.get_text(strip=True) for c in row.find_all("td")]
-                if len(cells) < 3:
+            col = {name: i for i, name in enumerate(header)}
+            heat += 1
+            pos = 0
+            for tr in rows[1:]:
+                cells = [c.get_text(" ", strip=True) for c in tr.find_all("td")]
+                if len(cells) < len(header):
                     continue
 
-                pos = HKJCParser._safe_int(cells[0])
-                if pos < 1 or pos > 24:
+                def _cell(name: str) -> str:
+                    i = col.get(name)
+                    return cells[i] if i is not None and i < len(cells) else ""
+
+                raw_name = _cell("horse")
+                if not raw_name:
                     continue
-
-                name = ""
-                time_str = ""
-                margin = ""
-                date_str = ""
-
-                for cell in cells[1:]:
-                    if not name and re.match(r"^[A-Z\s']+$", cell) and len(cell) > 3:
-                        name = cell.strip()
-                    if not time_str and re.match(r"\d{1,2}:\d{2}\.\d", cell):
-                        time_str = cell
-                    if not margin and re.match(r"^[\d.]+L?$|^HD$|^NK$|^SHD?$|^N$", cell):
-                        margin = cell
-                    if not date_str and re.match(r"\d{2}/\d{2}/\d{2,4}", cell):
-                        date_str = cell
-
-                if name:
-                    trials.append({
-                        "horse_name": name,
-                        "position": pos,
-                        "time": time_str,
-                        "margin": margin,
-                        "date": date_str,
-                    })
-
-            if trials:
-                break
+                # Strip trailing brand code e.g. "AEROVOLANIC (K123)" -> "AEROVOLANIC"
+                name = re.sub(r"\s*\([^)]*\)\s*$", "", raw_name).strip().upper()
+                if not name:
+                    continue
+                pos += 1
+                trials.append({
+                    "horse_name": name,
+                    "position": pos,                      # finishing order in heat
+                    "margin": _cell("lbw"),
+                    "time": _cell("time"),
+                    "running_position": _cell("running position"),
+                    "jockey": _cell("jockey"),
+                    "trainer": _cell("trainer"),
+                    "draw": _cell("draw"),
+                    "gear": _cell("gear"),
+                    "heat": heat,
+                    "date": trial_date,
+                })
 
         return trials
 

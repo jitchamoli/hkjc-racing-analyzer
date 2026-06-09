@@ -142,6 +142,10 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
                  # Sha Tin (a parse miss was mislabeling every HV meeting as ST,
                  # poisoning venue/draw/C&D features). Empty degrades gracefully.
     distance = 1200
+    distance_found = False   # lock on the FIRST valid distance match so a stray
+                            # 4-digit+M token in a later header row can't clobber
+                            # the real race distance (caused a 1800→1400 overwrite
+                            # on a re-scrape — review finding 2026-06-08)
     going = "Good"
     class_type = ""
     course = ""
@@ -153,19 +157,23 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
             break
         for row in table[:5]:
             full_text = " ".join(row)
-            # Check Happy Valley FIRST — "Sha Tin" can appear in other contexts
-            # (e.g. horse names) but "Happy Valley" is unambiguous
-            if "Happy Valley" in full_text:
-                venue = "Happy Valley"
-                header_parsed = True
-                break
-            elif "Sha Tin" in full_text:
-                venue = "Sha Tin"
-                header_parsed = True
-                break
-            dm = re.search(r"(\d{4})\s*M", full_text)
-            if dm:
-                distance = int(dm.group(1))
+            # Parse ALL header fields from this row — do NOT break on the venue
+            # match. HKJC frequently puts venue + distance in the SAME header
+            # cell ("Sha Tin, 1650M, Good, Class 4"); the old early-break matched
+            # the venue and skipped the distance regex, so distance silently fell
+            # back to the 1200 default — corrupting whole meetings (the
+            # distance-overwrite bug fixed 2026-06-08). Check Happy Valley FIRST
+            # — "Sha Tin" can appear in other contexts (e.g. horse names).
+            if not venue:
+                if "Happy Valley" in full_text:
+                    venue = "Happy Valley"
+                elif "Sha Tin" in full_text:
+                    venue = "Sha Tin"
+            if not distance_found:
+                dm = re.search(r"(\d{4})\s*M", full_text)
+                if dm and 800 <= int(dm.group(1)) <= 3000:
+                    distance = int(dm.group(1))
+                    distance_found = True
             for g in ["Good To Firm", "Good To Yielding", "Good", "Yielding To Soft",
                        "Yielding", "Soft", "Heavy", "Wet Fast", "Wet Slow"]:
                 if g.lower() in full_text.lower():
@@ -177,6 +185,10 @@ def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: in
             cr = re.search(r'"([A-C](?:\+\d)?)"?\s*Course', full_text)
             if cr:
                 course = cr.group(0)
+            # Header found once venue proven; keep scanning the rest of this
+            # table's rows (cheap) so distance in a later row is still captured.
+            if venue:
+                header_parsed = True
         if header_parsed:
             break
 

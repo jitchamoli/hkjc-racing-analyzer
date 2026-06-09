@@ -343,7 +343,16 @@ class BettingStrategy:
                 reason = f"{label} {role} - {name} ({wins}W/{count}R, {win_rate:.0%}W)"
                 return score, reason
 
-        # Fallback: tier-based defaults
+        # Fallback: tier-based defaults.
+        # In backtest (before_date set) the tier sets below are CURRENT-season
+        # opinions (refreshed 2026-05-17) — applying them to a historical race
+        # leaks today's view of a jockey/trainer backwards, the same leak class
+        # the surname-LIKE getter above already guards. Skip straight to the
+        # neutral default so old races get no 2026 tier knowledge. Live
+        # (before_date='') is unaffected.
+        if before_date:
+            return default_score, f"{role.title()}: {name}"
+
         name_lower = name.lower() if name else ""
         surname = name_lower.split()[-1] if name_lower.split() else ""
 

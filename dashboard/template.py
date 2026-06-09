@@ -556,7 +556,7 @@ button {{ font-family:inherit; cursor:pointer; }}
     <div id="race-detail"></div>
     {accuracy_panel_html}
     <div class="disclaimer"><strong>DISCLAIMER:</strong> For entertainment only. Not financial advice. Gamble responsibly.</div>
-    <div class="footer">HKJC Racing Analyzer v6.6 — Generated: {now}</div>
+    <div class="footer">HKJC Racing Analyzer v6.11 — Generated: {now}</div>
   </div>
   <div class="alerts-rail" id="alerts-rail"></div>
 </div>
@@ -839,6 +839,7 @@ function renderHero() {{
 }}
 
 function renderBetCard(race) {{
+  if (!race.horses || !race.horses.length) return '';
   var topH = race.horses[0];
   var tier = race.conviction_tier;
   var isEdge = tier === 'EDGE';
@@ -931,7 +932,7 @@ function renderBetCard(race) {{
       }});
       // Legacy path: recompute unit + per-bet amount the old way.
       var unit = totalCombos > 0 ? (ss.amount / totalCombos) : 0;
-      unitRounded = Math.max(5, Math.floor(unit / 5) * 5);
+      unitRounded = Math.max(10, Math.floor(unit / 10) * 10);
       betLines.forEach(function(b) {{
         b.amount = b.combos * unitRounded;
         allocated += b.amount;
@@ -950,7 +951,7 @@ function renderBetCard(race) {{
     var _overAmount = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
     var overRow = (_overBudget && _overAmount >= 1)
       ? '<tr><td colspan="3" style="padding:3px 0 1px 0;color:#f59e0b;font-size:.65rem;font-style:italic">⚠ $' +
-          Math.round(_overAmount) + ' over budget (HK$5 unit floor)</td></tr>'
+          Math.round(_overAmount) + ' over budget (HK$10 unit floor)</td></tr>'
       : '';
     var breakdownHtml = breakdownRows
       ? '<table style="font-size:.7rem;border-collapse:collapse;margin-top:6px;width:100%">' +
@@ -963,13 +964,36 @@ function renderBetCard(race) {{
     stakeHtml =
       '<div class="trust-block">' +
         '<div class="trust-label">Suggested Stake ' +
-          '<span class="info-tip" onclick="showInfoPop(event, &quot;Suggested Stake&quot;, &quot;Per-card stake sized off your bankroll (config.BANKROLL = $' + br + ' HKD). EDGE 3%, HIGH 2%, MED 1%, LOW 0.5%. WIN bets use half-Kelly capped at the tier %. The budget is split across firing MAIN bets by combo count — unit stake is rounded to the nearest $5 for clean bet entry. Adjust BANKROLL in config.py to match your rolling bankroll.&quot;)">ⓘ</span>' +
+          '<span class="info-tip" onclick="showInfoPop(event, &quot;Suggested Stake&quot;, &quot;Per-card stake sized off your bankroll (config.BANKROLL = $' + br + ' HKD). EDGE 3%, HIGH 2%, MED 1%, LOW 0.5%. WIN bets use half-Kelly capped at the tier %. The budget is split across firing MAIN bets by combo count — unit stake is floored at the HK$10 HKJC minimum and rounded to $10. Adjust BANKROLL in config.py to match your rolling bankroll.&quot;)">ⓘ</span>' +
         '</div>' +
         '<div class="trust-body" style="margin-top:4px;font-size:.85rem">' +
           '<strong style="color:var(--gold)">$' + Math.round(ss.amount) + '</strong> HKD budget' +
           '<br><span style="color:var(--dim);font-size:.65rem">' + (ss.pct||0).toFixed(2) + '% of $' + br + ' · ' + esc(ss.method||'') + '</span>' +
           breakdownHtml +
         '</div>' +
+      '</div>';
+  }}
+  // Bankroll guard STOP — daily loss/exposure cap hit (server zeroed the
+  // suggested stake; audit 2026-06-08 #5). Show NO SYSTEM BET + the reason.
+  if (race.bankroll_halt) {{
+    stakeHtml =
+      '<div class="trust-block" style="border-color:rgba(239,68,68,.4)">' +
+        '<div class="trust-label" style="color:#fca5a5">⛔ BANKROLL STOP</div>' +
+        '<div class="trust-body" style="margin-top:4px;font-size:.78rem;color:#fca5a5">' +
+          'NO SYSTEM BET — ' + esc(race.bankroll_halt) +
+        '</div>' +
+      '</div>';
+  }}
+  // Card-exposure over-cap disclosure (audit 2026-06-08 #1). Bets are NOT
+  // dropped; the real allocated total simply exceeds the day cap, so flag it
+  // honestly for a manual trim. Hidden on a halted day (already NO SYSTEM BET).
+  if (race.card_over_cap && !race.bankroll_halt) {{
+    stakeHtml +=
+      '<div style="margin-top:6px;font-size:.7rem;color:#f59e0b;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:6px 10px">' +
+        '⚠ Card exposure $' + Math.round(race.card_allocated_total||0) +
+        ' exceeds ' + (race.card_exposure_cap_pct||10) + '% cap ($' +
+        Math.round(race.card_exposure_cap||0) + ') by $' +
+        Math.round(race.card_over_cap_amount||0) + ' — trim manually.' +
       '</div>';
   }}
 
@@ -1093,7 +1117,13 @@ function renderBetCard(race) {{
     _ssBannerIdx = waLines.length;
     waLines.push('💰 *Suggested stake: $' + Math.round(ss.amount) + ' HKD*' + ssPctTxt);
   }}
-  if (tier === 'EDGE') {{
+  // Only show betting copy when a real system ticket exists. A halted
+  // day (bankroll STOP) or an empty/SKIP ticket has bet_ticket.bets=[], and
+  // the WA-copy + visual ticket render from bet_ticket.bets — so the EDGE
+  // "anchor TRIO-5/F4 with this horse" banner must not fire when there is no
+  // TRIO-5/F4 in the ticket (audit 2026-06-08 #2).
+  var hasSystemTicket = !!(race.bet_ticket && race.bet_ticket.bets && race.bet_ticket.bets.length);
+  if (tier === 'EDGE' && hasSystemTicket) {{
     // Banner text reads live stats from EDGE_STATS (track_edge.py). Falls
     // back to generic "place > win" framing when no stats file present.
     var _es = (typeof EDGE_STATS !== 'undefined' && EDGE_STATS) ? EDGE_STATS : {{}};
@@ -1146,7 +1176,7 @@ function renderBetCard(race) {{
       waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(
         ' HKD*',
         ' HKD — actual $' + Math.round(_waAllocated) +
-        ' (+$' + Math.round(_waOverAmount) + ' over, $5 unit floor)*'
+        ' (+$' + Math.round(_waOverAmount) + ' over, $10 unit floor)*'
       );
     }} else if (_waAllocated > 0) {{
       var _unalloc = Math.round(ss.amount) - Math.round(_waAllocated);
@@ -1533,7 +1563,10 @@ function renderBetCard(race) {{
   var edgeWho = (edgeRank === 1)
     ? 'top pick'
     : 'rank-' + edgeRank + ' pick #' + esc(race.edge_horse_number) + ' ' + esc(race.edge_horse_name);
-  var edgeAlertHTML = isEdge
+  // Suppress the EDGE staking banner when there is no system ticket to
+  // anchor (halted day / empty ticket — audit 2026-06-08 #2).
+  var _edgeHasTicket = !!(race.bet_ticket && race.bet_ticket.bets && race.bet_ticket.bets.length);
+  var edgeAlertHTML = (isEdge && _edgeHasTicket)
     ? '<div style="background:linear-gradient(135deg,rgba(251,191,36,.25),rgba(251,191,36,.08));border:2px solid var(--gold);border-radius:6px;padding:8px 12px;margin:6px 0 10px 0;font-size:.78rem">' +
         '<span style="color:var(--gold);font-weight:800;letter-spacing:.06em">★ RARE EDGE — anchor TRIO-5 with this horse</span>' +
         '<div style="color:var(--fg);margin-top:3px;font-size:.72rem;line-height:1.4">' +

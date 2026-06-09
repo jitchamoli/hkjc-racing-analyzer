@@ -135,11 +135,16 @@ def print_brier_and_calibration(days: int):
                 "WHERE results_filled = 1 AND calibrated_prob > 0"
             ).fetchall()
         else:
+            # Compute the cutoff in local (HKT) time, matching the database.py
+            # accuracy methods. SQLite date('now') is UTC, which is 8h behind HKT
+            # and can drop the latest meeting near midnight (audit 2026-06-09 #8).
+            from datetime import datetime, timedelta
+            cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y/%m/%d')
             rows = conn.execute(
                 "SELECT calibrated_prob, actual_won FROM prediction_log "
                 "WHERE results_filled = 1 AND calibrated_prob > 0 "
-                "AND race_date >= date('now', ?)",
-                (f'-{days} days',)
+                "AND race_date >= ?",
+                (cutoff,)
             ).fetchall()
         conn.close()
     except Exception:

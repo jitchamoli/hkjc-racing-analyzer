@@ -232,6 +232,22 @@ def _names(horses) -> set[str]:
     return {h['name'] for h in horses}
 
 
+def _score_key(legs, finishers):
+    """Hit-comparison key for ticket scoring: prefer horse_number, fall back
+    to a normalized name when numbers are absent (legacy tickets/rows).
+
+    Horse names can drift in casing/spelling between a frozen ticket leg and
+    the prediction_log finisher row while the saddle number stays stable, so
+    number-keyed comparison avoids false misses (audit 2026-06-08 #3). Numbers
+    are stringified to neutralize int-vs-str storage drift; the name fallback
+    is upper-cased + stripped."""
+    legs_have = bool(legs) and all(l.get('number') is not None for l in legs)
+    fin_have = bool(finishers) and all(h.get('number') is not None for h in finishers)
+    if legs_have and fin_have:
+        return lambda h: str(h.get('number')).strip()
+    return lambda h: (h.get('name') or '').strip().upper()
+
+
 def _lookup_dividend(conn, race_date: str, race_no: int, pool: str,
                      combo: str) -> float:
     """Look up a dividend from race_dividends. Returns 0.0 if absent.
@@ -388,16 +404,17 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
     if not legs:
         return False, 0.0
 
-    leg_names = {leg.get('name') for leg in legs if leg.get('name')}
-    actual_top2 = _names(finishers[:2])
-    actual_top3 = _names(finishers[:3])
-    actual_top4 = _names(finishers[:4])
-    top1 = finishers[0]['name']
+    _key = _score_key(legs, finishers)
+    leg_ids = {_key(leg) for leg in legs if _key(leg)}
+    actual_top2 = {_key(h) for h in finishers[:2]}
+    actual_top3 = {_key(h) for h in finishers[:3]}
+    actual_top4 = {_key(h) for h in finishers[:4]}
+    top1 = _key(finishers[0])
     rn = race['race_number']
 
     if pool in ('WIN', 'BANKER WIN'):
-        first_name = legs[0].get('name') if legs else None
-        if first_name != top1:
+        first_id = _key(legs[0]) if legs else None
+        if first_id != top1:
             return (False, 0.0)
         winner_num = finishers[0].get('number')
         if winner_num is None:
@@ -408,7 +425,7 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
         placed_div = 0.0
         placed_any = False
         for leg in legs:
-            if leg.get('name') in actual_top3:
+            if _key(leg) in actual_top3:
                 ln_num = leg.get('number')
                 if ln_num is None:
                     continue
@@ -419,7 +436,7 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
         return (placed_any, placed_div)
 
     if pool == 'QUINELLA':
-        if not actual_top2.issubset(leg_names) or len(finishers) < 2:
+        if not actual_top2.issubset(leg_ids) or len(finishers) < 2:
             return (False, 0.0)
         nums = sorted(int(h['number']) for h in finishers[:2]
                        if h.get('number') is not None)
@@ -429,7 +446,7 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
                                          f"{nums[0]},{nums[1]}"))
 
     if pool == 'TRIO':
-        if not actual_top3.issubset(leg_names) or len(finishers) < 3:
+        if not actual_top3.issubset(leg_ids) or len(finishers) < 3:
             return (False, 0.0)
         nums = sorted(int(h['number']) for h in finishers[:3]
                        if h.get('number') is not None)
@@ -439,7 +456,7 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
                                          ','.join(str(n) for n in nums)))
 
     if pool == 'FIRST 4':
-        if not actual_top4.issubset(leg_names) or len(finishers) < 4:
+        if not actual_top4.issubset(leg_ids) or len(finishers) < 4:
             return (False, 0.0)
         nums = sorted(int(h['number']) for h in finishers[:4]
                        if h.get('number') is not None)
@@ -455,8 +472,7 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
         if len(legs) < 2:
             return (False, 0.0)
         pivot = legs[0]
-        pivot_name = pivot.get('name')
-        if pivot_name not in actual_top3:
+        if _key(pivot) not in actual_top3:
             return (False, 0.0)
         piv_num = pivot.get('number')
         if piv_num is None:
@@ -464,7 +480,7 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
         div_sum = 0.0
         hit_any = False
         for bk in legs[1:]:
-            if bk.get('name') in actual_top3:
+            if _key(bk) in actual_top3:
                 bk_num = bk.get('number')
                 if bk_num is None:
                     continue

@@ -70,7 +70,7 @@ def _build_ticket(**overrides):
 def test_ticket_allocated_amount_never_exceeds_suggested_unless_over_budget_flagged():
     """If allocated > budget, ticket must carry `over_budget=True` so the
     user sees the over-spend honestly. Silent overspend = misleading."""
-    # Reproduce the F2 scenario: 25 combos at $5 floor on $100 budget.
+    # Reproduce the F2 scenario: 25 combos at the HK$10 floor on $100 budget.
     from dashboard.generator import build_bet_ticket
 
     horses = [
@@ -129,7 +129,7 @@ def test_wa_uses_frozen_ticket_amount_not_recomputed():
 
 def test_visual_ticket_reads_unit_stake_from_frozen_ticket():
     """The visual stake table must read race.bet_ticket.unit_stake when
-    available, not re-derive `Math.max(5, Math.floor(ss.amount / combos / 5) * 5)`."""
+    available, not re-derive `Math.max(10, Math.floor(ss.amount / combos / 10) * 10)`."""
     src = Path(__file__).resolve().parent.parent / 'dashboard' / 'template.py'
     text = src.read_text()
     # The unit_stake read must appear
