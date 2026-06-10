@@ -138,6 +138,14 @@ def main():
          [sys.executable, '-m', 'scripts.track_longshot_trio', args.race_date],
          required=False)
 
+    # Step 4c: QPL (Quinella Place) paper experiment — logs model top-2 as a
+    # QPL pair vs straight QIN on real dividends. User observation 2026-06-10
+    # (QPL hits more); 16-meeting backfill leans KILL (frequency illusion — QPL
+    # hits ~2x but ROI worse). Paper-only; accrues toward the N>=6 forward gate.
+    _run("4c/6 track_qpl (paper experiment)",
+         [sys.executable, '-m', 'scripts.track_qpl', args.race_date],
+         required=False)
+
     # Step 4b: HK forward-validation — appends this meeting (if after the frozen
     # cutoff) to the un-burned forward log. The only honest, never-tuned-on
     # evidence of real betting performance. Runs after step 1 fills results.
@@ -210,6 +218,7 @@ def main():
     print(f"  Spoiler dataset:              tracking_data/spoilers.csv")
     print(f"  EDGE history:                 tracking_data/edge_log.csv + edge_stats.json")
     print(f"  Longshot-TRIO experiment:     python3 -m scripts.track_longshot_trio --report")
+    print(f"  QPL experiment (paper):       python3 -m scripts.track_qpl --report")
     print(f"  Confluence log (WIN gate):    tracking_data/confluence_log.csv")
     print(f"  CLV edge gauge (mkt split):   python3 -m scripts.clv_report --split-by-market-rank")
     return 0
