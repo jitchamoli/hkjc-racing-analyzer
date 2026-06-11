@@ -635,8 +635,12 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
     try:
         from betting.bankroll_guard import daily_status
         guard = daily_status(race_date, _cfg.BANKROLL)
-        loss_cap_pct = getattr(_cfg, 'DAILY_LOSS_CAP_PCT', 0.08)
-        if guard.halted and guard.realized_pnl_pct <= -loss_cap_pct:
+        # React ONLY to a realized stop-loss, not the exposure cap. Inspect the
+        # guard's own halt_reason rather than re-deriving the loss threshold from
+        # config — a local getattr fallback could silently diverge from the value
+        # the guard actually halted on. daily_status sets halt_reason to
+        # "DAILY LOSS CAP ..." or "DAILY EXPOSURE CAP ..." (bankroll_guard.py).
+        if guard.halted and 'LOSS CAP' in (guard.halt_reason or ''):
             halt_reason = guard.halt_reason
     except Exception as e:
         logger.debug(f"bankroll guard check skipped: {e}")
@@ -1184,10 +1188,21 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
         for h in horses_json:
             h['bet_recommendation'] = None
 
-    # Quinella dividend estimate + EV (only when QIN bet is active)
+    # Quinella dividend estimate + EV (only when QIN bet is active).
+    # Re-derive qin_indices from the CURRENT recommendations: the snapshot taken
+    # earlier predates the CHAOS override, which nullifies all bet_recommendations
+    # — without this, a CHAOS (no-bet) race would still compute+display QIN EV.
+    qin_indices = [i for i, h in enumerate(horses_json)
+                   if h.get('bet_recommendation') == 'QIN']
     if len(qin_indices) >= 2:
         pair_combos = list(itertools.combinations(qin_indices, 2))
-        ev_result = quinella_bet_ev(model_probs, market_probs, pair_combos)
+        # Edge/EV math uses pure_prob (pre-market-blend), NOT calibrated_prob —
+        # else our P(hit) is dragged toward the market and the EV is mechanically
+        # understated (CLAUDE.md "edge math uses pure_prob"). model_probs above
+        # stays calibrated because it drives the conviction-tier shares, which
+        # were tuned on calibrated probabilities.
+        pure_probs = [h.get('pure_prob') or 0 for h in horses_json]
+        ev_result = quinella_bet_ev(pure_probs, market_probs, pair_combos)
         race_data['qin_bet_ev'] = {
             'n_combos': len(pair_combos),
             'total_stake': ev_result['total_stake'],
@@ -1301,19 +1316,25 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     # Fetch all race cards concurrently (was sequential 1→11 — the main
     # generate_predictions bottleneck). analyze/build stay sequential below
     # since they touch the DB; only the network fetch is parallelized.
+    # Detect venue once up front — otherwise all 11 get_race_card calls each
+    # fire their own detect_venue HTTP request and could disagree mid-gather.
     logger.info("Fetching all race cards concurrently...")
+    detected_venue = fetcher.api.detect_venue(race_date)
     fetched = await asyncio.gather(
-        *(fetcher.get_race_card(race_date, rn) for rn in range(1, 12)),
+        *(fetcher.get_race_card(race_date, rn, venue=detected_venue) for rn in range(1, 12)),
         return_exceptions=True,
     )
 
     for race_no, race in enumerate(fetched, start=1):
+        # Skip, do NOT break: all 11 cards are already fetched concurrently, so a
+        # transient miss on one race must not drop every later race from the
+        # generated dashboard (non-existent races on a <11-race card just skip).
         if isinstance(race, Exception):
-            logger.warning(f"Race {race_no} fetch failed: {race}, stopping")
-            break
+            logger.warning(f"Race {race_no} fetch failed: {race} — skipping")
+            continue
         if not race or not race.horses:
-            logger.info(f"No data for Race {race_no}, stopping")
-            break
+            logger.info(f"No data for Race {race_no} — skipping")
+            continue
 
         analyses = analyzer.analyze_race(race)
         race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)

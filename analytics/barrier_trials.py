@@ -55,9 +55,12 @@ class BarrierTrialAnalyzer:
         # Adjust for margin if available
         if margin:
             try:
-                margin_val = float(margin.replace("L", "").replace("HD", "0.2")
-                                   .replace("NK", "0.3").replace("SHD", "0.1")
-                                   .replace("SH", "0.1").replace("N", "0.3").strip())
+                # Replace multi-char tokens before their substrings: "SHD"
+                # before "HD"/"SH", "NK" before "N" — otherwise "SHD" → "S0.2"
+                # and float() raises (the close-up bonus was silently skipped).
+                margin_val = float(margin.replace("SHD", "0.1").replace("NK", "0.3")
+                                   .replace("HD", "0.2").replace("SH", "0.1")
+                                   .replace("N", "0.3").replace("L", "").strip())
                 if pos > 1 and margin_val <= 1.0:
                     score += 8
                     label += f" (close: {margin})"

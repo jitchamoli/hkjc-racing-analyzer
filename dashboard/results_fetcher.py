@@ -615,8 +615,13 @@ async def main():
         return
 
     fetcher = ResultsFetcher()
-    await fetcher.update_dashboard_with_results(race_date)
-    await fetcher.fetcher.close()
+    try:
+        await fetcher.update_dashboard_with_results(race_date)
+    finally:
+        # Always close the Playwright browser, even if the merge/write path
+        # raised — otherwise the chromium subprocess leaks on every failing call
+        # (this runs as a subprocess from monitor + post_race).
+        await fetcher.fetcher.close()
 
     # Auto-learn: feed results to horse database and retrain ML model
     if args.auto_learn:

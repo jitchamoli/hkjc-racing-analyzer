@@ -23,6 +23,7 @@ from data.odds_tracker import OddsDatabase
 from dashboard.template import generate_html
 from dashboard.generator import (
     build_race_data, _merge_with_existing, finalize_tickets_and_stakes,
+    preflight_dashboard_ml,
 )
 
 logging.basicConfig(
@@ -75,13 +76,23 @@ async def fetch_race_times(fetcher: HKJCDataFetcher, race_date: str) -> list:
     """
     race_times = []
     # Fetch all race cards concurrently, then process in order.
+    # Detect the venue once and pass it to every card fetch. Detecting per-race
+    # inside the gather fires 11 redundant HTTP calls and risks an inconsistent
+    # venue mid-gather (→ wrong URL → empty HTML → truncated card).
+    venue = fetcher.api.detect_venue(race_date)
     fetched = await asyncio.gather(
-        *(fetcher.get_race_card(race_date, rn) for rn in range(1, 12)),
+        *(fetcher.get_race_card(race_date, rn, venue=venue) for rn in range(1, 12)),
         return_exceptions=True,
     )
+    # All 11 cards are already fetched concurrently above, so there is no cost
+    # to inspecting every one. Do NOT break on an empty/error race — a single
+    # transient miss on an early race must not drop the schedule for every later
+    # race (which would blind the monitor for the rest of the meeting). Just skip
+    # empties; non-existent races (meetings with <11) simply have no time.
     for race_no, race in enumerate(fetched, start=1):
         if isinstance(race, Exception) or not race or not race.horses:
-            break
+            logger.warning(f"Race {race_no}: empty/error — skipping (later races still scheduled)")
+            continue
         race_time = parse_race_time(race.time, race_date)
         if race_time:
             race_times.append((race_no, race_time))
@@ -92,12 +103,14 @@ async def fetch_race_times(fetcher: HKJCDataFetcher, race_date: str) -> list:
 
 
 async def snapshot_odds(fetcher: HKJCDataFetcher, race_date: str, race_no: int,
-                        odds_db: OddsDatabase = None):
+                        odds_db: OddsDatabase = None, venue: str = ""):
     """Fetch and store current odds for a race."""
     owns_db = odds_db is None
     odds_db = odds_db or OddsDatabase()
     try:
-        race = await fetcher.get_race_card(race_date, race_no)
+        # Pass the pre-detected venue so get_race_card skips its own detect_venue
+        # HTTP call on every pre-race snapshot.
+        race = await fetcher.get_race_card(race_date, race_no, venue=venue)
         if race and race.horses:
             horses = [
                 {
@@ -139,14 +152,21 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
 
         all_races = []
 
-        # Fetch all race cards concurrently; analyze/build stay sequential (DB).
+        # Detect venue once (avoid 11 redundant detect_venue HTTP calls + the
+        # mid-gather inconsistency risk), then fetch all cards concurrently;
+        # analyze/build stay sequential (DB).
+        detected_venue = fetcher.api.detect_venue(race_date)
         fetched = await asyncio.gather(
-            *(fetcher.get_race_card(race_date, rn) for rn in range(1, 12)),
+            *(fetcher.get_race_card(race_date, rn, venue=detected_venue) for rn in range(1, 12)),
             return_exceptions=True,
         )
         for race_no, race in enumerate(fetched, start=1):
             if isinstance(race, Exception) or not race or not race.horses:
-                break
+                # Skip, do NOT break: all 11 are already fetched, so a transient
+                # empty/error on an early race must not drop every later race from
+                # the live dashboard (same rationale as fetch_race_times).
+                logger.warning(f"R{race_no}: empty/error — skipping (later races still rendered)")
+                continue
             analyses = analyzer.analyze_race(race)
             race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)
             all_races.append(race_data)
@@ -241,15 +261,33 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
                 raise
 
         logger.info(f"Dashboard regenerated with {len(all_races)} races")
+        return True
 
     except Exception as e:
-        logger.error(f"Dashboard regeneration failed: {e}")
+        # Surface the failure to the caller instead of returning a silent
+        # "success". The atomic writes above mean a crash leaves the prior good
+        # dashboard in place; run_monitor logs prominently and continues to the
+        # next race rather than aborting the whole meeting on one transient error.
+        logger.error(f"Dashboard regeneration failed: {e}", exc_info=True)
+        return False
 
 
 async def run_monitor(race_date: str):
     """Main monitor loop."""
     logger.info(f"Starting race day monitor for {race_date}")
     logger.info(f"Pre-race window: {PRE_RACE_WINDOW}s, Poll interval: {POLL_INTERVAL}s")
+
+    # ML integrity preflight ONCE at startup, mirroring the generator's main():
+    # refuse to run a whole meeting against a missing/corrupt model or blend
+    # calibrator. The model doesn't change mid-meeting, so one check suffices.
+    try:
+        preflight_dashboard_ml()
+    except Exception as e:
+        logger.error(
+            "ML integrity preflight failed; refusing to start the monitor: "
+            f"{type(e).__name__}: {e}"
+        )
+        raise SystemExit(2) from e
 
     fetcher = HKJCDataFetcher()
     # fail_closed_ml=True — see comment in regenerate_dashboard above.
@@ -270,6 +308,10 @@ async def run_monitor(race_date: str):
 
         logger.info(f"Found {len(race_times)} races")
 
+        # Detect the meeting venue once and reuse it for every snapshot (avoids a
+        # redundant detect_venue HTTP call per pre-race window).
+        meeting_venue = fetcher.api.detect_venue(race_date)
+
         # Step 2: Process each race
         for race_no, race_time in race_times:
             wake_time = race_time - timedelta(seconds=PRE_RACE_WINDOW)
@@ -285,7 +327,7 @@ async def run_monitor(race_date: str):
 
             # Snapshot and regenerate
             logger.info(f"R{race_no}: Pre-race window active")
-            await snapshot_odds(fetcher, race_date, race_no, odds_db=odds_db)
+            await snapshot_odds(fetcher, race_date, race_no, odds_db=odds_db, venue=meeting_venue)
 
             # Sharp-move auto-rerun trigger (spec §7): if any top-2 pick moved
             # ≥ 25% (steam) or ≥ 40% (cold), force a full re-run.
@@ -333,9 +375,13 @@ async def run_monitor(race_date: str):
                     check=False, timeout=300,
                 )
             else:
-                # Keep the existing call exactly as it was before this patch
-                await regenerate_dashboard(race_date, fetcher=fetcher, analyzer=analyzer,
-                                           db=db, odds_db=odds_db)
+                ok = await regenerate_dashboard(race_date, fetcher=fetcher, analyzer=analyzer,
+                                                db=db, odds_db=odds_db)
+                if not ok:
+                    logger.warning(
+                        f"R{race_no}: dashboard regeneration FAILED — prior dashboard "
+                        "left in place; continuing to next race window."
+                    )
 
             # After every pre-race window, pull results for any finished
             # races so STRIKE/MISS badges on past races stay current. The
@@ -354,6 +400,13 @@ async def run_monitor(race_date: str):
 
         logger.info("All races processed. Monitor complete.")
     finally:
+        # Close the Playwright browser — without this the chromium subprocess
+        # lingers for the whole meeting and after the monitor exits (the
+        # generator's main() already does this; the monitor never did).
+        try:
+            await fetcher.close()
+        except Exception as e:
+            logger.warning(f"fetcher.close() failed: {e}")
         db.conn.close()
 
 

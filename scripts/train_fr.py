@@ -16,19 +16,13 @@ from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
 
 from ml.fr_features import FEATURE_COLS, TARGET, build_training_table
 from ml.fr_model import FRRacingModel
+from scripts.oos_common import grouped_temporal_folds, cutoff_date_for
 
 
 def split_temporal(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    n = len(df)
-    cut_train = int(n * 0.60)
-    cut_es = int(n * 0.70)
-    cut_cal = int(n * 0.85)
-    return {
-        "train": df.iloc[:cut_train],
-        "earlystop": df.iloc[cut_train:cut_es],
-        "calibrate": df.iloc[cut_es:cut_cal],
-        "test": df.iloc[cut_cal:],
-    }
+    """4-fold temporal split with date-boundary snapping (no race split across
+    folds). df must already be sorted by date."""
+    return grouped_temporal_folds(df)
 
 
 def main():
@@ -41,6 +35,9 @@ def main():
 
     folds = split_temporal(df)
     for name, fold in folds.items():
+        if fold.empty:
+            print(f"  {name:<10} n=     0  EMPTY (dataset too small to fill this fold)")
+            continue
         print(f"  {name:<10} n={len(fold):>6}  "
               f"dates {fold['date'].min().date()} → {fold['date'].max().date()}  "
               f"win_rate={fold[TARGET].mean()*100:.2f}%")
@@ -51,7 +48,12 @@ def main():
 
     print("\nTraining XGBoost (early stopping on earlystop fold)...")
     model = FRRacingModel()
-    model.fit(X_tr, y_tr, X_es, y_es)
+    # An empty earlystop fold (tiny dataset) would crash XGBoost's eval_set —
+    # pass None so fit() trains without early stopping instead.
+    if X_es.empty:
+        model.fit(X_tr, y_tr)
+    else:
+        model.fit(X_tr, y_tr, X_es, y_es)
     print(f"  Trained in {time.time()-t0:.1f}s on {len(X_tr):,} samples")
 
     print("\n=== Metrics ===")
@@ -85,6 +87,10 @@ def main():
         "test_auc": float(roc_auc_score(y_te, p_te)),
         "sp_baseline_brier": float(brier_score_loss(y_te_sp, sp_p)),
         "sp_baseline_auc": float(roc_auc_score(y_te_sp, sp_p)),
+        # Freeze the OOS cutoff so validate/backtest don't recompute it from the
+        # (growing) live DB row count — see scripts/oos_common.py. cutoff_date_for
+        # is robust to an empty calibrate fold (tiny datasets) → no NaT crash.
+        "cutoff_date": cutoff_date_for(df).strftime("%Y-%m-%d"),
     }
     saved = model.save()
     print(f"\nSaved model to {saved}")

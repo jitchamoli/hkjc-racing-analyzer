@@ -204,11 +204,14 @@ def find_value_exotics(model_probs: List[float], market_probs: List[float],
             model_combos = price_quinellas(model_probs, numbers, top_n=top_n,
                                            place_probs=place_probs,
                                            draws=draws, styles=styles)
-            # Apply same boosts to market for fair edge comparison
+            # Market leg = RAW Harville price (the actual pool-implied price).
+            # Do NOT apply the model's place/pace/draw boosts here: the boost's
+            # place_win_ratio uses the base-prob denominator, so boosting the
+            # market (market_probs in the denominator) distorts the edge
+            # asymmetrically — and the market has no place model. Edge =
+            # model_boosted / market_raw is the true overlay (audit pass-3).
             full_quinella = (n_horses * (n_horses - 1)) // 2
-            market_combos = price_quinellas(market_probs, numbers, top_n=full_quinella,
-                                            place_probs=place_probs,
-                                            draws=draws, styles=styles)
+            market_combos = price_quinellas(market_probs, numbers, top_n=full_quinella)
         elif bet_type == 'exacta':
             model_combos = price_exactas(model_probs, numbers, top_n=top_n)
             full_exacta = n_horses * (n_horses - 1)
