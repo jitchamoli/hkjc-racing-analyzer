@@ -1335,9 +1335,9 @@ function renderBetCard(race) {{
     var t6dec = race.trio6_decision || {{}};
     var chaosScore = t6dec.chaos_score || 0;
     var t6Verdict = t6dec.verdict_label || 'YOUR CALL';
-    var swapAnno = top6waManual
+    var swapAnno = (top6waManual && top6waManualOut)
       ? ' · 🛠 MANUAL #' + top6waManualOut.number + '→#' + top6waManual.number + (race.manual_trio6_reason ? ' (' + race.manual_trio6_reason + ')' : '')
-      : top6waSwap
+      : (top6waSwap && top6waSwapOut)
       ? ' · 🔁 swapped #' + top6waSwapOut.number + '→#' + top6waSwap.number + ' (gear ' + (top6waSwap.gear||'') + ')'
       : '';
     // When verdict says TAKE, hoist out of "Optional adds" into a MAIN block
@@ -1879,6 +1879,7 @@ function renderStrip() {{
 // Race detail (inline below strip)
 // ─────────────────────────────────────────────────────────────
 function _buildRaceDetailPanel(race) {{
+  if (!race.horses || !race.horses.length) return '<div class="muted">No runner data.</div>';
   var rowsHtml = race.horses.map(function(h, idx) {{
     var edgeClass = (h.edge_pp > 0) ? 'edge-positive' : 'edge-neutral';
     var edgeStr = (h.edge_pp != null) ? (h.edge_pp > 0 ? '+' : '') + h.edge_pp.toFixed(1) : '—';
@@ -1947,7 +1948,7 @@ function _buildRaceDetailPanel(race) {{
       '</tr></thead><tbody>' +
       race.horses.map(function(h) {{
         return '<tr>' +
-          '<td style="padding:4px">' + h.number + '</td>' +
+          '<td style="padding:4px">' + esc(h.number) + '</td>' +
           '<td style="padding:4px">' + esc(h.name) + '</td>' +
           activeCols.map(function(col) {{
             return '<td style="padding:4px">' + col.render(h) + '</td>';
@@ -2300,7 +2301,7 @@ function _buildRaceDetailPanel(race) {{
                      chaosScore >= 2 ? 'rgba(251,191,36,.7)' :
                      'rgba(148,163,184,.3)';
     var chaosTextColor = chaosScore >= 3 ? '#fff' : (chaosScore >= 2 ? '#000' : 'var(--dim)');
-    var chaosBadge = '<span style="background:' + chaosColor + ';color:' + chaosTextColor + ';padding:1px 6px;border-radius:3px;font-size:.62rem;font-weight:700;margin-left:6px" title="' + chaosFactors.join(' · ') + '">CHAOS ' + chaosScore + '/4</span>';
+    var chaosBadge = '<span style="background:' + chaosColor + ';color:' + chaosTextColor + ';padding:1px 6px;border-radius:3px;font-size:.62rem;font-weight:700;margin-left:6px" title="' + escAttr(chaosFactors.join(' · ')) + '">CHAOS ' + chaosScore + '/4</span>';
 
     // Derive the badge + reason from the verdict label produced by
     // _compute_trio6_decision (server-side). Keep visual styling here —
@@ -2555,7 +2556,7 @@ function hardReload() {{
   // Force a fresh fetch by appending a timestamp query string. Works
   // for both file:// and http:// — the new URL guarantees the browser
   // cannot serve a cached copy. Strips any prior ?v= cache-buster first.
-  var cleanPath = location.pathname + location.hash.replace(/[?&]v=\d+/, '');
+  var cleanPath = location.pathname + location.hash.replace(/[?&]v=\\d+/, '');
   location.href = cleanPath + '?v=' + Date.now();
 }}
 

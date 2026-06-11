@@ -867,7 +867,10 @@ class HKJCParser:
                 if not raw_name:
                     continue
                 # Strip trailing brand code e.g. "AEROVOLANIC (K123)" -> "AEROVOLANIC"
-                name = re.sub(r"\s*\([^)]*\)\s*$", "", raw_name).strip().upper()
+                # but NOT country codes: "STAR (NZ)" must stay intact. Brand codes
+                # contain a digit; require one inside the parens (matches every
+                # other HKJC name parser, e.g. parse_results at fetcher.py:633).
+                name = re.sub(r"\s*\([^)]*\d[^)]*\)\s*$", "", raw_name).strip().upper()
                 if not name:
                     continue
                 pos += 1

@@ -1460,7 +1460,9 @@ def run_sweep(races, model, fe, conn, min_ev):
                     continue
                 mkt_idx = int(np.argmax([p[3] for p in preds]))
                 mkt_h = preds[mkt_idx][0]
-                won = bool(top_h.get('is_winner'))
+                # finish_position==1 (not the stale is_winner column) — consistent
+                # with simulate_bets (audit 2026-06-09 #4).
+                won = top_h.get('finish_position') == 1
                 ev = top_odds * top_prob - 1
                 pnl = (top_odds - 1) if won else -1
                 same_pick = (mkt_h['horse_name'] == top_h['horse_name'])

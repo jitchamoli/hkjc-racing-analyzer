@@ -223,7 +223,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -290,7 +290,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -360,7 +360,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -427,7 +427,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -554,7 +554,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -676,7 +676,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -749,7 +749,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -824,7 +824,7 @@ class FeatureEngineering:
         owns = conn is None
         try:
             if owns and config.DB_PATH.exists():
-                c = sqlite3.connect(str(config.DB_PATH))
+                c = sqlite3.connect(str(config.DB_PATH), timeout=30.0)
                 c.row_factory = sqlite3.Row
             else:
                 c = conn
@@ -940,6 +940,18 @@ class FeatureEngineering:
         # Load prior race history from DB
         prior = []
         race_date = horse_data.get('race_date', '')
+        # Fail-closed guard (audit 2026-06-09 #5): every DB feature lookup below
+        # passes before_date=(race_date or None). An empty race_date coerces to
+        # None and silently DROPS the `AND race_date < ?` filter, leaking the
+        # current race's own results into its features. Live cards and training
+        # rows always carry a date; an empty one alongside a live conn is a
+        # misconfiguration — refuse rather than leak (matches F-17 predict()).
+        if conn is not None and not race_date:
+            raise ValueError(
+                "extract_features: race_date is empty but a DB connection was "
+                "provided — refusing leak-prone unfiltered lookups. Pass "
+                "horse_data['race_date'] (YYYY/MM/DD)."
+            )
         owns_conn = conn is None
         try:
             if conn is None:

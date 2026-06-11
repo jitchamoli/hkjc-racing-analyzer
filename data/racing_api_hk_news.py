@@ -194,6 +194,12 @@ class HKRaceNews:
     off_hkt: datetime
     horses: List[HKHorseNews]
 
+    # Editorial overlay (theracingapi PRO). Optional — consumed by the
+    # confluence snapshot (tip_match + morning line parsed from forecast).
+    betting_forecast: str = ''
+    tip: str = ''
+    verdict: str = ''
+
     def find(self, horse_name: str) -> Optional[HKHorseNews]:
         target = _norm_name(horse_name)
         return next((h for h in self.horses if h.name == target), None)
@@ -266,6 +272,9 @@ def _parse_card(c: dict) -> HKRaceNews:
         field_size=_to_int(c.get('field_size'), len(runners)) or len(runners),
         off_hkt=off_hkt,
         horses=runners,
+        betting_forecast=(c.get('betting_forecast') or '').strip(),
+        tip=(c.get('tip') or '').strip(),
+        verdict=(c.get('verdict') or '').strip(),
     )
 
 
@@ -285,7 +294,10 @@ def fetch_hk_news(
     hk = [c for c in cards if (c.get('region') or '').upper() == 'HK']
     races = [_parse_card(c) for c in hk]
     if date_yyyy_mm_dd:
-        races = [r for r in races if r.off_hkt.strftime('%Y-%m-%d') == date_yyyy_mm_dd]
+        # Callers pass HKJC-convention slash dates ('2026/06/10'); off_hkt
+        # formats with dashes. Normalise so the comparison can ever match.
+        want = date_yyyy_mm_dd.replace('/', '-')
+        races = [r for r in races if r.off_hkt.strftime('%Y-%m-%d') == want]
     races.sort(key=lambda r: r.off_hkt)
     for i, r in enumerate(races, 1):
         r.race_number = i

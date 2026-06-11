@@ -164,7 +164,6 @@ class PaceAnalyzer:
         score = base + (multiplier - 1.0) * 200  # ±0.25 → ±50 points
         score = max(15.0, min(95.0, score))
 
-        n_leaders = sum(1 for v in scenario.values() if v > 1.1)  # rough check
         if multiplier >= 1.15:
             pace_label = "Strong pace advantage"
         elif multiplier >= 1.05:
