@@ -82,6 +82,10 @@ async def run(race_date: str, variant: str = 'rule_w', rule_w: float = 0.9) -> i
             *(fetcher.get_race_card(race_date, rn) for rn in range(1, 12)),
             return_exceptions=True,
         )
+        # Backfill blank per-race going from the meeting modal so the shadow's
+        # CHAOS detection matches production (see dashboard/generator.py).
+        from dashboard.generator import backfill_meeting_going
+        backfill_meeting_going(fetched)
 
         shadow_races = []
         for race_no, race in enumerate(fetched, start=1):
