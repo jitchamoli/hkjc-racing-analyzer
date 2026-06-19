@@ -23,6 +23,7 @@ from data.odds_tracker import OddsDatabase
 from dashboard.template import generate_html
 from dashboard.generator import (
     build_race_data, _merge_with_existing, finalize_tickets_and_stakes,
+    backfill_meeting_going,
     preflight_dashboard_ml,
 )
 
@@ -160,6 +161,9 @@ async def regenerate_dashboard(race_date: str, fetcher: HKJCDataFetcher = None,
             *(fetcher.get_race_card(race_date, rn, venue=detected_venue) for rn in range(1, 12)),
             return_exceptions=True,
         )
+        # Backfill blank per-race going from the meeting modal so detect_chaos
+        # fires consistently here too (production-parity — see generator.py).
+        backfill_meeting_going(fetched)
         for race_no, race in enumerate(fetched, start=1):
             if isinstance(race, Exception) or not race or not race.horses:
                 # Skip, do NOT break: all 11 are already fetched, so a transient

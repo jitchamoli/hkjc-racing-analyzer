@@ -303,6 +303,36 @@ def _compute_odds_age_minutes(odds_db, race_date: str, race_number: int):
     return None
 
 
+def backfill_meeting_going(fetched: list) -> None:
+    """Fill blank per-race going from the meeting's modal going, in place.
+
+    Going is a meeting-wide track property, but the per-page regex in
+    core/fetcher.py reads it from each race page independently — so a race
+    fetched via the Playwright fallback (or whose race-info header loads late)
+    can come back with going='' even though every other race reads 'Yielding'.
+    That blank lets the CHAOS soft-going filter (detect_chaos) silently skip
+    the race, so it falsely escapes the no-bet override on a soft card
+    (2026/06/13 R5/R9 staked bets they should not have). Backfilling the SOURCE
+    race object before analyze/build means build_race_data + detect_chaos see the
+    correct value with no downstream changes. Shared by the production generator,
+    the live monitor (parity), and the shadow generator so all three agree.
+    `fetched` items may be race objects or Exceptions (asyncio.gather results).
+    """
+    goings = [r.going for r in fetched
+              if not isinstance(r, Exception) and r and getattr(r, 'going', '')]
+    if not goings:
+        return
+    from collections import Counter
+    modal_going = Counter(goings).most_common(1)[0][0]
+    for race_no, race in enumerate(fetched, start=1):
+        if isinstance(race, Exception) or not race:
+            continue
+        if not getattr(race, 'going', ''):
+            race.going = modal_going
+            logger.info(f"  Race {race_no}: blank going backfilled → "
+                        f"'{modal_going}' (meeting-wide modal)")
+
+
 def apply_card_exposure_cap(all_races: list, bankroll: float,
                             cap_frac: float = 0.10) -> float:
     """Cap the day's TOTAL forward suggested-stake exposure at cap_frac of
@@ -1324,6 +1354,8 @@ async def _run_generation(fetcher, analyzer, race_date: str):
         *(fetcher.get_race_card(race_date, rn, venue=detected_venue) for rn in range(1, 12)),
         return_exceptions=True,
     )
+
+    backfill_meeting_going(fetched)
 
     for race_no, race in enumerate(fetched, start=1):
         # Skip, do NOT break: all 11 cards are already fetched concurrently, so a
