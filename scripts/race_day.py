@@ -52,15 +52,12 @@ def main():
         print(f"\nABORT: production prediction failed. Skipping shadow.", file=sys.stderr)
         return rc
 
-    rc = _run("2/3 shadow predictions (jockey_form OFF)",
-              [sys.executable, '-m', 'scripts.shadow_generate', args.race_date,
-               '--variant', 'jockey_form'])
-    if rc != 0:
-        print(f"\nWARN: jockey_form shadow failed but production succeeded.",
-              file=sys.stderr)
+    # jockey_form shadow RETIRED 2026-06-21 — shipped to production
+    # (JOCKEY_FORM_RIDES_MIN=15), so the shadow now equals production (no-op).
+    # History preserved in tracking_data/shadow_jockey_log.csv.
 
     # Tier B shadow is a pure local replay of race_data JSON (no HKJC fetch)
-    rc_b = _run("3/3 tier B shadow (OLD recommender decisions)",
+    rc_b = _run("2/2 tier B shadow (OLD recommender decisions)",
                 [sys.executable, '-m', 'scripts.tier_b_shadow', args.race_date])
     if rc_b != 0:
         print(f"\nWARN: tier B shadow failed but production succeeded.",
@@ -80,8 +77,6 @@ def main():
     print(f"\n{'='*70}\n  RACE DAY READY — {args.race_date}\n{'='*70}")
     print(f"  Dashboard:           results/racing_dashboard.html")
     print(f"  Production JSON:     results/race_data_{date_str}.json")
-    print(f"  Shadow JSON (rule):  results/shadow_race_data_{date_str}.json")
-    print(f"  Shadow JSON (jock):  results/shadow_jockey_race_data_{date_str}.json")
     print(f"\n  After racing: python3 -m scripts.post_race '{args.race_date}'")
     return 0
 

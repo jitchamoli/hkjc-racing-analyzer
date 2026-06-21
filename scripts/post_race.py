@@ -89,17 +89,9 @@ def main():
             print(f"\nWARN: shadow_evaluate rule_w failed but results were ingested.",
                   file=sys.stderr)
 
-    jockey_shadow = REPO_ROOT / 'results' / f'shadow_jockey_race_data_{date_str}.json'
-    if not jockey_shadow.exists():
-        print(f"\n  [2b/6 shadow_evaluate jockey_form] SKIPPED — no file at {jockey_shadow}")
-    else:
-        rc = _run("2b/6 shadow_evaluate (jockey_form)",
-                  [sys.executable, '-m', 'scripts.shadow_evaluate', args.race_date,
-                   '--variant', 'jockey_form'],
-                  required=False)
-        if rc != 0:
-            print(f"\nWARN: shadow_evaluate jockey_form failed but results were ingested.",
-                  file=sys.stderr)
+    # jockey_form shadow eval RETIRED 2026-06-21 — shipped to production
+    # (JOCKEY_FORM_RIDES_MIN=15); shadow now equals production (no-op).
+    # History preserved in tracking_data/shadow_jockey_log.csv.
 
     # Step 2c: stake A/B — compares ROI under flat-$10/combo (user habit),
     # production tier-ramp, flat-1%, and inverted ramp. Same picks, different
