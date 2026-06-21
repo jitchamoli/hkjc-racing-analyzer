@@ -573,22 +573,22 @@ def test_copy_wa_ticket_payload_renders_exact_frozen_legs_and_amounts(
         '[data-testid="copy-wa-ticket-R6"]'
     ).first.get_attribute('data-payload') or ''
 
-    # Header + status guard
-    assert payload.startswith('HKJC R6'), (
-        f"compact payload missing HKJC R6 header: {payload[:200]!r}"
+    # Header + status guard (WhatsApp bold: header wrapped in *...*)
+    assert payload.startswith('*HKJC R6'), (
+        f"compact payload missing *HKJC R6* bold header: {payload[:200]!r}"
     )
     assert 'STATUS: LIVE' in payload, (
         f"missing STATUS: LIVE guard: {payload[:200]!r}"
     )
 
-    # Stake block (frozen ticket has bets → STAKE must appear)
-    assert 'STAKE' in payload, payload[:400]
+    # Stake block (frozen ticket has bets → STAKE must appear, WhatsApp-bold)
+    assert '*STAKE*' in payload, payload[:400]
     assert 'Budget $' in payload and 'Ticket $' in payload and 'Unit $' in payload, (
         f"missing Budget/Ticket/Unit: {payload[:400]!r}"
     )
 
     # BET TICKET block: numbered list, HKJC-derived pool names, exact legs
-    assert 'BET TICKET' in payload, payload[:400]
+    assert '*BET TICKET*' in payload, payload[:400]
     # Derived pool naming (R15 spec: not just BOX QIN-4 PROTECTION — every
     # regular box should use HKJC-style names too).
     assert 'QIN BOX-4' in payload, (
