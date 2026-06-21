@@ -1461,7 +1461,7 @@ function renderBetCard(race) {{
   var hdrVenue = race.venue ? ' · ' + race.venue : '';
   var hdrTime = race.time ? ' · ' + race.time : '';
   var hdrTier = isEdge ? ' · ★ EDGE' : (tier ? ' · ' + tier : '');
-  ticketLinesCompact.push('HKJC R' + race.race_number + hdrVenue + hdrTime + hdrTier);
+  ticketLinesCompact.push('*HKJC R' + race.race_number + hdrVenue + hdrTime + hdrTier + '*');
 
   var oa = (race.bet_ticket && race.bet_ticket.odds_age_minutes != null)
     ? race.bet_ticket.odds_age_minutes
@@ -1474,7 +1474,14 @@ function renderBetCard(race) {{
   // 0m reading is noise. Stale odds (≥15m) are flagged in statusWord anyway.
   if (oa != null && Math.round(oa) > 0) statusBits.push('odds age ' + Math.round(oa) + 'm');
   var modelV = (race.bet_ticket && race.bet_ticket.model_version) || null;
-  if (modelV) statusBits.push('model ' + modelV);
+  if (modelV) {{
+    // model_version is stamped YYYYMMDD-HHMMSS at training time — surface it
+    // as a readable trained-date rather than the raw timestamp string.
+    var _isDate = modelV.length >= 8 && /^\\d+$/.test(modelV.slice(0, 8));
+    statusBits.push(_isDate
+      ? ('model trained ' + modelV.slice(0, 4) + '-' + modelV.slice(4, 6) + '-' + modelV.slice(6, 8))
+      : ('model ' + modelV));
+  }}
   ticketLinesCompact.push(statusBits.join(' · '));
 
   var _ticketBetsAll = (race.bet_ticket && race.bet_ticket.bets) || [];
@@ -1486,7 +1493,7 @@ function renderBetCard(race) {{
     var overBudC = !!(race.bet_ticket && race.bet_ticket.over_budget);
     var overAmtC = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
     ticketLinesCompact.push('');
-    ticketLinesCompact.push('STAKE');
+    ticketLinesCompact.push('*STAKE*');
     var stakeLine = 'Budget $' + Math.round(ssAmt) +
                     ' · Ticket $' + Math.round(ticketTotal) +
                     ' · Unit $' + Math.round(unitC);
@@ -1497,7 +1504,7 @@ function renderBetCard(race) {{
     ticketLinesCompact.push(stakeLine);
 
     ticketLinesCompact.push('');
-    ticketLinesCompact.push('BET TICKET');
+    ticketLinesCompact.push('*BET TICKET*');
     _ticketBetsAll.forEach(function(bet, idx) {{
       var poolLabel = _hkjcPoolLabel(bet);
       var amtBit = (bet.amount && bet.amount > 0)
@@ -1523,13 +1530,13 @@ function renderBetCard(race) {{
     // might paste this into a ticket and expect it to count toward
     // model ROI accounting.
     ticketLinesCompact.push('');
-    ticketLinesCompact.push('NO SYSTEM BET');
+    ticketLinesCompact.push('*NO SYSTEM BET*');
     var skipReason = 'Tier ' + (race.conviction_tier || 'SKIP') +
                      ' / no frozen ticket';
     ticketLinesCompact.push('Reason: ' + skipReason);
     if (race.horses && race.horses.length) {{
       ticketLinesCompact.push('');
-      ticketLinesCompact.push('OPTIONAL FORCE PICK');
+      ticketLinesCompact.push('*OPTIONAL FORCE PICK*');
       race.horses.slice(0, 3).forEach(function(h, i) {{
         var fp = race.horses[i];
         if (!fp) return;
@@ -1638,7 +1645,7 @@ function copyWA(text, btn) {{
   // window.prompt fallback ladder; the per-card path silently failed
   // until 2026-05-29 due to a missing .catch. Locked by
   // tests/test_template_js_syntax.py.
-  var fullText = text + '\\n⚠️ For entertainment only. Gamble responsibly.';
+  var fullText = text + '\\n_⚠️ For entertainment only. Gamble responsibly._';
   var orig = btn.textContent;
   var ok = function() {{
     btn.textContent = 'Copied!';
@@ -2669,7 +2676,7 @@ window.addEventListener('DOMContentLoaded', function() {{
       // carry the entertainment-only footer — only copyWA() appends it for
       // per-card buttons). Without this the bulk dump goes out unguarded.
       var combined = payloads.join('\\n\\n---\\n\\n') +
-        '\\n\\n⚠️ For entertainment only. Gamble responsibly.';
+        '\\n\\n_⚠️ For entertainment only. Gamble responsibly._';
       var ok = function() {{
         copyAllBtn.textContent = 'Copied ' + payloads.length + '!';
         setTimeout(function() {{ copyAllBtn.textContent = 'Copy all bets'; }}, 1500);
