@@ -57,7 +57,23 @@ def _open(conn: Optional[sqlite3.Connection]) -> Tuple[sqlite3.Connection, bool]
     return c, True
 
 
-def _ticket_total_stake(ticket_json: str) -> Tuple[float, int]:
+def _is_counted_label(label: str) -> bool:
+    """Whether a bet line counts toward the guard's stake / P&L.
+
+    The user plays QIN only (STRAIGHT QIN + the BOX QIN-4 PROTECTION leg) at a
+    flat HK$10/combo; the TRIO/F4 boxes on the system ticket are never staked. A
+    realized stop-loss scored on the FULL ticket therefore fired on losses the
+    user never took and blanked every later HIGH race as NO SYSTEM BET. Scope the
+    guard to the QIN pool the user actually plays. User decision 2026-06-21.
+
+    Matches 'STRAIGHT QIN' and 'BOX QIN-*' (incl. 'BOX QIN-4 PROTECTION'); excludes
+    TRIO, FIRST 4, WIN, PLACE, and QIN PLACE (QPL) — a different pool.
+    """
+    lab = (label or "").strip().upper()
+    return lab == "STRAIGHT QIN" or lab.startswith("BOX QIN-")
+
+
+def _ticket_total_stake(ticket_json: str, counted_only: bool = False) -> Tuple[float, int]:
     """Total $ stake + bet-line count across one ticket.
 
     Mirrors the stake formula in validate_hk._score_meeting_replay exactly
@@ -67,6 +83,10 @@ def _ticket_total_stake(ticket_json: str) -> Tuple[float, int]:
     count toward exposure — accept a leg with a name OR a number, only drop legs
     that carry neither identifier (audit 2026-06-09 #9). The parity is pinned by
     test_resolved_stake_matches_replay_scorer.
+
+    `counted_only=True` restricts the total to the QIN pool the user actually
+    plays (see _is_counted_label) — used by daily_status so the stop-loss /
+    exposure reflect real exposure, not the unplayed TRIO/F4 boxes.
     """
     try:
         ticket = json.loads(ticket_json)
@@ -75,6 +95,8 @@ def _ticket_total_stake(ticket_json: str) -> Tuple[float, int]:
     total = 0.0
     n = 0
     for bet in ticket.get("bets", []) or []:
+        if counted_only and not _is_counted_label(bet.get("label")):
+            continue
         combos = int(bet.get("combos", 0) or 0)
         legs = [l for l in (bet.get("legs") or [])
                 if l.get("name") or l.get("number") is not None]
@@ -102,7 +124,7 @@ def daily_status(date: str, bankroll: Optional[float] = None,
         n_bets = 0
         for r in rows:
             tj = r["ticket_json"] if isinstance(r, sqlite3.Row) else r[0]
-            s, n = _ticket_total_stake(tj)
+            s, n = _ticket_total_stake(tj, counted_only=True)
             total_staked += s
             n_bets += n
 
@@ -111,7 +133,10 @@ def daily_status(date: str, bankroll: Optional[float] = None,
             staked_resolved = returned = 0.0
             n_resolved = 0
         else:
-            labels = replay["labels"]
+            # Scope realized P&L to the QIN pool the user actually plays so a
+            # stop-loss reflects real losses, not the unplayed TRIO/F4 boxes.
+            labels = {k: v for k, v in replay["labels"].items()
+                      if _is_counted_label(k)}
             staked_resolved = sum(v[0] for v in labels.values())
             returned = sum(v[1] for v in labels.values())
             n_resolved = replay["_races"]
