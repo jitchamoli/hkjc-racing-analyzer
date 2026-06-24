@@ -881,6 +881,27 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
                     swap=swap_meta,
                 )
 
+    # EDGE PLACE (paper) — an EDGE race flags a single-horse MISPRICING, which
+    # is a different axis from ticket confidence; on a flat field every QIN/box
+    # gate can SKIP, leaving the "top tier" race with no bet at all. The edge
+    # horse historically PLACES far more than it WINS (production: 3/5 placed,
+    # 0 won), so when the ticket is otherwise empty, surface a paper PLACE bet
+    # on it. Tagged `paper` -> displayed/WA-copied/replay-tracked for ROI but
+    # NOT staked against the budget and NOT counted toward the QIN-scoped
+    # stop-loss (bankroll_guard._is_counted_label excludes PLACE). User
+    # decision 2026-06-24.
+    if not bets and (race.get('conviction_tier') or '').upper() == 'EDGE':
+        edge_num = race.get('edge_horse_number')
+        edge_h = next((h for h in horses if h.get('number') == edge_num), None)
+        if edge_h is None:
+            edge_h = next((h for h in horses if h.get('edge_fires')), None)
+        if edge_h and (edge_h.get('win_odds') or 0) > 0:
+            _ticket_add_bet(bets, 'EDGE PLACE', 'PLACE', [edge_h], 1,
+                            'edge_place_paper')
+            for b in bets:
+                if b.get('reason') == 'edge_place_paper':
+                    b['paper'] = True
+
     total_combos = sum(b['combos'] for b in bets)
     unit = (amount / total_combos) if amount > 0 and total_combos > 0 else 0.0
     # HKJC minimum bet is HK$10 — WIN / PLACE / QUINELLA / QUINELLA PLACE are
@@ -899,6 +920,14 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
         b['amount'] = float(b['combos'] * unit_rounded)
         allocated += b['amount']
     over_amount = max(0.0, allocated - amount) if amount > 0 else 0.0
+
+    # Paper bets (EDGE PLACE) carry a flat HK$10 display stake — the user's
+    # standard flat unit — but do NOT consume the real budget (`allocated`),
+    # since they are reference/tracking only, not part of the staked ticket.
+    for b in bets:
+        if b.get('paper'):
+            b['unit_stake'] = 10.0
+            b['amount'] = float(b['combos'] * 10.0)
 
     return {
         'version': 1,
