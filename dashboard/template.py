@@ -1214,10 +1214,23 @@ function renderBetCard(race) {{
       var reason = race.chaos_reason || 'chaos race';
       waLines.push('*CHAOS — NO PLAY* (' + reason + ')');
     }} else {{
-      // GPT-5.5 R15 2026-05-25 — say NO SYSTEM BET explicitly before any
-      // horse suggestions so the user cannot mistake a "manual force pick"
-      // section below for a model-recommended stake.
-      waLines.push('*NO SYSTEM BET* — no frozen ticket for this race');
+      // Paper EDGE PLACE — flat-field EDGE race with no system stake but a
+      // tracked PLACE bet on the mispriced edge horse (2026-06-24).
+      var _waPaperBets = (race.bet_ticket && race.bet_ticket.bets)
+        ? race.bet_ticket.bets.filter(function(b) {{ return b.paper; }}) : [];
+      if (_waPaperBets.length) {{
+        _waPaperBets.forEach(function(bet) {{
+          var amtB = (bet.amount && bet.amount > 0) ? ' · $' + Math.round(bet.amount) : '';
+          waLines.push('*PAPER ' + _hkjcPoolLabel(bet) + amtB + '*' + _waHitMark(bet.label));
+          (bet.legs || []).forEach(function(leg) {{ waLines.push(_waPickFromLeg(leg)); }});
+        }});
+        waLines.push('Not counted as model ROI — flat field, edge horse places more than wins. Manual $10, your call.');
+      }} else {{
+        // GPT-5.5 R15 2026-05-25 — say NO SYSTEM BET explicitly before any
+        // horse suggestions so the user cannot mistake a "manual force pick"
+        // section below for a model-recommended stake.
+        waLines.push('*NO SYSTEM BET* — no frozen ticket for this race');
+      }}
     }}
   }}
 
@@ -1448,6 +1461,7 @@ function renderBetCard(race) {{
     if (L === 'QIN PLACE BANKER') return 'QPL BANKER';
     if (L === 'BOX QIN-4 PROTECTION') return 'QIN BOX-4 (PROTECTION)';
     if (L === 'F4 SAVER') return 'FIRST 4 SAVER';
+    if (L === 'EDGE PLACE') return 'PLACE (EDGE · paper)';
     // Generic derivation: HKJC pool name + STRAIGHT/BOX-N from leg count.
     if (p === 'QUINELLA') return n === 2 ? 'STRAIGHT QIN' : ('QIN BOX-' + n);
     if (p === 'TRIO') return n === 3 ? 'STRAIGHT TRIO' : ('TRIO BOX-' + n);
@@ -1485,7 +1499,9 @@ function renderBetCard(race) {{
   ticketLinesCompact.push(statusBits.join(' · '));
 
   var _ticketBetsAll = (race.bet_ticket && race.bet_ticket.bets) || [];
-  if (_ticketBetsAll.length) {{
+  var _realTicketBets = _ticketBetsAll.filter(function(b) {{ return !b.paper; }});
+  var _paperTicketBets = _ticketBetsAll.filter(function(b) {{ return b.paper; }});
+  if (_realTicketBets.length) {{
     // ── Real frozen system ticket: STAKE + BET TICKET only ──
     var ssAmt = (ss && ss.amount) ? ss.amount : 0;
     var ticketTotal = (race.bet_ticket && race.bet_ticket.allocated_amount) || 0;
@@ -1505,7 +1521,7 @@ function renderBetCard(race) {{
 
     ticketLinesCompact.push('');
     ticketLinesCompact.push('*BET TICKET*');
-    _ticketBetsAll.forEach(function(bet, idx) {{
+    _realTicketBets.forEach(function(bet, idx) {{
       var poolLabel = _hkjcPoolLabel(bet);
       var amtBit = (bet.amount && bet.amount > 0)
         ? ' · $' + Math.round(bet.amount) : '';
@@ -1523,6 +1539,21 @@ function renderBetCard(race) {{
         }}
       }}
     }});
+  }} else if (_paperTicketBets.length) {{
+    // ── Paper-only ticket (EDGE PLACE) — no real system stake, but a
+    // tracked PLACE bet on the mispriced edge horse. Clearly labelled
+    // "paper / not counted" so it never reads as a model-ROI ticket.
+    ticketLinesCompact.push('');
+    ticketLinesCompact.push('*PAPER BET — not counted as model ROI*');
+    _paperTicketBets.forEach(function(bet, idx) {{
+      var poolLabelP = _hkjcPoolLabel(bet);
+      var amtBitP = (bet.amount && bet.amount > 0) ? ' · $' + Math.round(bet.amount) : '';
+      ticketLinesCompact.push((idx + 1) + '. ' + poolLabelP + amtBitP + _waHitMark(bet.label));
+      var numsP = (bet.legs || []).map(function(l) {{ return '#' + l.number; }});
+      if (numsP.length) ticketLinesCompact.push('   ' + numsP.join(' + '));
+    }});
+    ticketLinesCompact.push('');
+    ticketLinesCompact.push('Flat field — no QIN edge. Model has the edge horse mispriced; it places more than it wins. Manual $10 place, your call.');
   }} else {{
     // ── No system bet: drop STAKE/BET TICKET entirely, give the
     // user a clearly-labelled MANUAL guidance block instead. The
@@ -1573,9 +1604,20 @@ function renderBetCard(race) {{
   // Suppress the EDGE staking banner when there is no system ticket to
   // anchor (halted day / empty ticket — audit 2026-06-08 #2).
   var _edgeHasTicket = !!(race.bet_ticket && race.bet_ticket.bets && race.bet_ticket.bets.length);
+  // Paper-only EDGE ticket (flat field → no box, just the tracked PLACE bet on
+  // the edge horse). The banner must NOT tell the user to anchor a TRIO-5/F4
+  // when none exists; point them at the place bet instead (2026-06-24).
+  var _edgePaperOnly = _edgeHasTicket &&
+    race.bet_ticket.bets.every(function(b) {{ return b.paper; }});
+  var _edgeHeadline = _edgePaperOnly
+    ? '★ RARE EDGE — paper PLACE on this horse'
+    : '★ RARE EDGE — anchor TRIO-5 with this horse';
+  var _edgeAction = _edgePaperOnly
+    ? 'Flat field — no QIN/box edge. Tracked as a paper PLACE bet on the ' + edgeWho + '; back it $10 to place if you want — your call, not counted as model ROI.'
+    : 'Use as TRIO-5/F4 anchor — do NOT bet WIN on the EDGE horse.';
   var edgeAlertHTML = (isEdge && _edgeHasTicket)
     ? '<div style="background:linear-gradient(135deg,rgba(251,191,36,.25),rgba(251,191,36,.08));border:2px solid var(--gold);border-radius:6px;padding:8px 12px;margin:6px 0 10px 0;font-size:.78rem">' +
-        '<span style="color:var(--gold);font-weight:800;letter-spacing:.06em">★ RARE EDGE — anchor TRIO-5 with this horse</span>' +
+        '<span style="color:var(--gold);font-weight:800;letter-spacing:.06em">' + _edgeHeadline + '</span>' +
         '<div style="color:var(--fg);margin-top:3px;font-size:.72rem;line-height:1.4">' +
           'Pre-blend model probability ≥ +5pp above market — fires <1× per meeting. ' +
           'The model has found a real mispricing on the ' + edgeWho + '. ' +
@@ -1585,7 +1627,7 @@ function renderBetCard(race) {{
               ? '<strong>Historical pattern (N=' + es.n_fires + '): ' + (es.n_placed||0) + ' placed top-3, ' + (es.n_won||0) + ' won.</strong> '
               : '<strong>Historically places more than wins.</strong> ';
           }})() +
-          'Use as TRIO-5/F4 anchor — do NOT bet WIN on the EDGE horse.' +
+          _edgeAction +
         '</div>' +
       '</div>'
     : '';
@@ -2222,6 +2264,30 @@ function _buildRaceDetailPanel(race) {{
       '</div>'
     );
   }});
+
+  // EDGE PLACE (paper) — only present when an EDGE race produced no system
+  // ticket; a tracked PLACE bet on the mispriced edge horse. Tagged paper:
+  // not staked against budget, not counted toward the QIN stop-loss.
+  if (_ticketHas('EDGE PLACE')) {{
+    var edgePlaceLegs = _ticketLegsFor('EDGE PLACE');
+    if (edgePlaceLegs.length) {{
+      var ep = edgePlaceLegs[0];
+      ticketLines.push(
+        '<div style="margin:6px 0">' +
+          '<span style="display:inline-block;background:var(--gold);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
+            '★ EDGE PLACE · $10 paper' +
+          '</span>' +
+          _ticketHitMark('EDGE PLACE') +
+          _renderPick(ep) +
+          '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">' +
+            'Flat field — no QIN edge, but the model has #' + esc(ep.number) + ' ' + esc(ep.name) +
+            ' mispriced @$' + esc(ep.win_odds || '?') + '. EDGE horses place far more than they win ' +
+            '(3/5 placed, 0 won). Paper-tracked — not counted as model ROI / stop-loss.' +
+          '</div>' +
+        '</div>'
+      );
+    }}
+  }}
 
   // QIN PLACE BANKER — for short-favorite races. Read legs from the
   // frozen ticket so display matches what replay scores (GPT-5.5 R13 #6).

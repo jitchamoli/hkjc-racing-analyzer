@@ -66,6 +66,55 @@ def test_bet_ticket_empty_when_skip_or_zero_stake():
     assert ticket['total_combos'] == 0
 
 
+def test_edge_race_with_no_system_bet_gets_paper_place_on_edge_horse():
+    """EDGE tier + flat field (all gates SKIP → amount 0) must surface a paper
+    PLACE bet on the edge horse so the 'top tier' race is not a blank ticket.
+    The bet is tagged paper: flat $10 display stake, excluded from the real
+    budget (allocated_amount stays 0). User decision 2026-06-24."""
+    race = {
+        'race_number': 8,
+        'conviction_tier': 'EDGE',
+        'has_edge': True,
+        'edge_horse_number': 7,
+        'edge_horse_name': 'THE HEIR',
+        'suggested_stake': {'amount': 0.0},
+        'horses': [
+            {'rank': 1, 'number': 7, 'name': 'THE HEIR', 'bet_recommendation': 'SKIP',
+             'win_odds': 10.0, 'edge_fires': True},
+            {'rank': 2, 'number': 4, 'name': 'AMAZING KID', 'bet_recommendation': 'SKIP',
+             'win_odds': 11.0},
+        ],
+    }
+    ticket = build_bet_ticket(
+        race, race_date='2026/06/24', model_version='m1',
+        generated_at='2026-06-24 10:00:00',
+    )
+    assert len(ticket['bets']) == 1
+    bet = ticket['bets'][0]
+    assert bet['label'] == 'EDGE PLACE'
+    assert bet['pool'] == 'PLACE'
+    assert bet['paper'] is True
+    assert bet['legs'][0]['number'] == 7      # the edge horse
+    assert bet['amount'] == 10.0              # flat $10 display stake
+    assert ticket['allocated_amount'] == 0.0  # paper does NOT consume budget
+
+
+def test_non_edge_skip_race_stays_empty():
+    """A plain SKIP race (no edge) must NOT get a paper place bet."""
+    race = {
+        'race_number': 1,
+        'conviction_tier': 'LOW',
+        'has_edge': False,
+        'suggested_stake': {'amount': 0.0},
+        'horses': [_horse(1), _horse(2)],
+    }
+    ticket = build_bet_ticket(
+        race, race_date='2026/06/24', model_version='m1',
+        generated_at='2026-06-24 10:00:00',
+    )
+    assert ticket['bets'] == []
+
+
 def test_pre_result_merge_first_build_marks_source_and_stamps():
     """First-time build (no prior ticket): tag source=pre_off_build, stamp
     frozen_at + odds_snapshot_at, init empty superseded_tickets list."""
