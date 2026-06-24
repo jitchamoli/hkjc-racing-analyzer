@@ -688,7 +688,7 @@ def test_copy_wa_ticket_no_system_bet_and_force_pick_when_empty(
        - NO BET TICKET block
        - NO dollar amounts
        - NO SYSTEM BET banner
-       - OPTIONAL FORCE PICK with top-3 horses
+       - OPTIONAL FORCE PICK with top-4 horses
        - 'Manual only — not counted as model ROI ticket.' footer.
     """
     race = _make_race(
@@ -715,8 +715,8 @@ def test_copy_wa_ticket_no_system_bet_and_force_pick_when_empty(
     assert 'Manual only' in payload and 'not counted as model ROI' in payload, (
         f"missing manual-only footer: {payload[:400]!r}"
     )
-    # Top-3 horses present in force-pick block
-    for n in (1, 2, 3):
+    # Top-4 horses present in force-pick block
+    for n in (1, 2, 3, 4):
         assert f'#{n}' in payload, (
             f"force-pick missing horse #{n}: {payload[:400]!r}"
         )
