@@ -1444,7 +1444,7 @@ function renderBetCard(race) {{
   //     No TOP PICK, no NOTES — those bias the user away from the
   //     exact entry instructions at the terminal.
   //   - If frozen bet_ticket is empty: NO STAKE / NO BET TICKET.
-  //     Show NO SYSTEM BET + OPTIONAL FORCE PICK (top-3 horses) with
+  //     Show NO SYSTEM BET + OPTIONAL FORCE PICK (top-4 horses) with
   //     a clear "manual only — not counted as model ROI" footer so
   //     the user has manual guidance without polluting model ROI.
   //
@@ -1568,7 +1568,7 @@ function renderBetCard(race) {{
     if (race.horses && race.horses.length) {{
       ticketLinesCompact.push('');
       ticketLinesCompact.push('*OPTIONAL FORCE PICK*');
-      race.horses.slice(0, 3).forEach(function(h, i) {{
+      race.horses.slice(0, 4).forEach(function(h, i) {{
         var fp = race.horses[i];
         if (!fp) return;
         var prob = (fp.calibrated_prob != null)
