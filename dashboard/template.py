@@ -1924,8 +1924,12 @@ function _buildRaceDetailPanel(race) {{
     {{key: 'jockey_horse_stats', label: 'J×H', render: function(h){{
       if (!h.jockey_horse_stats) return '—';
       var j = h.jockey_horse_stats;
-      if (typeof j === 'object' && j.starts != null) {{
-        return (j.wins || 0) + '/' + j.starts;
+      if (typeof j === 'object') {{
+        // Production shape is {{rides, wins, places, avg_pos}}; older/test
+        // fixtures used {{starts, wins}}. Accept either denominator so the
+        // cell never falls through to String(obj) = "[object Object]".
+        var n = (j.starts != null) ? j.starts : j.rides;
+        if (n != null) return (j.wins || 0) + '/' + n;
       }}
       return esc(String(j));
     }}}},
@@ -1945,8 +1949,39 @@ function _buildRaceDetailPanel(race) {{
   }});
   var detailTableHTML = '';
   if (activeCols.length) {{
+    // WA-copy payload — per-horse stats line + active detail columns, so
+    // the whole PER-HORSE DETAIL section can be pasted into WhatsApp. Routed
+    // through copyWA() (appends the entertainment-only footer).
+    // Flush-left, blank-line-separated — WhatsApp trims leading whitespace per
+    // line, so indentation collapses. Mirror the proven main-ticket style.
+    var _detailWA = ['*R' + race.race_number + ' — PER-HORSE DETAIL*',
+      esc(race.time||'') + ' · ' + esc(race.distance) + 'm · ' +
+        esc(race.class_type||'') + ' · ' + esc(race.going||'')];
+    race.horses.forEach(function(h, i) {{
+      var oddsP = h.win_odds ? ' · $' + h.win_odds : '';
+      var pureP = h.pure_prob != null ? (h.pure_prob*100).toFixed(1)+'%' : '—';
+      var mktP  = h.market_prob != null ? (h.market_prob*100).toFixed(1)+'%' : '—';
+      var edgeP = h.edge_pp != null ? ((h.edge_pp>0?'+':'')+h.edge_pp.toFixed(1)+'pp') : '—';
+      var betP  = h.bet_recommendation || 'SKIP';
+      _detailWA.push('');
+      _detailWA.push('*' + (h.rank||i+1) + '. #' + h.number + ' ' + (h.name||'') + '*' + oddsP);
+      var jt = [];
+      if (h.jockey) jt.push(h.jockey);
+      if (h.trainer) jt.push(h.trainer);
+      if (jt.length) _detailWA.push(jt.join(' / '));
+      _detailWA.push('Pure ' + pureP + ' · Mkt ' + mktP + ' · Edge ' + edgeP + ' · ' + betP);
+      var stats = activeCols.map(function(col){{ return col.label + ' ' + col.render(h); }}).join(' · ');
+      if (stats) _detailWA.push(stats);
+    }});
+    var _detailWAStr = _detailWA.join('\\n');
     detailTableHTML = '<div class="detail-section">' +
-      '<div class="section-label">PER-HORSE DETAIL</div>' +
+      '<div class="section-label">PER-HORSE DETAIL' +
+        '<button class="wa-btn" data-testid="copy-wa-detail-R' + race.race_number + '" ' +
+          'style="float:right;font-size:.6rem;padding:2px 6px" ' +
+          'onclick="event.stopPropagation(); copyWA(this.dataset.payload, this)" ' +
+          'data-payload="' + escAttr(_detailWAStr) + '" ' +
+          'title="Copy per-horse details to WhatsApp">Copy Details WA</button>' +
+      '</div>' +
       '<table style="width:100%;border-collapse:collapse;font-size:.76rem">' +
       '<thead><tr><th style="text-align:left;padding:4px">#</th><th style="text-align:left;padding:4px">NAME</th>' +
         activeCols.map(function(col) {{
@@ -2060,9 +2095,35 @@ function _buildRaceDetailPanel(race) {{
 
   var formatHistoryHTML = '';
   if (formatHistRows) {{
+    // WA-copy payload — per-horse prior runs at the current venue+distance,
+    // a SEPARATE button from PER-HORSE DETAIL (user request 2026-06-24).
+    // Flush-left, blank-line between horses (WhatsApp trims leading spaces).
+    var _fhWA = ['*R' + race.race_number + ' — SAME-FORMAT HISTORY*',
+      '(same venue + distance: ' + esc(race.venue||'') + ' ' + esc(race.distance) + 'm)'];
+    race.horses.filter(function(h){{ return h.format_history && h.format_history.length; }})
+      .forEach(function(h){{
+        _fhWA.push('');
+        _fhWA.push('*#' + h.number + ' ' + (h.name||'') + '* (' +
+          h.format_history.length + ' prior run' + (h.format_history.length===1?'':'s') + ')');
+        h.format_history.forEach(function(p){{
+          var pos = p.finish_position;
+          var bits = [p.race_date||'', p.going||'', p.class_type||'',
+                      (pos>0 ? 'pos '+pos : 'pos –')];
+          if (p.win_odds) bits.push('$' + p.win_odds);
+          if (p.margin > 0) bits.push(p.margin + 'L'); else if (pos===1) bits.push('won');
+          if (p.jockey) bits.push(p.jockey);
+          _fhWA.push(bits.join(' · '));
+        }});
+      }});
+    var _fhWAStr = _fhWA.join('\\n');
     formatHistoryHTML = '<div class="detail-section">' +
       '<div class="section-label">SAME-FORMAT HISTORY ' +
         '<span class="info-tip" onclick="showInfoPop(event, &quot;Same-format history&quot;, &quot;Past runs by these horses at the SAME venue and SAME distance. Position colours: gold = win, green = top-3, grey = other. Use this to spot horses that consistently perform (or struggle) under todays exact conditions.&quot;)">ⓘ</span>' +
+        '<button class="wa-btn" data-testid="copy-wa-form-R' + race.race_number + '" ' +
+          'style="float:right;font-size:.6rem;padding:2px 6px" ' +
+          'onclick="event.stopPropagation(); copyWA(this.dataset.payload, this)" ' +
+          'data-payload="' + escAttr(_fhWAStr) + '" ' +
+          'title="Copy same-format history to WhatsApp">Copy Form WA</button>' +
       '</div>' +
       '<table style="width:100%;border-collapse:collapse;font-size:.74rem">' +
         '<thead><tr style="border-bottom:1px solid var(--border);color:var(--dim)">' +
