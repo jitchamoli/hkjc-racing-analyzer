@@ -272,6 +272,11 @@ def _score_meeting_replay(conn, date) -> dict | None:
                        for n, h in horses.items()}
 
         for bet in ticket.get("bets", []) or []:
+            # Paper bets (EDGE PLACE) are reference/tracking only — never staked,
+            # so they must not appear in the actual-staked replay ROI. Their
+            # outcome is tracked separately via edge_log.csv (track_edge).
+            if bet.get("paper"):
+                continue
             label = bet.get("label", "?")
             pool = bet.get("pool", "")
             combos = int(bet.get("combos", 0) or 0)

@@ -739,6 +739,58 @@ def test_copy_wa_ticket_no_system_bet_and_force_pick_when_empty(
     page.close()
 
 
+def test_copy_wa_ticket_edge_place_paper_bet(browser: Browser, tmp_path):
+    """EDGE race whose only ticket entry is a paper PLACE bet on the edge horse
+    (flat field → no QIN/box). Compact WA must render the PAPER BET block, NOT
+    'NO SYSTEM BET' / 'OPTIONAL FORCE PICK', and must not show a real STAKE
+    line. Locks the _paperTicketBets branch (user decision 2026-06-24)."""
+    paper_bet = {
+        'label': 'EDGE PLACE', 'pool': 'PLACE', 'combos': 1,
+        'unit_stake': 10.0, 'amount': 10.0, 'paper': True,
+        'reason': 'edge_place_paper',
+        'legs': [{'number': 7, 'name': 'HORSE7', 'rank': 7}],
+    }
+    race = _make_race(
+        race_number=8,
+        bet_ticket_bets=[paper_bet],
+        results_available=False,
+        conviction_tier='EDGE',
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+    payload = page.locator(
+        '[data-testid="copy-wa-ticket-R8"]'
+    ).first.get_attribute('data-payload') or ''
+
+    assert 'PAPER BET' in payload and 'not counted as model ROI' in payload, (
+        f"missing PAPER BET block: {payload[:400]!r}"
+    )
+    assert '#7' in payload, f"missing edge horse in paper block: {payload[:400]!r}"
+    # Must NOT use the genuinely-empty branch wording
+    assert 'NO SYSTEM BET' not in payload, payload[:400]
+    assert 'OPTIONAL FORCE PICK' not in payload, payload[:400]
+    # Must NOT show a real stake/budget line for a paper-only ticket
+    for stake_tag in ('Budget $', 'Ticket $'):
+        assert stake_tag not in payload, (
+            f"paper-only ticket leaked stake token {stake_tag!r}: {payload[:400]!r}"
+        )
+
+    # Full WA (Copy WA Full) must NOT tell the user to anchor a TRIO-5/F4 that
+    # does not exist on a paper-only EDGE ticket (review fix A 2026-06-25).
+    full_payload = page.locator(
+        '[data-testid="copy-wa-R8"]'
+    ).first.get_attribute('data-payload') or ''
+    assert 'anchor TRIO-5/F4' not in full_payload, (
+        f"full WA leaked TRIO-5/F4 anchor on paper-only EDGE: {full_payload[:500]!r}"
+    )
+    assert 'PAPER' in full_payload, (
+        f"full WA missing paper bet block: {full_payload[:500]!r}"
+    )
+    page.close()
+
+
 def test_copy_wa_full_says_no_system_bet_when_ticket_empty(
         browser: Browser, tmp_path):
     """R15 #3 — Full WA payload (rationale-rich) must clearly say

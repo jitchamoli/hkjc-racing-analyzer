@@ -1122,7 +1122,11 @@ function renderBetCard(race) {{
   // the WA-copy + visual ticket render from bet_ticket.bets — so the EDGE
   // "anchor TRIO-5/F4 with this horse" banner must not fire when there is no
   // TRIO-5/F4 in the ticket (audit 2026-06-08 #2).
-  var hasSystemTicket = !!(race.bet_ticket && race.bet_ticket.bets && race.bet_ticket.bets.length);
+  // Exclude paper bets (EDGE PLACE) — a paper-only ticket has no real TRIO-5/F4
+  // to anchor, so the banner below must NOT fire (it contradicts the paper-bet
+  // section that follows). Mirrors the compact-WA _realTicketBets filter.
+  var hasSystemTicket = !!(race.bet_ticket && race.bet_ticket.bets &&
+    race.bet_ticket.bets.some(function(b) {{ return !b.paper; }}));
   if (tier === 'EDGE' && hasSystemTicket) {{
     // Banner text reads live stats from EDGE_STATS (track_edge.py). Falls
     // back to generic "place > win" framing when no stats file present.
@@ -1996,9 +2000,12 @@ function _buildRaceDetailPanel(race) {{
     // through copyWA() (appends the entertainment-only footer).
     // Flush-left, blank-line-separated — WhatsApp trims leading whitespace per
     // line, so indentation collapses. Mirror the proven main-ticket style.
+    // Plain-text WA payload — do NOT esc() (HTML-entity encoder would turn '&'
+    // in a class/going string into '&amp;' literal text in WhatsApp). Raw values,
+    // matching the rest of the WA path.
     var _detailWA = ['*R' + race.race_number + ' — PER-HORSE DETAIL*',
-      esc(race.time||'') + ' · ' + esc(race.distance) + 'm · ' +
-        esc(race.class_type||'') + ' · ' + esc(race.going||'')];
+      (race.time||'') + ' · ' + (race.distance||'') + 'm · ' +
+        (race.class_type||'') + ' · ' + (race.going||'')];
     race.horses.forEach(function(h, i) {{
       var oddsP = h.win_odds ? ' · $' + h.win_odds : '';
       var pureP = h.pure_prob != null ? (h.pure_prob*100).toFixed(1)+'%' : '—';
@@ -2141,7 +2148,7 @@ function _buildRaceDetailPanel(race) {{
     // a SEPARATE button from PER-HORSE DETAIL (user request 2026-06-24).
     // Flush-left, blank-line between horses (WhatsApp trims leading spaces).
     var _fhWA = ['*R' + race.race_number + ' — SAME-FORMAT HISTORY*',
-      '(same venue + distance: ' + esc(race.venue||'') + ' ' + esc(race.distance) + 'm)'];
+      '(same venue + distance: ' + (race.venue||'') + ' ' + (race.distance||'') + 'm)'];
     race.horses.filter(function(h){{ return h.format_history && h.format_history.length; }})
       .forEach(function(h){{
         _fhWA.push('');
