@@ -99,14 +99,37 @@ def test_edge_race_with_no_system_bet_gets_paper_place_on_edge_horse():
     assert ticket['allocated_amount'] == 0.0  # paper does NOT consume budget
 
 
-def test_non_edge_skip_race_stays_empty():
-    """A plain SKIP race (no edge) must NOT get a paper place bet."""
+def test_non_edge_low_tier_stays_empty():
+    """A non-EDGE tier with zero stake must NOT get a paper place bet."""
     race = {
         'race_number': 1,
         'conviction_tier': 'LOW',
         'has_edge': False,
         'suggested_stake': {'amount': 0.0},
         'horses': [_horse(1), _horse(2)],
+    }
+    ticket = build_bet_ticket(
+        race, race_date='2026/06/24', model_version='m1',
+        generated_at='2026-06-24 10:00:00',
+    )
+    assert ticket['bets'] == []
+
+
+def test_edge_tier_without_resolvable_edge_horse_stays_empty():
+    """EDGE tier but no edge horse can be resolved (no edge_horse_number, no
+    horse with edge_fires) → no paper bet, ticket stays empty rather than
+    crashing or guessing a horse."""
+    race = {
+        'race_number': 8,
+        'conviction_tier': 'EDGE',
+        'has_edge': False,           # edge closed / not resolvable
+        'suggested_stake': {'amount': 0.0},
+        'horses': [
+            {'rank': 1, 'number': 7, 'name': 'A', 'bet_recommendation': 'SKIP',
+             'win_odds': 10.0},      # no edge_fires flag on any horse
+            {'rank': 2, 'number': 4, 'name': 'B', 'bet_recommendation': 'SKIP',
+             'win_odds': 11.0},
+        ],
     }
     ticket = build_bet_ticket(
         race, race_date='2026/06/24', model_version='m1',

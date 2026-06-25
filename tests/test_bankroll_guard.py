@@ -149,7 +149,7 @@ def test_is_counted_label_qin_only():
     assert bg._is_counted_label("BOX QIN-3")
     assert bg._is_counted_label("BOX QIN-4 PROTECTION")
     for excl in ("BOX TRIO-5", "F4 BOX-5", "BOX TRIO-6", "F4 SAVER",
-                 "WIN", "PLACE", "QIN PLACE BANKER", "", None):
+                 "WIN", "PLACE", "EDGE PLACE", "QIN PLACE BANKER", "", None):
         assert not bg._is_counted_label(excl), excl
 
 

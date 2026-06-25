@@ -2,13 +2,14 @@
 
 Runs in sequence:
   1. python3 generate_predictions.py <date>            — production dashboard + JSON
-  2. python3 -m scripts.shadow_generate <date>
-       --variant jockey_form                           — shadow jockey_form OFF
-  3. python3 -m scripts.tier_b_shadow <date>           — log OLD-recommender decisions
+  2. python3 -m scripts.tier_b_shadow <date>           — log OLD-recommender decisions
                                                           for Tier B forward-validation
+  3. python3 -m scripts.snapshot_racing_api <date>     — three-source confluence snapshot
 
-(rule_w=0.9 shadow RETIRED 2026-06-03 — KILL: posterior 0.016, lost 0/5
- meetings. Keep RULE_WEIGHT=0.6. History preserved in shadow_log.csv.)
+(jockey_form shadow RETIRED 2026-06-21 — SHIP: posterior 0.965, JOCKEY_FORM_RIDES_MIN
+ now 15 in production. rule_w=0.9 shadow RETIRED 2026-06-03 — KILL: posterior 0.016.
+ Both histories preserved in shadow_jockey_log.csv / shadow_log.csv; shadow_generate
+ + shadow_evaluate still callable manually.)
 
 These feed independent experiments. After the meeting finishes, run
 `scripts.post_race` to ingest results, evaluate all shadows vs production +
@@ -66,7 +67,7 @@ def main():
     # Three-source confluence snapshot. Racing API only carries today/tomorrow,
     # so the snapshot MUST be captured before midnight HKT. Forward-validation
     # for the WIN-sidebet hypothesis from [[edge-pattern-n4]].
-    rc_c = _run("5 confluence snapshot (racing API → JSON)",
+    rc_c = _run("3/3 confluence snapshot (racing API → JSON)",
                 [sys.executable, '-m', 'scripts.snapshot_racing_api', args.race_date])
     if rc_c != 0:
         print(f"\nWARN: racing API snapshot failed (network/quota?). Confluence "

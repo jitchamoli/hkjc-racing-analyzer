@@ -928,6 +928,10 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
         if b.get('paper'):
             b['unit_stake'] = 10.0
             b['amount'] = float(b['combos'] * 10.0)
+    # Real allocated budget excludes paper bets — recompute defensively so a
+    # paper bet can never inflate allocated_amount (e.g. a <4-horse field where
+    # the first loop assigned it a nonzero unit_rounded before the override).
+    allocated = sum(b['amount'] for b in bets if not b.get('paper'))
 
     return {
         'version': 1,
