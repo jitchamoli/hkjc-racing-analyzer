@@ -720,6 +720,12 @@ def test_copy_wa_ticket_no_system_bet_and_force_pick_when_empty(
         assert f'#{n}' in payload, (
             f"force-pick missing horse #{n}: {payload[:400]!r}"
         )
+    # ...and EXACTLY top-4: #5 (field_size=10) must be absent. Pins the
+    # slice(0,4) upper bound so a slip to slice(0,5) is caught (the existing
+    # loop only guards the lower bound). 2026-06-26.
+    assert '#5' not in payload, (
+        f"force-pick should show exactly top-4, but #5 leaked: {payload[:400]!r}"
+    )
 
     # Negative: no STAKE block, no BET TICKET block, no stake-$ labels.
     # The OPTIONAL FORCE PICK block legitimately carries horse ODDS in
