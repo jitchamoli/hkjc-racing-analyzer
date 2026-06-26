@@ -141,3 +141,67 @@ def test_qpl_banker_replay_scores_winning_ticket():
         conn.execute("DELETE FROM race_bet_ticket WHERE race_date=? AND race_number=?",
                      (date, rno))
         conn.commit()
+
+
+def test_replay_excludes_paper_edge_place_bet():
+    """Paper EDGE PLACE bets (reference/tracking only) must NEVER enter the
+    actual-staked replay ROI. The `if bet.get("paper"): continue` guard in
+    _score_meeting_replay is the only thing enforcing this — without it a
+    paper bet on a placed horse would inflate the frozen-ticket ROI tracker.
+
+    Proof is two-sided: an otherwise-identical PLACE bet that PLACED is
+    excluded when paper=True and INCLUDED (priced) when paper=False — so the
+    `paper` flag, not some other filter, is what drops it."""
+    from scripts.validate_hk import _score_meeting_replay
+    import json
+    conn = _db()
+    # A race with a PLACE dividend + filled prediction_log → a horse that placed.
+    row = conn.execute("""
+        SELECT d.race_date, d.race_number, d.combination
+        FROM race_dividends d
+        JOIN prediction_log p ON p.race_date=d.race_date AND p.race_number=d.race_number
+        WHERE d.pool='PLACE' AND p.results_filled=1
+        LIMIT 1
+    """).fetchone()
+    if row is None:
+        pytest.skip('no race with both PLACE dividend and filled prediction_log')
+    date, rno, placed_num = row['race_date'], row['race_number'], int(row['combination'])
+    name = conn.execute(
+        "SELECT horse_name FROM prediction_log WHERE race_date=? AND race_number=? "
+        "AND horse_number=? AND results_filled=1",
+        (date, rno, placed_num),
+    ).fetchone()
+    if name is None:
+        pytest.skip('placed horse missing from prediction_log for this race')
+    placed_name = name['horse_name']
+
+    def _ticket(paper):
+        bet = {
+            'label': 'EDGE PLACE', 'pool': 'PLACE', 'combos': 1, 'unit_stake': 10.0,
+            'legs': [{'rank': 1, 'number': placed_num, 'name': placed_name}],
+        }
+        if paper:
+            bet['paper'] = True
+        return json.dumps({'bets': [bet]})
+
+    def _score(paper):
+        conn.execute("DELETE FROM race_bet_ticket WHERE race_date=? AND race_number=?",
+                     (date, rno))
+        conn.execute(
+            "INSERT INTO race_bet_ticket (race_date, race_number, ticket_json, logged_at) "
+            "VALUES (?, ?, ?, datetime('now'))", (date, rno, _ticket(paper)))
+        return _score_meeting_replay(conn, date)
+
+    try:
+        # paper=True → excluded from the staked ledger entirely.
+        assert _score(True)['labels'].get('EDGE PLACE') is None, \
+            'paper EDGE PLACE leaked into replay ROI'
+        # paper=False → same bet on the same placed horse IS priced (proves the
+        # exclusion is the paper flag, not a structural mismatch).
+        scored = _score(False)['labels'].get('EDGE PLACE')
+        assert scored is not None and scored[0] == 10.0 and scored[2] == 1, \
+            f'non-paper PLACE bet should score a hit, got {scored}'
+    finally:
+        conn.execute("DELETE FROM race_bet_ticket WHERE race_date=? AND race_number=?",
+                     (date, rno))
+        conn.commit()
