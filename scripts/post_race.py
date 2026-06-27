@@ -4,6 +4,7 @@ Runs in sequence:
   1. results_fetcher.py <date> --auto-learn   — ingest finishes, retrain ML,
                                                 refresh dashboard with badges
   2. scripts.shadow_evaluate <date>           — prod vs rule_w=0.9 shadow
+  2b. scripts.shadow_evaluate --variant tips  — prod vs TIPS-off shadow (fwd A/B)
   3. scripts.tier_b_evaluate <date>           — OLD vs NEW recommender
   4. scripts.track_spoilers <date>            — log outside-top-5 placers
   4a. scripts.track_longshot_trio <date>      — paper experiment: top-5 +
@@ -92,6 +93,20 @@ def main():
     # jockey_form shadow eval RETIRED 2026-06-21 — shipped to production
     # (JOCKEY_FORM_RIDES_MIN=15); shadow now equals production (no-op).
     # History preserved in tracking_data/shadow_jockey_log.csv.
+
+    # Step 2b: TIPS-off shadow eval (forward A/B started 2026-06-27). Skip
+    # cleanly if the shadow file is missing (e.g. shadow_generate failed AM).
+    tips_shadow = REPO_ROOT / 'results' / f'shadow_tips_race_data_{date_str}.json'
+    if not tips_shadow.exists():
+        print(f"\n  [2b/6 shadow_evaluate tips] SKIPPED — no file at {tips_shadow}")
+    else:
+        rc = _run("2b/6 shadow_evaluate (TIPS off)",
+                  [sys.executable, '-m', 'scripts.shadow_evaluate', args.race_date,
+                   '--variant', 'tips'],
+                  required=False)
+        if rc != 0:
+            print(f"\nWARN: shadow_evaluate tips failed but results were ingested.",
+                  file=sys.stderr)
 
     # Step 2c: stake A/B — compares ROI under flat-$10/combo (user habit),
     # production tier-ramp, flat-1%, and inverted ramp. Same picks, different
@@ -204,6 +219,7 @@ def main():
     print(f"\n{'='*70}\n  POST-RACE COMPLETE — {args.race_date}\n{'='*70}")
     print(f"  Cumulative shadow rule_w:     python3 -m scripts.shadow_evaluate --report")
     print(f"  Cumulative shadow jockey_form:python3 -m scripts.shadow_evaluate --report --variant jockey_form")
+    print(f"  Cumulative shadow TIPS:       python3 -m scripts.shadow_evaluate --report --variant tips")
     print(f"  Cumulative stake A/B:         python3 -m scripts.stake_ab --report")
     print(f"  Gate impact (BOX TRIO-5):     python3 -m scripts.gate_impact")
     print(f"  Cumulative tier B forward:    python3 -m scripts.tier_b_evaluate --report")

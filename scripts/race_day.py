@@ -2,9 +2,10 @@
 
 Runs in sequence:
   1. python3 generate_predictions.py <date>            — production dashboard + JSON
-  2. python3 -m scripts.tier_b_shadow <date>           — log OLD-recommender decisions
+  2. python3 -m scripts.shadow_generate --variant tips — TIPS-off shadow (forward A/B)
+  3. python3 -m scripts.tier_b_shadow <date>           — log OLD-recommender decisions
                                                           for Tier B forward-validation
-  3. python3 -m scripts.snapshot_racing_api <date>     — three-source confluence snapshot
+  4. python3 -m scripts.snapshot_racing_api <date>     — three-source confluence snapshot
 
 (jockey_form shadow RETIRED 2026-06-21 — SHIP: posterior 0.965, JOCKEY_FORM_RIDES_MIN
  now 15 in production. rule_w=0.9 shadow RETIRED 2026-06-03 — KILL: posterior 0.016.
@@ -47,7 +48,7 @@ def main():
     p.add_argument('race_date', help='YYYY/MM/DD')
     args = p.parse_args()
 
-    rc = _run("1/2 production predictions",
+    rc = _run("1/4 production predictions",
               [sys.executable, 'generate_predictions.py', args.race_date])
     if rc != 0:
         print(f"\nABORT: production prediction failed. Skipping shadow.", file=sys.stderr)
@@ -57,8 +58,20 @@ def main():
     # (JOCKEY_FORM_RIDES_MIN=15), so the shadow now equals production (no-op).
     # History preserved in tracking_data/shadow_jockey_log.csv.
 
+    # TIPS-off shadow (forward A/B, started 2026-06-27). The TIPS factor only
+    # fires on the live card (tips_index never stored in race_results), so it is
+    # untestable in backtest — a forward shadow is the only valid measure. This
+    # re-fetches the cards and re-scores with the TIPS weight zeroed; post_race
+    # then compares it vs production over N>=6 meetings. Non-fatal on failure.
+    rc_t = _run("2/4 shadow_generate (TIPS off — forward A/B)",
+                [sys.executable, '-m', 'scripts.shadow_generate',
+                 args.race_date, '--variant', 'tips'])
+    if rc_t != 0:
+        print(f"\nWARN: TIPS shadow generation failed but production succeeded.",
+              file=sys.stderr)
+
     # Tier B shadow is a pure local replay of race_data JSON (no HKJC fetch)
-    rc_b = _run("2/2 tier B shadow (OLD recommender decisions)",
+    rc_b = _run("3/4 tier B shadow (OLD recommender decisions)",
                 [sys.executable, '-m', 'scripts.tier_b_shadow', args.race_date])
     if rc_b != 0:
         print(f"\nWARN: tier B shadow failed but production succeeded.",
@@ -67,7 +80,7 @@ def main():
     # Three-source confluence snapshot. Racing API only carries today/tomorrow,
     # so the snapshot MUST be captured before midnight HKT. Forward-validation
     # for the WIN-sidebet hypothesis from [[edge-pattern-n4]].
-    rc_c = _run("3/3 confluence snapshot (racing API → JSON)",
+    rc_c = _run("4/4 confluence snapshot (racing API → JSON)",
                 [sys.executable, '-m', 'scripts.snapshot_racing_api', args.race_date])
     if rc_c != 0:
         print(f"\nWARN: racing API snapshot failed (network/quota?). Confluence "
