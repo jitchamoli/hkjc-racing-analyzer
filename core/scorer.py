@@ -262,6 +262,10 @@ def calibrate_probabilities(analyses, field_size: int = 12,
 
     Per-horse isotonic preserves rank ordering (monotonic), so renormalizing
     after applying maintains both the win-prob calibration and sum-to-one.
+    The _BLEND_CAL_INPUT_CLIP clamp makes the isotonic non-strict on the
+    >0.30 plateau, so co-favourites can tie in calibrated_prob; that tie is
+    resolved deterministically by pre-blend rank in the recommender sort
+    (assign_bet_recommendations), keeping calibrated_prob magnitudes clean.
     """
     if not analyses:
         return []
@@ -324,7 +328,12 @@ def calibrate_probabilities(analyses, field_size: int = 12,
         try:
             import numpy as _np
             # Clamp inputs at the last dense knot before the (sparse, overfit)
-            # isotonic tail — see _BLEND_CAL_INPUT_CLIP above.
+            # isotonic tail — see _BLEND_CAL_INPUT_CLIP above. NOTE: two horses
+            # both >0.30 blended then map to iso(0.30) and TIE in calibrated_prob.
+            # That tie is resolved deterministically by pre-blend rank in the
+            # recommender sort (assign_bet_recommendations), NOT here — so
+            # calibrated_prob magnitudes stay clean (a constant calibrator still
+            # yields a uniform distribution).
             blended = list(iso.predict(
                 _np.minimum(_np.array(blended), _BLEND_CAL_INPUT_CLIP)))
         except Exception as e:

@@ -702,6 +702,7 @@ function _allStrikeLabels(race) {{
   function _push(short) {{ if (!seen[short]) {{ seen[short] = true; ordered.push(short); }} }}
   for (var i = 0; i < bets.length; i++) {{
     var bet = bets[i];
+    if (bet.paper) continue;  // paper bets (EDGE PLACE tracker) never staked → no badge
     if (!_betHitsTicket(bet, race)) continue;
     var pool = bet.pool || '';
     var nLegs = (bet.legs || []).length;
@@ -738,8 +739,11 @@ function _didBetHit(race) {{
   if (labels.length === 0) {{
     var ticket = race.bet_ticket;
     var bets = (ticket && ticket.bets) ? ticket.bets : [];
-    // SKIP race → no badge. Real miss → MISS.
-    return bets.length === 0 ? null : 'MISS';
+    // Paper bets (EDGE PLACE tracker) are never staked → exclude from the card
+    // MISS badge; only a real bet that did not land is a MISS. A paper-only
+    // ticket (or SKIP race) shows no badge.
+    var realBets = bets.filter(function(b) {{ return !b.paper; }});
+    return realBets.length === 0 ? null : 'MISS';
   }}
   return 'STRIKE-' + labels[0];
 }}
