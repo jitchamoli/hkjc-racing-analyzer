@@ -1406,6 +1406,18 @@ async def _run_generation(fetcher, analyzer, race_date: str):
         all_races.append(race_data)
         logger.info(f"  Race {race_no}: {len(race.horses)} horses, bet: {analyses[0].bet_recommendation if analyses else 'N/A'}")
 
+    # Fail loud on a total fetch miss: if EVERY race skipped (e.g. venue
+    # detection returned the wrong course — CLAUDE.md's "wrong venue → empty
+    # HTML" trap, most likely when re-rendering a historical HV meeting) we must
+    # NOT write [] and clobber a good dashboard with green "Done!" logs.
+    if not all_races:
+        logger.error(
+            f"No race data fetched for {race_date} — every race skipped. Venue "
+            "detection may have returned the wrong course (HV meeting fetched as "
+            "ST?). Refusing to overwrite existing dashboard/JSON with empty output."
+        )
+        raise SystemExit(3)
+
     date_str = race_date.replace('/', '')
     json_file = os.path.join(results_dir, f"race_data_{date_str}.json")
 

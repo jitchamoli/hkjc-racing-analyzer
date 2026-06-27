@@ -129,7 +129,7 @@ Backup: `models/hkjc_racing_model.pkl.pre-prune-tier1`. Gate-tune attempt (+0.15
 
 5. **No rank promotions after calibration** (GPT-5.5 R13 F3 2026-05-25): `assign_bet_recommendations` MUST emit horses strictly sorted by `calibrated_prob` desc. Market-favourite and BANKER rank swaps were REMOVED — calibrated_prob already includes the market blend, so a post-calibration swap is a second override. BANKER is reasoning/diagnostic only; BANKER WIN may fire only when the BANKER horse is already rank 1 by calibrated_prob. Snapshot pre-blend order as `pre_blend_rank` for diagnostics. Locked by `tests/test_banker_cal_prob_guard.py` + `test_race_day_contracts::test_recommender_does_not_swap_rank_for_market_fav_or_banker`.
 
-6. **ML fallback**: untrained `predict()` returns `1/field_size` (the `field_size` param, default 12) — NOT `1/len(features)`.
+6. **ML fail-closed** (F-17): untrained `predict()` (`is_trained False` / load or integrity failure) **raises `RuntimeError`** — it does NOT silently return `1/field_size`, so a bad/missing pickle surfaces loudly instead of being masked by plausible-looking uniform probabilities. Matches the `CombinedRaceAnalyzer(fail_closed_ml=True)` posture and the "ML Fail-Closed" contract-test group. (`predict_place()`'s no-place-model fallback delegates to `predict()`, so it fails closed too.)
 
 7. **Feature count guard**: pickle stores `n_features`; mismatch with current `NUM_FEATURES` = hard refusal.
 
