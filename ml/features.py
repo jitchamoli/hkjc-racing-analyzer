@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Feature engineering for ML predictions.
 
-Extracts 16 features per horse using FEATURE_SCHEMA order.
+Extracts 23 features per horse using FEATURE_SCHEMA order (v6.11).
 All features use only data available BEFORE the race (no leakage).
-v6.4: dropped prior_pace, adjusted_speed, distance_pb_ratio, speed_consistency
-(redundant with last_start_margin). Wave 2c: dropped field_rel_speed and
-days_since_last_win for structural correlations.
+v6.11 (2026-05-24): pruned draw_advantage, speed_fig_norm, running_style.
+v6.9/6.10 added mid_race_pace + sire_top3_rate_on_going. (Earlier: v6.4
+dropped prior_pace/adjusted_speed/distance_pb_ratio/speed_consistency;
+Wave 2c dropped field_rel_speed/days_since_last_win.) See ml/feature_schema.py
+for the authoritative list.
 """
 
 import re
