@@ -52,6 +52,19 @@ def collect_calibration_pairs(last_n=None):
         load_calibration_window, group_by_race, predict_race_production,
     )
 
+    # CRITICAL: fit the blend calibrator on the SAME probability domain it is
+    # applied to. The production pipeline (predict_race_production →
+    # calibrate_probabilities) would otherwise lazy-load the EXISTING
+    # blend_calibrator.pkl and apply it, so cal_prob would come back already
+    # corrected (post-calibrator). Fitting a new isotonic on that
+    # post-correction distribution while it is later APPLIED to the
+    # pre-correction (step-3) blend compounds the lift on every re-fit
+    # (observed: 0.30→0.68 vs the intended 0.30→~0.46). Disable the cached
+    # calibrator here so collection yields pre-calibrator blended probs.
+    import core.scorer as _scorer
+    _scorer._BLEND_CALIBRATOR = None
+    _scorer._BLEND_CALIBRATOR_LOADED = True  # short-circuit _load_blend_calibrator → None
+
     conn = sqlite3.connect(str(config.DB_PATH))
     conn.row_factory = sqlite3.Row
     from data.database import apply_perf_pragmas
