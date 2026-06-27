@@ -25,7 +25,7 @@ python3 scrape_history.py [--date 2026/04/09 | --rankings | --days 90]
 
 # Forward-validation + trackers (auto-run by post_race)
 python3 -m scripts.validate_hk [--report]      # OOS-only ROI — the ONLY honest measure
-python3 -m scripts.shadow_evaluate [--report] [--variant jockey_form]
+python3 -m scripts.shadow_evaluate [--report] [--variant jockey_form|tips]
 python3 -m scripts.stake_ab     [--report]     # flat-$10 vs ramp vs flat-1% vs invert
 python3 -m scripts.tier_b_evaluate [--report]
 python3 -m scripts.track_spoilers | track_edge | track_longshot_trio [--report]
@@ -84,7 +84,7 @@ monitor/    — race day monitor (HK)
 dashboard/  — generator + edge-first HTML template (HK)
 betting/    — edge_calculator, conviction tiers, alerts, exotic_calculator (HK)
 scripts/    — CLI entry points
-tests/      — pytest suite (694; +20 contract/Playwright tests in R11–R15 hardening)
+tests/      — pytest suite (835; contract/Playwright/template tests incl. R11–R15 hardening)
 ```
 
 Root-level shims (e.g., `hkjc_data_fetcher.py`) re-export from packages for backwards compat. Non-HK jurisdictions have isolated `*_history.db` + `*_racing_model.pkl` + scripts; HK code untouched.
@@ -101,7 +101,7 @@ core/fetcher → core/analyzer → dashboard/generator → results/
 
 ### Scoring (CombinedRaceAnalyzer)
 - **Rule engine (60%)**: 25 dynamically-weighted factors, missing-data renormalized. `odds`/`odds_movement` NOT in rule engine — market enters via dynamic blend only.
-- **ML model (40%)**: XGBoost win + place (`is_top3`) with 23 features (`ml/feature_schema.py`). IsotonicRegression recency-weighted; trained on ~50k real results. Post-blend isotonic recalibrator (`models/blend_calibrator.pkl`) refit after every retrain. 4-fold disjoint split: 0-60 train / 60-70 earlystop / 70-85 cal / 85-100 holdout.
+- **ML model (40%)**: XGBoost win + place (`is_top3`) with 23 features (`ml/feature_schema.py`). IsotonicRegression recency-weighted; trained on ~50k real results. Post-blend isotonic recalibrator (`models/blend_calibrator.pkl`) refit after every auto-learn retrain (NOTE: manual `train_ml_model.py` does NOT refit it — deferred item). 4-fold disjoint split: 0-60 train / 60-70 earlystop / 70-85 cal / 85-100 holdout.
 
 **v6.11 (2026-05-24)** Tier 1 PRUNE from 3-expert review (ML stats / HK domain / forward-validation pragmatist) dropped 3 features:
 - `draw_advantage` — r=−0.0095 with `is_winner` on 50k rows (literal zero). `field_rel_draw` carries the draw signal.
@@ -127,7 +127,7 @@ Backup: `models/hkjc_racing_model.pkl.pre-prune-tier1`. Gate-tune attempt (+0.15
 
 4. **value_score must use ML blend**: `value_score = combined_prob * 100`, NOT raw `rule_score`.
 
-5. **No rank promotions after calibration** (GPT-5.5 R13 F3 2026-05-25): `assign_bet_recommendations` MUST emit horses strictly sorted by `calibrated_prob` desc. Market-favourite and BANKER rank swaps were REMOVED — calibrated_prob already includes the market blend, so a post-calibration swap is a second override. BANKER is reasoning/diagnostic only; BANKER WIN may fire only when the BANKER horse is already rank 1 by calibrated_prob. Snapshot pre-blend order as `pre_blend_rank` for diagnostics. Locked by `tests/test_banker_cal_prob_guard.py` + `test_race_day_contracts::test_recommender_does_not_swap_rank_for_market_fav_or_banker`.
+5. **No rank promotions after calibration** (GPT-5.5 R13 F3 2026-05-25): `assign_bet_recommendations` MUST emit horses strictly sorted by `calibrated_prob` desc. Market-favourite and BANKER rank swaps were REMOVED — calibrated_prob already includes the market blend, so a post-calibration swap is a second override. BANKER is reasoning/diagnostic only; BANKER WIN may fire only when the BANKER horse is already rank 1 by calibrated_prob. Snapshot pre-blend order as `pre_blend_rank`; the sort key is `(calibrated_prob, -pre_blend_rank)` desc, so ties (e.g. two co-favourites both clamped to iso(0.30)) break DETERMINISTICALLY by best pre-blend opinion — never by incidental input order (2026-06-27). Locked by `tests/test_banker_cal_prob_guard.py` + `test_race_day_contracts::test_recommender_does_not_swap_rank_for_market_fav_or_banker`.
 
 6. **ML fail-closed** (F-17): untrained `predict()` (`is_trained False` / load or integrity failure) **raises `RuntimeError`** — it does NOT silently return `1/field_size`, so a bad/missing pickle surfaces loudly instead of being masked by plausible-looking uniform probabilities. Matches the `CombinedRaceAnalyzer(fail_closed_ml=True)` posture and the "ML Fail-Closed" contract-test group. (`predict_place()`'s no-place-model fallback delegates to `predict()`, so it fails closed too.)
 
@@ -150,7 +150,13 @@ pure_prob = softmax(rule×0.6 + ml×0.4)         # independent opinion, pre-mark
   sentinel loads the pickle; pass an explicit one for A/B, None to disable).
   60/40 vs 45/55 was A/B'd on a recalibrated 634-race holdout = wash (more-market
   loses slightly less). Don't re-tune without a fresh calibrator + ≥250-bet forward.
-→ post-blend isotonic calibrator (blend_calibrator.pkl, lazy)
+→ post-blend isotonic calibrator (blend_calibrator.pkl, lazy). Inputs CLAMPED at
+  `_BLEND_CAL_INPUT_CLIP`=0.30 (last dense knot) before iso.predict — the fit tail
+  had only ~80/7662 samples >0.30, so isotonic flattened 0.40..1.0 to one noisy
+  value; clamp caps favourite over-statement (monotone, conservative, untouched
+  <0.30). MUST be fit on its apply-time domain: `calibrate_blend.py` disables the
+  cached calibrator during collection or re-fits compound the lift (memory:
+  `project_calibration_fix_2026-06-27`).
 → calibrated_prob (normalized sum=1.0)
 → expected_return = odds × calibrated_prob - 1
 
