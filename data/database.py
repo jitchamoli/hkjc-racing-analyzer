@@ -986,6 +986,8 @@ class HorseDatabase:
         or bet ticket reads this.
         """
         from ml.features import FeatureEngineering
+        if not (going and going.strip()):
+            return {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
         target = FeatureEngineering._going_bucket(going)
         params = [horse_name]
         query = """

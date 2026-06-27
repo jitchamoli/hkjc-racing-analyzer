@@ -46,7 +46,7 @@ def build_training_data_from_db(
                 return None, None, None, None, None
             return None, None, None, None
 
-        conn = sqlite3.connect(str(db_path))
+        conn = sqlite3.connect(str(db_path), timeout=30.0)
         conn.row_factory = sqlite3.Row
         from data.database import apply_perf_pragmas
         apply_perf_pragmas(conn)

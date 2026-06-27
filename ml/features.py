@@ -75,6 +75,7 @@ _running_pos_cache: dict = {}    # keyed by (horse_name, before_date) — v6.8 F
 _mid_race_cache: dict = {}       # keyed by (horse_name, before_date) — v6.9 mid_race_pace
 _sire_going_cache: dict = {}     # keyed by (sire, going_bucket, before_date) — v6.10 sire_top3_on_going
 _horse_sire_map: dict = {}       # one-shot horse_name → sire from renavon_horses (lazy)
+_horse_sire_map_loaded: bool = False  # True only after a SUCCESSFUL load (separate from emptiness)
 _daily_variant_cache: dict = {}  # keyed by (race_date, before_race_no, before_date)
 
 
@@ -98,6 +99,7 @@ _GOING_REVERSE = {
 
 def clear_feature_caches() -> None:
     """Reset jockey/trainer rate caches. Call at the start of each race-day run."""
+    global _horse_sire_map_loaded
     _jockey_rate_cache.clear()
     _trainer_rate_cache.clear()
     _jockey_window_cache.clear()
@@ -108,6 +110,7 @@ def clear_feature_caches() -> None:
     _mid_race_cache.clear()
     _sire_going_cache.clear()
     _horse_sire_map.clear()
+    _horse_sire_map_loaded = False
     _daily_variant_cache.clear()
 
 
@@ -641,7 +644,8 @@ class FeatureEngineering:
         """Look up sire from renavon_horses (the frozen 2026/04/22 snapshot,
         99.7% sire coverage of currently-active HK horses). Caches the full
         horse→sire map on first call to amortise the read across N horses."""
-        if not _horse_sire_map:
+        global _horse_sire_map_loaded
+        if not _horse_sire_map_loaded:
             try:
                 rows = conn.execute(
                     "SELECT horse_name, sire FROM renavon_horses "
@@ -649,9 +653,14 @@ class FeatureEngineering:
                 ).fetchall()
                 for r in rows:
                     _horse_sire_map[r['horse_name']] = r['sire']
+                _horse_sire_map_loaded = True
             except Exception as e:
-                logger.warning(f"sire map load failed: {e}")
-                _horse_sire_map[''] = ''  # sentinel so we don't retry
+                # Transient failure (DB lock / mid-rebuild): return the default
+                # for THIS call but leave _loaded False so the next horse retries.
+                # A dict sentinel here would wedge Feature 23 to the 0.20 prior
+                # for EVERY horse for the rest of the process lifetime.
+                logger.warning(f"sire map load failed for {horse_name}: {e}")
+                return ''
         return _horse_sire_map.get(horse_name, '')
 
     @staticmethod
@@ -905,7 +914,7 @@ class FeatureEngineering:
     @staticmethod
     def extract_features(horse_data: dict, all_results, venue: str,
                          conn: sqlite3.Connection = None) -> np.ndarray:
-        """Extract 16 features matching FEATURE_SCHEMA order exactly (v6.4).
+        """Extract 23 features matching FEATURE_SCHEMA order exactly (v6.11).
 
         Args:
             conn: Optional shared SQLite connection. If None, opens/closes its own.
@@ -957,7 +966,7 @@ class FeatureEngineering:
             if conn is None:
                 db_path = config.DB_PATH
                 if db_path.exists():
-                    conn = sqlite3.connect(str(db_path))
+                    conn = sqlite3.connect(str(db_path), timeout=30.0)
                     conn.row_factory = sqlite3.Row
             if conn is not None:
                 if race_date:

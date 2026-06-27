@@ -1451,27 +1451,30 @@ async def _run_single_race(fetcher: HKJCDataFetcher, race_date: str, race_no: in
             _manual_odds_entry(race)
 
     analyzer = CombinedRaceAnalyzer()
-    analyses = analyzer.analyze_race(race)
-    ReportGenerator.print_race_analysis(race, analyses)
+    try:
+        analyses = analyzer.analyze_race(race)
+        ReportGenerator.print_race_analysis(race, analyses)
 
-    # Betting optimizer
-    _print_betting_optimization(race, analyses)
+        # Betting optimizer
+        _print_betting_optimization(race, analyses)
 
-    # Offer odds refresh
-    if any(h.win_odds > 0 for h in race.horses):
-        refresh = input("\n  Refresh odds? (y/n): ").strip().lower()
-        if refresh == "y":
-            print("  Refreshing odds...")
-            new_odds = await fetcher.get_live_odds(race_date, race_no)
-            if new_odds:
-                for h in race.horses:
-                    if h.number in new_odds:
-                        h.win_odds = new_odds[h.number]
-                race.odds_updated_at = datetime.now().strftime("%H:%M:%S")
-                analyses = analyzer.analyze_race(race)
-                ReportGenerator.print_race_analysis(race, analyses)
-            else:
-                print("  Could not refresh odds.")
+        # Offer odds refresh
+        if any(h.win_odds > 0 for h in race.horses):
+            refresh = input("\n  Refresh odds? (y/n): ").strip().lower()
+            if refresh == "y":
+                print("  Refreshing odds...")
+                new_odds = await fetcher.get_live_odds(race_date, race_no)
+                if new_odds:
+                    for h in race.horses:
+                        if h.number in new_odds:
+                            h.win_odds = new_odds[h.number]
+                    race.odds_updated_at = datetime.now().strftime("%H:%M:%S")
+                    analyses = analyzer.analyze_race(race)
+                    ReportGenerator.print_race_analysis(race, analyses)
+                else:
+                    print("  Could not refresh odds.")
+    finally:
+        analyzer.close()
 
 
 async def _run_all_races(fetcher: HKJCDataFetcher, race_date: str):
@@ -1486,11 +1489,13 @@ async def _run_all_races(fetcher: HKJCDataFetcher, race_date: str):
     print(f"\n  Found {len(day.races)} races at {day.venue}")
 
     analyzer = CombinedRaceAnalyzer()
-
-    for rc in day.races:
-        race = convert_race(rc)
-        analyses = analyzer.analyze_race(race)
-        ReportGenerator.print_race_analysis(race, analyses)
+    try:
+        for rc in day.races:
+            race = convert_race(rc)
+            analyses = analyzer.analyze_race(race)
+            ReportGenerator.print_race_analysis(race, analyses)
+    finally:
+        analyzer.close()
 
 
 def _manual_odds_entry(race: Race):

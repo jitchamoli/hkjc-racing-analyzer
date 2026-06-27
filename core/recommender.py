@@ -50,8 +50,15 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
     for i, a in enumerate(analyses):
         if a.pre_blend_rank is None:
             a.pre_blend_rank = i + 1  # snapshot pre-calibration order
+    # Sort by calibrated_prob desc; break TIES explicitly by pre_blend_rank asc
+    # (best pre-blend opinion wins). Ties are real: the _BLEND_CAL_INPUT_CLIP
+    # clamp maps any two horses >0.30 blended to iso(0.30), and isotonic flat
+    # steps can tie sub-0.30 horses too. Without an explicit tiebreak rank-1
+    # among a tied group would depend on incidental input order — making this
+    # deterministic and Rule-5-aligned (e.g. BANKER WIN can't fire on an
+    # arbitrarily-chosen co-favourite).
     paired = sorted(zip(analyses, calibrated_probs),
-                    key=lambda t: t[1], reverse=True)
+                    key=lambda t: (t[1], -t[0].pre_blend_rank), reverse=True)
     for i, (a, _p) in enumerate(paired):
         analyses[i] = a
         calibrated_probs[i] = _p
