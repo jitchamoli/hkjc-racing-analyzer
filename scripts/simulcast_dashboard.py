@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 
 import config
+from betting.uk_edge import add_edge_columns
 from ml.uk_features import FEATURE_COLS
 from ml.uk_model import UKRacingModel
 
@@ -194,7 +195,9 @@ def _recs_box(recs):
             "<div class=note style='margin:0 0 8px'>WIN singles only, on the model's top "
             "<b>GB-form</b> pick in adequately-covered races. No place/exotic bets (no place "
             "model, no validated Ireland edge). Pre-odds picks are <b>form-only</b> — re-run "
-            "when HK odds post to confirm value.</div>" + "".join(rows) + "</div>")
+            "when HK odds post to confirm value. ⚠️ <b>Overlays are the model's opinion, "
+            "not proven edge</b>: in OOS backtest blanket overlay-betting lost −8.5% (the "
+            "model over-rates longshots). Paper-only.</div>" + "".join(rows) + "</div>")
 
 
 def render(date_str, course, race_blocks, recs):
@@ -209,6 +212,7 @@ def render(date_str, course, race_blocks, recs):
     .badge{font-size:10px;padding:1px 6px;border-radius:6px;margin-left:4px}
     .gb{background:#13361f;color:#7ee787} .nogb{background:#3a2630;color:#ff9eae}
     .top{background:#161d27} .dim{color:#7a8699}
+    .val{background:#13361f}
     .flag{color:#ffd479;font-size:12px}
     .preodds{color:#ff9eae;font-size:12px;font-weight:600}
     .recs{background:#11221a;border:1px solid #1f4030;border-radius:8px;padding:12px 14px;margin:8px 0 18px}
@@ -233,27 +237,35 @@ def render(date_str, course, race_blocks, recs):
                      f" <span class=dim>· GB coverage {b['cov']}/{b['n']}</span></h2>")
         if b["suggestion"]:
             parts.append(f"<div class=flag>💡 {_esc(b['suggestion'])}</div>")
-        modcol = "Form rank" if b["pre_odds"] else "Model share"
-        oddscol = "Gear" if b["pre_odds"] else "Odds"
-        parts.append(f"<table><tr><th>#</th><th>Horse</th><th>{modcol}</th><th>Jockey</th>"
-                     f"<th>Trainer</th><th>Dr</th><th>OR</th><th>GB form</th><th>{oddscol}</th></tr>")
+        pre = b["pre_odds"]
+        modcol = "Form rank" if pre else "Model%"
+        edgecol = "Gear" if pre else "Edge"
+        oddscol = "Gear" if pre else "Odds"
+        # pre-odds: …| GB form | Gear ;  odds-live: …| GB form | Edge | Odds
+        hdr = (f"<table><tr><th>#</th><th>Horse</th><th>{modcol}</th><th>Jockey</th>"
+               f"<th>Trainer</th><th>Dr</th><th>OR</th><th>GB form</th>")
+        hdr += "<th>Gear</th>" if pre else "<th>Edge</th><th>Odds</th>"
+        parts.append(hdr + "</tr>")
         for row in b["rows"]:
-            cls = " class=top" if row["top"] else ""
+            value = (not pre) and row["prob"] is not None and (row.get("overlay") or 0) > 1.0
+            cls = " class=top" if row["top"] else (" class=val" if value else "")
             if row["prob"] is None:
                 prob = "<span class=dim>—</span>"
-            elif b["pre_odds"]:
+            elif pre:
                 prob = f"<span class=prob>#{row.get('form_rank','?')}</span>"
             else:
-                prob = f"<span class=prob>{row['prob']*100:.0f}%</span>"
+                prob = f"<span class=prob>{(row.get('model_pct') or 0)*100:.0f}%</span>"
             badge = "<span class='badge gb'>GB</span>" if row["has_gb"] else "<span class='badge nogb'>no GB</span>"
             gbform = f"{row['n_gb']} runs" + (f", OR {row['or']}" if row['or'] else "") if row["has_gb"] else "<span class=dim>first GB run</span>"
+            tail = (f"<td>{_esc(row.get('gear') or '—')}</td>" if pre else
+                    (f"<td>{('<span class=prob>'+format(row['edge']*100,'+.1f')+'pp</span>') if row.get('edge') is not None else '<span class=dim>—</span>'}</td>"
+                     f"<td>{(format(row['odds_dec'],'.1f') if row.get('odds_dec') else '—')}</td>"))
             parts.append(
                 f"<tr{cls}><td>{_esc(row['number'])}</td>"
                 f"<td>{_esc(row['horse'])} {badge}</td>"
                 f"<td>{prob}</td><td>{_esc(row['jockey'])}</td><td>{_esc(row['trainer'])}</td>"
                 f"<td>{_esc(row['draw'])}</td><td>{_esc(row['or'] or '—')}</td>"
-                f"<td class=dim>{gbform}</td>"
-                f"<td>{_esc(row.get('gear') or '—') if b['pre_odds'] else _esc(row.get('odds') or '—')}</td></tr>")
+                f"<td class=dim>{gbform}</td>{tail}</tr>")
         parts.append("</table>")
     parts.append(f"<p class=dim>Generated {datetime.now():%Y-%m-%d %H:%M} · "
                  "model: uk_racing_model.pkl (GB-trained) · ⚠️ gamble responsibly.</p>")
@@ -270,6 +282,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("date"); ap.add_argument("course")
+    ap.add_argument("--odds-file", help="JSON {race_no:{horse_no:decimal_odds}} to "
+                    "inject HK win odds → enables edge/overlay/value verdict.")
     args = ap.parse_args()
 
     src = RESULTS_DIR / f"simulcast_{args.date}_{args.course}.json"
@@ -280,6 +294,21 @@ def main():
     model = UKRacingModel.load()
     conn = sqlite3.connect(str(config.UK_DB_PATH)); conn.row_factory = sqlite3.Row
 
+    # Optional odds override: JSON {race_no: {horse_number: decimal_odds}}.
+    # Lets the dashboard show edge/overlay before HKJC publishes prices on the
+    # card itself (and is how the live odds-feed will inject prices later).
+    odds_override = {}
+    if args.odds_file:
+        odds_override = json.loads(Path(args.odds_file).read_text())
+
+    def runner_odds(rno, m):
+        ro = odds_override.get(str(rno)) or odds_override.get(rno)
+        if ro:
+            v = ro.get(str(m["number"])) or ro.get(m["number"])
+            if v:
+                return float(v)
+        return _parse_odds(m.get("odds"))
+
     blocks = []
     for race in cards["races"]:
         rno = race["race_no"]
@@ -288,32 +317,50 @@ def main():
             continue
         probs = model.predict_proba(X)
         n = len(meta); cov = sum(m["has_gb"] for m in meta)
-        any_odds = any(_parse_odds(m["odds"]) for m in meta)
-        # Raw per-runner P(win) is uncalibrated and (pre-odds, with sp_dec
-        # missing) wildly inflated — normalise across GB-covered runners so the
-        # numbers are a RELATIVE share within the field that sums to 100%.
-        # The ORDER is a form-based signal; pre-odds the magnitudes are not
-        # trustworthy (flagged in the UI).
+        odds_list = [runner_odds(rno, m) for m in meta]
+        any_odds = any(o for o in odds_list)
+
+        # Edge/overlay via the shared betting.uk_edge core (de-vigged fair
+        # market prob, edge = model_norm - fair, overlay = p*SP). NaN where the
+        # runner has no GB model prob or no price.
+        edf = add_edge_columns(pd.DataFrame({
+            "race_id": rno,
+            "model_p": [float(probs[i]) if meta[i]["has_gb"] else np.nan for i in range(n)],
+            "sp_dec": [o if o else np.nan for o in odds_list],
+        }))
+
+        # Form-only share (pre-odds display): normalise covered raw probs to 1.
         raw_sum = sum(float(probs[i]) for i, m in enumerate(meta) if m["has_gb"]) or 1.0
         rows = []
         for i, m in enumerate(meta):
             share = float(probs[i]) / raw_sum if m["has_gb"] else None
-            rows.append({**m, "prob": share, "top": False})
-        # rank covered runners by model share
-        covered = sorted([r for r in rows if r["prob"] is not None],
-                         key=lambda r: r["prob"], reverse=True)
+            e = edf["edge"].iloc[i]; ov = edf["overlay"].iloc[i]
+            mpn = edf["model_p_norm"].iloc[i]
+            rows.append({**m, "prob": share, "top": False,
+                         "odds_dec": odds_list[i],
+                         "edge": None if pd.isna(e) else float(e),
+                         "overlay": None if pd.isna(ov) else float(ov),
+                         "model_pct": None if pd.isna(mpn) else float(mpn)})
+        covered = [r for r in rows if r["prob"] is not None]
+        # odds-live → rank by EDGE; pre-odds → rank by form share
+        if any_odds:
+            covered.sort(key=lambda r: (r["edge"] if r["edge"] is not None else -9), reverse=True)
+        else:
+            covered.sort(key=lambda r: r["prob"], reverse=True)
         for rank, r in enumerate(covered, 1):
             r["form_rank"] = rank
-        for r in covered[:1]:
-            r["top"] = True
+        if covered:
+            covered[0]["top"] = True
         rows = covered + [r for r in rows if r["prob"] is None]
-        # honest suggestion only for OK-coverage races
+
         suggestion = ""
         if cov >= max(3, n * 0.5) and covered:
             t = covered[0]
             if any_odds:
-                suggestion = (f"Model top GB-form pick: #{t['number']} {t['horse']} "
-                              f"({t['prob']*100:.0f}% share). HK odds live — overlay vs price.")
+                val = "VALUE ✅" if (t["overlay"] or 0) > 1.0 else "no value (underlay)"
+                suggestion = (f"Top edge: #{t['number']} {t['horse']} — model "
+                              f"{(t['model_pct'] or 0)*100:.0f}% vs price {t['odds_dec']:.1f} "
+                              f"(edge {(t['edge'] or 0)*100:+.1f}pp, overlay {t['overlay']:.2f} → {val}).")
             else:
                 suggestion = (f"Form-only lean (PRE-ODDS, low confidence): #{t['number']} "
                               f"{t['horse']}. Re-run once HK odds post — the model leans "
@@ -328,14 +375,25 @@ def main():
     recs = []
     for b in blocks:
         covered = [r for r in b["rows"] if r["prob"] is not None]
-        if b["cov"] >= max(3, b["n"] * 0.5) and covered:
+        ok = b["cov"] >= max(3, b["n"] * 0.5) and covered
+        if ok and not b["pre_odds"]:
+            # odds-live: only recommend a WIN if it's a genuine overlay (value)
+            value = [r for r in covered if (r["overlay"] or 0) > 1.0]
+            if value:
+                top = value[0]
+                recs.append({"ok": True, "race": b["title"], "num": top["number"],
+                             "horse": top["horse"], "pre_odds": False,
+                             "conf": f"edge {(top['edge'] or 0)*100:+.1f}pp · overlay {top['overlay']:.2f} @ {top['odds_dec']:.1f}"})
+            else:
+                recs.append({"ok": False, "race": b["title"],
+                             "why": "no positive-edge overlay (market efficient)"})
+        elif ok:
             top = covered[0]
             recs.append({"ok": True, "race": b["title"], "num": top["number"],
-                         "horse": top["horse"], "pre_odds": b["pre_odds"],
+                         "horse": top["horse"], "pre_odds": True,
                          "conf": f"{top['prob']*100:.0f}% model share"})
         else:
-            why = ("too few GB-form runners" if b["cov"] < 3
-                   else "weak GB coverage")
+            why = ("too few GB-form runners" if b["cov"] < 3 else "weak GB coverage")
             recs.append({"ok": False, "race": b["title"], "why": why})
 
     html = render(args.date, args.course, blocks, recs)
