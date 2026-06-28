@@ -177,7 +177,27 @@ def _esc(s):
     return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def render(date_str, course, race_blocks):
+def _recs_box(recs):
+    """Top-of-page Model Opinion / Suggested Bets summary."""
+    rows = []
+    for r in recs:
+        if r["ok"]:
+            cls = "rec-ok"
+            conf = (f"<span class=preodds>form-only · confirm on price</span>"
+                    if r["pre_odds"] else f"value: {r['conf']}")
+            line = f"<b>{_esc(r['race'])}</b> → WIN <b>#{_esc(r['num'])} {_esc(r['horse'])}</b> &nbsp;{conf}"
+        else:
+            cls = "rec-no"
+            line = f"<b>{_esc(r['race'])}</b> → <span class=dim>no model bet — {_esc(r['why'])}</span>"
+        rows.append(f"<div class='{cls}'>{line}</div>")
+    return ("<div class=recs><h2 style='border:0;margin:0 0 6px'>🎯 Model Opinion — Suggested Bets</h2>"
+            "<div class=note style='margin:0 0 8px'>WIN singles only, on the model's top "
+            "<b>GB-form</b> pick in adequately-covered races. No place/exotic bets (no place "
+            "model, no validated Ireland edge). Pre-odds picks are <b>form-only</b> — re-run "
+            "when HK odds post to confirm value.</div>" + "".join(rows) + "</div>")
+
+
+def render(date_str, course, race_blocks, recs):
     css = """
     body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0f1115;color:#e6e6e6;margin:0;padding:16px}
     h1{font-size:20px} h2{font-size:16px;margin:18px 0 6px;border-bottom:1px solid #333;padding-bottom:4px}
@@ -191,6 +211,9 @@ def render(date_str, course, race_blocks):
     .top{background:#161d27} .dim{color:#7a8699}
     .flag{color:#ffd479;font-size:12px}
     .preodds{color:#ff9eae;font-size:12px;font-weight:600}
+    .recs{background:#11221a;border:1px solid #1f4030;border-radius:8px;padding:12px 14px;margin:8px 0 18px}
+    .rec-ok{padding:3px 0;font-size:13px;color:#d7ffe6}
+    .rec-no{padding:3px 0;font-size:13px}
     """
     parts = [f"<!doctype html><meta charset=utf-8><title>Simulcast {date_str} {course}</title>",
              f"<style>{css}</style>",
@@ -202,7 +225,8 @@ def render(date_str, course, race_blocks):
              "opinion. <b>SP odds are the model's top input</b>; until HK odds post, races "
              "are flagged <span class=preodds>PRE-ODDS</span> and model ranking is "
              "form-only / low-confidence. This is decision support, <b>not a validated-edge "
-             "recommender</b>.</div>"]
+             "recommender</b>.</div>",
+             _recs_box(recs)]
     for b in race_blocks:
         parts.append(f"<h2>{_esc(b['title'])}" +
                      (" <span class=preodds>· PRE-ODDS (form-only)</span>" if b["pre_odds"] else "") +
@@ -300,7 +324,21 @@ def main():
                        "n": n, "cov": cov, "pre_odds": not any_odds,
                        "suggestion": suggestion})
 
-    html = render(args.date, args.course, blocks)
+    # Build the Model-Opinion bet list from the assembled blocks.
+    recs = []
+    for b in blocks:
+        covered = [r for r in b["rows"] if r["prob"] is not None]
+        if b["cov"] >= max(3, b["n"] * 0.5) and covered:
+            top = covered[0]
+            recs.append({"ok": True, "race": b["title"], "num": top["number"],
+                         "horse": top["horse"], "pre_odds": b["pre_odds"],
+                         "conf": f"{top['prob']*100:.0f}% model share"})
+        else:
+            why = ("too few GB-form runners" if b["cov"] < 3
+                   else "weak GB coverage")
+            recs.append({"ok": False, "race": b["title"], "why": why})
+
+    html = render(args.date, args.course, blocks, recs)
     out = RESULTS_DIR / f"simulcast_dashboard_{args.date}_{args.course}.html"
     out.write_text(html)
     print(f"Dashboard → {out}  ({len(blocks)} races)")
