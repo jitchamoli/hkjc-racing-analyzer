@@ -224,6 +224,14 @@ class FeatureEngineering:
 
     @staticmethod
     def _compute_jockey_win_rate(jockey, all_results, conn, before_date) -> float:
+        # Leak guard (2026-07-01 expert review): NO race_results read without a
+        # date filter. Empty before_date => league default, never an unfiltered
+        # (current-race-inclusive) query. All production callers pass a date; the
+        # date-less path is the novel-horse/test default only. This also removes
+        # the current-season *_stats fallback, which was reachable only with
+        # before_date=None and would have leaked future-season state.
+        if not before_date:
+            return 0.08
         c = None
         owns = conn is None
         try:
@@ -233,33 +241,16 @@ class FeatureEngineering:
             else:
                 c = conn
             if c is not None:
-                if before_date:
-                    row = c.execute(
-                        "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
-                        "FROM race_results WHERE jockey = ? AND race_date < ?",
-                        (jockey, before_date)
-                    ).fetchone()
-                else:
-                    row = c.execute(
-                        "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
-                        "FROM race_results WHERE jockey = ?",
-                        (jockey,)
-                    ).fetchone()
+                row = c.execute(
+                    "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
+                    "FROM race_results WHERE jockey = ? AND race_date < ?",
+                    (jockey, before_date)
+                ).fetchone()
                 rides = (row['rides'] if row else 0) or 0
                 wins = (row['wins'] if row else 0) or 0
                 if rides > 0:
                     # Bayesian smoothing: Beta prior at HK league avg (0.08) with strength 15
                     return min(0.6, (wins + 0.08 * 15) / (rides + 15))
-                # Fall back to stats table only when (a) caller passed a conn
-                # AND (b) we're not date-filtering. The jockey_stats table
-                # reflects current full-season state — using it during
-                # historical inference (before_date set) leaks future data.
-                if not owns and before_date is None:
-                    stat = c.execute(
-                        "SELECT win_rate FROM jockey_stats WHERE name = ?", (jockey,)
-                    ).fetchone()
-                    if stat and stat['win_rate'] and stat['win_rate'] > 0:
-                        return min(0.6, stat['win_rate'])
         except Exception as e:
             logger.warning(f"DB lookup failed for jockey {jockey}: {e}")
         finally:
@@ -291,6 +282,11 @@ class FeatureEngineering:
 
     @staticmethod
     def _compute_trainer_win_rate(trainer, all_results, conn, before_date) -> float:
+        # Leak guard (2026-07-01 expert review): NO race_results read without a
+        # date filter (see _compute_jockey_win_rate). Empty before_date =>
+        # league default; also drops the leak-prone current-season stats fallback.
+        if not before_date:
+            return 0.08
         c = None
         owns = conn is None
         try:
@@ -300,32 +296,16 @@ class FeatureEngineering:
             else:
                 c = conn
             if c is not None:
-                if before_date:
-                    row = c.execute(
-                        "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
-                        "FROM race_results WHERE trainer = ? AND race_date < ?",
-                        (trainer, before_date)
-                    ).fetchone()
-                else:
-                    row = c.execute(
-                        "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
-                        "FROM race_results WHERE trainer = ?",
-                        (trainer,)
-                    ).fetchone()
+                row = c.execute(
+                    "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
+                    "FROM race_results WHERE trainer = ? AND race_date < ?",
+                    (trainer, before_date)
+                ).fetchone()
                 rides = (row['rides'] if row else 0) or 0
                 wins = (row['wins'] if row else 0) or 0
                 if rides > 0:
                     # Bayesian smoothing: Beta prior at HK league avg (0.08) with strength 15
                     return min(0.5, (wins + 0.08 * 15) / (rides + 15))
-                # Same date-filter guard as jockey: stats table is current-
-                # season only and would leak future data when scoring a
-                # historical card (before_date set).
-                if not owns and before_date is None:
-                    stat = c.execute(
-                        "SELECT win_rate FROM trainer_stats WHERE name = ?", (trainer,)
-                    ).fetchone()
-                    if stat and stat['win_rate'] and stat['win_rate'] > 0:
-                        return min(0.5, stat['win_rate'])
         except Exception as e:
             logger.warning(f"DB lookup failed for trainer {trainer}: {e}")
         finally:
@@ -361,6 +341,9 @@ class FeatureEngineering:
 
     @staticmethod
     def _compute_jockey_form_window(jockey, conn, before_date, window_days):
+        # Leak guard (2026-07-01 expert review): no date-less race_results read.
+        if not before_date:
+            return 0.08
         c = None
         owns = conn is None
         try:
@@ -373,23 +356,14 @@ class FeatureEngineering:
                 return 0.08
             # Use julianday for date arithmetic; race_date is YYYY/MM/DD so
             # REPLACE to YYYY-MM-DD for sqlite to parse correctly.
-            if before_date:
-                row = c.execute(
-                    "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
-                    "FROM race_results WHERE jockey = ? "
-                    "  AND race_date < ? "
-                    "  AND julianday(REPLACE(race_date,'/','-')) >= "
-                    "      julianday(REPLACE(?,'/','-')) - ?",
-                    (jockey, before_date, before_date, window_days),
-                ).fetchone()
-            else:
-                # No reference date — fall back to all-time (degenerates
-                # gracefully to Feature 4's signal).
-                row = c.execute(
-                    "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
-                    "FROM race_results WHERE jockey = ?",
-                    (jockey,),
-                ).fetchone()
+            row = c.execute(
+                "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
+                "FROM race_results WHERE jockey = ? "
+                "  AND race_date < ? "
+                "  AND julianday(REPLACE(race_date,'/','-')) >= "
+                "      julianday(REPLACE(?,'/','-')) - ?",
+                (jockey, before_date, before_date, window_days),
+            ).fetchone()
             rides = (row['rides'] if row else 0) or 0
             wins = (row['wins'] if row else 0) or 0
             if rides > 0:
@@ -428,6 +402,9 @@ class FeatureEngineering:
 
     @staticmethod
     def _compute_jt_pair_win_rate(jockey, trainer, conn, before_date):
+        # Leak guard (2026-07-01 expert review): no date-less race_results read.
+        if not before_date:
+            return 0.08
         c = None
         owns = conn is None
         try:
@@ -438,19 +415,12 @@ class FeatureEngineering:
                 c = conn
             if c is None:
                 return 0.08
-            if before_date:
-                row = c.execute(
-                    "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
-                    "FROM race_results WHERE jockey = ? AND trainer = ? "
-                    "AND race_date < ?",
-                    (jockey, trainer, before_date),
-                ).fetchone()
-            else:
-                row = c.execute(
-                    "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
-                    "FROM race_results WHERE jockey = ? AND trainer = ?",
-                    (jockey, trainer),
-                ).fetchone()
+            row = c.execute(
+                "SELECT COUNT(*) as rides, SUM(is_winner) as wins "
+                "FROM race_results WHERE jockey = ? AND trainer = ? "
+                "AND race_date < ?",
+                (jockey, trainer, before_date),
+            ).fetchone()
             rides = (row['rides'] if row else 0) or 0
             wins = (row['wins'] if row else 0) or 0
             if rides > 0:
@@ -555,6 +525,9 @@ class FeatureEngineering:
 
     @staticmethod
     def _compute_mid_race_pace(horse_name, conn, before_date):
+        # Leak guard (2026-07-01 expert review): no date-less race_results read.
+        if not before_date:
+            return 0.5
         c = None
         owns = conn is None
         try:
@@ -565,21 +538,13 @@ class FeatureEngineering:
                 c = conn
             if c is None:
                 return 0.5
-            if before_date:
-                rows = c.execute(
-                    "SELECT sectional_times FROM race_results "
-                    "WHERE horse_name = ? AND race_date < ? "
-                    "  AND sectional_times != '' "
-                    "ORDER BY race_date DESC, race_number DESC LIMIT 3",
-                    (horse_name, before_date),
-                ).fetchall()
-            else:
-                rows = c.execute(
-                    "SELECT sectional_times FROM race_results "
-                    "WHERE horse_name = ? AND sectional_times != '' "
-                    "ORDER BY race_date DESC, race_number DESC LIMIT 3",
-                    (horse_name,),
-                ).fetchall()
+            rows = c.execute(
+                "SELECT sectional_times FROM race_results "
+                "WHERE horse_name = ? AND race_date < ? "
+                "  AND sectional_times != '' "
+                "ORDER BY race_date DESC, race_number DESC LIMIT 3",
+                (horse_name, before_date),
+            ).fetchall()
             mml_vals = []
             for r in rows:
                 try:
@@ -680,6 +645,9 @@ class FeatureEngineering:
         """
         if not horse_name or not going:
             return 0.20
+        # Leak guard (2026-07-01 expert review): no date-less race_results read.
+        if not before_date:
+            return 0.20
         bucket = FeatureEngineering._going_bucket(going)
         if not bucket:
             return 0.20
@@ -715,9 +683,9 @@ class FeatureEngineering:
                 "WHERE rh.sire = ? AND rr.finish_position > 0 "
                 f"  AND UPPER(COALESCE(rr.going, '')) IN ({placeholders})"
             )
-            if before_date:
-                sql += " AND rr.race_date < ?"
-                params.append(before_date)
+            # before_date is guaranteed non-empty by the guard above.
+            sql += " AND rr.race_date < ?"
+            params.append(before_date)
             row = c.execute(sql, params).fetchone()
             n_starts = row['n_starts'] or 0
             n_top3 = row['n_top3'] or 0
@@ -756,6 +724,9 @@ class FeatureEngineering:
 
     @staticmethod
     def _compute_running_position_features(horse_name, conn, before_date):
+        # Leak guard (2026-07-01 expert review): no date-less race_results read.
+        if not before_date:
+            return 0.5, 0.5, 0.5
         c = None
         owns = conn is None
         try:
@@ -766,30 +737,17 @@ class FeatureEngineering:
                 c = conn
             if c is None:
                 return 0.5, 0.5, 0.5
-            if before_date:
-                row = c.execute(
-                    "SELECT rr.running_position, "
-                    "  (SELECT COUNT(*) FROM race_results rr2 "
-                    "   WHERE rr2.race_date = rr.race_date "
-                    "     AND rr2.race_number = rr.race_number "
-                    "     AND rr2.finish_position > 0) as field_size "
-                    "FROM race_results rr WHERE rr.horse_name = ? "
-                    "  AND rr.race_date < ? AND rr.running_position != '' "
-                    "ORDER BY rr.race_date DESC, rr.race_number DESC LIMIT 1",
-                    (horse_name, before_date),
-                ).fetchone()
-            else:
-                row = c.execute(
-                    "SELECT rr.running_position, "
-                    "  (SELECT COUNT(*) FROM race_results rr2 "
-                    "   WHERE rr2.race_date = rr.race_date "
-                    "     AND rr2.race_number = rr.race_number "
-                    "     AND rr2.finish_position > 0) as field_size "
-                    "FROM race_results rr WHERE rr.horse_name = ? "
-                    "  AND rr.running_position != '' "
-                    "ORDER BY rr.race_date DESC, rr.race_number DESC LIMIT 1",
-                    (horse_name,),
-                ).fetchone()
+            row = c.execute(
+                "SELECT rr.running_position, "
+                "  (SELECT COUNT(*) FROM race_results rr2 "
+                "   WHERE rr2.race_date = rr.race_date "
+                "     AND rr2.race_number = rr.race_number "
+                "     AND rr2.finish_position > 0) as field_size "
+                "FROM race_results rr WHERE rr.horse_name = ? "
+                "  AND rr.race_date < ? AND rr.running_position != '' "
+                "ORDER BY rr.race_date DESC, rr.race_number DESC LIMIT 1",
+                (horse_name, before_date),
+            ).fetchone()
             if not row:
                 return 0.5, 0.5, 0.5
             return FeatureEngineering.compute_running_position_features(
@@ -831,6 +789,9 @@ class FeatureEngineering:
             compute_par_times, compute_daily_variant,
             adjusted_speed_figure, normalize_speed_figure,
         )
+        # Leak guard (2026-07-01 expert review): no date-less race_results read.
+        if not before_date:
+            return 0.5
         c = None
         owns = conn is None
         try:
@@ -842,22 +803,13 @@ class FeatureEngineering:
             if c is None:
                 return 0.5
             # Look up the horse's most recent prior race
-            if before_date:
-                row = c.execute(
-                    "SELECT finish_time, distance, going, class_type, weight, "
-                    "race_date, race_number "
-                    "FROM race_results WHERE horse_name = ? AND race_date < ? "
-                    "ORDER BY race_date DESC, race_number DESC LIMIT 1",
-                    (horse_name, before_date),
-                ).fetchone()
-            else:
-                row = c.execute(
-                    "SELECT finish_time, distance, going, class_type, weight, "
-                    "race_date, race_number "
-                    "FROM race_results WHERE horse_name = ? "
-                    "ORDER BY race_date DESC, race_number DESC LIMIT 1",
-                    (horse_name,),
-                ).fetchone()
+            row = c.execute(
+                "SELECT finish_time, distance, going, class_type, weight, "
+                "race_date, race_number "
+                "FROM race_results WHERE horse_name = ? AND race_date < ? "
+                "ORDER BY race_date DESC, race_number DESC LIMIT 1",
+                (horse_name, before_date),
+            ).fetchone()
             if not row or not row['finish_time']:
                 return 0.5
             # Cache par_times by before_date — computing it is O(N) over all
@@ -957,6 +909,11 @@ class FeatureEngineering:
         # current race's own results into its features. Live cards and training
         # rows always carry a date; an empty one alongside a live conn is a
         # misconfiguration — refuse rather than leak (matches F-17 predict()).
+        # NOTE (2026-07-01 expert review): the conn=None + empty race_date path
+        # is NOT guarded here on purpose — it is the supported DB-less default
+        # path (novel horses / unit tests). Fully closing its residual leak means
+        # routing the no-date case to SKIP the local query AND the _compute_*
+        # helpers' unfiltered fallback — a deeper change tracked separately.
         if conn is not None and not race_date:
             raise ValueError(
                 "extract_features: race_date is empty but a DB connection was "
@@ -965,22 +922,21 @@ class FeatureEngineering:
             )
         owns_conn = conn is None
         try:
-            if conn is None:
+            # Leak guard (2026-07-01 expert review): only touch the DB when we
+            # have a date to filter by. No race_date => prior stays [] and every
+            # Feature block below degrades to its schema default (the novel-horse
+            # / DB-less contract). The unfiltered else-branch that read the
+            # current race's own result has been deleted structurally.
+            if conn is None and race_date:
                 db_path = config.DB_PATH
                 if db_path.exists():
                     conn = sqlite3.connect(str(db_path), timeout=30.0)
                     conn.row_factory = sqlite3.Row
-            if conn is not None:
-                if race_date:
-                    rows = conn.execute(
-                        "SELECT * FROM race_results WHERE horse_name = ? AND race_date < ? ORDER BY race_date",
-                        (horse_name, race_date)
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        "SELECT * FROM race_results WHERE horse_name = ? ORDER BY race_date",
-                        (horse_name,)
-                    ).fetchall()
+            if conn is not None and race_date:
+                rows = conn.execute(
+                    "SELECT * FROM race_results WHERE horse_name = ? AND race_date < ? ORDER BY race_date",
+                    (horse_name, race_date)
+                ).fetchall()
                 prior = [dict(r) for r in rows]
         except Exception as e:
             logger.warning(f"Failed to load prior history for {horse_name}: {e}")
