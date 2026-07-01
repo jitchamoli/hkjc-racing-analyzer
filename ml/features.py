@@ -208,10 +208,12 @@ class FeatureEngineering:
                                   before_date: str = None) -> float:
         """Calculate jockey win rate from prior race_results (matches training).
 
-        Uses race_results with date filter to avoid leaking future data.
-        Falls back to jockey_stats table, then all_results. Result is cached
-        per (jockey, before_date) to kill the N+1 query pattern when
-        extract_features is called per-horse.
+        Uses race_results with date filter to avoid leaking future data; if the
+        DB query finds no prior rides, falls back to the in-memory all_results
+        scan. (The current-season jockey_stats fallback was removed 2026-07-01 —
+        it could only fire on a date-less lookup, which now returns the league
+        default.) Result is cached per (jockey, before_date) to kill the N+1
+        query pattern when extract_features is called per-horse.
         """
         if not jockey:
             return 0.12
@@ -267,9 +269,10 @@ class FeatureEngineering:
                                    before_date: str = None) -> float:
         """Calculate trainer win rate from prior race_results (matches training).
 
-        Uses race_results with date filter to avoid leaking future data.
-        Falls back to trainer_stats table, then all_results. Cached per
-        (trainer, before_date) — see calculate_jockey_win_rate.
+        Uses race_results with date filter to avoid leaking future data; falls
+        back to the in-memory all_results scan when the DB has no prior rows.
+        (The current-season trainer_stats fallback was removed 2026-07-01.)
+        Cached per (trainer, before_date) — see calculate_jockey_win_rate.
         """
         if not trainer:
             return 0.12
@@ -1102,10 +1105,21 @@ class FeatureEngineering:
         # Feature 12: weight vs field (carried weight relative to field median)
         # Lighter weight = advantage. Normalized so below-median → >0.5, above → <0.5
         weight_vs_field = 0.5
-        field_weights = horse_data.get('field_weights', [])
+        # Coerce field_weights to ints (2026-07-01 expert re-review): at inference
+        # field_weights is a list of card STRINGS (core/analyzer builds it from
+        # HorseEntry.weight), so sorted()[median] returned a str and `horse_wt -
+        # median_wt` raised TypeError → caught → this feature silently collapsed
+        # to a constant 0.5 on EVERY live/backtest horse (train/predict parity
+        # break; training computes it from ints). Mirror training's int() path.
+        field_weights = []
+        for _w in (horse_data.get('field_weights') or []):
+            try:
+                field_weights.append(int(str(_w).split('(')[0]))
+            except (ValueError, TypeError):
+                pass
         weight_str = horse_data.get('weight', '') or ''
         try:
-            horse_wt = int(weight_str)
+            horse_wt = int(str(weight_str).split('(')[0])
             if field_weights:
                 median_wt = sorted(field_weights)[len(field_weights) // 2]
                 # Diff: negative = lighter than median = advantage

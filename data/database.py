@@ -1215,8 +1215,16 @@ class HorseDatabase:
             for r in rows if r['margin'] and r['margin'] > 0
         ]
         close = [m for m in adj_margins if m <= 2.75]
-        last_margin = adj_margins[0] if adj_margins else 0
-        last_winner = rows[0]['finish_position'] == 1 if rows else False
+        # last_margin must come from the ACTUAL last start, not adj_margins[0]
+        # (2026-07-01 expert re-review): winners store margin=0 and are filtered
+        # out of adj_margins, so adj_margins[0] was the most recent LOSING race —
+        # a horse that WON last start but lost earlier in the window was scored on
+        # a stale loss and missed the +88 "Won last start" path. Derive from
+        # rows[0] directly: a genuine last-start win yields last_margin=0.
+        last_row = rows[0]
+        last_margin = (self._class_adjust_margin(last_row['margin'], last_row['class_type'])
+                       if last_row['margin'] and last_row['margin'] > 0 else 0)
+        last_winner = last_row['finish_position'] == 1
 
         return {
             'runs': len(rows),
