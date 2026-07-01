@@ -742,18 +742,28 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
     pending = [r for r in all_races
                if _is_unresolved(r) and not r.get('bankroll_halt')
                and r.get('bet_ticket')]
-    card_allocated = sum((r['bet_ticket'].get('allocated_amount') or 0.0)
-                         for r in pending)
+    # Scope the exposure banner to the QIN pool the user actually stakes
+    # (2026-07-01 expert review). Summing allocated_amount across ALL pools
+    # (TRIO/F4 boxes the user never plays) over-warned ~4x on 2026/07/01 and
+    # disagreed with bankroll_guard, which counts QIN only (_is_counted_label).
+    # Align the two so the one real-wallet number is the one shown.
+    from betting.bankroll_guard import _is_counted_label
+
+    def _counted_alloc(ticket):
+        return sum((b.get('amount') or 0.0) for b in (ticket.get('bets') or [])
+                   if not b.get('paper') and _is_counted_label(b.get('label')))
+
+    card_allocated = sum(_counted_alloc(r['bet_ticket']) for r in pending)
     over_cap = max(0.0, card_allocated - cap_amount) if cap_amount > 0 else 0.0
     for r in pending:
-        r['card_allocated_total'] = round(card_allocated, 2)
+        r['card_allocated_total'] = round(card_allocated, 2)  # QIN-scoped
         r['card_exposure_cap'] = round(cap_amount, 2)
         r['card_exposure_cap_pct'] = round(cap_frac * 100, 1)
         r['card_over_cap'] = over_cap > 0
         r['card_over_cap_amount'] = round(over_cap, 2)
     if over_cap > 0:
         logger.warning(
-            f"Card exposure ${card_allocated:.0f} exceeds "
+            f"Card QIN exposure ${card_allocated:.0f} exceeds "
             f"{cap_frac*100:.0f}% cap (${cap_amount:.0f}) by ${over_cap:.0f} on "
             f"{race_date} — bets NOT dropped (MAIN bets kept); flagged for "
             f"manual trim."

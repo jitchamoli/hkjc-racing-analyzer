@@ -187,9 +187,14 @@ def _busy_edge_race(n=8):
 class TestCardCapDisclosure:
     def test_over_cap_flagged_and_nothing_dropped(self, monkeypatch):
         import config
-        monkeypatch.setattr(config, 'BANKROLL', 1000)  # cap = $100
+        # cap = $50. The busy ticket's QIN exposure (BOX QIN-4 = 6 combos × $10 =
+        # $60) alone exceeds it; the ~$160 of TRIO-5/F4 boxes are NOT counted
+        # (2026-07-01 expert review — banner is QIN-scoped to match the user's
+        # flat-$10 QIN wallet and bankroll_guard._is_counted_label).
+        monkeypatch.setattr(config, 'BANKROLL', 500)
         _patch_guard(monkeypatch, halted=False)
         from dashboard.generator import finalize_tickets_and_stakes
+        from betting.bankroll_guard import _is_counted_label
         races = [_busy_edge_race()]
         finalize_tickets_and_stakes(races, '2026/06/07', object())
 
@@ -197,8 +202,16 @@ class TestCardCapDisclosure:
         assert r['card_over_cap'] is True
         assert r['card_over_cap_amount'] > 0
         assert r['card_allocated_total'] > r['card_exposure_cap']
+        # QIN-scoped: allocated_total counts ONLY the QIN pool, not the exotic
+        # boxes the user never stakes — so it equals the sum of counted bets.
+        bets = r['bet_ticket']['bets']
+        qin_only = sum((b.get('amount') or 0.0) for b in bets
+                       if not b.get('paper') and _is_counted_label(b.get('label')))
+        all_pool = sum((b.get('amount') or 0.0) for b in bets if not b.get('paper'))
+        assert r['card_allocated_total'] == round(qin_only, 2)
+        assert all_pool > qin_only, "test needs non-QIN boxes to prove scoping"
         # Disclosure-only: the ticket must still carry its bets (nothing dropped).
-        assert r['bet_ticket']['bets'], "bets must NOT be dropped (disclosure only)"
+        assert bets, "bets must NOT be dropped (disclosure only)"
 
     def test_under_cap_not_flagged(self, monkeypatch):
         import config

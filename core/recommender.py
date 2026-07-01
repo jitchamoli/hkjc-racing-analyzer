@@ -64,19 +64,6 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
         calibrated_probs[i] = _p
     _resync_ranks_and_probs(analyses, calibrated_probs)
 
-    top = analyses[0] if n >= 1 else None
-    second = analyses[1] if n >= 2 else None
-
-    top_prob = calibrated_probs[0] if n >= 1 else 0
-    second_prob = calibrated_probs[1] if n >= 2 else 0
-    third_prob = calibrated_probs[2] if n >= 3 else 0
-
-    gap_1_2 = top_prob - second_prob
-    gap_2_3 = second_prob - third_prob
-    top_3_share = top_prob + second_prob + third_prob
-
-    market_prob_top = (1 / top.horse.win_odds) if top and top.horse.win_odds and top.horse.win_odds > 0 else 0
-
     # GPT-5.5 R13 #3 2026-05-25 — market-fav AND BANKER promotions REMOVED.
     # The contract from R12 was "rank = calibrated_prob ordering". The
     # calibrated probability already incorporates the market blend, so a
@@ -91,7 +78,7 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
     # is a shadow/counterfactual variant, not production ranking.
     # Memory: feedback_contract_tests_over_unit_tests.
 
-    # Refresh `top` reference for downstream gating, no rank swap.
+    # Compute `top` reference + gap/share stats for downstream gating (no rank swap).
     top = analyses[0] if n >= 1 else None
     top_prob = calibrated_probs[0] if n >= 1 else 0
     second_prob = calibrated_probs[1] if n >= 2 else 0
@@ -164,7 +151,7 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
                 a.bet_recommendation = "PLACE"
             else:
                 a.bet_recommendation = "SKIP"
-        elif race_bet_type == "TRIO":
+        elif race_bet_type == "TRIO":  # DISABLED: _choose_race_bet_type never returns "TRIO" (kept for re-enable)
             if rank <= 3:
                 a.bet_recommendation = "TRIO"
             else:
@@ -294,7 +281,7 @@ def _choose_race_bet_type(*, has_live_odds, n, top_is_banker, market_prob_top,
 
 
 def _resync_ranks_and_probs(analyses, calibrated_probs: List[float]) -> None:
-    """After a rank swap, update all ranks, probabilities, and expected returns.
+    """After the calibrated_prob re-sort, update all ranks, probabilities, and expected returns.
 
     Does NOT touch `value_score`: per CLAUDE.md ML Rule 4, value_score must
     reflect the pre-blend combined probability (the model's independent

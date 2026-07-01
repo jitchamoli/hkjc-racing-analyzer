@@ -116,6 +116,13 @@ def price_quinellas(probs: List[float], numbers: List[int],
                 'type': 'QUINELLA',
                 'horses': sorted([numbers[i], numbers[j]]),
                 'probability': prob,
+                # base_probability = un-boosted Harville prob. Edge vs the market
+                # MUST be measured on this (2026-07-01 expert review): the boost
+                # is a heuristic placer/pace/draw lean, NOT model-vs-market
+                # disagreement, so putting it in the edge numerator manufactures
+                # phantom 'value'. `probability` (boosted) is kept for ranking
+                # only — surfacing place-heavy pairs — never for the edge number.
+                'base_probability': base_prob,
                 'min_odds': 1.0 / prob if prob > 0 else 999,
                 'boost': boost,
             })
@@ -171,7 +178,9 @@ def find_value_exotics(model_probs: List[float], market_probs: List[float],
     """Find exotic bets where model probability exceeds market-implied.
 
     Args:
-        model_probs: calibrated probabilities from our model (sum to 1)
+        model_probs: pure_prob (pre-market-blend) probabilities, sum to 1 —
+            NOT calibrated_prob. Passing calibrated_prob compresses every edge
+            vs the market and violates CLAUDE.md Rule 1 (fixed 2026-05-21).
         market_probs: probabilities implied by win odds (sum to ~1)
         numbers: horse numbers
         min_edge: minimum edge required (0.10 = 10%)
@@ -204,12 +213,13 @@ def find_value_exotics(model_probs: List[float], market_probs: List[float],
             model_combos = price_quinellas(model_probs, numbers, top_n=top_n,
                                            place_probs=place_probs,
                                            draws=draws, styles=styles)
-            # Market leg = RAW Harville price (the actual pool-implied price).
-            # Do NOT apply the model's place/pace/draw boosts here: the boost's
-            # place_win_ratio uses the base-prob denominator, so boosting the
-            # market (market_probs in the denominator) distorts the edge
-            # asymmetrically — and the market has no place model. Edge =
-            # model_boosted / market_raw is the true overlay (audit pass-3).
+            # Market leg = RAW Harville price (the actual pool-implied price);
+            # no boosts (the market has no place model). Edge is measured on the
+            # model's UN-boosted base prob vs this raw market (see find_value_
+            # exotics) — the place/pace/draw boost is a ranking lean only, not a
+            # model-vs-market disagreement, so it must NOT enter the edge
+            # numerator (2026-07-01 expert review; supersedes the audit-pass-3
+            # "model_boosted / market_raw" overlay which manufactured phantom edge).
             full_quinella = (n_horses * (n_horses - 1)) // 2
             market_combos = price_quinellas(market_probs, numbers, top_n=full_quinella)
         elif bet_type == 'exacta':
@@ -236,7 +246,11 @@ def find_value_exotics(model_probs: List[float], market_probs: List[float],
             key = tuple(combo['horses'])
             market_prob = market_lookup.get(key, 0)
             if market_prob > 0:
-                edge = combo['probability'] / market_prob - 1
+                # Edge on the UN-boosted base prob (quinella carries a heuristic
+                # boost used for ranking only; other bet types have no boost so
+                # base_probability == probability). See price_quinellas note.
+                base_p = combo.get('base_probability', combo['probability'])
+                edge = base_p / market_prob - 1
                 if edge >= min_edge:
                     combo['market_prob'] = market_prob
                     combo['market_odds'] = 1.0 / market_prob
