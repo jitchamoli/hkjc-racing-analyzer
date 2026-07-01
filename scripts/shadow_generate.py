@@ -45,6 +45,10 @@ VARIANTS = {
         'output_basename': 'shadow_jockey_race_data',
         'description': 'jockey_form factor disabled (rides_min=15 vs prod 3)',
     },
+    'tips': {
+        'output_basename': 'shadow_tips_race_data',
+        'description': 'TIPS factor disabled (weight 0.11 -> 0)',
+    },
 }
 
 
@@ -58,6 +62,16 @@ def _apply_variant(variant: str, rule_w: float) -> dict:
     if variant == 'jockey_form':
         config.JOCKEY_FORM_RIDES_MIN = 15
         return {'variant': 'jockey_form', 'jockey_form_rides_min': 15}
+    if variant == 'tips':
+        # Zero the TIPS weight so compute_weighted_score renormalizes it out.
+        # WEIGHT_MAP is read live by the rule engine, so patching it here (in
+        # this isolated shadow subprocess) re-scores every race with TIPS off
+        # while production is untouched. TIPS data is on the live card, so the
+        # shadow genuinely differs from prod (unlike a backtest, where tips is
+        # never stored — hence forward-shadow is the only valid A/B). 2026-06-27.
+        from core.scorer import BettingWeights
+        BettingWeights.WEIGHT_MAP['tips'] = 0.0
+        return {'variant': 'tips', 'tips_weight': 0.0}
     raise ValueError(f"Unknown variant: {variant}. Choose from {list(VARIANTS)}.")
 
 
@@ -82,6 +96,10 @@ async def run(race_date: str, variant: str = 'rule_w', rule_w: float = 0.9) -> i
             *(fetcher.get_race_card(race_date, rn) for rn in range(1, 12)),
             return_exceptions=True,
         )
+        # Backfill blank per-race going from the meeting modal so the shadow's
+        # CHAOS detection matches production (see dashboard/generator.py).
+        from dashboard.generator import backfill_meeting_going
+        backfill_meeting_going(fetched)
 
         shadow_races = []
         for race_no, race in enumerate(fetched, start=1):

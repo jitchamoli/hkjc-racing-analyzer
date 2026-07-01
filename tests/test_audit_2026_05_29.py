@@ -101,9 +101,9 @@ def test_did_bet_hit_skip_returns_null():
         "_didBetHit still returns 'MISS' in both branches — SKIP races "
         "render the wrong badge"
     )
-    # And the fix should be: return null for SKIP, 'MISS' for real miss
-    assert "bets.length === 0 ? null : 'MISS'" in src, (
-        "_didBetHit fix not present — should return null for empty ticket"
+    # And the fix should be: return null for SKIP/paper-only, 'MISS' for real miss
+    assert "realBets.length === 0 ? null : 'MISS'" in src, (
+        "_didBetHit fix not present — should return null for empty/paper-only ticket"
     )
 
 

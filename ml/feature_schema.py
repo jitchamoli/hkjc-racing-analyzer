@@ -86,7 +86,7 @@ FEATURE_SCHEMA = [
     {"name": "prior_win_rate", "default": 0.5, "range": (0.0, 1.0)},       # 1
     {"name": "recent_form", "default": 0.5, "range": (0.0, 1.0)},          # 2
     {"name": "jockey_win_rate", "default": 0.08, "range": (0.0, 0.6)},     # 3
-    {"name": "trainer_win_rate", "default": 0.06, "range": (0.0, 0.5)},    # 4
+    {"name": "trainer_win_rate", "default": 0.08, "range": (0.0, 0.5)},    # 4
     {"name": "field_size", "default": 0.857, "range": (0.0, 1.0)},         # 5 (clipped to [0,1])
     {"name": "field_rel_draw", "default": 0.5, "range": (0.0, 1.0)},       # 6 (clipped to [0,1])
     {"name": "cd_form_prior", "default": 0.5, "range": (0.0, 1.0)},        # 7

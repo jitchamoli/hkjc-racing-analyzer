@@ -573,22 +573,22 @@ def test_copy_wa_ticket_payload_renders_exact_frozen_legs_and_amounts(
         '[data-testid="copy-wa-ticket-R6"]'
     ).first.get_attribute('data-payload') or ''
 
-    # Header + status guard
-    assert payload.startswith('HKJC R6'), (
-        f"compact payload missing HKJC R6 header: {payload[:200]!r}"
+    # Header + status guard (WhatsApp bold: header wrapped in *...*)
+    assert payload.startswith('*HKJC R6'), (
+        f"compact payload missing *HKJC R6* bold header: {payload[:200]!r}"
     )
     assert 'STATUS: LIVE' in payload, (
         f"missing STATUS: LIVE guard: {payload[:200]!r}"
     )
 
-    # Stake block (frozen ticket has bets → STAKE must appear)
-    assert 'STAKE' in payload, payload[:400]
+    # Stake block (frozen ticket has bets → STAKE must appear, WhatsApp-bold)
+    assert '*STAKE*' in payload, payload[:400]
     assert 'Budget $' in payload and 'Ticket $' in payload and 'Unit $' in payload, (
         f"missing Budget/Ticket/Unit: {payload[:400]!r}"
     )
 
     # BET TICKET block: numbered list, HKJC-derived pool names, exact legs
-    assert 'BET TICKET' in payload, payload[:400]
+    assert '*BET TICKET*' in payload, payload[:400]
     # Derived pool naming (R15 spec: not just BOX QIN-4 PROTECTION — every
     # regular box should use HKJC-style names too).
     assert 'QIN BOX-4' in payload, (
@@ -688,7 +688,7 @@ def test_copy_wa_ticket_no_system_bet_and_force_pick_when_empty(
        - NO BET TICKET block
        - NO dollar amounts
        - NO SYSTEM BET banner
-       - OPTIONAL FORCE PICK with top-3 horses
+       - OPTIONAL FORCE PICK with top-4 horses
        - 'Manual only — not counted as model ROI ticket.' footer.
     """
     race = _make_race(
@@ -715,11 +715,17 @@ def test_copy_wa_ticket_no_system_bet_and_force_pick_when_empty(
     assert 'Manual only' in payload and 'not counted as model ROI' in payload, (
         f"missing manual-only footer: {payload[:400]!r}"
     )
-    # Top-3 horses present in force-pick block
-    for n in (1, 2, 3):
+    # Top-4 horses present in force-pick block
+    for n in (1, 2, 3, 4):
         assert f'#{n}' in payload, (
             f"force-pick missing horse #{n}: {payload[:400]!r}"
         )
+    # ...and EXACTLY top-4: #5 (field_size=10) must be absent. Pins the
+    # slice(0,4) upper bound so a slip to slice(0,5) is caught (the existing
+    # loop only guards the lower bound). 2026-06-26.
+    assert '#5' not in payload, (
+        f"force-pick should show exactly top-4, but #5 leaked: {payload[:400]!r}"
+    )
 
     # Negative: no STAKE block, no BET TICKET block, no stake-$ labels.
     # The OPTIONAL FORCE PICK block legitimately carries horse ODDS in
@@ -736,6 +742,58 @@ def test_copy_wa_ticket_no_system_bet_and_force_pick_when_empty(
             f"no-bet payload leaked stake-context token {stake_tag!r}: "
             f"{payload[:400]!r}"
         )
+    page.close()
+
+
+def test_copy_wa_ticket_edge_place_paper_bet(browser: Browser, tmp_path):
+    """EDGE race whose only ticket entry is a paper PLACE bet on the edge horse
+    (flat field → no QIN/box). Compact WA must render the PAPER BET block, NOT
+    'NO SYSTEM BET' / 'OPTIONAL FORCE PICK', and must not show a real STAKE
+    line. Locks the _paperTicketBets branch (user decision 2026-06-24)."""
+    paper_bet = {
+        'label': 'EDGE PLACE', 'pool': 'PLACE', 'combos': 1,
+        'unit_stake': 10.0, 'amount': 10.0, 'paper': True,
+        'reason': 'edge_place_paper',
+        'legs': [{'number': 7, 'name': 'HORSE7', 'rank': 7}],
+    }
+    race = _make_race(
+        race_number=8,
+        bet_ticket_bets=[paper_bet],
+        results_available=False,
+        conviction_tier='EDGE',
+    )
+    url = _render_to_file([race], tmp_path)
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+    payload = page.locator(
+        '[data-testid="copy-wa-ticket-R8"]'
+    ).first.get_attribute('data-payload') or ''
+
+    assert 'PAPER BET' in payload and 'not counted as model ROI' in payload, (
+        f"missing PAPER BET block: {payload[:400]!r}"
+    )
+    assert '#7' in payload, f"missing edge horse in paper block: {payload[:400]!r}"
+    # Must NOT use the genuinely-empty branch wording
+    assert 'NO SYSTEM BET' not in payload, payload[:400]
+    assert 'OPTIONAL FORCE PICK' not in payload, payload[:400]
+    # Must NOT show a real stake/budget line for a paper-only ticket
+    for stake_tag in ('Budget $', 'Ticket $'):
+        assert stake_tag not in payload, (
+            f"paper-only ticket leaked stake token {stake_tag!r}: {payload[:400]!r}"
+        )
+
+    # Full WA (Copy WA Full) must NOT tell the user to anchor a TRIO-5/F4 that
+    # does not exist on a paper-only EDGE ticket (review fix A 2026-06-25).
+    full_payload = page.locator(
+        '[data-testid="copy-wa-R8"]'
+    ).first.get_attribute('data-payload') or ''
+    assert 'anchor TRIO-5/F4' not in full_payload, (
+        f"full WA leaked TRIO-5/F4 anchor on paper-only EDGE: {full_payload[:500]!r}"
+    )
+    assert 'PAPER' in full_payload, (
+        f"full WA missing paper bet block: {full_payload[:500]!r}"
+    )
     page.close()
 
 

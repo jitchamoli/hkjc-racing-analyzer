@@ -303,6 +303,36 @@ def _compute_odds_age_minutes(odds_db, race_date: str, race_number: int):
     return None
 
 
+def backfill_meeting_going(fetched: list) -> None:
+    """Fill blank per-race going from the meeting's modal going, in place.
+
+    Going is a meeting-wide track property, but the per-page regex in
+    core/fetcher.py reads it from each race page independently — so a race
+    fetched via the Playwright fallback (or whose race-info header loads late)
+    can come back with going='' even though every other race reads 'Yielding'.
+    That blank lets the CHAOS soft-going filter (detect_chaos) silently skip
+    the race, so it falsely escapes the no-bet override on a soft card
+    (2026/06/13 R5/R9 staked bets they should not have). Backfilling the SOURCE
+    race object before analyze/build means build_race_data + detect_chaos see the
+    correct value with no downstream changes. Shared by the production generator,
+    the live monitor (parity), and the shadow generator so all three agree.
+    `fetched` items may be race objects or Exceptions (asyncio.gather results).
+    """
+    goings = [r.going for r in fetched
+              if not isinstance(r, Exception) and r and getattr(r, 'going', '')]
+    if not goings:
+        return
+    from collections import Counter
+    modal_going = Counter(goings).most_common(1)[0][0]
+    for race_no, race in enumerate(fetched, start=1):
+        if isinstance(race, Exception) or not race:
+            continue
+        if not getattr(race, 'going', ''):
+            race.going = modal_going
+            logger.info(f"  Race {race_no}: blank going backfilled → "
+                        f"'{modal_going}' (meeting-wide modal)")
+
+
 def apply_card_exposure_cap(all_races: list, bankroll: float,
                             cap_frac: float = 0.10) -> float:
     """Cap the day's TOTAL forward suggested-stake exposure at cap_frac of
@@ -712,18 +742,28 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
     pending = [r for r in all_races
                if _is_unresolved(r) and not r.get('bankroll_halt')
                and r.get('bet_ticket')]
-    card_allocated = sum((r['bet_ticket'].get('allocated_amount') or 0.0)
-                         for r in pending)
+    # Scope the exposure banner to the QIN pool the user actually stakes
+    # (2026-07-01 expert review). Summing allocated_amount across ALL pools
+    # (TRIO/F4 boxes the user never plays) over-warned ~4x on 2026/07/01 and
+    # disagreed with bankroll_guard, which counts QIN only (_is_counted_label).
+    # Align the two so the one real-wallet number is the one shown.
+    from betting.bankroll_guard import _is_counted_label
+
+    def _counted_alloc(ticket):
+        return sum((b.get('amount') or 0.0) for b in (ticket.get('bets') or [])
+                   if not b.get('paper') and _is_counted_label(b.get('label')))
+
+    card_allocated = sum(_counted_alloc(r['bet_ticket']) for r in pending)
     over_cap = max(0.0, card_allocated - cap_amount) if cap_amount > 0 else 0.0
     for r in pending:
-        r['card_allocated_total'] = round(card_allocated, 2)
+        r['card_allocated_total'] = round(card_allocated, 2)  # QIN-scoped
         r['card_exposure_cap'] = round(cap_amount, 2)
         r['card_exposure_cap_pct'] = round(cap_frac * 100, 1)
         r['card_over_cap'] = over_cap > 0
         r['card_over_cap_amount'] = round(over_cap, 2)
     if over_cap > 0:
         logger.warning(
-            f"Card exposure ${card_allocated:.0f} exceeds "
+            f"Card QIN exposure ${card_allocated:.0f} exceeds "
             f"{cap_frac*100:.0f}% cap (${cap_amount:.0f}) by ${over_cap:.0f} on "
             f"{race_date} — bets NOT dropped (MAIN bets kept); flagged for "
             f"manual trim."
@@ -851,6 +891,27 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
                     swap=swap_meta,
                 )
 
+    # EDGE PLACE (paper) — an EDGE race flags a single-horse MISPRICING, which
+    # is a different axis from ticket confidence; on a flat field every QIN/box
+    # gate can SKIP, leaving the "top tier" race with no bet at all. The edge
+    # horse historically PLACES far more than it WINS (production: 3/5 placed,
+    # 0 won), so when the ticket is otherwise empty, surface a paper PLACE bet
+    # on it. Tagged `paper` -> displayed/WA-copied/replay-tracked for ROI but
+    # NOT staked against the budget and NOT counted toward the QIN-scoped
+    # stop-loss (bankroll_guard._is_counted_label excludes PLACE). User
+    # decision 2026-06-24.
+    if not bets and (race.get('conviction_tier') or '').upper() == 'EDGE':
+        edge_num = race.get('edge_horse_number')
+        edge_h = next((h for h in horses if h.get('number') == edge_num), None)
+        if edge_h is None:
+            edge_h = next((h for h in horses if h.get('edge_fires')), None)
+        if edge_h and (edge_h.get('win_odds') or 0) > 0:
+            _ticket_add_bet(bets, 'EDGE PLACE', 'PLACE', [edge_h], 1,
+                            'edge_place_paper')
+            for b in bets:
+                if b.get('reason') == 'edge_place_paper':
+                    b['paper'] = True
+
     total_combos = sum(b['combos'] for b in bets)
     unit = (amount / total_combos) if amount > 0 and total_combos > 0 else 0.0
     # HKJC minimum bet is HK$10 — WIN / PLACE / QUINELLA / QUINELLA PLACE are
@@ -869,6 +930,18 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
         b['amount'] = float(b['combos'] * unit_rounded)
         allocated += b['amount']
     over_amount = max(0.0, allocated - amount) if amount > 0 else 0.0
+
+    # Paper bets (EDGE PLACE) carry a flat HK$10 display stake — the user's
+    # standard flat unit — but do NOT consume the real budget (`allocated`),
+    # since they are reference/tracking only, not part of the staked ticket.
+    for b in bets:
+        if b.get('paper'):
+            b['unit_stake'] = 10.0
+            b['amount'] = float(b['combos'] * 10.0)
+    # Real allocated budget excludes paper bets — recompute defensively so a
+    # paper bet can never inflate allocated_amount (e.g. a <4-horse field where
+    # the first loop assigned it a nonzero unit_rounded before the override).
+    allocated = sum(b['amount'] for b in bets if not b.get('paper'))
 
     return {
         'version': 1,
@@ -1325,6 +1398,8 @@ async def _run_generation(fetcher, analyzer, race_date: str):
         return_exceptions=True,
     )
 
+    backfill_meeting_going(fetched)
+
     for race_no, race in enumerate(fetched, start=1):
         # Skip, do NOT break: all 11 cards are already fetched concurrently, so a
         # transient miss on one race must not drop every later race from the
@@ -1340,6 +1415,18 @@ async def _run_generation(fetcher, analyzer, race_date: str):
         race_data = build_race_data(race, analyses, race_date, db, odds_db, analyzer=analyzer)
         all_races.append(race_data)
         logger.info(f"  Race {race_no}: {len(race.horses)} horses, bet: {analyses[0].bet_recommendation if analyses else 'N/A'}")
+
+    # Fail loud on a total fetch miss: if EVERY race skipped (e.g. venue
+    # detection returned the wrong course — CLAUDE.md's "wrong venue → empty
+    # HTML" trap, most likely when re-rendering a historical HV meeting) we must
+    # NOT write [] and clobber a good dashboard with green "Done!" logs.
+    if not all_races:
+        logger.error(
+            f"No race data fetched for {race_date} — every race skipped. Venue "
+            "detection may have returned the wrong course (HV meeting fetched as "
+            "ST?). Refusing to overwrite existing dashboard/JSON with empty output."
+        )
+        raise SystemExit(3)
 
     date_str = race_date.replace('/', '')
     json_file = os.path.join(results_dir, f"race_data_{date_str}.json")

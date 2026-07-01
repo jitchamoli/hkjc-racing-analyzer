@@ -12,9 +12,11 @@ import scripts.validate_hk as vh
 from betting import bankroll_guard as bg
 
 
-def _bet(combos, unit, names, pool="TRIO"):
+def _bet(combos, unit, names, pool="QUINELLA", label="STRAIGHT QIN"):
+    # Default to a QIN-pool bet — daily_status only counts QIN labels the user
+    # actually plays (STRAIGHT QIN / BOX QIN-*); see _is_counted_label.
     return {"combos": combos, "unit_stake": unit, "pool": pool,
-            "label": "X", "legs": [{"name": n} for n in names]}
+            "label": label, "legs": [{"name": n} for n in names]}
 
 
 def _ticket(bets):
@@ -79,7 +81,7 @@ def test_ticket_total_stake_unit_fallback():
 
 def test_not_halted_under_caps(monkeypatch):
     monkeypatch.setattr(vh, "_score_meeting_replay",
-                        lambda conn, date: {"_races": 2, "labels": {"X": [20.0, 15.0, 1]}})
+                        lambda conn, date: {"_races": 2, "labels": {"STRAIGHT QIN": [20.0, 15.0, 1]}})
     conn = _db([(1, _ticket([_bet(10, 1.0, ["A", "B", "C"])])),
                 (2, _ticket([_bet(10, 1.0, ["A", "B", "C"])]))])
     st = bg.daily_status("2026/06/03", bankroll=1000, conn=conn)
@@ -91,7 +93,7 @@ def test_not_halted_under_caps(monkeypatch):
 def test_loss_cap_halts(monkeypatch):
     # realised loss 100 on bankroll 1000; loss cap 8% = 80 -> HALT
     monkeypatch.setattr(vh, "_score_meeting_replay",
-                        lambda conn, date: {"_races": 3, "labels": {"X": [100.0, 0.0, 0]}})
+                        lambda conn, date: {"_races": 3, "labels": {"STRAIGHT QIN": [100.0, 0.0, 0]}})
     conn = _db([(1, _ticket([_bet(100, 1.0, ["A", "B", "C"])]))])
     st = bg.daily_status("2026/06/03", bankroll=1000, conn=conn)
     assert st.halted and "LOSS" in st.halt_reason
@@ -121,7 +123,7 @@ def test_check_new_bet_caps_per_race(monkeypatch):
 
 def test_check_new_bet_blocked_when_halted(monkeypatch):
     monkeypatch.setattr(vh, "_score_meeting_replay",
-                        lambda conn, date: {"_races": 1, "labels": {"X": [200.0, 0.0, 0]}})
+                        lambda conn, date: {"_races": 1, "labels": {"STRAIGHT QIN": [200.0, 0.0, 0]}})
     conn = _db([(1, _ticket([_bet(200, 1.0, ["A", "B"])]))])
     allowed, capped, reason = bg.check_new_bet(10, "2026/06/03", bankroll=1000, conn=conn)
     assert not allowed and capped == 0.0
@@ -130,7 +132,7 @@ def test_check_new_bet_blocked_when_halted(monkeypatch):
 def test_resolved_stake_matches_replay_scorer(monkeypatch):
     # Parity: _ticket_total_stake on a fully-resolved meeting must equal the
     # staked sum the replay scorer reports (both use combos x unit_stake).
-    labels = {"X": [40.0, 0.0, 0]}   # scorer-reported staked = 40
+    labels = {"STRAIGHT QIN": [40.0, 0.0, 0]}   # scorer-reported staked = 40
     monkeypatch.setattr(vh, "_score_meeting_replay",
                         lambda conn, date: {"_races": 1, "labels": labels})
     conn = _db([(1, _ticket([_bet(10, 2.0, ["A", "B", "C"]),    # 20
@@ -138,3 +140,32 @@ def test_resolved_stake_matches_replay_scorer(monkeypatch):
     st = bg.daily_status("2026/06/03", bankroll=1000, conn=conn)
     scorer_staked = sum(v[0] for v in labels.values())
     assert st.staked == scorer_staked == 40.0
+
+
+# --- QIN-only scoping (user decision 2026-06-21) ---
+
+def test_is_counted_label_qin_only():
+    assert bg._is_counted_label("STRAIGHT QIN")
+    assert bg._is_counted_label("BOX QIN-3")
+    assert bg._is_counted_label("BOX QIN-4 PROTECTION")
+    for excl in ("BOX TRIO-5", "F4 BOX-5", "BOX TRIO-6", "F4 SAVER",
+                 "WIN", "PLACE", "EDGE PLACE", "QIN PLACE BANKER", "", None):
+        assert not bg._is_counted_label(excl), excl
+
+
+def test_daily_status_excludes_non_qin_losses(monkeypatch):
+    # A big TRIO/F4 loss must NOT halt the day — the user only plays QIN.
+    # Realized: QIN +5 (profit), TRIO -900 (ignored). Loss cap 8% of 1000 = 80.
+    monkeypatch.setattr(vh, "_score_meeting_replay", lambda conn, date: {
+        "_races": 3,
+        "labels": {"STRAIGHT QIN": [30.0, 35.0, 1],   # +5
+                   "BOX TRIO-5": [900.0, 0.0, 0]},     # -900, must be excluded
+    })
+    conn = _db([(1, _ticket([
+        _bet(3, 10.0, ["A", "B"], label="STRAIGHT QIN"),         # 30, counted
+        _bet(10, 90.0, ["A", "B", "C"], pool="TRIO", label="BOX TRIO-5"),  # not counted
+    ]))])
+    st = bg.daily_status("2026/06/03", bankroll=1000, conn=conn)
+    assert st.realized_pnl == 5.0     # QIN only, TRIO loss ignored
+    assert st.staked == 30.0          # QIN stake only
+    assert not st.halted

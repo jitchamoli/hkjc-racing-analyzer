@@ -977,28 +977,44 @@ class HorseDatabase:
     def get_horse_going_form(self, horse_name: str, going: str, before_date: str = '') -> dict:
         """Get horse's record on a specific going condition.
         Returns: {'runs': int, 'wins': int, 'places': int, 'avg_pos': float}
-        """
-        params = [horse_name, going]
-        if before_date:
-            params.append(before_date)
 
+        Buckets going strings via FeatureEngineering._going_bucket so variant
+        spellings of the same surface match (GOOD / GD / G / GF / 'Good to Firm'
+        all → FIRM). The old exact `going = ?` filter returned an all-zero record
+        whenever the live race-going spelling differed from the stored one, so
+        the dashboard going panel was usually blank. Display-only — no ML score
+        or bet ticket reads this.
+        """
+        from ml.features import FeatureEngineering
+        if not (going and going.strip()):
+            return {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
+        target = FeatureEngineering._going_bucket(going)
+        params = [horse_name]
         query = """
-            SELECT COUNT(*) as runs,
-                   COALESCE(SUM(is_winner), 0) as wins,
-                   COALESCE(SUM(is_top3), 0) as places,
-                   COALESCE(AVG(CASE WHEN finish_position > 0 THEN finish_position END), 0) as avg_pos
+            SELECT going, is_winner, is_top3, finish_position
             FROM race_results
-            WHERE horse_name = ? AND going = ?
+            WHERE horse_name = ?
         """
         if before_date:
             query += ' AND race_date < ?'
-        row = self.conn.execute(query, params).fetchone()
+            params.append(before_date)
+
+        runs = wins = places = pos_sum = pos_n = 0
+        for r in self.conn.execute(query, params):
+            if FeatureEngineering._going_bucket(r['going'] or '') != target:
+                continue
+            runs += 1
+            wins += int(r['is_winner'] or 0)
+            places += int(r['is_top3'] or 0)
+            if (r['finish_position'] or 0) > 0:
+                pos_sum += r['finish_position']
+                pos_n += 1
 
         return {
-            'runs': row['runs'] or 0,
-            'wins': row['wins'] or 0,
-            'places': row['places'] or 0,
-            'avg_pos': round(row['avg_pos'] or 0, 1),
+            'runs': runs,
+            'wins': wins,
+            'places': places,
+            'avg_pos': round(pos_sum / pos_n, 1) if pos_n else 0,
         }
 
     def get_jockey_horse_stats(self, jockey: str, horse_name: str, before_date: str = '') -> dict:
@@ -1030,47 +1046,49 @@ class HorseDatabase:
 
     def get_distance_best_time(self, horse_name: str, distance: int, before_date: str = '') -> str:
         """Get horse's personal best finish time at a given distance.
-        Returns: time string like '1:09.2' or '' if no data.
-        """
-        params = [horse_name, distance]
-        if before_date:
-            params.append(before_date)
+        Returns: time string like '1:09.2' / '1.09.20' or '' if no data.
 
+        Parses BOTH stored formats — 'M:SS.ss' (~17%) AND 'M.SS.ss' (~83%) —
+        via parse_finish_time. The old `LIKE '%:%'` + INSTR ordering only saw
+        the colon-format minority, so most PBs came back blank/non-representative.
+        """
+        from analytics.speed_figures import parse_finish_time
+        params = [horse_name, distance]
         query = """
             SELECT finish_time FROM race_results
             WHERE horse_name = ? AND distance = ?
             AND finish_time IS NOT NULL AND finish_time != ''
-            AND finish_time LIKE '%:%'
         """
         if before_date:
             query += ' AND race_date < ?'
-        query += """
-            ORDER BY
-              CAST(SUBSTR(finish_time, 1, INSTR(finish_time,':')-1) AS REAL)*60
-              + CAST(SUBSTR(finish_time, INSTR(finish_time,':')+1) AS REAL)
-            ASC LIMIT 1
-        """
-        row = self.conn.execute(query, params).fetchone()
+            params.append(before_date)
 
-        return row['finish_time'] if row else ''
+        best_str, best_secs = '', None
+        for row in self.conn.execute(query, params):
+            secs = parse_finish_time(row['finish_time'])
+            if secs is not None and (best_secs is None or secs < best_secs):
+                best_secs, best_str = secs, row['finish_time']
+        return best_str
 
     def get_distance_record(self, venue: str, distance: int) -> str:
         """Get track record (fastest time) at venue + distance.
-        Returns: time string like '1:08.1' or '' if no data.
+        Returns: time string like '1:08.1' / '1.08.10' or '' if no data.
+
+        Parses BOTH finish_time formats via parse_finish_time (see
+        get_distance_best_time) instead of the colon-only `LIKE '%:%'` filter.
         """
+        from analytics.speed_figures import parse_finish_time
         venue_norm = self._normalize_venue(venue)
-        row = self.conn.execute("""
+        best_str, best_secs = '', None
+        for row in self.conn.execute("""
             SELECT finish_time FROM race_results
             WHERE venue = ? AND distance = ?
             AND finish_time IS NOT NULL AND finish_time != ''
-            AND finish_time LIKE '%:%'
-            ORDER BY
-              CAST(SUBSTR(finish_time, 1, INSTR(finish_time,':')-1) AS REAL)*60
-              + CAST(SUBSTR(finish_time, INSTR(finish_time,':')+1) AS REAL)
-            ASC LIMIT 1
-        """, (venue_norm, distance)).fetchone()
-
-        return row['finish_time'] if row else ''
+        """, (venue_norm, distance)):
+            secs = parse_finish_time(row['finish_time'])
+            if secs is not None and (best_secs is None or secs < best_secs):
+                best_secs, best_str = secs, row['finish_time']
+        return best_str
 
     def get_rolling_stats(self, horse_name: str, n_races: int = 5,
                           before_date: str = '') -> Dict:
@@ -1197,8 +1215,16 @@ class HorseDatabase:
             for r in rows if r['margin'] and r['margin'] > 0
         ]
         close = [m for m in adj_margins if m <= 2.75]
-        last_margin = adj_margins[0] if adj_margins else 0
-        last_winner = rows[0]['finish_position'] == 1 if rows else False
+        # last_margin must come from the ACTUAL last start, not adj_margins[0]
+        # (2026-07-01 expert re-review): winners store margin=0 and are filtered
+        # out of adj_margins, so adj_margins[0] was the most recent LOSING race —
+        # a horse that WON last start but lost earlier in the window was scored on
+        # a stale loss and missed the +88 "Won last start" path. Derive from
+        # rows[0] directly: a genuine last-start win yields last_margin=0.
+        last_row = rows[0]
+        last_margin = (self._class_adjust_margin(last_row['margin'], last_row['class_type'])
+                       if last_row['margin'] and last_row['margin'] > 0 else 0)
+        last_winner = last_row['finish_position'] == 1
 
         return {
             'runs': len(rows),
