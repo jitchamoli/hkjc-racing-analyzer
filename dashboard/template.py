@@ -702,6 +702,7 @@ function _allStrikeLabels(race) {{
   function _push(short) {{ if (!seen[short]) {{ seen[short] = true; ordered.push(short); }} }}
   for (var i = 0; i < bets.length; i++) {{
     var bet = bets[i];
+    if (bet.paper) continue;  // paper bets (EDGE PLACE tracker) never staked → no badge
     if (!_betHitsTicket(bet, race)) continue;
     var pool = bet.pool || '';
     var nLegs = (bet.legs || []).length;
@@ -738,8 +739,11 @@ function _didBetHit(race) {{
   if (labels.length === 0) {{
     var ticket = race.bet_ticket;
     var bets = (ticket && ticket.bets) ? ticket.bets : [];
-    // SKIP race → no badge. Real miss → MISS.
-    return bets.length === 0 ? null : 'MISS';
+    // Paper bets (EDGE PLACE tracker) are never staked → exclude from the card
+    // MISS badge; only a real bet that did not land is a MISS. A paper-only
+    // ticket (or SKIP race) shows no badge.
+    var realBets = bets.filter(function(b) {{ return !b.paper; }});
+    return realBets.length === 0 ? null : 'MISS';
   }}
   return 'STRIKE-' + labels[0];
 }}
@@ -1122,7 +1126,11 @@ function renderBetCard(race) {{
   // the WA-copy + visual ticket render from bet_ticket.bets — so the EDGE
   // "anchor TRIO-5/F4 with this horse" banner must not fire when there is no
   // TRIO-5/F4 in the ticket (audit 2026-06-08 #2).
-  var hasSystemTicket = !!(race.bet_ticket && race.bet_ticket.bets && race.bet_ticket.bets.length);
+  // Exclude paper bets (EDGE PLACE) — a paper-only ticket has no real TRIO-5/F4
+  // to anchor, so the banner below must NOT fire (it contradicts the paper-bet
+  // section that follows). Mirrors the compact-WA _realTicketBets filter.
+  var hasSystemTicket = !!(race.bet_ticket && race.bet_ticket.bets &&
+    race.bet_ticket.bets.some(function(b) {{ return !b.paper; }}));
   if (tier === 'EDGE' && hasSystemTicket) {{
     // Banner text reads live stats from EDGE_STATS (track_edge.py). Falls
     // back to generic "place > win" framing when no stats file present.
@@ -1214,10 +1222,23 @@ function renderBetCard(race) {{
       var reason = race.chaos_reason || 'chaos race';
       waLines.push('*CHAOS — NO PLAY* (' + reason + ')');
     }} else {{
-      // GPT-5.5 R15 2026-05-25 — say NO SYSTEM BET explicitly before any
-      // horse suggestions so the user cannot mistake a "manual force pick"
-      // section below for a model-recommended stake.
-      waLines.push('*NO SYSTEM BET* — no frozen ticket for this race');
+      // Paper EDGE PLACE — flat-field EDGE race with no system stake but a
+      // tracked PLACE bet on the mispriced edge horse (2026-06-24).
+      var _waPaperBets = (race.bet_ticket && race.bet_ticket.bets)
+        ? race.bet_ticket.bets.filter(function(b) {{ return b.paper; }}) : [];
+      if (_waPaperBets.length) {{
+        _waPaperBets.forEach(function(bet) {{
+          var amtB = (bet.amount && bet.amount > 0) ? ' · $' + Math.round(bet.amount) : '';
+          waLines.push('*PAPER ' + _hkjcPoolLabel(bet) + amtB + '*' + _waHitMark(bet.label));
+          (bet.legs || []).forEach(function(leg) {{ waLines.push(_waPickFromLeg(leg)); }});
+        }});
+        waLines.push('Not counted as model ROI — flat field, edge horse places more than wins. Manual $10, your call.');
+      }} else {{
+        // GPT-5.5 R15 2026-05-25 — say NO SYSTEM BET explicitly before any
+        // horse suggestions so the user cannot mistake a "manual force pick"
+        // section below for a model-recommended stake.
+        waLines.push('*NO SYSTEM BET* — no frozen ticket for this race');
+      }}
     }}
   }}
 
@@ -1431,7 +1452,7 @@ function renderBetCard(race) {{
   //     No TOP PICK, no NOTES — those bias the user away from the
   //     exact entry instructions at the terminal.
   //   - If frozen bet_ticket is empty: NO STAKE / NO BET TICKET.
-  //     Show NO SYSTEM BET + OPTIONAL FORCE PICK (top-3 horses) with
+  //     Show NO SYSTEM BET + OPTIONAL FORCE PICK (top-4 horses) with
   //     a clear "manual only — not counted as model ROI" footer so
   //     the user has manual guidance without polluting model ROI.
   //
@@ -1448,6 +1469,7 @@ function renderBetCard(race) {{
     if (L === 'QIN PLACE BANKER') return 'QPL BANKER';
     if (L === 'BOX QIN-4 PROTECTION') return 'QIN BOX-4 (PROTECTION)';
     if (L === 'F4 SAVER') return 'FIRST 4 SAVER';
+    if (L === 'EDGE PLACE') return 'PLACE (EDGE · paper)';
     // Generic derivation: HKJC pool name + STRAIGHT/BOX-N from leg count.
     if (p === 'QUINELLA') return n === 2 ? 'STRAIGHT QIN' : ('QIN BOX-' + n);
     if (p === 'TRIO') return n === 3 ? 'STRAIGHT TRIO' : ('TRIO BOX-' + n);
@@ -1461,7 +1483,7 @@ function renderBetCard(race) {{
   var hdrVenue = race.venue ? ' · ' + race.venue : '';
   var hdrTime = race.time ? ' · ' + race.time : '';
   var hdrTier = isEdge ? ' · ★ EDGE' : (tier ? ' · ' + tier : '');
-  ticketLinesCompact.push('HKJC R' + race.race_number + hdrVenue + hdrTime + hdrTier);
+  ticketLinesCompact.push('*HKJC R' + race.race_number + hdrVenue + hdrTime + hdrTier + '*');
 
   var oa = (race.bet_ticket && race.bet_ticket.odds_age_minutes != null)
     ? race.bet_ticket.odds_age_minutes
@@ -1474,11 +1496,20 @@ function renderBetCard(race) {{
   // 0m reading is noise. Stale odds (≥15m) are flagged in statusWord anyway.
   if (oa != null && Math.round(oa) > 0) statusBits.push('odds age ' + Math.round(oa) + 'm');
   var modelV = (race.bet_ticket && race.bet_ticket.model_version) || null;
-  if (modelV) statusBits.push('model ' + modelV);
+  if (modelV) {{
+    // model_version is stamped YYYYMMDD-HHMMSS at training time — surface it
+    // as a readable trained-date rather than the raw timestamp string.
+    var _isDate = modelV.length >= 8 && /^\\d+$/.test(modelV.slice(0, 8));
+    statusBits.push(_isDate
+      ? ('model trained ' + modelV.slice(0, 4) + '-' + modelV.slice(4, 6) + '-' + modelV.slice(6, 8))
+      : ('model ' + modelV));
+  }}
   ticketLinesCompact.push(statusBits.join(' · '));
 
   var _ticketBetsAll = (race.bet_ticket && race.bet_ticket.bets) || [];
-  if (_ticketBetsAll.length) {{
+  var _realTicketBets = _ticketBetsAll.filter(function(b) {{ return !b.paper; }});
+  var _paperTicketBets = _ticketBetsAll.filter(function(b) {{ return b.paper; }});
+  if (_realTicketBets.length) {{
     // ── Real frozen system ticket: STAKE + BET TICKET only ──
     var ssAmt = (ss && ss.amount) ? ss.amount : 0;
     var ticketTotal = (race.bet_ticket && race.bet_ticket.allocated_amount) || 0;
@@ -1486,7 +1517,7 @@ function renderBetCard(race) {{
     var overBudC = !!(race.bet_ticket && race.bet_ticket.over_budget);
     var overAmtC = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
     ticketLinesCompact.push('');
-    ticketLinesCompact.push('STAKE');
+    ticketLinesCompact.push('*STAKE*');
     var stakeLine = 'Budget $' + Math.round(ssAmt) +
                     ' · Ticket $' + Math.round(ticketTotal) +
                     ' · Unit $' + Math.round(unitC);
@@ -1497,8 +1528,8 @@ function renderBetCard(race) {{
     ticketLinesCompact.push(stakeLine);
 
     ticketLinesCompact.push('');
-    ticketLinesCompact.push('BET TICKET');
-    _ticketBetsAll.forEach(function(bet, idx) {{
+    ticketLinesCompact.push('*BET TICKET*');
+    _realTicketBets.forEach(function(bet, idx) {{
       var poolLabel = _hkjcPoolLabel(bet);
       var amtBit = (bet.amount && bet.amount > 0)
         ? ' · $' + Math.round(bet.amount) : '';
@@ -1516,6 +1547,21 @@ function renderBetCard(race) {{
         }}
       }}
     }});
+  }} else if (_paperTicketBets.length) {{
+    // ── Paper-only ticket (EDGE PLACE) — no real system stake, but a
+    // tracked PLACE bet on the mispriced edge horse. Clearly labelled
+    // "paper / not counted" so it never reads as a model-ROI ticket.
+    ticketLinesCompact.push('');
+    ticketLinesCompact.push('*PAPER BET — not counted as model ROI*');
+    _paperTicketBets.forEach(function(bet, idx) {{
+      var poolLabelP = _hkjcPoolLabel(bet);
+      var amtBitP = (bet.amount && bet.amount > 0) ? ' · $' + Math.round(bet.amount) : '';
+      ticketLinesCompact.push((idx + 1) + '. ' + poolLabelP + amtBitP + _waHitMark(bet.label));
+      var numsP = (bet.legs || []).map(function(l) {{ return '#' + l.number; }});
+      if (numsP.length) ticketLinesCompact.push('   ' + numsP.join(' + '));
+    }});
+    ticketLinesCompact.push('');
+    ticketLinesCompact.push('Flat field — no QIN edge. Model has the edge horse mispriced; it places more than it wins. Manual $10 place, your call.');
   }} else {{
     // ── No system bet: drop STAKE/BET TICKET entirely, give the
     // user a clearly-labelled MANUAL guidance block instead. The
@@ -1523,14 +1569,14 @@ function renderBetCard(race) {{
     // might paste this into a ticket and expect it to count toward
     // model ROI accounting.
     ticketLinesCompact.push('');
-    ticketLinesCompact.push('NO SYSTEM BET');
+    ticketLinesCompact.push('*NO SYSTEM BET*');
     var skipReason = 'Tier ' + (race.conviction_tier || 'SKIP') +
                      ' / no frozen ticket';
     ticketLinesCompact.push('Reason: ' + skipReason);
     if (race.horses && race.horses.length) {{
       ticketLinesCompact.push('');
-      ticketLinesCompact.push('OPTIONAL FORCE PICK');
-      race.horses.slice(0, 3).forEach(function(h, i) {{
+      ticketLinesCompact.push('*OPTIONAL FORCE PICK*');
+      race.horses.slice(0, 4).forEach(function(h, i) {{
         var fp = race.horses[i];
         if (!fp) return;
         var prob = (fp.calibrated_prob != null)
@@ -1566,9 +1612,20 @@ function renderBetCard(race) {{
   // Suppress the EDGE staking banner when there is no system ticket to
   // anchor (halted day / empty ticket — audit 2026-06-08 #2).
   var _edgeHasTicket = !!(race.bet_ticket && race.bet_ticket.bets && race.bet_ticket.bets.length);
+  // Paper-only EDGE ticket (flat field → no box, just the tracked PLACE bet on
+  // the edge horse). The banner must NOT tell the user to anchor a TRIO-5/F4
+  // when none exists; point them at the place bet instead (2026-06-24).
+  var _edgePaperOnly = _edgeHasTicket &&
+    race.bet_ticket.bets.every(function(b) {{ return b.paper; }});
+  var _edgeHeadline = _edgePaperOnly
+    ? '★ RARE EDGE — paper PLACE on this horse'
+    : '★ RARE EDGE — anchor TRIO-5 with this horse';
+  var _edgeAction = _edgePaperOnly
+    ? 'Flat field — no QIN/box edge. Tracked as a paper PLACE bet on the ' + edgeWho + '; back it $10 to place if you want — your call, not counted as model ROI.'
+    : 'Use as TRIO-5/F4 anchor — do NOT bet WIN on the EDGE horse.';
   var edgeAlertHTML = (isEdge && _edgeHasTicket)
     ? '<div style="background:linear-gradient(135deg,rgba(251,191,36,.25),rgba(251,191,36,.08));border:2px solid var(--gold);border-radius:6px;padding:8px 12px;margin:6px 0 10px 0;font-size:.78rem">' +
-        '<span style="color:var(--gold);font-weight:800;letter-spacing:.06em">★ RARE EDGE — anchor TRIO-5 with this horse</span>' +
+        '<span style="color:var(--gold);font-weight:800;letter-spacing:.06em">' + _edgeHeadline + '</span>' +
         '<div style="color:var(--fg);margin-top:3px;font-size:.72rem;line-height:1.4">' +
           'Pre-blend model probability ≥ +5pp above market — fires <1× per meeting. ' +
           'The model has found a real mispricing on the ' + edgeWho + '. ' +
@@ -1578,7 +1635,7 @@ function renderBetCard(race) {{
               ? '<strong>Historical pattern (N=' + es.n_fires + '): ' + (es.n_placed||0) + ' placed top-3, ' + (es.n_won||0) + ' won.</strong> '
               : '<strong>Historically places more than wins.</strong> ';
           }})() +
-          'Use as TRIO-5/F4 anchor — do NOT bet WIN on the EDGE horse.' +
+          _edgeAction +
         '</div>' +
       '</div>'
     : '';
@@ -1638,7 +1695,7 @@ function copyWA(text, btn) {{
   // window.prompt fallback ladder; the per-card path silently failed
   // until 2026-05-29 due to a missing .catch. Locked by
   // tests/test_template_js_syntax.py.
-  var fullText = text + '\\n⚠️ For entertainment only. Gamble responsibly.';
+  var fullText = text + '\\n_⚠️ For entertainment only. Gamble responsibly._';
   var orig = btn.textContent;
   var ok = function() {{
     btn.textContent = 'Copied!';
@@ -1917,8 +1974,12 @@ function _buildRaceDetailPanel(race) {{
     {{key: 'jockey_horse_stats', label: 'J×H', render: function(h){{
       if (!h.jockey_horse_stats) return '—';
       var j = h.jockey_horse_stats;
-      if (typeof j === 'object' && j.starts != null) {{
-        return (j.wins || 0) + '/' + j.starts;
+      if (typeof j === 'object') {{
+        // Production shape is {{rides, wins, places, avg_pos}}; older/test
+        // fixtures used {{starts, wins}}. Accept either denominator so the
+        // cell never falls through to String(obj) = "[object Object]".
+        var n = (j.starts != null) ? j.starts : j.rides;
+        if (n != null) return (j.wins || 0) + '/' + n;
       }}
       return esc(String(j));
     }}}},
@@ -1938,8 +1999,42 @@ function _buildRaceDetailPanel(race) {{
   }});
   var detailTableHTML = '';
   if (activeCols.length) {{
+    // WA-copy payload — per-horse stats line + active detail columns, so
+    // the whole PER-HORSE DETAIL section can be pasted into WhatsApp. Routed
+    // through copyWA() (appends the entertainment-only footer).
+    // Flush-left, blank-line-separated — WhatsApp trims leading whitespace per
+    // line, so indentation collapses. Mirror the proven main-ticket style.
+    // Plain-text WA payload — do NOT esc() (HTML-entity encoder would turn '&'
+    // in a class/going string into '&amp;' literal text in WhatsApp). Raw values,
+    // matching the rest of the WA path.
+    var _detailWA = ['*R' + race.race_number + ' — PER-HORSE DETAIL*',
+      (race.time||'') + ' · ' + (race.distance||'') + 'm · ' +
+        (race.class_type||'') + ' · ' + (race.going||'')];
+    race.horses.forEach(function(h, i) {{
+      var oddsP = h.win_odds ? ' · $' + h.win_odds : '';
+      var pureP = h.pure_prob != null ? (h.pure_prob*100).toFixed(1)+'%' : '—';
+      var mktP  = h.market_prob != null ? (h.market_prob*100).toFixed(1)+'%' : '—';
+      var edgeP = h.edge_pp != null ? ((h.edge_pp>0?'+':'')+h.edge_pp.toFixed(1)+'pp') : '—';
+      var betP  = h.bet_recommendation || 'SKIP';
+      _detailWA.push('');
+      _detailWA.push('*' + (h.rank||i+1) + '. #' + h.number + ' ' + (h.name||'') + '*' + oddsP);
+      var jt = [];
+      if (h.jockey) jt.push(h.jockey);
+      if (h.trainer) jt.push(h.trainer);
+      if (jt.length) _detailWA.push(jt.join(' / '));
+      _detailWA.push('Pure ' + pureP + ' · Mkt ' + mktP + ' · Edge ' + edgeP + ' · ' + betP);
+      var stats = activeCols.map(function(col){{ return col.label + ' ' + col.render(h); }}).join(' · ');
+      if (stats) _detailWA.push(stats);
+    }});
+    var _detailWAStr = _detailWA.join('\\n');
     detailTableHTML = '<div class="detail-section">' +
-      '<div class="section-label">PER-HORSE DETAIL</div>' +
+      '<div class="section-label">PER-HORSE DETAIL' +
+        '<button class="wa-btn" data-testid="copy-wa-detail-R' + race.race_number + '" ' +
+          'style="float:right;font-size:.6rem;padding:2px 6px" ' +
+          'onclick="event.stopPropagation(); copyWA(this.dataset.payload, this)" ' +
+          'data-payload="' + escAttr(_detailWAStr) + '" ' +
+          'title="Copy per-horse details to WhatsApp">Copy Details WA</button>' +
+      '</div>' +
       '<table style="width:100%;border-collapse:collapse;font-size:.76rem">' +
       '<thead><tr><th style="text-align:left;padding:4px">#</th><th style="text-align:left;padding:4px">NAME</th>' +
         activeCols.map(function(col) {{
@@ -2053,9 +2148,35 @@ function _buildRaceDetailPanel(race) {{
 
   var formatHistoryHTML = '';
   if (formatHistRows) {{
+    // WA-copy payload — per-horse prior runs at the current venue+distance,
+    // a SEPARATE button from PER-HORSE DETAIL (user request 2026-06-24).
+    // Flush-left, blank-line between horses (WhatsApp trims leading spaces).
+    var _fhWA = ['*R' + race.race_number + ' — SAME-FORMAT HISTORY*',
+      '(same venue + distance: ' + (race.venue||'') + ' ' + (race.distance||'') + 'm)'];
+    race.horses.filter(function(h){{ return h.format_history && h.format_history.length; }})
+      .forEach(function(h){{
+        _fhWA.push('');
+        _fhWA.push('*#' + h.number + ' ' + (h.name||'') + '* (' +
+          h.format_history.length + ' prior run' + (h.format_history.length===1?'':'s') + ')');
+        h.format_history.forEach(function(p){{
+          var pos = p.finish_position;
+          var bits = [p.race_date||'', p.going||'', p.class_type||'',
+                      (pos>0 ? 'pos '+pos : 'pos –')];
+          if (p.win_odds) bits.push('$' + p.win_odds);
+          if (p.margin > 0) bits.push(p.margin + 'L'); else if (pos===1) bits.push('won');
+          if (p.jockey) bits.push(p.jockey);
+          _fhWA.push(bits.join(' · '));
+        }});
+      }});
+    var _fhWAStr = _fhWA.join('\\n');
     formatHistoryHTML = '<div class="detail-section">' +
       '<div class="section-label">SAME-FORMAT HISTORY ' +
         '<span class="info-tip" onclick="showInfoPop(event, &quot;Same-format history&quot;, &quot;Past runs by these horses at the SAME venue and SAME distance. Position colours: gold = win, green = top-3, grey = other. Use this to spot horses that consistently perform (or struggle) under todays exact conditions.&quot;)">ⓘ</span>' +
+        '<button class="wa-btn" data-testid="copy-wa-form-R' + race.race_number + '" ' +
+          'style="float:right;font-size:.6rem;padding:2px 6px" ' +
+          'onclick="event.stopPropagation(); copyWA(this.dataset.payload, this)" ' +
+          'data-payload="' + escAttr(_fhWAStr) + '" ' +
+          'title="Copy same-format history to WhatsApp">Copy Form WA</button>' +
       '</div>' +
       '<table style="width:100%;border-collapse:collapse;font-size:.74rem">' +
         '<thead><tr style="border-bottom:1px solid var(--border);color:var(--dim)">' +
@@ -2154,6 +2275,30 @@ function _buildRaceDetailPanel(race) {{
       '</div>'
     );
   }});
+
+  // EDGE PLACE (paper) — only present when an EDGE race produced no system
+  // ticket; a tracked PLACE bet on the mispriced edge horse. Tagged paper:
+  // not staked against budget, not counted toward the QIN stop-loss.
+  if (_ticketHas('EDGE PLACE')) {{
+    var edgePlaceLegs = _ticketLegsFor('EDGE PLACE');
+    if (edgePlaceLegs.length) {{
+      var ep = edgePlaceLegs[0];
+      ticketLines.push(
+        '<div style="margin:6px 0">' +
+          '<span style="display:inline-block;background:var(--gold);color:#000;font-weight:800;padding:3px 10px;border-radius:4px;font-size:.74rem;margin-right:8px;vertical-align:middle">' +
+            '★ EDGE PLACE · $10 paper' +
+          '</span>' +
+          _ticketHitMark('EDGE PLACE') +
+          _renderPick(ep) +
+          '<div style="font-size:.7rem;color:var(--dim);margin-top:3px">' +
+            'Flat field — no QIN edge, but the model has #' + esc(ep.number) + ' ' + esc(ep.name) +
+            ' mispriced @$' + esc(ep.win_odds || '?') + '. EDGE horses place far more than they win ' +
+            '(3/5 placed, 0 won). Paper-tracked — not counted as model ROI / stop-loss.' +
+          '</div>' +
+        '</div>'
+      );
+    }}
+  }}
 
   // QIN PLACE BANKER — for short-favorite races. Read legs from the
   // frozen ticket so display matches what replay scores (GPT-5.5 R13 #6).
@@ -2669,7 +2814,7 @@ window.addEventListener('DOMContentLoaded', function() {{
       // carry the entertainment-only footer — only copyWA() appends it for
       // per-card buttons). Without this the bulk dump goes out unguarded.
       var combined = payloads.join('\\n\\n---\\n\\n') +
-        '\\n\\n⚠️ For entertainment only. Gamble responsibly.';
+        '\\n\\n_⚠️ For entertainment only. Gamble responsibly._';
       var ok = function() {{
         copyAllBtn.textContent = 'Copied ' + payloads.length + '!';
         setTimeout(function() {{ copyAllBtn.textContent = 'Copy all bets'; }}, 1500);

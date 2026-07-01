@@ -50,25 +50,19 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
     for i, a in enumerate(analyses):
         if a.pre_blend_rank is None:
             a.pre_blend_rank = i + 1  # snapshot pre-calibration order
+    # Sort by calibrated_prob desc; break TIES explicitly by pre_blend_rank asc
+    # (best pre-blend opinion wins). Ties are real: the _BLEND_CAL_INPUT_CLIP
+    # clamp maps any two horses >0.30 blended to iso(0.30), and isotonic flat
+    # steps can tie sub-0.30 horses too. Without an explicit tiebreak rank-1
+    # among a tied group would depend on incidental input order — making this
+    # deterministic and Rule-5-aligned (e.g. BANKER WIN can't fire on an
+    # arbitrarily-chosen co-favourite).
     paired = sorted(zip(analyses, calibrated_probs),
-                    key=lambda t: t[1], reverse=True)
+                    key=lambda t: (t[1], -t[0].pre_blend_rank), reverse=True)
     for i, (a, _p) in enumerate(paired):
         analyses[i] = a
         calibrated_probs[i] = _p
     _resync_ranks_and_probs(analyses, calibrated_probs)
-
-    top = analyses[0] if n >= 1 else None
-    second = analyses[1] if n >= 2 else None
-
-    top_prob = calibrated_probs[0] if n >= 1 else 0
-    second_prob = calibrated_probs[1] if n >= 2 else 0
-    third_prob = calibrated_probs[2] if n >= 3 else 0
-
-    gap_1_2 = top_prob - second_prob
-    gap_2_3 = second_prob - third_prob
-    top_3_share = top_prob + second_prob + third_prob
-
-    market_prob_top = (1 / top.horse.win_odds) if top and top.horse.win_odds and top.horse.win_odds > 0 else 0
 
     # GPT-5.5 R13 #3 2026-05-25 — market-fav AND BANKER promotions REMOVED.
     # The contract from R12 was "rank = calibrated_prob ordering". The
@@ -84,7 +78,7 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
     # is a shadow/counterfactual variant, not production ranking.
     # Memory: feedback_contract_tests_over_unit_tests.
 
-    # Refresh `top` reference for downstream gating, no rank swap.
+    # Compute `top` reference + gap/share stats for downstream gating (no rank swap).
     top = analyses[0] if n >= 1 else None
     top_prob = calibrated_probs[0] if n >= 1 else 0
     second_prob = calibrated_probs[1] if n >= 2 else 0
@@ -157,7 +151,7 @@ def assign_bet_recommendations(analyses, field_size: int = 12,
                 a.bet_recommendation = "PLACE"
             else:
                 a.bet_recommendation = "SKIP"
-        elif race_bet_type == "TRIO":
+        elif race_bet_type == "TRIO":  # DISABLED: _choose_race_bet_type never returns "TRIO" (kept for re-enable)
             if rank <= 3:
                 a.bet_recommendation = "TRIO"
             else:
@@ -287,7 +281,7 @@ def _choose_race_bet_type(*, has_live_odds, n, top_is_banker, market_prob_top,
 
 
 def _resync_ranks_and_probs(analyses, calibrated_probs: List[float]) -> None:
-    """After a rank swap, update all ranks, probabilities, and expected returns.
+    """After the calibrated_prob re-sort, update all ranks, probabilities, and expected returns.
 
     Does NOT touch `value_score`: per CLAUDE.md ML Rule 4, value_score must
     reflect the pre-blend combined probability (the model's independent

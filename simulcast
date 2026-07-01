@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Friendly HKJC simulcast (overseas World Pool) command.
+# Scrapes tonight's overseas card and builds the honest Ireland-style dashboard.
+#
+#   ./simulcast                    # today, Ireland (S2)
+#   ./simulcast 20260628           # explicit date, Ireland (S2)
+#   ./simulcast 20260628 S1        # explicit date + course (S1=Argentina, S2=Ireland...)
+#   ./simulcast 2026/06/28 S2      # accepts / or - separators
+#
+# Steps: scrape_simulcast -> simulcast_dashboard. Re-run anytime to refresh
+# (e.g. nearer post time when more form/odds are available).
+set -euo pipefail
+cd "$(dirname "$0")"
+
+DATE="$(date +%Y%m%d)"
+COURSE="S2"   # S2 = Ireland on simulcast feature days; S1/S3... = other countries
+
+if [ "${1:-}" ]; then DATE="${1//[\/-]/}"; fi      # strip / and - -> YYYYMMDD
+if [ "${2:-}" ]; then COURSE="$2"; fi
+
+echo "=== Simulcast scrape + dashboard — ${DATE} ${COURSE} ==="
+python3 -m scripts.scrape_simulcast "$DATE" "$COURSE"
+python3 -m scripts.simulcast_dashboard "$DATE" "$COURSE"
+echo
+echo "Open: results/simulcast_dashboard_${DATE}_${COURSE}.html"

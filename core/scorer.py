@@ -179,6 +179,15 @@ def _dynamic_blend_weights(field_size: int, distance: int,
 _BLEND_CALIBRATOR = None  # cached on first load
 _BLEND_CALIBRATOR_LOADED = False
 
+# Last densely-populated isotonic knot. The blend calibrator's fit set has only
+# ~80 of 7662 samples above 0.30 (n=3 above 0.60), so PAVA collapses the entire
+# tail to one noise-driven value (blended 0.40 and 0.95 both map to ~0.737).
+# We clamp the calibrator INPUT here so every strong favourite maps to iso(0.30)
+# instead — monotone, conservative (caps over-statement, never inflates), and
+# provably untouched below 0.30 (the well-calibrated 99%). Apply-time only: no
+# refit, pickle unchanged. See 2-expert calibration-tail review 2026-06-27.
+_BLEND_CAL_INPUT_CLIP = 0.30
+
 
 def _load_blend_calibrator():
     """Lazy-load models/blend_calibrator.pkl. Returns None if absent.
@@ -253,6 +262,10 @@ def calibrate_probabilities(analyses, field_size: int = 12,
 
     Per-horse isotonic preserves rank ordering (monotonic), so renormalizing
     after applying maintains both the win-prob calibration and sum-to-one.
+    The _BLEND_CAL_INPUT_CLIP clamp makes the isotonic non-strict on the
+    >0.30 plateau, so co-favourites can tie in calibrated_prob; that tie is
+    resolved deterministically by pre-blend rank in the recommender sort
+    (assign_bet_recommendations), keeping calibrated_prob magnitudes clean.
     """
     if not analyses:
         return []
@@ -314,7 +327,15 @@ def calibrate_probabilities(analyses, field_size: int = 12,
     if iso is not None:
         try:
             import numpy as _np
-            blended = list(iso.predict(_np.array(blended)))
+            # Clamp inputs at the last dense knot before the (sparse, overfit)
+            # isotonic tail — see _BLEND_CAL_INPUT_CLIP above. NOTE: two horses
+            # both >0.30 blended then map to iso(0.30) and TIE in calibrated_prob.
+            # That tie is resolved deterministically by pre-blend rank in the
+            # recommender sort (assign_bet_recommendations), NOT here — so
+            # calibrated_prob magnitudes stay clean (a constant calibrator still
+            # yields a uniform distribution).
+            blended = list(iso.predict(
+                _np.minimum(_np.array(blended), _BLEND_CAL_INPUT_CLIP)))
         except Exception as e:
             # Fall through to raw blended values on any sklearn error, but
             # surface the failure — silent skip means every prediction is

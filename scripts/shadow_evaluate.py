@@ -52,8 +52,16 @@ VARIANTS = {
         'log_path': REPO_ROOT / 'tracking_data' / 'shadow_jockey_log.csv',
         'prod_label': 'production (jockey_form on)',
         'shadow_label': 'shadow (jockey_form OFF)',
-        'ship_hint': 'Consider shipping JOCKEY_FORM_RIDES_MIN=15 (disable factor).',
-        'keep_hint': 'Keep JOCKEY_FORM_RIDES_MIN=3 (factor enabled).',
+        'ship_hint': 'Already SHIPPED 2026-06-21 (JOCKEY_FORM_RIDES_MIN=15, factor disabled) — experiment retired.',
+        'keep_hint': 'Already SHIPPED 2026-06-21 (JOCKEY_FORM_RIDES_MIN=15, factor disabled) — experiment retired.',
+    },
+    'tips': {
+        'shadow_basename': 'shadow_tips_race_data',
+        'log_path': REPO_ROOT / 'tracking_data' / 'shadow_tips_log.csv',
+        'prod_label': 'production (TIPS on, w=0.11)',
+        'shadow_label': 'shadow (TIPS OFF)',
+        'ship_hint': 'Consider dropping/down-weighting TIPS (w=0.11 -> 0).',
+        'keep_hint': 'Keep TIPS at w=0.11.',
     },
 }
 

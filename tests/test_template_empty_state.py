@@ -81,7 +81,9 @@ def test_race_detail_renders_per_horse_detail_table():
     race['horses'][0]['going_form'] = {'wins': 3, 'runs': 4}
     race['horses'][0]['last_6'] = '1-3-2-4-1-5'
     html = generate_html(json.dumps([race]), '2026-04-27 13:00:00', '2026/04/27')
-    assert '<div class="section-label">PER-HORSE DETAIL</div>' in html
+    # Section label now carries a per-horse-detail WA copy button (2026-06-24).
+    assert '<div class="section-label">PER-HORSE DETAIL' in html
+    assert 'Copy Details WA' in html
 
 
 def test_copy_all_button_present():
