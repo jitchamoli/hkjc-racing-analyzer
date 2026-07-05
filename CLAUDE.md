@@ -35,8 +35,10 @@ python3 -m scripts.clv_report --split-by-market-rank  # EDGE GAUGE (auto-runs in
                                                #   splits CLV by market agreement at OPEN — favourite
                                                #   late-money MIRAGE vs real sharpness. WATCH the rank-2-3
                                                #   (mild-disagreement) CLV + whether it converts; rank-4+
-                                               #   longshot CLV% is inflated noise. Verdict: edge UNPROVEN
-                                               #   until rank-2-3 CLV turns positive AND places over N>=10.
+                                               #   longshot CLV% is inflated noise. Verdict (2026-07-04):
+                                               #   rank-2-3 CROSSED POSITIVE +3.9% CLV, place 53%, n=36
+                                               #   (was -12.7% n=9 on 05-30). First time positive AND
+                                               #   converting — TENTATIVE signal, don't act; hold N.
 
 # Backtest
 python3 -m scripts.backtest [--sweep | --exclude-date YYYY/MM/DD | --production-stakes]
@@ -179,7 +181,7 @@ Three audit rounds found 10 date-leaking rule-engine DB lookups (no `before_date
 
 **HONEST POSTURE: no demonstrated betting edge. PAPER-ONLY until `scripts/validate_hk.py` shows positive lower-CI over N≥250 bets.** Judge changes on place/top-4 capture, NOT top-1 win Brier. Detail: `memory/project_7expert_panel_2026-05-22.md`.
 
-**FAST EDGE GAUGE (the leading indicator while N accrues):** `scripts/clv_report --split-by-market-rank` (auto-runs in `raceday finish`). CLV converges far faster than ROI, but is read-with-care: the favourite bucket shortens structurally (late-money MIRAGE, not edge) and rank-4+ longshot CLV% is inflated noise. The ONLY monetizable signal is **rank-2-3 (mild-disagreement) CLV that also converts (places)**. As of 2026-05-30: rank-2-3 = −12.7% on n=9 → **edge UNPROVEN**. Don't touch the model; accrue to N≥10 meetings and watch that one line. See memory: `project_clv_edge_gauge_2026-05-30.md`.
+**FAST EDGE GAUGE (the leading indicator while N accrues):** `scripts/clv_report --split-by-market-rank` (auto-runs in `raceday finish`). CLV converges far faster than ROI, but is read-with-care: the favourite bucket shortens structurally (late-money MIRAGE, not edge) and rank-4+ longshot CLV% is inflated noise. The ONLY monetizable signal is **rank-2-3 (mild-disagreement) CLV that also converts (places)**. Progression: −12.7% n=9 (2026-05-30) → −2.6% n=13 (06-07) → +2.1% n=34 (07-01) → **+3.9% CLV, place 53%, n=36 (2026-07-04) — CROSSED POSITIVE and converting for the first time**. Still TENTATIVE (single-card variance can move it; 12-meeting replay ROI remains all-negative, STRAIGHT QIN least-bad −4.4%). Don't touch the model; keep accruing and watch the line hold. See memory: `project_clv_edge_gauge_2026-05-30.md`.
 
 ## DB (`tracking_data/horse_history.db`)
 
