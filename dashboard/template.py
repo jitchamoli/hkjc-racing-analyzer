@@ -632,7 +632,55 @@ function _placedFromRace(race) {{
     top2: [p1, p2],
     top3: p3 != null ? [p1, p2, p3] : null,
     top4: p4 != null ? [p1, p2, p3, p4] : null,
+    combos2: _winningCombos(horsesByPos, 2),
+    combos3: _winningCombos(horsesByPos, 3),
+    combos4: _winningCombos(horsesByPos, 4),
+    // Every horse that PLACED (position 1-3). On a dead heat for 3rd both
+    // tied runners placed and HKJC pays PLACE/QPL on both, so this can hold
+    // more than three numbers — unlike the ordered top3 above.
+    placedSet: horsesByPos
+      .filter(function(h) {{ return h.actual_position <= 3; }})
+      .map(function(h) {{ return h.number; }}),
   }};
+}}
+
+// _winningCombos — every winning k-horse combination, DEAD-HEAT aware.
+// Mirrors validate_hk._winning_combo_entries. HKJC declares a dividend per
+// tied combination, so a dead heat for 3rd makes TWO winning trios and a
+// ticket holding either one is paid. Slicing the sorted finishers
+// positionally (horsesByPos[0..k-1]) only ever sees one of them, so the
+// STRIKE badge and the WA hit marks reported MISS on a bet that actually
+// won (audit 2026-07-12).
+function _winningCombos(horsesByPos, k) {{
+  var byPos = {{}};
+  for (var i = 0; i < horsesByPos.length; i++) {{
+    var p = horsesByPos[i].actual_position;
+    if (!byPos[p]) byPos[p] = [];
+    byPos[p].push(horsesByPos[i].number);
+  }}
+  var positions = Object.keys(byPos).map(Number).sort(function(a, b) {{ return a - b; }});
+  var certain = [];
+  for (var j = 0; j < positions.length; j++) {{
+    var group = byPos[positions[j]];
+    if (certain.length + group.length <= k) {{
+      certain = certain.concat(group);
+      if (certain.length === k) return [certain.slice()];
+    }} else {{
+      var slots = k - certain.length;
+      if (slots <= 0) break;
+      // one combination per way of filling the open slots from the tied group
+      var out = [];
+      var idx = [];
+      (function choose(start, picked) {{
+        if (picked.length === slots) {{ out.push(certain.concat(picked)); return; }}
+        for (var m = start; m < group.length; m++) {{
+          choose(m + 1, picked.concat([group[m]]));
+        }}
+      }})(0, []);
+      return out;
+    }}
+  }}
+  return [];
 }}
 
 // _betHitsTicket — per-bet hit/miss. Returns true/false/null per single
@@ -657,30 +705,37 @@ function _betHitsTicket(bet, race) {{
     return !!(legs[0] && legs[0].number === placed.p1);
   }}
   if (pool === 'PLACE') {{
-    if (!placed.top3) return false;
+    if (!placed.placedSet) return false;
     for (var k = 0; k < nLegs; k++) {{
-      if (placed.top3.indexOf(legs[k].number) >= 0) return true;
+      if (placed.placedSet.indexOf(legs[k].number) >= 0) return true;
+    }}
+    return false;
+  }}
+  function _holdsAnyCombo(combos) {{
+    if (!combos || !combos.length) return false;
+    for (var c = 0; c < combos.length; c++) {{
+      if (_containsAll(combos[c])) return true;
     }}
     return false;
   }}
   if (pool === 'QUINELLA') {{
-    return _containsAll(placed.top2);
+    return _holdsAnyCombo(placed.combos2);
   }}
   if (pool === 'QIN PLACE') {{
     // QPL BANKER: legs[0] pivot + legs[1:] bankers. Need pivot top-3 AND
     // at least one banker top-3.
-    if (!placed.top3 || nLegs < 2) return false;
-    if (placed.top3.indexOf(legs[0].number) < 0) return false;
+    if (!placed.placedSet || nLegs < 2) return false;
+    if (placed.placedSet.indexOf(legs[0].number) < 0) return false;
     for (var k = 1; k < nLegs; k++) {{
-      if (placed.top3.indexOf(legs[k].number) >= 0) return true;
+      if (placed.placedSet.indexOf(legs[k].number) >= 0) return true;
     }}
     return false;
   }}
   if (pool === 'TRIO') {{
-    return placed.top3 != null && _containsAll(placed.top3);
+    return _holdsAnyCombo(placed.combos3);
   }}
   if (pool === 'FIRST 4') {{
-    return placed.top4 != null && _containsAll(placed.top4);
+    return _holdsAnyCombo(placed.combos4);
   }}
   return false;
 }}

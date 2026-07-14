@@ -18,6 +18,24 @@ from betting.dividends import hkjc_declared_to_unit
 
 logger = logging.getLogger(__name__)
 
+
+def _qin_legs_hit(leg_positions) -> bool:
+    """Did our quinella legs actually win? Dead-heat aware.
+
+    A quinella needs the 1st AND 2nd finishers. The old rule — "at least 2 legs
+    finished in positions 1-2" — fabricated a hit on a dead heat for 2nd where
+    we held BOTH runners-up but NOT the winner: two 2nd-equal horses are not a
+    quinella (audit 2026-07-12). A dead heat for 1st is the one case where two
+    legs on the same position DO win it, since the two winners are the
+    quinella.
+
+    Only OUR legs' positions are known here (prediction_log need not carry the
+    whole field), so the test is expressed purely over them.
+    """
+    n1 = sum(1 for p in leg_positions if p == 1)
+    n2 = sum(1 for p in leg_positions if p == 2)
+    return n1 >= 2 or (n1 >= 1 and n2 >= 1)
+
 # The complete set of real HKJC race distances (turf + AWT, ST + HV). Used to
 # validate ingested distance and to gate the authoritative JSON backfill, so a
 # fragile results-page header parse can never silently store a bogus distance
@@ -911,9 +929,20 @@ class HorseDatabase:
     @staticmethod
     def _going_surface_class(going: str) -> str:
         """Bucket going into FIRM-side (GOOD/FIRM/FAST) vs SOFT-side
-        (YIELDING/SOFT/HEAVY/WET-SLOW). Prior LIKE 'GOOD%' pattern leaked
-        'GOOD TO YIELDING' into firm queries — credited soft-side runs as
-        firm-side experience."""
+        (YIELDING/SOFT/HEAVY/WET-SLOW).
+
+        Normalises through FeatureEngineering._going_bucket FIRST: HKJC stores
+        most goings as short codes ('G', 'GF', 'GY', 'Y', 'WS', 'S'), none of
+        which contain the substrings the raw keyword test looked for — so 'GY'
+        (Good To Yielding) and 'WS' (Wet-Slow) were classed FIRM. The substring
+        test survives only as the fallback for a self-mapped oddity
+        (e.g. 'GOOD (AWT)', 'SEALED')."""
+        from ml.features import FeatureEngineering
+        bucket = FeatureEngineering._going_bucket(going or '')
+        if bucket in ('GY', 'YIELDING', 'SOFT'):
+            return 'SOFT'
+        if bucket in ('FIRM', 'WET-FAST'):
+            return 'FIRM'
         g = (going or '').upper()
         if any(kw in g for kw in ('YIELDING', 'SOFT', 'HEAVY', 'WET-SLOW', 'WET SLOW')):
             return 'SOFT'
@@ -927,52 +956,44 @@ class HorseDatabase:
         prior doesn't get credited as firm-side experience.
         before_date: if set, only count races STRICTLY before this date — same
         backtest-leak fix as get_horse_history (live passes no filter).
+
+        Surface class is resolved per-row through _going_surface_class (which
+        buckets via FeatureEngineering._going_bucket) rather than by raw SQL LIKE
+        substrings. The LIKE filters matched neither branch for HKJC short codes
+        — 'G' (23.7k rows), 'GF', 'GD', 'GY', 'Y', 'WS' — and silently dropped
+        36,720 of 57,044 race_results rows (64%) from every lookup, starving the
+        going_pref factor. Same class as the par-times LIKE '%:%' bug.
         """
-        c = self.conn.cursor()
         if not (going and going.strip()):
             return {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
 
-        if self._going_surface_class(going) == 'SOFT':
-            class_filter = (
-                "(UPPER(going) LIKE '%YIELDING%' "
-                "OR UPPER(going) LIKE '%SOFT%' "
-                "OR UPPER(going) LIKE '%HEAVY%' "
-                "OR UPPER(going) LIKE '%WET%')"
-            )
-        else:
-            class_filter = (
-                "UPPER(going) NOT LIKE '%YIELDING%' "
-                "AND UPPER(going) NOT LIKE '%SOFT%' "
-                "AND UPPER(going) NOT LIKE '%HEAVY%' "
-                "AND UPPER(going) NOT LIKE '%WET%' "
-                "AND (UPPER(going) LIKE '%GOOD%' "
-                "OR UPPER(going) LIKE '%FIRM%' "
-                "OR UPPER(going) LIKE '%FAST%')"
-            )
-
+        target = self._going_surface_class(going)
+        params = [horse_name]
+        query = "SELECT going, is_winner, is_top3, finish_position FROM race_results WHERE horse_name = ?"
         if before_date:
-            c.execute(f"""
-                SELECT
-                    COUNT(*) as runs,
-                    SUM(is_winner) as wins,
-                    SUM(is_top3) as places,
-                    AVG(CASE WHEN finish_position > 0 THEN finish_position END) as avg_pos
-                FROM race_results
-                WHERE horse_name = ? AND {class_filter}
-                  AND race_date < ?
-            """, (horse_name, before_date))
-        else:
-            c.execute(f"""
-                SELECT
-                    COUNT(*) as runs,
-                    SUM(is_winner) as wins,
-                    SUM(is_top3) as places,
-                    AVG(CASE WHEN finish_position > 0 THEN finish_position END) as avg_pos
-                FROM race_results
-                WHERE horse_name = ? AND {class_filter}
-            """, (horse_name,))
-        row = c.fetchone()
-        return dict(row) if row else {'runs': 0, 'wins': 0, 'places': 0, 'avg_pos': 0}
+            query += " AND race_date < ?"
+            params.append(before_date)
+
+        runs = wins = places = pos_sum = pos_n = 0
+        for r in self.conn.execute(query, params):
+            row_going = (r['going'] or '').strip()
+            if not row_going:
+                continue  # unknown going is not firm-side experience
+            if self._going_surface_class(row_going) != target:
+                continue
+            runs += 1
+            wins += int(r['is_winner'] or 0)
+            places += int(r['is_top3'] or 0)
+            if (r['finish_position'] or 0) > 0:
+                pos_sum += r['finish_position']
+                pos_n += 1
+
+        return {
+            'runs': runs,
+            'wins': wins,
+            'places': places,
+            'avg_pos': round(pos_sum / pos_n, 1) if pos_n else 0,
+        }
 
     def get_horse_going_form(self, horse_name: str, going: str, before_date: str = '') -> dict:
         """Get horse's record on a specific going condition.
@@ -1606,11 +1627,18 @@ class HorseDatabase:
 
     def _real_exotic_pnl(self, race_date: str, race_number: int,
                          bet_type: str, leg_count: int, hit: bool,
-                         actual_top2_nums, actual_top3_nums):
+                         actual_top2_nums, actual_top3_nums, leg_nums=None):
         """Return (pnl, stake) for an exotic bet using real HKJC dividends.
 
         Falls back to (None, stake) if the dividend can't be looked up — caller
         should then fall back to the stored profit_loss column.
+
+        `leg_nums` = the horse numbers WE actually held. Required to price a dead
+        heat: HKJC declares one dividend per tied combination, and we only collect
+        the ones our own legs cover. Without it this credited EVERY combo inside
+        the podium set — on 2026/06/07 R1 (dead heat for 2nd, quinellas 1-3 at $37
+        and 1-8 at $354) a box holding only 1-3 was paid 39.1u instead of 3.7u.
+        Mirrors scripts/validate_hk._score_box.
         """
         combos = self._BET_COMBOS.get(bet_type, {}).get(leg_count)
         if combos is None:
@@ -1619,22 +1647,49 @@ class HorseDatabase:
         if not hit:
             return -stake, stake
         pool = 'QUINELLA' if bet_type == 'QIN' else 'TRIO'
+        size = 2 if bet_type == 'QIN' else 3
         winning_nums = actual_top2_nums if bet_type == 'QIN' else actual_top3_nums
-        nums = sorted(int(n) for n in winning_nums if n)
-        if (bet_type == 'QIN' and len(nums) != 2) or (bet_type == 'TRIO' and len(nums) != 3):
+        nums = {int(n) for n in winning_nums if n}
+        if len(nums) < size:
             return None, stake
-        combo = ','.join(str(n) for n in nums)
-        row = self.conn.execute(
-            "SELECT dividend FROM race_dividends "
-            "WHERE race_date=? AND race_number=? AND pool=? AND combination=?",
-            (race_date, race_number, pool, combo)
-        ).fetchone()
-        if not row:
+        held = {int(n) for n in (leg_nums or []) if n} or None
+
+        # A DEAD HEAT puts more horses on the podium than the pool's combo size,
+        # and HKJC declares a dividend for EACH tied combination. The old exact
+        # `len(nums) != size` guard bailed out to (None, stake); the callers then
+        # fell back to prediction_log.profit_loss, which fill_prediction_results
+        # stores as 0.0 for a HIT — so a winning exotic was booked as a full-stake
+        # loss (audit 2026-07-12).
+        #
+        # Sum only the declared combos OUR LEGS actually cover. Matching against
+        # the podium set instead would pay us for the tied combination we did NOT
+        # hold — a phantom credit, the more dangerous direction of error.
+        rows = self.conn.execute(
+            "SELECT combination, dividend FROM race_dividends "
+            "WHERE race_date=? AND race_number=? AND pool=?",
+            (race_date, race_number, pool)
+        ).fetchall()
+
+        total = 0.0
+        found = False
+        for r in rows:
+            try:
+                combo_nums = {int(x) for x in str(r['combination']).split(',') if x.strip()}
+            except ValueError:
+                continue
+            if len(combo_nums) != size or not combo_nums <= nums:
+                continue
+            if held is not None and not combo_nums <= held:
+                continue  # a winning combination we did not hold
+            div = hkjc_declared_to_unit(r['dividend'])
+            if div is None:
+                return None, stake
+            total += div
+            found = True
+
+        if not found:
             return None, stake
-        dividend = hkjc_declared_to_unit(row[0])
-        if dividend is None:
-            return None, stake
-        return dividend - stake, stake
+        return total - stake, stake
 
     def get_accuracy_summary(self, days: int = 30) -> Dict:
         """Get prediction accuracy summary over the last N days.
@@ -1749,9 +1804,10 @@ class HorseDatabase:
                 hit = bool(rank1[9])
             elif bet in ('QIN', 'TRIO'):
                 legs = [h for h in horses if h[4] == bet]
-                legs_in_top2 = sum(1 for h in legs if h[7] in (1, 2))
-                legs_in_top3 = sum(1 for h in legs if h[9])
-                hit = (legs_in_top2 >= 2) if bet == 'QIN' else (legs_in_top3 >= 3)
+                if bet == 'QIN':
+                    hit = _qin_legs_hit([h[7] for h in legs])
+                else:
+                    hit = sum(1 for h in legs if h[9]) >= 3
             else:
                 hit = False  # unknown bet type
 
@@ -1773,6 +1829,7 @@ class HorseDatabase:
                 pnl, stake = self._real_exotic_pnl(
                     horses[0][0], horses[0][1], bet, leg_count, hit,
                     actual_top2, actual_top3,
+                    leg_nums=[h[12] for h in horses if h[4] == bet],
                 )
                 if pnl is None:
                     pnl = (rank1[10] or 0) / 10.0
@@ -1860,9 +1917,10 @@ class HorseDatabase:
                 hit = bool(rank1[8])
             elif bet in ('QIN', 'TRIO'):
                 legs = [h for h in horses if h[5] == bet]
-                legs_in_top2 = sum(1 for h in legs if h[6] in (1, 2))
-                legs_in_top3 = sum(1 for h in legs if h[8])
-                hit = (legs_in_top2 >= 2) if bet == 'QIN' else (legs_in_top3 >= 3)
+                if bet == 'QIN':
+                    hit = _qin_legs_hit([h[6] for h in legs])
+                else:
+                    hit = sum(1 for h in legs if h[8]) >= 3
             else:
                 hit = False
 
@@ -1873,6 +1931,7 @@ class HorseDatabase:
                 pnl, _ = self._real_exotic_pnl(
                     rank1[0], rank1[1], bet, leg_count, hit,
                     actual_top2, actual_top3,
+                    leg_nums=[h[10] for h in horses if h[5] == bet],
                 )
                 if pnl is None:
                     pnl = (rank1[9] or 0) / 10.0
@@ -1930,9 +1989,10 @@ class HorseDatabase:
                 hit = bool(rank1[7])
             elif bet in ('QIN', 'TRIO'):
                 legs = [h for h in horses if h[4] == bet]
-                legs_in_top2 = sum(1 for h in legs if h[5] in (1, 2))
-                legs_in_top3 = sum(1 for h in legs if h[7])
-                hit = (legs_in_top2 >= 2) if bet == 'QIN' else (legs_in_top3 >= 3)
+                if bet == 'QIN':
+                    hit = _qin_legs_hit([h[5] for h in legs])
+                else:
+                    hit = sum(1 for h in legs if h[7]) >= 3
             else:
                 hit = False
 
@@ -1945,6 +2005,7 @@ class HorseDatabase:
                 pnl, stake = self._real_exotic_pnl(
                     horses[0][0], horses[0][1], bet, leg_count, hit,
                     actual_top2, actual_top3,
+                    leg_nums=[h[9] for h in horses if h[4] == bet],
                 )
                 if pnl is None:
                     pnl = (rank1[8] or 0) / 10.0

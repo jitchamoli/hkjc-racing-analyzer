@@ -51,6 +51,12 @@ from data.odds_tracker import OddsMovementAnalyzer
 
 logger = logging.getLogger(__name__)
 
+# Date the jockey/trainer tier sets in _score_person_from_db were last formed.
+# Scoring a race that ran on or before this date with them would leak a later
+# opinion backwards, so the tier fallback is skipped for those; races after it
+# may use the tiers. Bump this whenever the tier sets are refreshed.
+_TIER_LIST_ASOF = '2026/05/17'
+
 
 # ---------------------------------------------------------------------------
 # Domain models (kept compatible with v4 for betting_optimizer / ml_predictor)
@@ -344,13 +350,20 @@ class BettingStrategy:
                 return score, reason
 
         # Fallback: tier-based defaults.
-        # In backtest (before_date set) the tier sets below are CURRENT-season
-        # opinions (refreshed 2026-05-17) — applying them to a historical race
-        # leaks today's view of a jockey/trainer backwards, the same leak class
-        # the surname-LIKE getter above already guards. Skip straight to the
-        # neutral default so old races get no 2026 tier knowledge. Live
-        # (before_date='') is unaffected.
-        if before_date:
+        # The tier sets below are opinions formed on _TIER_LIST_ASOF, so applying
+        # them to a race that ran BEFORE that date leaks today's view of a
+        # jockey/trainer backwards — the same leak class the surname-LIKE getter
+        # above already guards. Skip to the neutral default for those.
+        #
+        # This used to trigger on `before_date` being set AT ALL. But analyze_horse
+        # always passes before_date=race.date, including live — so the tier fallback
+        # was dead in production, not just in backtest. On the first meeting of a new
+        # season the season-to-date stats are empty AND the tiers were skipped, so
+        # every rider collapsed to default_score: 2026/07/01 scored 146/146 jockeys
+        # at 60.0 — Purton identical to an unknown apprentice, turning ~8% of rule
+        # weight into a field constant. A race on/after the as-of date can use the
+        # tiers without leaking.
+        if before_date and before_date <= _TIER_LIST_ASOF:
             return default_score, f"{role.title()}: {name}"
 
         name_lower = name.lower() if name else ""
