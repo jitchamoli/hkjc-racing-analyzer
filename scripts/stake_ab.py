@@ -39,6 +39,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config
 from betting.dividends import hkjc_declared_to_unit
 
+# Date the CHAOS no-bet filter shipped. A ticket frozen on or after this date
+# already encodes the chaos decision, so re-deriving it here (from the MUTABLE
+# `going` field) would delete bets production actually staked. Older tickets
+# predate the filter and still need the retrospective overlay.
+CHAOS_FILTER_SHIPPED = '2026/05/23'
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOG_PATH = REPO_ROOT / 'tracking_data' / 'stake_ab_log.csv'
 DEFAULT_BANKROLL = float(getattr(config, 'BANKROLL', 10000.0))
@@ -114,9 +120,55 @@ def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
     races per the CHAOS filter shipped 2026-05-23. Set False to compute
     the pre-CHAOS counterfactual for forward-validation of the filter."""
     horses = race.get('horses', [])
+
+    # The frozen ticket ALREADY encodes the chaos decision made at bet time, so
+    # the production variants must never re-derive it. `going` is not a frozen
+    # key: a mid-card going deterioration rewrites it while conviction_tier and
+    # bet_ticket stay frozen, so re-running detect_chaos here DELETED races
+    # production actually staked (2026/07/04 R1+R2: tier HIGH, HK$410 of frozen
+    # bets, going since rewritten to 'Good To Yielding' — dropped from flat_min /
+    # production / flat_1pct / invert while validate_hk --replay still scored
+    # them). flat_min is the user's real-wallet baseline AND the denominator of
+    # every Bayesian verdict here (audit 2026-07-12).
+    #
+    # The chaos COUNTERFACTUAL (apply_chaos=False) is the one caller that still
+    # needs a reconstruction: if the ticket was chaos-suppressed at bet time it
+    # is empty, and the legacy fallback below is the only way to recover what
+    # would otherwise have been bet.
+    bet_ticket = race.get('bet_ticket')
+    has_ticket = isinstance(bet_ticket, dict) and 'bets' in bet_ticket
+
+    # A ticket frozen by a build that ALREADY had the CHAOS filter needs no
+    # retrospective overlay — the decision is baked in. Older tickets predate the
+    # filter and DO need it re-derived, so the pre-CHAOS meetings stay comparable
+    # to current production (that is what the overlay is for).
+    ticket_date = ''
+    if has_ticket:
+        ticket_date = (bet_ticket.get('race_date')
+                       or race.get('date') or race.get('race_date') or '')
+    ticket_is_chaos_aware = bool(ticket_date) and ticket_date >= CHAOS_FILTER_SHIPPED
+
+    if has_ticket and (ticket_is_chaos_aware or not apply_chaos):
+        out: dict[str, int] = {}
+        for b in bet_ticket.get('bets') or []:
+            # Paper bets (EDGE PLACE) are reference-only and never staked. Every
+            # other consumer excludes them (validate_hk, generator._counted_alloc,
+            # template.py); counting them here handed the whole EDGE-race stake to
+            # a $10 reference bet under the `production` variant.
+            if b.get('paper'):
+                continue
+            label = (b.get('label') or '').strip()
+            combos = int(b.get('combos', 0) or 0)
+            if label and combos > 0:
+                # If the same label appears twice (defensive — shouldn't
+                # happen with current build_bet_ticket), take the larger
+                # combo count rather than silently dropping one.
+                out[label] = max(out.get(label, 0), combos)
+        return out
+
     if apply_chaos:
-        # CHAOS suppression — applied retrospectively so historical
-        # race_data JSONs compare apples-to-apples with current production.
+        # Ticket predates the CHAOS filter (or there is none) — re-derive it so
+        # those meetings compare apples-to-apples with current production.
         from betting.conviction import detect_chaos
         is_chaos, _ = detect_chaos(
             going=race.get('going', ''), horses=horses,
@@ -125,20 +177,14 @@ def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
         if is_chaos:
             return {}
 
-    # Ticket-first path — the frozen ticket is the only ground truth for
-    # what was actually staked. Even an empty ticket (recommender produced
-    # no bets) is informative and must NOT trigger the legacy fallback.
-    bet_ticket = race.get('bet_ticket')
-    if isinstance(bet_ticket, dict) and 'bets' in bet_ticket:
-        ticket_bets = bet_ticket.get('bets') or []
+    if has_ticket:
         out: dict[str, int] = {}
-        for b in ticket_bets:
+        for b in bet_ticket.get('bets') or []:
+            if b.get('paper'):
+                continue
             label = (b.get('label') or '').strip()
             combos = int(b.get('combos', 0) or 0)
             if label and combos > 0:
-                # If the same label appears twice (defensive — shouldn't
-                # happen with current build_bet_ticket), take the larger
-                # combo count rather than silently dropping one.
                 out[label] = max(out.get(label, 0), combos)
         return out
 
