@@ -606,7 +606,7 @@ def simulate_bets(races, conn):
         # Recommender-gated quinella P&L (F-03: what the dashboard actually bets)
         # Determine what the recommender chose for this race
         rec_bet_type = _infer_race_bet_type(preds)
-        pnl_rec_q = _simulate_recommender_qin(
+        pnl_rec_q, rec_q_hit = _simulate_recommender_qin(
             rec_bet_type, q_dividend,
             actual_top2, our_top2_names, our_top3_names, our_top4_names,
             box3_q_hit, box4_q_hit, quinella_hit
@@ -688,6 +688,7 @@ def simulate_bets(races, conn):
             'pnl_box4': pnl_box4,
             'rec_bet_type': rec_bet_type,
             'pnl_rec_q': pnl_rec_q,
+            'rec_q_hit': rec_q_hit,
         })
 
     if n_fallback_races > 0:
@@ -735,11 +736,17 @@ def _simulate_recommender_qin(rec_bet_type, q_dividend,
                                box3_hit, box4_hit, straight_hit):
     """Simulate quinella P&L for the recommender-gated bet.
 
-    Returns (pnl, cost) or None if race is skipped.
+    Returns (pnl, hit) or (None, False) if the race is skipped.
     Cost is the stake per combo × number of combos.
+
+    `hit` is returned explicitly because the caller used to re-derive it as
+    `pnl > 0`. A BOX Q4 stakes 6u, so a WINNING quinella paying less than that
+    (HKJC declares plenty at $14-59, i.e. 1.4-5.9u) was reported as a MISS. The
+    bias is directional — it drops exactly the short-dividend hits at the centre
+    of the "boxes hit more but pay less" thesis (audit 2026-07-12).
     """
     if q_dividend is None or rec_bet_type == 'SKIP':
-        return None
+        return None, False
     if rec_bet_type == 'BOX Q4':
         cost = 6.0
         hit = box4_hit
@@ -750,8 +757,8 @@ def _simulate_recommender_qin(rec_bet_type, q_dividend,
         cost = 1.0
         hit = straight_hit
     else:
-        return None
-    return (q_dividend - cost) if hit else (-cost)
+        return None, False
+    return ((q_dividend - cost) if hit else (-cost)), bool(hit)
 
 
 # ---------------------------------------------------------------------------
@@ -905,7 +912,7 @@ def print_exotic_hits(records):
         )
         total_pnl = sum(r['pnl_rec_q'] for r in gated)
         roi = total_pnl / total_stake * 100
-        hits = sum(1 for r in gated if r['pnl_rec_q'] > 0)
+        hits = sum(1 for r in gated if r.get('rec_q_hit'))
         print(f"\n  [{n_gated} races bet]")
         print(f"    Bets: {n_gated}  |  Stake: ${total_stake:.0f}  "
               f"|  P&L: ${total_pnl:+.2f}  |  Hits: {hits} ({hits/n_gated*100:.1f}%)")

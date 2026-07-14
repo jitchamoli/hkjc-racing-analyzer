@@ -437,17 +437,29 @@ def test_recommender_does_not_swap_rank_for_market_fav_or_banker():
     )
 
 
-def test_dump_restore_includes_race_bet_ticket():
-    """GPT-5.5 R13 #4 2026-05-25 — dump/restore must include
-    race_bet_ticket. validate_hk --replay reads this table; omitting it
-    silently zeroes replay numbers after a restore."""
-    dump = (Path(__file__).resolve().parent.parent / 'scripts' / 'dump_db.py').read_text()
+def test_dump_restore_covers_all_persistent_tables():
+    """GPT-5.5 R13 #4 2026-05-25 — dump/restore must include race_bet_ticket
+    (validate_hk --replay reads it; omitting it silently zeroes replay numbers
+    after a restore).
+
+    Extended 2026-07-12: barrier_trials had the same hole — 8,460 rows that the
+    dump never covered and restore_db recreated EMPTY, unrecoverable once a date
+    ages out of the HKJC trials dropdown. restore_db now imports CORE_TABLES
+    from dump_db rather than keeping its own copy, so assert on the shared list
+    (and on the import) instead of grepping for literals in two places.
+    """
+    from scripts.dump_db import CORE_TABLES
+
+    for required in ('race_bet_ticket', 'barrier_trials'):
+        assert required in CORE_TABLES, (
+            f"dump_db.CORE_TABLES must cover {required} — a table missing here "
+            f"is silently lost on restore (.dump of a missing table exits 0)"
+        )
+
     restore = (Path(__file__).resolve().parent.parent / 'scripts' / 'restore_db.py').read_text()
-    assert 'race_bet_ticket' in dump, (
-        "scripts/dump_db.py must include race_bet_ticket in CORE_TABLES"
-    )
-    assert 'race_bet_ticket' in restore, (
-        "scripts/restore_db.py must include race_bet_ticket in drop+verify lists"
+    assert 'from scripts.dump_db import CORE_TABLES' in restore, (
+        "restore_db must drop exactly the tables dump_db backs up — import the "
+        "shared CORE_TABLES rather than re-listing them (they drifted before)"
     )
 
 

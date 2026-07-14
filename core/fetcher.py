@@ -348,13 +348,21 @@ class HKJCParser:
         if going_match:
             race.going = going_match.group(1)
 
-        # Track / Course (e.g. "Turf - \"A\" Course", "All Weather Track")
+        # Track surface + running rail. Real HKJC format is
+        # 'Turf, "C" Course, 1600M' (comma-separated, quoted rail incl. e.g.
+        # "C+3"); AWT carries no rail. The old regex expected a dash
+        # ('Turf - "A"') so it matched only the surface and left race.course
+        # empty — which silently disabled the rail-aware DrawBiasAnalyzer
+        # (2026-07-01 fix). race.track = surface; race.course = rail token.
         track_match = re.search(
-            r'(Turf|All Weather Track|AWT)\s*[-\s]*"?([A-C]+)?"?',
+            r'(Turf|All[\s-]?Weather[\s-]?Track|AWT)'
+            r'(?:[\s,–-]*"([A-C](?:\+\d)?)"\s*Course)?',
             page_text, re.I,
         )
         if track_match:
-            race.track = track_match.group(0).strip()
+            race.track = track_match.group(1).strip()
+            if track_match.group(2):
+                race.course = track_match.group(2).strip()
 
         # Race time
         time_match = re.search(r"(\d{1,2}:\d{2})\s*(pm|am)?", page_text, re.I)
