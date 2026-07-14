@@ -55,7 +55,14 @@ def build_training_data_from_db(
         cutoff_clause = ""
         cutoff_args: tuple = ()
         if years_back:
-            from datetime import datetime, timedelta
+            # NOTE: do NOT re-import datetime/timedelta here. A function-local
+            # `from datetime import ...` inside this `if` makes both names locals
+            # for the WHOLE function, so with years_back falsy every
+            # datetime.strptime() in the per-row loop below raised
+            # UnboundLocalError — swallowed by a bare except, silently dropping
+            # cd_form_prior's +0.15 recent-trip boost on ~18% of training rows
+            # while inference always applied it (ML Rule #2 violation, audit
+            # 2026-07-12). Module-level import at the top of the file covers it.
             max_date = conn.execute("SELECT MAX(race_date) FROM race_results").fetchone()[0]
             if max_date:
                 # Dates are YYYY/MM/DD; parse, subtract years, format back

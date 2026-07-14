@@ -46,6 +46,7 @@ import re
 import sqlite3
 import sys
 from collections import defaultdict
+from itertools import combinations
 from pathlib import Path
 
 import config
@@ -66,6 +67,71 @@ STRATS = [
     ("F4_BOX_5",     4, 5, 5,  "FIRST 4"),
 ]
 CSV_COLS = ["race_date", "races"] + [f"{s[0]}_{k}" for s in STRATS for k in ("stake", "ret", "hits")]
+
+
+def _winning_combo_entries(pos_to_entries: dict, k: int) -> list[list[dict]]:
+    """Every winning k-horse (unordered) combination, DEAD-HEAT aware.
+
+    HKJC declares a dividend for EACH tied combination. A dead heat for 2nd
+    means two winning quinellas (1st+A and 1st+B) — 2026/06/07 R1 really has
+    two declared QUINELLA rows, '1,3' ($37) and '1,8' ($354) — and a box
+    holding all three horses collects BOTH.
+
+    Horses finishing above the cutoff are certain; a tie that straddles the
+    cutoff expands into one combination per way of filling the open slots.
+    Returns [] when there aren't k finishers.
+
+    Both scorers used to key finishers by position (dict) and bail out on a
+    tie: _score_meeting `continue`d past the whole race (survivorship on a
+    POST-race property — it silently deleted a real HK$37 winner from the
+    forward log), while _score_meeting_replay let the tie overwrite a
+    finisher and then booked the stake as a guaranteed loss.
+    """
+    certain: list[dict] = []
+    for pos in sorted(pos_to_entries):
+        group = pos_to_entries[pos]
+        if not group:
+            continue
+        if len(certain) + len(group) <= k:
+            certain = certain + list(group)
+            if len(certain) == k:
+                return [certain]
+        else:
+            slots = k - len(certain)
+            if slots <= 0:
+                break
+            return [certain + list(c) for c in combinations(group, slots)]
+    return []
+
+
+def _combo_div(conn, d, rno, pool, entries: list[dict]) -> float | None:
+    """Dividend per HK$1 for one winning combination (sorted-number key)."""
+    nums = sorted(int(e["number"]) for e in entries)
+    key = ",".join(str(n) for n in nums)
+    row = conn.execute(
+        "SELECT dividend FROM race_dividends WHERE race_date=? AND race_number=? "
+        "AND pool=? AND combination=?", (d, rno, pool, key)).fetchone()
+    return hkjc_declared_to_unit(row[0]) if row else None
+
+
+def _score_box(conn, d, rno, pool, our_ids: set, combos: list[list[dict]],
+               key_fn) -> tuple[bool, float | None]:
+    """(hit, total return per HK$1 staked per combo held).
+
+    Sums EVERY winning combination our box contains — on a dead heat a box can
+    legitimately hold more than one, and HKJC pays each. Returns (True, None)
+    when a winning combo has no dividend row (can't price → caller skips).
+    """
+    won = [c for c in combos if {key_fn(e) for e in c} <= our_ids]
+    if not won:
+        return False, 0.0
+    total = 0.0
+    for c in won:
+        div = _combo_div(conn, d, rno, pool, c)
+        if div is None:
+            return True, None
+        total += div
+    return True, total
 
 
 def _quin_div(conn, d, rno, a, b):
@@ -172,41 +238,30 @@ def _score_meeting(conn, date) -> dict:
         max_box = min(6, len(ranked))
         our = {n: set(str(h["horse_number"]).strip() for h in ranked[:n])
                for n in range(2, max_box + 1)}
-        finishers = {pos: [h for h in horses if h["actual_position"] == pos] for pos in (1, 2, 3, 4)}
-        if not all(len(finishers[p]) == 1 for p in (1, 2)):
-            continue  # need a clean top-2 to price anything
+        # position -> [entries]; a dead heat legitimately puts >1 horse on a
+        # position, so this must be a LIST, never a dict keyed by position.
+        pos_to_entries: dict[int, list[dict]] = {}
+        for h in horses:
+            p = h["actual_position"]
+            if p in (1, 2, 3, 4) and h["horse_number"] is not None:
+                pos_to_entries.setdefault(p, []).append({"number": h["horse_number"]})
+        if sum(len(v) for v in pos_to_entries.values()) < 2:
+            continue  # need two finishers to price even a straight QIN
         n_races += 1
-        actual = {p: {str(finishers[p][0]["horse_number"]).strip()} for p in (1, 2)}
-        a3 = set().union(*[ {str(finishers[p][0]["horse_number"]).strip()} for p in (1,2,3) if finishers[p] ]) \
-            if all(len(finishers[p]) == 1 for p in (1,2,3)) else None
-        a4 = set().union(*[ {str(finishers[p][0]["horse_number"]).strip()} for p in (1,2,3,4) if finishers[p] ]) \
-            if all(len(finishers[p]) == 1 for p in (1,2,3,4)) else None
-        top2_actual = actual[1] | actual[2]
-        top2_nums = sorted(int(finishers[p][0]["horse_number"]) for p in (1, 2))
+
+        def _key(e): return str(e["number"]).strip()
+        combos_by_leg = {k: _winning_combo_entries(pos_to_entries, k) for k in (2, 3, 4)}
 
         for label, leg, box, ncombo, pool in STRATS:
             if box > len(ranked):
                 continue  # not enough ranked horses to fill this box this race
-            if leg == 2:
-                hit = (our[box] >= top2_actual) if box > 2 else (our[2] == top2_actual)
-            elif leg == 3:
-                hit = a3 is not None and a3 <= our[box]
+            combos = combos_by_leg[leg]
+            if combos:
+                hit, div = _score_box(conn, date, rno, pool, our[box], combos, _key)
             else:
-                hit = a4 is not None and a4 <= our[box]
-            # Fetch dividend only on hit — saves SQL round-trips and avoids
-            # needing top-3/top-4 finishers in the no-hit branch.
-            div = None
-            if hit:
-                if pool == "QUINELLA":
-                    div = _quin_div(conn, date, rno, *top2_nums)
-                elif pool == "TRIO":
-                    combo = ",".join(str(n) for n in sorted(
-                        int(finishers[p][0]["horse_number"]) for p in (1, 2, 3)))
-                    div = _exotic_div(conn, date, rno, pool, combo)
-                elif pool == "FIRST 4":
-                    combo = ",".join(str(n) for n in sorted(
-                        int(finishers[p][0]["horse_number"]) for p in (1, 2, 3, 4)))
-                    div = _exotic_div(conn, date, rno, pool, combo)
+                # Fewer known finishers than the bet needs — it cannot have won,
+                # but it WAS staked. Book the loss; don't drop the bet.
+                hit, div = False, 0.0
             if hit and div is None:
                 continue  # can't price a win — skip (rare; ~99.6% coverage)
             acc[label][0] += ncombo
@@ -248,23 +303,39 @@ def _score_meeting_replay(conn, date) -> dict | None:
 
     acc: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0])
     n_races = 0
+    skipped_unverified: list[int] = []
     for row in ticket_rows:
         rno = row["race_number"]
         try:
             ticket = json.loads(row["ticket_json"])
         except (json.JSONDecodeError, TypeError):
             continue
+
+        # Quarantined by scripts/repair_post_off_tickets: the ticket was rebuilt
+        # AFTER the race ran and no pre-off freeze survives, so we cannot say what
+        # was really staked. Scoring it would credit or charge invented bets — the
+        # exact contamination this ledger exists to avoid. Drop it, loudly.
+        if ticket.get("post_off_unverified"):
+            skipped_unverified.append(rno)
+            continue
+
         horses = by_race.get(rno, {})
         # position -> {"name", "number"} so hit logic can key by NUMBER
         # (robust to name casing/spelling drift between ticket legs and
         # prediction_log rows — audit 2026-06-08 #3) and the dividend lookups
         # below can read the saddle number directly.
-        finishers = {
-            h["actual_position"]: {"name": name, "number": h["number"]}
-            for name, h in horses.items()
-            if h["actual_position"] in (1, 2, 3, 4)
-        }
-        if not all(p in finishers for p in (1, 2)):
+        # position -> [entries]. MUST be a list: keying by position let a dead
+        # heat silently overwrite a finisher, which left the position below it
+        # vacant and auto-missed every FIRST 4 ticket bet — while still booking
+        # the stake (audit 2026-07-12).
+        pos_to_entries: dict[int, list[dict]] = {}
+        for name, h in horses.items():
+            p = h["actual_position"]
+            if p in (1, 2, 3, 4):
+                pos_to_entries.setdefault(p, []).append(
+                    {"name": name, "number": h["number"]})
+        finishers = {p: v[0] for p, v in pos_to_entries.items()}  # legacy single-finisher view
+        if sum(len(v) for v in pos_to_entries.values()) < 2:
             continue
         n_races += 1
         # Normalized-name -> number map for the legacy (no-leg-number) fallback.
@@ -293,23 +364,21 @@ def _score_meeting_replay(conn, date) -> dict | None:
             # stake_ab._score_key (not imported — bankroll_guard imports this
             # module, so a back-import would risk a cycle).
             legs_have = all(l.get("number") is not None for l in legs)
-            fin_have = all(finishers[p]["number"] is not None for p in finishers)
+            fin_have = all(e["number"] is not None
+                           for v in pos_to_entries.values() for e in v)
             if legs_have and fin_have:
                 def _key_leg(l): return str(l.get("number")).strip()
-                def _key_fin(p): return str(finishers[p]["number"]).strip()
+                def _key_ent(e): return str(e["number"]).strip()
             else:
                 def _key_leg(l): return (l.get("name") or "").strip().upper()
-                def _key_fin(p): return (finishers[p]["name"] or "").strip().upper()
+                def _key_ent(e): return (e["name"] or "").strip().upper()
 
             leg_ids = {_key_leg(l) for l in legs if _key_leg(l)}
             if not leg_ids:
                 continue
-            top2_ids = {_key_fin(p) for p in (1, 2)}
-            top3_ids = ({_key_fin(p) for p in (1, 2, 3)}
-                        if all(p in finishers for p in (1, 2, 3)) else None)
-            top4_ids = ({_key_fin(p) for p in (1, 2, 3, 4)}
-                        if all(p in finishers for p in (1, 2, 3, 4)) else None)
-            placed_top3 = {_key_fin(p) for p in (1, 2, 3) if p in finishers}
+            # Every horse that placed top-3 — dead heats included.
+            placed_top3 = {_key_ent(e) for p in (1, 2, 3)
+                           for e in pos_to_entries.get(p, [])}
 
             hit = False
             # QPL ticket structure: legs[0] is the pivot, legs[1:] are bankers
@@ -317,17 +386,26 @@ def _score_meeting_replay(conn, date) -> dict | None:
             # one combo and pays independently when both horses place top-3.
             qpl_hit_pairs: list[tuple[dict, dict]] = []   # (pivot_leg, banker_leg)
 
-            if pool == "WIN":
-                hit = (1 in finishers) and _key_fin(1) in leg_ids
+            # `div_per_unit` is the payout PER HK$1 of stake on a winning combo.
+            # Multiply by stake_per_combo to get actual dollar return per combo.
+            div_per_unit: float | None = None
+
+            _BOX_LEGS = {"QUINELLA": 2, "TRIO": 3, "FIRST 4": 4}
+            if pool in _BOX_LEGS:
+                win_combos = _winning_combo_entries(pos_to_entries, _BOX_LEGS[pool])
+                if win_combos:
+                    hit, div_per_unit = _score_box(
+                        conn, date, rno, pool, leg_ids, win_combos, _key_ent)
+                else:
+                    # Fewer known finishers than the bet needs — it cannot have
+                    # won, but it WAS staked. Book the loss, don't drop the bet.
+                    hit, div_per_unit = False, 0.0
+            elif pool == "WIN":
+                hit = any(_key_ent(e) in leg_ids
+                          for e in pos_to_entries.get(1, []))
             elif pool == "PLACE":
-                hit = any(p in finishers and _key_fin(p) in leg_ids
-                          for p in (1, 2, 3))
-            elif pool == "QUINELLA":
-                hit = top2_ids <= leg_ids
-            elif pool == "TRIO":
-                hit = top3_ids is not None and top3_ids <= leg_ids
-            elif pool == "FIRST 4":
-                hit = top4_ids is not None and top4_ids <= leg_ids
+                hit = any(_key_ent(e) in leg_ids
+                          for p in (1, 2, 3) for e in pos_to_entries.get(p, []))
             elif pool == "QIN PLACE":
                 if _key_leg(legs[0]) in placed_top3:
                     for bk_leg in legs[1:]:
@@ -335,28 +413,20 @@ def _score_meeting_replay(conn, date) -> dict | None:
                             qpl_hit_pairs.append((legs[0], bk_leg))
                 hit = len(qpl_hit_pairs) > 0
 
-            # `div_per_unit` is the payout PER HK$1 of stake on a winning combo.
-            # Multiply by stake_per_combo to get actual dollar return per combo.
-            div_per_unit: float | None = None
-            if hit and pool == "QUINELLA":
-                top2_nums = sorted(finishers[p]["number"] for p in (1, 2))
-                div_per_unit = _quin_div(conn, date, rno, *top2_nums)
-            elif hit and pool == "TRIO":
-                combo_str = ",".join(str(n) for n in sorted(
-                    finishers[p]["number"] for p in (1, 2, 3)))
-                div_per_unit = _exotic_div(conn, date, rno, pool, combo_str)
-            elif hit and pool == "FIRST 4":
-                combo_str = ",".join(str(n) for n in sorted(
-                    finishers[p]["number"] for p in (1, 2, 3, 4)))
-                div_per_unit = _exotic_div(conn, date, rno, pool, combo_str)
-            elif hit and pool == "WIN":
+            if hit and pool == "WIN":
                 # 2026-05-25 (Finding #4): price from race_dividends pool='WIN'
                 # for the winning horse number (prediction_log.actual_odds is
                 # populated 0 for all rows, so the old path silently dropped
-                # every WIN replay).
-                winner_num = finishers[1]["number"]
-                if winner_num:
-                    div_per_unit = _win_div(conn, date, rno, winner_num)
+                # every WIN replay). A dead heat for 1st declares a WIN dividend
+                # per winner; sum the ones our legs actually held.
+                win_div_sum = 0.0
+                for e in pos_to_entries.get(1, []):
+                    if _key_ent(e) in leg_ids and e["number"]:
+                        d1 = _win_div(conn, date, rno, e["number"])
+                        if d1:
+                            win_div_sum += d1
+                if win_div_sum:
+                    div_per_unit = win_div_sum
             elif hit and pool == "PLACE":
                 # PLACE pays once per placed leg horse (1-3 placed horses per
                 # race depending on field size). Sum dividends across all leg
@@ -412,6 +482,12 @@ def _score_meeting_replay(conn, date) -> dict | None:
             acc[label][0] += stake
             acc[label][1] += ret
             acc[label][2] += 1 if hit else 0
+
+    if skipped_unverified:
+        # Never drop races silently — a hidden exclusion reads as "we covered
+        # everything" when we did not.
+        print(f"  ⚠ {date}: skipped race(s) {sorted(skipped_unverified)} — ticket was "
+              f"rebuilt post-off with no pre-off freeze on record (unverifiable)")
 
     return {"_races": n_races, "labels": dict(acc)}
 

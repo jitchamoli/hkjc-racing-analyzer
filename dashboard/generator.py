@@ -112,7 +112,38 @@ _FROZEN_PREDICTION_KEYS_HORSE = {'rank', 'win_odds', 'calibrated_prob',
                                   'edge_pp', 'ev_win', 'overlay', 'edge_fires',
                                   'pure_prob', 'market_prob', 'model_rank',
                                   'bet_recommendation', 'confidence',
-                                  'expected_return', 'value_score'}
+                                  'expected_return', 'value_score',
+                                  # Feeds _compute_trio6_decision. Left mutable, it
+                                  # was recomputed from POST-race odds in the
+                                  # post-off window, flipping the TRIO-6 verdict
+                                  # (audit 2026-07-12).
+                                  'steam_move'}
+
+
+def _post_time_passed(race_time_str, race_date: str | None = None) -> bool:
+    """True once a race's scheduled post time (HKT) has passed, for TODAY's card.
+
+    The results-derived flags (`results_available`, `actual_position`) only flip
+    after results_fetcher runs — but `raceday live` runs generation BEFORE it. So
+    for the whole post-off/pre-results window a race that has ALREADY RUN still
+    looks unresolved, and anything keyed on those flags will happily rebuild it
+    from post-race odds. This is the third "has it run?" signal, and the only one
+    available in that window.
+
+    Gated to today's date so regenerating a past or future card never reads a
+    time-of-day as "off'd".
+    """
+    if not race_time_str:
+        return False
+    today_str = datetime.now().strftime('%Y/%m/%d')
+    if race_date is not None and race_date != today_str:
+        return False
+    try:
+        hh, mm = str(race_time_str).split(':')[:2]
+        now = datetime.now()
+        return (now.hour * 60 + now.minute) >= (int(hh) * 60 + int(mm))
+    except (ValueError, AttributeError):
+        return False
 
 
 def _merge_with_existing(json_file: str, new_races: list, race_date: str | None = None) -> list:
@@ -175,18 +206,8 @@ def _merge_with_existing(json_file: str, new_races: list, race_date: str | None 
         # race_date guard added 2026-05-24 (Finding #3): only fires when the
         # file being generated is for today, so historical/future regen doesn't
         # treat past times-of-day as off'd.
-        race_has_offed = False
-        race_time_str = race.get('time') or old_race.get('time')
-        today_str = datetime.now().strftime('%Y/%m/%d')
-        if race_time_str and (race_date is None or race_date == today_str):
-            try:
-                hh, mm = race_time_str.split(':')[:2]
-                now = datetime.now()
-                post_minutes = int(hh) * 60 + int(mm)
-                now_minutes = now.hour * 60 + now.minute
-                race_has_offed = now_minutes >= post_minutes
-            except (ValueError, AttributeError):
-                pass
+        race_has_offed = _post_time_passed(
+            race.get('time') or old_race.get('time'), race_date)
 
         if race_has_offed:
             for key in _FROZEN_PREDICTION_KEYS_RACE:
@@ -261,6 +282,23 @@ def _merge_with_existing(json_file: str, new_races: list, race_date: str | None 
 
         logger.info(f"  Race {race['race_number']}: FROZEN — preserved pre-race "
                     f"predictions + results from prior run")
+
+    # Carry forward any race the fresh fetch dropped. A transient card-fetch
+    # failure makes generate_predictions skip that race; the predictions file is
+    # then overwritten WHOLESALE, and results_fetcher iterates the predictions —
+    # so a settled race's ticket, results and STRIKE badges vanish from the card
+    # and stake_ab silently omits its bets. The DB is unaffected (so replay still
+    # sees it), but the on-disk record is a lie (audit 2026-07-12).
+    new_nums = {r.get('race_number') for r in new_races}
+    dropped = [r for n, r in old_by_num.items() if n not in new_nums]
+    if dropped:
+        logger.warning(
+            f"  {len(dropped)} race(s) missing from this fetch "
+            f"({sorted(r.get('race_number') for r in dropped)}) — carrying the "
+            f"prior version forward rather than dropping them from the card."
+        )
+        new_races = sorted(new_races + dropped,
+                           key=lambda r: r.get('race_number') or 0)
 
     return new_races
 
@@ -389,6 +427,15 @@ def _ticket_add_bet(bets: list, label: str, pool: str, horses: list,
             f"Refusing to add {label} — leg(s) have no live odds: {bad_names}"
         )
         return
+    # Duplicate-leg guard: `combos` is computed from the leg COUNT, so a repeated
+    # horse bills a smaller box at a larger box's price (HKJC prices C(distinct,k)).
+    # Drop rather than de-dupe — a different combo count is a different bet.
+    nums = [h.get('number') for h in horses]
+    if len(set(nums)) != len(nums):
+        logger.warning(
+            f"Refusing to add {label} — duplicate leg(s) in {nums}"
+        )
+        return
     entry = {
         'label': label,
         'pool': pool,
@@ -496,7 +543,15 @@ def _pick_trio6_top6(horses: list, manual_trio6_horse, manual_reason: str = ''):
     top6 = horses[:6]
     # Manual override
     if manual_trio6_horse:
-        if top6[5].get('number') != manual_trio6_horse:
+        # Must not already be in the top 5. Ranks move with odds between the AM
+        # override and the T-6min re-run, so an override horse that has climbed
+        # into the top 5 would be appended a SECOND time — 6 legs, 5 distinct
+        # horses, billed as C(6,3)=20 combos for a box HKJC can only accept as
+        # C(5,3)=10. The stake doubles and validate_hk (which de-dupes legs to a
+        # set but charges combos × unit) scores a TRIO-5 at TRIO-6 money.
+        top5_nums = {h.get('number') for h in horses[:5]}
+        if (top6[5].get('number') != manual_trio6_horse
+                and manual_trio6_horse not in top5_nums):
             manual_h = next((h for h in horses if h.get('number') == manual_trio6_horse), None)
             if manual_h:
                 return horses[:5] + [manual_h], {
@@ -505,7 +560,7 @@ def _pick_trio6_top6(horses: list, manual_trio6_horse, manual_reason: str = ''):
                     'in_number': manual_h.get('number'),
                     'reason': manual_reason,
                 }
-        # else: override matches current rank-6 — no swap
+        # else: override is already in the top 6 — no swap
     # Auto swap
     rank6 = top6[5]
     rank6_odds = rank6.get('win_odds') or 0
@@ -623,10 +678,27 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
     from betting.optimizer import compute_suggested_stake
     import config as _cfg
 
+    def _race_off(r) -> bool:
+        """Has this race run? Three signals, because the first two are blind in
+        the post-off/pre-results window that `raceday live` generates inside.
+
+        Keying only on results (as every site here used to) meant a race that
+        had already run was treated as live: its stake was recomputed and its
+        FROZEN ticket rebuilt from post-race odds. That is how 2026/06/27 R4 and
+        2026/07/01 R2 acquired a BOX TRIO-6 that appears in NO pre-race freeze —
+        and those phantom legs then hit, crediting `validate_hk --replay` with
+        money that was never staked (audit 2026-07-12).
+        """
+        if r.get('results_available'):
+            return True
+        if any(h.get('actual_position') for h in (r.get('horses') or [])):
+            return True
+        return _post_time_passed(r.get('time'), race_date)
+
     # Per-card suggested stake — bankroll-fraction (BOX) or half-Kelly
     # (WIN/BANKER WIN), tier-capped. See compute_suggested_stake.
     for r in all_races:
-        if r.get('results_available'):
+        if _race_off(r):
             continue
         top = (r.get('horses') or [{}])[0]
         stake = compute_suggested_stake(
@@ -676,9 +748,7 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
         logger.debug(f"bankroll guard check skipped: {e}")
 
     def _is_unresolved(r):
-        if r.get('results_available'):
-            return False
-        return not any(h.get('actual_position') for h in (r.get('horses') or []))
+        return not _race_off(r)
 
     if halt_reason:
         for r in all_races:
@@ -697,9 +767,9 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
                   if hasattr(analyzer, 'ml_analyzer') else '')
     ticket_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     for r in all_races:
-        # Freeze ticket once the race has run.
-        race_off = any(h.get('actual_position') for h in (r.get('horses') or []))
-        if r.get('bet_ticket') and (r.get('results_available') or race_off):
+        # Freeze ticket once the race has run — including the post-off window
+        # where no result has landed yet (see _race_off).
+        if r.get('bet_ticket') and _race_off(r):
             continue
         old_ticket = r.get('bet_ticket')
         new_ticket = build_bet_ticket(
@@ -822,8 +892,17 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
         # Mirrors JS at template.py:1966-1980.
         top4 = horses[:4]
         if len(top4) == 4:
+            # "primary" = the recommender's own QIN bets ONLY. Summing legs over
+            # ALL bets swept in the QIN PLACE BANKER added 7 lines above, whose
+            # legs are [top1] + horses[1:4] = exactly the top 4 — so on every
+            # short-favourite race has_non_primary went False and the protection
+            # bet was silently suppressed. QIN PLACE is a different pool, so
+            # nothing covered it. Regression from the 2026-05-24 JS→server port
+            # (cc699ca); the pre-port JS built primaryNums from the recommender
+            # map alone.
             primary_nums = {leg['number']
-                            for b in bets for leg in b.get('legs') or []}
+                            for b in bets if b.get('reason') == 'recommender'
+                            for leg in b.get('legs') or []}
             has_non_primary = any(h.get('number') not in primary_nums for h in top4)
             if has_non_primary or not bets:
                 _ticket_add_bet(bets, 'BOX QIN-4 PROTECTION', 'QUINELLA',

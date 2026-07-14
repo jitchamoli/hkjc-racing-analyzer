@@ -130,9 +130,12 @@ def print_brier_and_calibration(days: int):
     try:
         conn = sqlite3.connect(str(config.DB_PATH))
         if days >= 9999:
+            # `> 0` censored the rows the clamped blend-isotonic legitimately maps
+            # to exactly 0.0 — including a horse we gave 0% that WON. Excluding our
+            # most confident misses flatters the Brier score (audit 2026-07-12).
             rows = conn.execute(
                 "SELECT calibrated_prob, actual_won FROM prediction_log "
-                "WHERE results_filled = 1 AND calibrated_prob > 0"
+                "WHERE results_filled = 1 AND calibrated_prob IS NOT NULL"
             ).fetchall()
         else:
             # Compute the cutoff in local (HKT) time, matching the database.py

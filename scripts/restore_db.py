@@ -68,9 +68,11 @@ def main():
     try:
         # Drop the empty CREATE-TABLE-from-init versions; the dump's CREATE
         # statements will recreate them with the correct schema + indexes.
-        for tbl in ('race_results', 'horses', 'jockey_stats',
-                    'trainer_stats', 'race_dividends', 'prediction_log',
-                    'race_bet_ticket'):
+        # Sourced from dump_db.CORE_TABLES — a local copy of this list is how
+        # barrier_trials came to be dumped-but-not-dropped-and-restored (audit
+        # 2026-07-12). The two lists must never diverge again.
+        from scripts.dump_db import CORE_TABLES
+        for tbl in CORE_TABLES:
             conn.execute(f"DROP TABLE IF EXISTS {tbl}")
         with gzip.open(DUMP_PATH, 'rt') as f:
             conn.executescript(f.read())
