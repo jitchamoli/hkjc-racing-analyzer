@@ -88,6 +88,16 @@ _RESULT_KEYS_HORSE = {'actual_position'}
 _FROZEN_PREDICTION_KEYS_RACE = {'conviction_tier', 'has_edge', 'suggested_stake',
                                  'bankroll', 'odds_age_minutes',
                                  'bet_ticket',
+                                 # Scheduled post time. The fresh fetch can drop
+                                 # it (Playwright fallback / late race-info header
+                                 # — the same source blank that backfill_meeting_
+                                 # going patches for `going`). _merge_with_existing
+                                 # detects the off with an old_race fallback, but
+                                 # finalize_tickets_and_stakes._race_off reads only
+                                 # r.get('time'); an unfrozen blank made it read a
+                                 # run race as live and rebuild its ticket on
+                                 # settled odds (audit 2026-07-12 round 2).
+                                 'time',
                                  # Shape stats — must move in lockstep with the
                                  # frozen horse-level calibrated_prob (audit
                                  # 2026-05-17, ML expert finding HIGH-1)

@@ -62,6 +62,33 @@ def test_freeze_preserves_conviction_tier_on_finished_race(tmp_json):
     assert merged[0]['has_edge'] is False
 
 
+def test_freeze_restores_dropped_post_time(tmp_json):
+    """A race whose fresh fetch DROPS `time` (Playwright fallback / late
+    race-info header — the same failure mode backfill_meeting_going patches for
+    `going`) must keep the frozen post time. Otherwise
+    finalize_tickets_and_stakes._race_off reads `r.get('time')` as '' → False →
+    the race looks live post-off and its ticket rebuilds on settled odds (audit
+    2026-07-12 round 2, second-panel finding)."""
+    assert 'time' in _FROZEN_PREDICTION_KEYS_RACE
+    old = [{
+        'race_number': 1,
+        'time': '00:01',            # scheduled post already past → off'd
+        'conviction_tier': 'HIGH',
+        'bet_ticket': {'bets': [{'label': 'STRAIGHT QIN', 'combos': 1,
+                                 'legs': [{'number': 1}, {'number': 2}]}]},
+        'horses': [{'number': 1, 'rank': 1, 'win_odds': 3.0}],
+    }]
+    _write_old(tmp_json, old)
+    new = [{
+        'race_number': 1,
+        'time': '',                 # fresh fetch dropped it
+        'conviction_tier': 'HIGH',
+        'horses': [{'number': 1, 'rank': 1, 'win_odds': 3.0}],
+    }]
+    merged = _merge_with_existing(tmp_json, new)
+    assert merged[0]['time'] == '00:01', "dropped post time must be restored from freeze"
+
+
 def test_freeze_preserves_shape_fields(tmp_json):
     """Audit fix HIGH-1 — top_2_share/top_3_share must move with frozen probs."""
     old = [{

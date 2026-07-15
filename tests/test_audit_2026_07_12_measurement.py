@@ -176,3 +176,68 @@ def test_real_exotic_pnl_box_holding_both_combos_collects_both():
                                      podium, podium, leg_nums=[1, 3, 8])
     assert stake == 3.0                      # C(3,2) combos
     assert round(pnl, 1) == 36.1             # (3.7 + 35.4) - 3
+
+
+# --------------------------------------------------------------------------
+# Round 3 — defects the SECOND adversarial panel found in the merged audit
+# --------------------------------------------------------------------------
+
+def test_trio_hit_is_dead_heat_aware():
+    """A tie for 3rd flags FOUR horses is_top3 (positions 1,2,3,3). The old
+    inline `>= 3 legs in top-3` scored a box holding {1st, 3a, 3b} but NOT the
+    2nd-place horse as a TRIO hit — it is not: a trio needs 1st AND 2nd AND a
+    3rd. Mirrors the QIN dead-heat fix. Positions-only, full-field aware."""
+    from data.database import _trio_legs_hit
+    # field: #1=1st, #2=2nd, #5 & #7 dead-heat 3rd
+    pos_by_num = {1: 1, 2: 2, 5: 3, 7: 3, 4: 5, 9: 6}
+    assert _trio_legs_hit([1, 5, 7], pos_by_num) is False   # missing 2nd
+    assert _trio_legs_hit([1, 2, 5], pos_by_num) is True    # 1st+2nd+one 3rd
+    assert _trio_legs_hit([1, 2, 7], pos_by_num) is True    # 1st+2nd+other 3rd
+    # clean race: exactly the top-3 required
+    clean = {1: 1, 2: 2, 3: 3, 4: 4}
+    assert _trio_legs_hit([1, 2, 3], clean) is True
+    assert _trio_legs_hit([1, 2, 4], clean) is False
+
+
+def test_trio_hit_dead_heat_for_first_requires_both_winners():
+    """Dead heat for 1st (positions 1,1,3) → podium {1a,1b,3rd}. A 'cover
+    positions 1,2,3' shortcut would wrongly reject this (there is no position
+    2). The winning trio is both co-winners plus the 3rd."""
+    from data.database import _trio_legs_hit
+    pos_by_num = {1: 1, 8: 1, 5: 3, 2: 4}      # #1 & #8 dead-heat 1st, #5 3rd
+    assert _trio_legs_hit([1, 8, 5], pos_by_num) is True
+    assert _trio_legs_hit([1, 5, 2], pos_by_num) is False   # missing co-winner #8
+    # triple dead heat for 1st → podium is the three co-winners
+    triple = {1: 1, 2: 1, 3: 1, 9: 4}
+    assert _trio_legs_hit([1, 2, 3], triple) is True
+    assert _trio_legs_hit([1, 2, 9], triple) is False
+
+
+def test_stake_ab_reconstructs_chaos_suppressed_counterfactual():
+    """`flat_min_pre_chaos` (apply_chaos=False) must recover the bets a
+    freeze-time CHAOS suppression removed — otherwise the CHAOS-filter forward
+    validation silently reads as a no-op. A post-ship EMPTY ticket on a soft
+    card must reconstruct; the real (chaos-ON) variant keeps it empty."""
+    race = {
+        "race_number": 1, "conviction_tier": "HIGH", "going": "SOFT",
+        "class_type": "Class 4",
+        "horses": [{"number": n, "rank": n, "win_odds": 3.0 + n,
+                    "bet_recommendation": "TRIO"} for n in range(1, 11)],
+        "bet_ticket": {"race_date": "2026/07/12", "bets": []},   # chaos-suppressed
+    }
+    # counterfactual: chaos filter removed — bets must reappear
+    assert firing_bets(race, apply_chaos=False) != {}
+    # real variant: chaos ON keeps the suppression
+    assert firing_bets(race, apply_chaos=True) == {}
+
+
+def test_stake_ab_empty_ticket_non_chaos_stays_empty():
+    """An empty ticket on a NON-soft card is genuinely empty (SKIP/no-edge),
+    not chaos — the counterfactual must NOT fabricate bets for it."""
+    race = {
+        "race_number": 1, "conviction_tier": "SKIP", "going": "Good To Firm",
+        "class_type": "Class 4",
+        "horses": [{"number": n, "rank": n, "win_odds": 3.0 + n} for n in range(1, 11)],
+        "bet_ticket": {"race_date": "2026/07/12", "bets": []},
+    }
+    assert firing_bets(race, apply_chaos=False) == {}
