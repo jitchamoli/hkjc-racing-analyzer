@@ -632,6 +632,14 @@ function _placedFromRace(race) {{
     top2: [p1, p2],
     top3: p3 != null ? [p1, p2, p3] : null,
     top4: p4 != null ? [p1, p2, p3, p4] : null,
+    // Every horse that WON (position 1). On a dead heat for 1st both
+    // co-winners are paid WIN, so a BANKER WIN on either must strike — the
+    // scalar p1 above holds only ONE of them (arbitrary sort order), which
+    // mislabelled ~half of dead-heat-for-1st WIN bets as MISS (audit
+    // 2026-07-12 round 3). Mirrors the validate_hk position-1 group test.
+    winners: horsesByPos
+      .filter(function(h) {{ return h.actual_position === 1; }})
+      .map(function(h) {{ return h.number; }}),
     combos2: _winningCombos(horsesByPos, 2),
     combos3: _winningCombos(horsesByPos, 3),
     combos4: _winningCombos(horsesByPos, 4),
@@ -702,7 +710,8 @@ function _betHitsTicket(bet, race) {{
     return true;
   }}
   if (pool === 'WIN' || pool === 'BANKER WIN') {{
-    return !!(legs[0] && legs[0].number === placed.p1);
+    return !!(legs[0] && placed.winners &&
+              placed.winners.indexOf(legs[0].number) >= 0);
   }}
   if (pool === 'PLACE') {{
     if (!placed.placedSet) return false;

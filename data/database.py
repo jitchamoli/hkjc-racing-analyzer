@@ -36,6 +36,49 @@ def _qin_legs_hit(leg_positions) -> bool:
     n2 = sum(1 for p in leg_positions if p == 2)
     return n1 >= 2 or (n1 >= 1 and n2 >= 1)
 
+
+def _trio_legs_hit(held_nums, pos_by_num) -> bool:
+    """Did our TRIO legs contain the actual podium? Dead-heat aware.
+
+    A tie for 3rd flags FOUR horses as top-3 (positions 1,2,3,3), so the old
+    inline "at least 3 legs finished top-3" fabricated a hit on a box holding
+    {1st, 3a, 3b} but NOT the 2nd-place horse — that is a losing trio (a trio
+    needs 1st AND 2nd AND a 3rd). This is the TRIO analogue of the QIN dead-heat
+    fix. Unlike QIN, the podium structure needs the FULL field (a tie for 1st
+    has no position 2), so this takes every finisher's position and enumerates
+    the winning trios exactly as scripts/validate_hk._winning_combo_entries does
+    (audit 2026-07-12 round 2).
+    """
+    from itertools import combinations
+    held = {int(n) for n in held_nums if n}
+    pos_to_nums: dict = {}
+    for num, pos in pos_by_num.items():
+        try:
+            p = int(pos)
+        except (TypeError, ValueError):
+            continue
+        # Only positions 1-3 are podium candidates (the is_top3 semantics). This
+        # also makes the test robust to a partial field: prediction_log need not
+        # carry every finisher, so a non-podium horse at position 4+ must never
+        # be promoted into the podium just because position 3 wasn't logged.
+        if 1 <= p <= 3:
+            pos_to_nums.setdefault(p, []).append(int(num))
+
+    certain: list = []
+    for pos in sorted(pos_to_nums):
+        group = pos_to_nums[pos]
+        if len(certain) + len(group) <= 3:
+            certain = certain + group
+            if len(certain) == 3:
+                return set(certain) <= held
+        else:
+            slots = 3 - len(certain)
+            if slots <= 0:
+                break
+            return any(set(certain).union(c) <= held
+                       for c in combinations(group, slots))
+    return False  # fewer than 3 finishers
+
 # The complete set of real HKJC race distances (turf + AWT, ST + HV). Used to
 # validate ingested distance and to gate the authoritative JSON backfill, so a
 # fragile results-page header parse can never silently store a bogus distance
@@ -1807,7 +1850,8 @@ class HorseDatabase:
                 if bet == 'QIN':
                     hit = _qin_legs_hit([h[7] for h in legs])
                 else:
-                    hit = sum(1 for h in legs if h[9]) >= 3
+                    hit = _trio_legs_hit([h[12] for h in legs],
+                                         {h[12]: h[7] for h in horses})
             else:
                 hit = False  # unknown bet type
 
@@ -1920,7 +1964,8 @@ class HorseDatabase:
                 if bet == 'QIN':
                     hit = _qin_legs_hit([h[6] for h in legs])
                 else:
-                    hit = sum(1 for h in legs if h[8]) >= 3
+                    hit = _trio_legs_hit([h[10] for h in legs],
+                                         {h[10]: h[6] for h in horses})
             else:
                 hit = False
 
@@ -1992,7 +2037,8 @@ class HorseDatabase:
                 if bet == 'QIN':
                     hit = _qin_legs_hit([h[5] for h in legs])
                 else:
-                    hit = sum(1 for h in legs if h[7]) >= 3
+                    hit = _trio_legs_hit([h[9] for h in legs],
+                                         {h[9]: h[5] for h in horses})
             else:
                 hit = False
 
