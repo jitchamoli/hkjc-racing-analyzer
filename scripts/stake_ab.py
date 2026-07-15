@@ -206,7 +206,11 @@ def _reconstruct_bets(race: dict, horses: list) -> dict:
     honest "what would we have bet without chaos" for flat_min_pre_chaos."""
     bet_horse_counts = defaultdict(int)
     for h in horses:
-        b = (h.get('bet_recommendation') or '').strip()
+        # On a CHAOS race build_race_data has nulled bet_recommendation and
+        # stashed the original in pre_chaos_bet_recommendation — read that first
+        # so the counterfactual sees what WOULD have been bet without the filter.
+        b = (h.get('pre_chaos_bet_recommendation')
+             or h.get('bet_recommendation') or '').strip()
         if b and b != 'SKIP':
             bet_horse_counts[b] += 1
 
@@ -234,7 +238,10 @@ def _reconstruct_bets(race: dict, horses: list) -> dict:
         out['QIN PLACE BANKER'] = 3
 
     if len(horses) >= 5:
-        tier = (race.get('conviction_tier') or 'SKIP').upper()
+        # On a CHAOS race tier was overwritten to 'CHAOS'; the pre-chaos tier is
+        # what the triple gate would have seen without the filter.
+        tier = (race.get('pre_chaos_conviction_tier')
+                or race.get('conviction_tier') or 'SKIP').upper()
         field_size = len(horses)
         triple_gate_skip = (tier not in ('EDGE', 'HIGH', 'MED') or
                             field_size < 8)

@@ -59,15 +59,41 @@ def assign_conviction_tier(
 # (≥4 horses 60+d break, Class 5 + 10+ field + top-3 within $2) fired 0 times in
 # the diagnostic — kept as TODO comments awaiting forward evidence.
 SOFT_GOING_KEYWORDS = ('YIELDING', 'SOFT', 'HEAVY', 'WET-SLOW', 'WET SLOW')
+# HKJC short codes for genuinely soft going (Yielding / Yielding-to-Soft / Soft /
+# Heavy / Wet-Slow). Carried separately because none contains a full-word
+# keyword. Live cards use full strings; short codes appear in the frozen Renavon
+# rows and any DB-sourced going, so normalising them here keeps the filter and
+# its diagnostics consistent (5-expert review 2026-07-15).
+_SOFT_GOING_SHORT_CODES = frozenset({'Y', 'YS', 'S', 'H', 'WS'})
 
 
 def detect_chaos(going: str, horses: list = None,
                  class_type: str = '') -> tuple:
-    """Return (is_chaos, trigger_label).
-    Soft-going only; horses + class_type accepted for forward-compat with the
-    two pending triggers (not yet active)."""
-    g = (going or '').upper()
-    if any(kw in g for kw in SOFT_GOING_KEYWORDS):
+    """Return (is_chaos, trigger_label). Fires on genuinely soft going only.
+
+    NARROWED 2026-07-15 (5-expert review) to EXCLUDE 'Good To Yielding' and its
+    short code GY. On 154 full-DB races the favourite strikes ~31% on GY —
+    indistinguishable from firm (31.6%) — and the model's own rank-1 place rate
+    is intact; the genuine degradation lives in the Yielding/Soft/Heavy bucket.
+    GY was only ever caught by the naive `'YIELDING' in 'GOOD TO YIELDING'`
+    substring.
+
+    This is a VARIANCE / DRAWDOWN guard, NOT a demonstrated EV edge: on the BOX
+    products actually staked the soft-vs-firm ROI gap is ~0 (the shipped
+    −45.6pp / posterior-0.996 was small-sample × box-variance; the honest
+    population effect ~−7 to −10pp lives only in straight-favourite bets). Keep
+    it to avoid blow-up meetings; do not count it as edge. See memory:
+    project_chaos_filter_2026-05-23.
+
+    horses + class_type accepted for forward-compat with two pending triggers.
+    """
+    g = (going or '').strip().upper()
+    if not g:
+        return False, ''
+    # Good-To-Yielding behaves like firm — exclude it (and GY) before the scan.
+    if 'GOOD TO YIELDING' in g or g == 'GY':
+        return False, ''
+    if any(kw in g for kw in SOFT_GOING_KEYWORDS) or g in _SOFT_GOING_SHORT_CODES:
         return True, 'soft_going'
     # TODO (await N≥X meetings of evidence):
     #   - 4+ horses returning from 60+d break: fired 0× on 10-meeting backfill
