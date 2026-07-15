@@ -216,16 +216,24 @@ def test_trio_hit_dead_heat_for_first_requires_both_winners():
 def test_stake_ab_reconstructs_chaos_suppressed_counterfactual():
     """`flat_min_pre_chaos` (apply_chaos=False) must recover the bets a
     freeze-time CHAOS suppression removed — otherwise the CHAOS-filter forward
-    validation silently reads as a no-op. A post-ship EMPTY ticket on a soft
-    card must reconstruct; the real (chaos-ON) variant keeps it empty."""
+    validation silently reads as a no-op.
+
+    This uses the REAL post-CHAOS state build_race_data produces: tier is
+    overwritten to 'CHAOS' and every bet_recommendation is nulled, with the
+    pre-chaos intent stashed in `pre_chaos_*`. The 5-expert review (2026-07-15)
+    found the round-3 fix passed only because its fixture used an IMPOSSIBLE
+    state (tier=HIGH + bet_recommendation set on a chaos-empty ticket); the real
+    reconstruction reads the stashed fields."""
     race = {
-        "race_number": 1, "conviction_tier": "HIGH", "going": "SOFT",
-        "class_type": "Class 4",
+        "race_number": 1, "conviction_tier": "CHAOS",
+        "pre_chaos_conviction_tier": "HIGH",
+        "going": "SOFT", "class_type": "Class 4",
         "horses": [{"number": n, "rank": n, "win_odds": 3.0 + n,
-                    "bet_recommendation": "TRIO"} for n in range(1, 11)],
+                    "bet_recommendation": None,
+                    "pre_chaos_bet_recommendation": "TRIO"} for n in range(1, 11)],
         "bet_ticket": {"race_date": "2026/07/12", "bets": []},   # chaos-suppressed
     }
-    # counterfactual: chaos filter removed — bets must reappear
+    # counterfactual: chaos filter removed — bets must reappear from pre_chaos_*
     assert firing_bets(race, apply_chaos=False) != {}
     # real variant: chaos ON keeps the suppression
     assert firing_bets(race, apply_chaos=True) == {}

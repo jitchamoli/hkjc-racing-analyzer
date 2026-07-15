@@ -18,8 +18,9 @@ from scripts.stake_ab import firing_bets
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize('going', [
-    'YIELDING', 'GOOD TO YIELDING', 'SOFT', 'HEAVY', 'WET-SLOW', 'WET SLOW',
-    'yielding',  # case-insensitive
+    'YIELDING', 'SOFT', 'HEAVY', 'WET-SLOW', 'WET SLOW', 'YIELDING TO SOFT',
+    'yielding',                     # case-insensitive
+    'Y', 'YS', 'S', 'H', 'WS',      # HKJC short codes for genuine soft
 ])
 def test_detect_chaos_fires_on_soft_going(going):
     is_chaos, reason = detect_chaos(going=going)
@@ -29,8 +30,13 @@ def test_detect_chaos_fires_on_soft_going(going):
 
 @pytest.mark.parametrize('going', [
     'GOOD', 'GOOD TO FIRM', 'FIRM', 'FAST', '', None,
+    # NARROWED 2026-07-15: Good-To-Yielding behaves like firm (fav strike ~31%
+    # over 154 races) — it must NOT trigger CHAOS. Nor its short code GY.
+    'GOOD TO YIELDING', 'Good To Yielding', 'GY',
+    'WET FAST', 'WF',               # AWT fast surface — not soft
+    'G', 'GF', 'GD',                # firm-ish short codes
 ])
-def test_detect_chaos_does_not_fire_on_firm_or_missing(going):
+def test_detect_chaos_does_not_fire_on_firm_gy_or_missing(going):
     is_chaos, reason = detect_chaos(going=going)
     assert is_chaos is False
     assert reason == ''
@@ -92,10 +98,25 @@ def test_firing_bets_does_not_suppress_on_firm_going():
     assert len(fires) > 0, "Expected bets to fire on non-CHAOS race"
 
 
-@pytest.mark.parametrize('going', ['GOOD TO YIELDING', 'SOFT', 'HEAVY'])
+@pytest.mark.parametrize('going', ['YIELDING', 'SOFT', 'HEAVY', 'WET SLOW'])
 def test_firing_bets_suppresses_all_soft_going_variants(going):
     race = _race(going=going)
     assert firing_bets(race) == {}
+
+
+def test_firing_bets_does_not_suppress_good_to_yielding():
+    """NARROWED 2026-07-15: Good-To-Yielding behaves like firm and must bet
+    normally — the naive 'YIELDING' substring used to suppress it."""
+    assert len(firing_bets(_race(going='GOOD TO YIELDING'))) > 0
+
+
+def test_wet_awt_going_is_chaos_end_to_end():
+    """AWT 'Wet Slow' must suppress: the fetcher now parses it (it was dropped
+    to '' before) and detect_chaos catches WET SLOW."""
+    assert detect_chaos(going='Wet Slow')[0] is True
+    assert firing_bets(_race(going='Wet Slow')) == {}
+    # 'Wet Fast' is a FAST surface — must NOT suppress.
+    assert detect_chaos(going='Wet Fast')[0] is False
 
 
 # ---------------------------------------------------------------------------
