@@ -148,7 +148,7 @@ def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
                        or race.get('date') or race.get('race_date') or '')
     ticket_is_chaos_aware = bool(ticket_date) and ticket_date >= CHAOS_FILTER_SHIPPED
 
-    if has_ticket and (ticket_is_chaos_aware or not apply_chaos):
+    def _from_ticket() -> dict:
         out: dict[str, int] = {}
         for b in bet_ticket.get('bets') or []:
             # Paper bets (EDGE PLACE) are reference-only and never staked. Every
@@ -166,29 +166,44 @@ def firing_bets(race: dict, apply_chaos: bool = True) -> dict[str, int]:
                 out[label] = max(out.get(label, 0), combos)
         return out
 
-    if apply_chaos:
-        # Ticket predates the CHAOS filter (or there is none) — re-derive it so
-        # those meetings compare apples-to-apples with current production.
+    def _chaos_fires() -> bool:
         from betting.conviction import detect_chaos
         is_chaos, _ = detect_chaos(
             going=race.get('going', ''), horses=horses,
             class_type=race.get('class_type', ''),
         )
-        if is_chaos:
-            return {}
+        return is_chaos
+
+    if has_ticket and (ticket_is_chaos_aware or not apply_chaos):
+        out = _from_ticket()
+        # CHAOS counterfactual (apply_chaos=False): a ticket left EMPTY because
+        # chaos fired at freeze time must be reconstructed to recover what would
+        # have been bet WITHOUT the filter — otherwise flat_min_pre_chaos silently
+        # equals flat_min and the filter reads as a validated no-op on the first
+        # soft-going meeting (audit 2026-07-12 round 3). An empty ticket for any
+        # non-chaos reason (SKIP tier, no edge), or any non-empty ticket, is
+        # authoritative. Under apply_chaos=True the empty ticket is the correct
+        # suppression and is returned as-is.
+        if out or apply_chaos or not _chaos_fires():
+            return out
+        return _reconstruct_bets(race, horses)
+
+    if apply_chaos and _chaos_fires():
+        # Ticket predates the CHAOS filter (or there is none) — re-derive it so
+        # those meetings compare apples-to-apples with current production.
+        return {}
 
     if has_ticket:
-        out: dict[str, int] = {}
-        for b in bet_ticket.get('bets') or []:
-            if b.get('paper'):
-                continue
-            label = (b.get('label') or '').strip()
-            combos = int(b.get('combos', 0) or 0)
-            if label and combos > 0:
-                out[label] = max(out.get(label, 0), combos)
-        return out
+        return _from_ticket()
 
-    # ----- legacy fallback (pre-bet_ticket JSONs only) -----------------
+    return _reconstruct_bets(race, horses)
+
+
+def _reconstruct_bets(race: dict, horses: list) -> dict:
+    """Legacy fallback (pre-bet_ticket JSONs, and the CHAOS counterfactual
+    recovery): reconstruct the fire list from horse-level `bet_recommendation`
+    + production gates. Applies every gate EXCEPT the CHAOS filter, so it is the
+    honest "what would we have bet without chaos" for flat_min_pre_chaos."""
     bet_horse_counts = defaultdict(int)
     for h in horses:
         b = (h.get('bet_recommendation') or '').strip()
