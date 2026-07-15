@@ -1345,9 +1345,17 @@ def build_race_data(race, analyses, race_date, db, odds_db, analyzer=None):
         class_type=race_data.get('class_type', ''),
     )
     if is_chaos:
+        # Preserve the pre-chaos intent BEFORE the wipe so
+        # scripts/stake_ab._reconstruct_bets can build the flat_min_pre_chaos
+        # counterfactual — the whole point of that forward variant. The override
+        # sets tier=CHAOS and nulls every bet_recommendation, which otherwise
+        # leaves the reconstruction with nothing to read, silently making the
+        # CHAOS-filter validation a no-op (5-expert review 2026-07-15).
+        race_data['pre_chaos_conviction_tier'] = race_data.get('conviction_tier')
         race_data['conviction_tier'] = 'CHAOS'
         race_data['chaos_reason'] = chaos_reason
         for h in horses_json:
+            h['pre_chaos_bet_recommendation'] = h.get('bet_recommendation')
             h['bet_recommendation'] = None
 
     # Quinella dividend estimate + EV (only when QIN bet is active).

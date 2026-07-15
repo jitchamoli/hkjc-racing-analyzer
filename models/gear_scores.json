@@ -1,72 +1,72 @@
 {
   "_meta": {
-    "baseline_win_rate": 0.082735,
-    "n_total_rows": 56941,
+    "baseline_win_rate": 0.082716,
+    "n_total_rows": 57196,
     "prior_strength": 200,
     "lift_to_score": 2.0
   },
   "B": {
     "score": 49,
-    "n": 16029,
-    "win_rate": 0.0768,
-    "lift_pp": -0.59,
-    "effective_lift_pp": -0.59
+    "n": 16092,
+    "win_rate": 0.0769,
+    "lift_pp": -0.58,
+    "effective_lift_pp": -0.58
   },
   "TT": {
     "score": 50,
-    "n": 25925,
+    "n": 26068,
     "win_rate": 0.0833,
     "lift_pp": 0.06,
     "effective_lift_pp": 0.06
   },
   "V": {
     "score": 49,
-    "n": 2651,
-    "win_rate": 0.0785,
+    "n": 2665,
+    "win_rate": 0.0784,
     "lift_pp": -0.43,
     "effective_lift_pp": -0.4
   },
   "H": {
     "score": 51,
-    "n": 5692,
-    "win_rate": 0.0898,
-    "lift_pp": 0.7,
-    "effective_lift_pp": 0.68
+    "n": 5715,
+    "win_rate": 0.0894,
+    "lift_pp": 0.67,
+    "effective_lift_pp": 0.65
   },
   "P": {
     "score": 51,
-    "n": 1317,
-    "win_rate": 0.0866,
-    "lift_pp": 0.38,
-    "effective_lift_pp": 0.33
+    "n": 1322,
+    "win_rate": 0.0862,
+    "lift_pp": 0.35,
+    "effective_lift_pp": 0.31
   },
   "CP": {
     "score": 49,
-    "n": 4922,
-    "win_rate": 0.075,
-    "lift_pp": -0.78,
-    "effective_lift_pp": -0.75
+    "n": 4955,
+    "win_rate": 0.0751,
+    "lift_pp": -0.76,
+    "effective_lift_pp": -0.73
   },
   "XB": {
     "score": 48,
-    "n": 5577,
-    "win_rate": 0.0746,
-    "lift_pp": -0.81,
+    "n": 5607,
+    "win_rate": 0.0745,
+    "lift_pp": -0.82,
     "effective_lift_pp": -0.79
   },
   "BO": {
-    "score": 56,
-    "n": 185,
-    "win_rate": 0.1405,
-    "lift_pp": 5.78,
-    "effective_lift_pp": 2.78
+    "score": 55,
+    "n": 188,
+    "win_rate": 0.1383,
+    "lift_pp": 5.56,
+    "effective_lift_pp": 2.69
   },
   "SR": {
     "score": 48,
-    "n": 1722,
-    "win_rate": 0.0691,
-    "lift_pp": -1.36,
-    "effective_lift_pp": -1.22
+    "n": 1728,
+    "win_rate": 0.0689,
+    "lift_pp": -1.38,
+    "effective_lift_pp": -1.24
   },
   "B1": {
     "score": 48,
