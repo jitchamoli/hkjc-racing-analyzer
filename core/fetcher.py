@@ -340,9 +340,14 @@ class HKJCParser:
                 gm = re.search(r"Group\s*\d", page_text)
                 race.class_type = gm.group(0)
 
-        # Going (e.g. "Good", "Good to Firm", "Yielding")
+        # Going (e.g. "Good", "Good to Firm", "Yielding", AWT "Wet Slow").
+        # Vocabulary MUST match data/scraper.py's results parser — the AWT wet
+        # terms were missing here, so a genuinely wet all-weather card came back
+        # going='' at bet time and escaped the CHAOS filter (5-expert review
+        # 2026-07-15). Longer alternatives first so they win the alternation.
         going_match = re.search(
-            r"(Good to Firm|Good to Yielding|Good|Firm|Yielding|Soft|Heavy)",
+            r"(Good to Firm|Good to Yielding|Yielding to Soft|Wet Slow|Wet Fast|"
+            r"Good|Firm|Yielding|Soft|Heavy)",
             page_text, re.I,
         )
         if going_match:
