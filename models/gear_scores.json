@@ -1,58 +1,58 @@
 {
   "_meta": {
-    "baseline_win_rate": 0.082716,
-    "n_total_rows": 57196,
+    "baseline_win_rate": 0.08273,
+    "n_total_rows": 57295,
     "prior_strength": 200,
     "lift_to_score": 2.0
   },
   "B": {
     "score": 49,
-    "n": 16092,
-    "win_rate": 0.0769,
-    "lift_pp": -0.58,
-    "effective_lift_pp": -0.58
+    "n": 16119,
+    "win_rate": 0.0771,
+    "lift_pp": -0.57,
+    "effective_lift_pp": -0.56
   },
   "TT": {
     "score": 50,
-    "n": 26068,
+    "n": 26124,
     "win_rate": 0.0833,
     "lift_pp": 0.06,
     "effective_lift_pp": 0.06
   },
   "V": {
     "score": 49,
-    "n": 2665,
-    "win_rate": 0.0784,
-    "lift_pp": -0.43,
-    "effective_lift_pp": -0.4
+    "n": 2672,
+    "win_rate": 0.0786,
+    "lift_pp": -0.41,
+    "effective_lift_pp": -0.38
   },
   "H": {
     "score": 51,
-    "n": 5715,
-    "win_rate": 0.0894,
-    "lift_pp": 0.67,
-    "effective_lift_pp": 0.65
+    "n": 5724,
+    "win_rate": 0.0893,
+    "lift_pp": 0.65,
+    "effective_lift_pp": 0.63
   },
   "P": {
     "score": 51,
-    "n": 1322,
+    "n": 1323,
     "win_rate": 0.0862,
-    "lift_pp": 0.35,
-    "effective_lift_pp": 0.31
+    "lift_pp": 0.34,
+    "effective_lift_pp": 0.3
   },
   "CP": {
-    "score": 49,
-    "n": 4955,
-    "win_rate": 0.0751,
-    "lift_pp": -0.76,
-    "effective_lift_pp": -0.73
+    "score": 48,
+    "n": 4967,
+    "win_rate": 0.0749,
+    "lift_pp": -0.78,
+    "effective_lift_pp": -0.75
   },
   "XB": {
     "score": 48,
-    "n": 5607,
-    "win_rate": 0.0745,
-    "lift_pp": -0.82,
-    "effective_lift_pp": -0.79
+    "n": 5617,
+    "win_rate": 0.0744,
+    "lift_pp": -0.83,
+    "effective_lift_pp": -0.8
   },
   "BO": {
     "score": 55,
@@ -62,11 +62,11 @@
     "effective_lift_pp": 2.69
   },
   "SR": {
-    "score": 48,
-    "n": 1728,
-    "win_rate": 0.0689,
-    "lift_pp": -1.38,
-    "effective_lift_pp": -1.24
+    "score": 47,
+    "n": 1733,
+    "win_rate": 0.0687,
+    "lift_pp": -1.41,
+    "effective_lift_pp": -1.26
   },
   "B1": {
     "score": 48,
