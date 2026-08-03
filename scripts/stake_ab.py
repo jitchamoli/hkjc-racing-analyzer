@@ -38,6 +38,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config
 from betting.dividends import hkjc_declared_to_unit
+from betting.dead_heat import (
+    group_by_position, winning_combo_entries, winning_name_sets,
+)
 
 # Date the CHAOS no-bet filter shipped. A ticket frozen on or after this date
 # already encodes the chaos decision, so re-deriving it here (from the MUTABLE
@@ -73,6 +76,53 @@ VARIANTS = {
                    # production's edge is the RAMP or the SKIP filter.
                    'skip_tiers': {'SKIP'}, 'apply_chaos': True,
                    'label': 'flat HK$10/combo + skip SKIP-tier'},
+    'straight_qin_only': {
+                   'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
+                   'skip_tiers': set(), 'apply_chaos': True,
+                   # Collapse every WIN-quinella bet to a single 1-combo
+                   # STRAIGHT QIN and stake nothing on other pools. Holdout
+                   # diagnostic 2026-08-03 (634 races, real dividends): box
+                   # widening destroys ROI monotonically — straight -1.0%,
+                   # box-3 -12.9%, box-4 -15.9%, box-5 -18.6%, because each
+                   # widening adds combos faster than hit-rate x dividend.
+                   # Paired bootstrap P(straight beats box-4) = 0.899: below
+                   # the 0.95 ship bar, hence a forward-logged variant rather
+                   # than a production gate change. Stake matches flat_min so
+                   # the comparison isolates STRUCTURE, not stake size.
+                   'qin_straight_only': True,
+                   'label': 'straight QIN only (1 combo)'},
+    'edge_filtered': {
+                   'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
+                   'skip_tiers': set(), 'apply_chaos': True,
+                   # Bet only races where the model's TOP pick looks underpriced
+                   # by >= this many points vs its market-implied probability.
+                   # Changes WHICH races we bet, never the order of horses
+                   # inside them — pure-model ordering is measurably the worst
+                   # available (6.3% top-2 capture vs 13.6% blended).
+                   #
+                   # RE-GROUNDED 2026-08-03 after pure_prob was calibrated. The
+                   # original "+44.1% on n=109" note is withdrawn: it was
+                   # computed from the analyzer's UNNORMALISED model_probability
+                   # (per-race sums 0.70-2.32) against a normalised market prob,
+                   # so it was not an edge at all. On the calibrated scale the
+                   # 634-race holdout says:
+                   #
+                   #   floor   races  %kept  hits    ROI
+                   #   none      634  100%     86   -1.0%
+                   #   -10pp     322   51%     38   +5.1%
+                   #     0pp      91   14%     10  -10.3%
+                   #   +2.5pp     68   11%      7  -21.5%
+                   #    +5pp      44    7%      6   +9.7%
+                   #   +10pp      16    3%      2  +63.8%
+                   #
+                   # Non-monotone, and the positive cells are 6/44 and 2/16 —
+                   # noise by the repo's own n<50 discount rule. So the sweep
+                   # supports NO floor, and the threshold is deliberately left
+                   # at its original +5.0 rather than tuned on burned holdout
+                   # data. Forward log is the only honest verdict; note this
+                   # keeps only ~7% of races, so N accrues slowly.
+                   'min_edge_pp': 5.0,
+                   'label': 'bet only edge >= +5pp races'},
     'production': {'mode': 'race_ramp_split',
                    'ramp': {'EDGE': 0.030, 'HIGH': 0.020, 'MED': 0.010,
                             'LOW': 0.005, 'SKIP': 0.000},
@@ -256,11 +306,68 @@ def _reconstruct_bets(race: dict, horses: list) -> dict:
 # Stake sizing per variant
 # ---------------------------------------------------------------------------
 
+# WIN-quinella pool labels. QIN PLACE BANKER is the QUINELLA PLACE pool and is
+# deliberately NOT here — different pool, different dividend, not a substitute.
+_WIN_QIN_LABELS = ('STRAIGHT QIN', 'BOX QIN-')
+
+
+def restrict_to_straight_qin(fires: dict[str, int]) -> dict[str, int]:
+    """Collapse every WIN-quinella bet to one 1-combo STRAIGHT QIN.
+
+    Drops all other pools (TRIO / FIRST 4 / QUINELLA PLACE) entirely. Returns
+    a NEW dict — the caller's `fires` is shared across variants in the scoring
+    loop and must not be mutated.
+    """
+    has_qin = any(lbl == 'STRAIGHT QIN' or lbl.startswith('BOX QIN-')
+                  for lbl in fires)
+    return {'STRAIGHT QIN': 1} if has_qin else {}
+
+
+# pure_prob was recalibrated on this date (scripts/calibrate_pure). Before it,
+# stored edge_pp carried a structural ~-10pp from an under-confident pure_prob;
+# after it, edge_pp means what it says. The two are not on the same ruler, so
+# edge_filtered may only read meetings from the cutover onward.
+PURE_CALIBRATION_DATE = '2026/08/03'
+
+# Private key stamped onto each race dict by evaluate_date so the edge floor can
+# tell which scale it is reading. Race dicts in the frozen JSON carry no date of
+# their own — only the payload does.
+MEETING_DATE_KEY = '_meeting_date'
+
+
+def race_meets_edge_floor(race: dict, min_edge_pp: float) -> bool:
+    """True when our RANK-1 horse looks underpriced by >= min_edge_pp.
+
+    Only rank 1 counts: a large edge on an outsider is the inflated-noise
+    signature documented for rank-4+ CLV, not a reason to back the race.
+
+    Refuses meetings scored before PURE_CALIBRATION_DATE, and meetings with no
+    date stamp (unknown provenance is treated as pre-calibration). Mixing the
+    two edge_pp scales would make the variant's fire rate a function of the
+    recalibration date rather than of the market.
+    """
+    meeting_date = race.get(MEETING_DATE_KEY)
+    if not meeting_date or str(meeting_date) < PURE_CALIBRATION_DATE:
+        return False
+    horses = race.get('horses') or []
+    top = next((h for h in horses if (h.get('rank') or 99) == 1), None)
+    if top is None:
+        return False
+    edge = top.get('edge_pp')
+    return edge is not None and float(edge) >= min_edge_pp
+
+
 def variant_stakes(variant: str, race: dict, fires: dict[str, int],
                    bankroll: float) -> dict[str, float]:
     """Return {bet_label: total_stake_HKD} for this variant on this race."""
     cfg = VARIANTS[variant]
     tier = (race.get('conviction_tier') or 'SKIP').upper()
+
+    # Race-selection filter (edge_filtered): skip races the model does not
+    # think are mispriced. Applies before any staking mode.
+    min_edge = cfg.get('min_edge_pp')
+    if min_edge is not None and not race_meets_edge_floor(race, min_edge):
+        return {bt: 0.0 for bt in fires}
 
     # Tier-level skip filter (applies to any variant). Used by
     # flat_min_skip_aware to mirror production's SKIP-on-SKIP-tier behavior
@@ -329,6 +436,55 @@ def _lookup_dividend(conn, race_date: str, race_no: int, pool: str,
     return div if div is not None else 0.0
 
 
+def _pool_dividend(conn, race_date: str, race_no: int, pool: str, k: int,
+                   finishers: list[dict], held: set) -> float:
+    """Declared payout per $1 for `pool`, summed over every winning
+    k-combination our selection actually held.
+
+    HKJC declares one dividend PER tied combination, so a box straddling a dead
+    heat collects more than one. The legacy scorers built the lookup key by
+    slicing a position-sorted list — `sorted(finishers[:3], ...)` — which picks
+    one arbitrary member of a tied group, so a box holding BOTH winning trios
+    was paid for one of them (or, if the arbitrary slice produced a combination
+    that was never declared, for none). On 2026/06/24 R8 the two declared TRIOs
+    were $318 and $348: a box holding all four horses is owed $666 per $10
+    combo and was credited at most $348.
+
+    Mirrors validate_hk._score_box and stake_ab._score_pool.
+    """
+    from betting.dead_heat import group_by_position, winning_combo_entries
+
+    if len(finishers) < k:
+        return 0.0
+    pos = group_by_position(finishers)
+    total = 0.0
+    for entries in winning_combo_entries(pos, k):
+        if not {e['name'] for e in entries} <= held:
+            continue
+        nums = sorted(int(e['number']) for e in entries
+                      if e.get('number') is not None)
+        if len(nums) != k:
+            continue
+        total += _lookup_dividend(conn, race_date, race_no, pool,
+                                  ','.join(str(n) for n in nums))
+    return total
+
+
+def _quinella_dividend(conn, race_date: str, race_no: int,
+                       finishers: list[dict], held: set) -> float:
+    """Declared QUINELLA payout per $1 over every winning pair we held.
+
+    This used to read `race['qin_top_pair_dividend']`, which the dashboard
+    writes as a PRE-RACE Harville ESTIMATE, not a payout — 133 of 176 race
+    JSONs carry qin_dividend_source == 'harville'. 2026/05/13 R6 really paid
+    $321.50/HK$10 and was scored at $24.18; 2026/04/26 R11 paid $119.50 and was
+    booked as a LOSS. Every other pool already used the declared dividend.
+    Returns 0.0 when nothing is declared — an unpriced win, never an estimate.
+    """
+    return _pool_dividend(conn, race_date, race_no, 'QUINELLA', 2,
+                          finishers, held)
+
+
 def hit_and_dividend(bet_label: str, race: dict, conn,
                      race_date: str) -> tuple[bool, float]:
     """Return (hit, dividend_per_$1_stake) for this bet on this race.
@@ -337,9 +493,18 @@ def hit_and_dividend(bet_label: str, race: dict, conn,
     if not finishers:
         return False, 0.0
 
-    actual_top2 = _names(finishers[:2])
-    actual_top3 = _names(finishers[:3])
-    actual_top4 = _names(finishers[:4])
+    # DEAD-HEAT AWARE (code review 2026-08-03). These used to be
+    # `_names(finishers[:k])` — slicing a position-sorted list, which picks one
+    # arbitrary horse out of a tied group and books a genuinely winning box as
+    # a miss. HKJC pays EVERY tied combination, so a race can have more than
+    # one winning pair/trio. Same enumeration validate_hk uses.
+    win2 = winning_name_sets(finishers, 2)
+    win3 = winning_name_sets(finishers, 3)
+    win4 = winning_name_sets(finishers, 4)
+    # PLACE asks "did our pick finish top-3", so a horse tied FOR 3rd counts —
+    # filter on position rather than slicing.
+    actual_top3 = {h['name'] for h in finishers
+                   if (h.get('actual_position') or 99) <= 3}
     top1 = finishers[0]['name']
     top1_won = True  # we already have the winner
 
@@ -401,49 +566,38 @@ def hit_and_dividend(bet_label: str, race: dict, conn,
                     hit_any = True
         return (hit_any, div_sum)
 
-    # QIN family — straight & box
+    # QIN family — straight & box. `win2` holds EVERY winning pair (more than
+    # one when a dead heat straddles 2nd), so a straight bet hits if our pair
+    # is any of them and a box hits if it contains any of them.
     if bet_label == 'STRAIGHT QIN':
-        picks = _top_picks(race, 2)
-        hit = _names(picks) == actual_top2
-        div = race.get('qin_top_pair_dividend')
-        unit_div = hkjc_declared_to_unit(div) if div else None
-        return (hit, unit_div if unit_div is not None else 0.0)
+        picks = _names(_top_picks(race, 2))
+        hit = picks in win2
+        return (hit, _quinella_dividend(conn, race_date, rn, finishers, picks))
     if bet_label.startswith('BOX QIN-'):
         n = int(bet_label.split('-')[1])
         box = _names(_top_picks(race, n))
-        hit = actual_top2.issubset(box)
-        div = race.get('qin_top_pair_dividend')
-        unit_div = hkjc_declared_to_unit(div) if div else None
-        return (hit, unit_div if unit_div is not None else 0.0)
+        hit = any(w <= box for w in win2)
+        return (hit, _quinella_dividend(conn, race_date, rn, finishers, box))
 
     # TRIO family
     if bet_label == 'STRAIGHT TRIO':
         picks = _top_picks(race, 3)
-        hit = _names(picks) == actual_top3
-        if len(finishers) < 3:
-            return (hit, 0.0)
-        combo = ','.join(str(h['number']) for h in
-                         sorted(finishers[:3], key=lambda h: h['number']))
-        return (hit, _lookup_dividend(conn, race_date, rn, 'TRIO', combo))
+        hit = _names(picks) in win3
+        return (hit, _pool_dividend(conn, race_date, rn, 'TRIO', 3,
+                                    finishers, _names(picks)))
     if bet_label.startswith('BOX TRIO-'):
         n = int(bet_label.split('-')[1])
         box = _names(_top_picks(race, n))
-        hit = actual_top3.issubset(box)
-        if len(finishers) < 3:
-            return (hit, 0.0)
-        combo = ','.join(str(h['number']) for h in
-                         sorted(finishers[:3], key=lambda h: h['number']))
-        return (hit, _lookup_dividend(conn, race_date, rn, 'TRIO', combo))
+        hit = any(w <= box for w in win3)
+        return (hit, _pool_dividend(conn, race_date, rn, 'TRIO', 3,
+                                    finishers, box))
 
-    # F4 BOX-5 — actual top-4 ⊂ our top-5
+    # F4 BOX-5 — a winning top-4 ⊂ our top-5
     if bet_label == 'F4 BOX-5':
         picks5 = _names(_top_picks(race, 5))
-        hit = actual_top4.issubset(picks5)
-        if len(finishers) < 4:
-            return (hit, 0.0)
-        combo = ','.join(str(h['number']) for h in
-                         sorted(finishers[:4], key=lambda h: h['number']))
-        return (hit, _lookup_dividend(conn, race_date, rn, 'FIRST 4', combo))
+        hit = any(w <= picks5 for w in win4)
+        return (hit, _pool_dividend(conn, race_date, rn, 'FIRST 4', 4,
+                                    finishers, picks5))
 
     return False, 0.0
 
@@ -474,11 +628,33 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
 
     _key = _score_key(legs, finishers)
     leg_ids = {_key(leg) for leg in legs if _key(leg)}
-    actual_top2 = {_key(h) for h in finishers[:2]}
-    actual_top3 = {_key(h) for h in finishers[:3]}
-    actual_top4 = {_key(h) for h in finishers[:4]}
+    # PLACE asks "did this leg finish top-3", so tied-for-3rd counts.
+    actual_top3 = {_key(h) for h in finishers
+                   if (h.get('actual_position') or 99) <= 3}
     top1 = _key(finishers[0])
     rn = race['race_number']
+
+    pos_groups = group_by_position(finishers)
+
+    def _score_pool(k: int, pool_name: str) -> tuple[bool, float]:
+        """Sum EVERY winning k-combination our legs hold (dead-heat aware).
+
+        HKJC declares a dividend per tied combination, so a box straddling a
+        dead heat can collect more than one. Mirrors validate_hk._score_box.
+        """
+        combos = winning_combo_entries(pos_groups, k)
+        won = [c for c in combos if {_key(e) for e in c} <= leg_ids]
+        if not won or len(finishers) < k:
+            return (False, 0.0)
+        total = 0.0
+        for combo in won:
+            nums = sorted(int(e['number']) for e in combo
+                          if e.get('number') is not None)
+            if len(nums) != k:
+                continue
+            total += _lookup_dividend(conn, race_date, rn, pool_name,
+                                      ','.join(str(n) for n in nums))
+        return (True, total)
 
     if pool in ('WIN', 'BANKER WIN'):
         first_id = _key(legs[0]) if legs else None
@@ -504,34 +680,13 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
         return (placed_any, placed_div)
 
     if pool == 'QUINELLA':
-        if not actual_top2.issubset(leg_ids) or len(finishers) < 2:
-            return (False, 0.0)
-        nums = sorted(int(h['number']) for h in finishers[:2]
-                       if h.get('number') is not None)
-        if len(nums) != 2:
-            return (True, 0.0)
-        return (True, _lookup_dividend(conn, race_date, rn, 'QUINELLA',
-                                         f"{nums[0]},{nums[1]}"))
+        return _score_pool(2, 'QUINELLA')
 
     if pool == 'TRIO':
-        if not actual_top3.issubset(leg_ids) or len(finishers) < 3:
-            return (False, 0.0)
-        nums = sorted(int(h['number']) for h in finishers[:3]
-                       if h.get('number') is not None)
-        if len(nums) != 3:
-            return (True, 0.0)
-        return (True, _lookup_dividend(conn, race_date, rn, 'TRIO',
-                                         ','.join(str(n) for n in nums)))
+        return _score_pool(3, 'TRIO')
 
     if pool == 'FIRST 4':
-        if not actual_top4.issubset(leg_ids) or len(finishers) < 4:
-            return (False, 0.0)
-        nums = sorted(int(h['number']) for h in finishers[:4]
-                       if h.get('number') is not None)
-        if len(nums) != 4:
-            return (True, 0.0)
-        return (True, _lookup_dividend(conn, race_date, rn, 'FIRST 4',
-                                         ','.join(str(n) for n in nums)))
+        return _score_pool(4, 'FIRST 4')
 
     if pool == 'QIN PLACE':
         # QPL BANKER ticket: legs[0] = pivot, legs[1:] = bankers. Each
@@ -601,9 +756,18 @@ def evaluate_date(race_date: str, bankroll: float) -> int:
           f"{'Stake':>8} {'Hit':>4} {'Div/$1':>8} {'P&L':>9}")
     print('-' * 78)
 
+    pre_cal_meeting = race_date < PURE_CALIBRATION_DATE
+    if pre_cal_meeting:
+        print(f"  note: {race_date} predates the pure_prob recalibration "
+              f"({PURE_CALIBRATION_DATE}); edge_filtered stakes nothing here — "
+              f"its stored edge_pp is on the old, under-confident scale.")
+
     for race in races:
         if not race.get('results_available'):
             continue
+        # Race dicts carry no date of their own; stamp the meeting's so
+        # race_meets_edge_floor can tell which edge_pp scale it is reading.
+        race[MEETING_DATE_KEY] = race_date
         rn = race.get('race_number')
         # Ticket-first scoring map: when bet_ticket exists, score each
         # bet from its pool + legs via _score_bet_from_ticket so the
@@ -616,6 +780,8 @@ def evaluate_date(race_date: str, bankroll: float) -> int:
             # Fires now per-variant — `flat_min_pre_chaos` bypasses the
             # CHAOS filter; everyone else applies it (production behavior).
             fires = firing_bets(race, apply_chaos=cfg.get('apply_chaos', True))
+            if cfg.get('qin_straight_only'):
+                fires = restrict_to_straight_qin(fires)
             if not fires:
                 continue
             stakes = variant_stakes(variant, race, fires, bankroll)
@@ -688,7 +854,24 @@ def _per_meeting_winner(rows, variant, baseline='flat_min') -> list[int]:
     """For each meeting in chronological order, returns 1 if `variant`
     cumulative ROI through that meeting > `baseline` cumulative ROI, else 0.
     """
-    meetings = sorted(set(r['race_date'] for r in rows))
+    # Only meetings where BOTH arms actually staked are evidence. A variant
+    # that stakes nothing scores _roi == 0, which "beats" a losing baseline —
+    # manufacturing a confident posterior out of no bets at all.
+    #
+    # The 2026-08-03 guard only caught a variant that had NEVER staked, which
+    # left the far more likely case wide open: a variant that bets on SOME
+    # meetings collected a free win on every meeting it sat out. Simulated,
+    # `edge_filtered` reached posterior 0.885 off ONE real (losing) meeting and
+    # crossed the 0.95 SHIP bar on about four — entirely on meetings it skipped.
+    def _staked(v, date):
+        return any(r['variant'] == v and r['race_date'] == date
+                   and float(r['stake_hkd']) > 0 for r in rows)
+
+    meetings = sorted({r['race_date'] for r in rows
+                       if _staked(variant, r['race_date'])
+                       and _staked(baseline, r['race_date'])})
+    if not meetings:
+        return []
     out = []
     for end_date in meetings:
         through = [r for r in rows if r['race_date'] <= end_date]
@@ -762,13 +945,27 @@ def report() -> int:
     print("Bayesian posterior P(variant beats flat_min over meetings)")
     print("  SHIP if >= 0.95, KILL if <= 0.05, else WATCH")
     print('-' * 84)
+    pending = []
     for v in VARIANTS:
         if v == 'flat_min':
+            continue
+        # A variant with NO logged rows must not be scored. _per_meeting_winner
+        # compares cumulative ROI, and a variant that never bet has ROI 0 —
+        # which "beats" a losing baseline in most meetings and printed a
+        # confident-looking posterior for a variant that has never placed a
+        # bet (found 2026-08-03 when straight_qin_only was added and reported
+        # meetings-won=14/23, posterior=0.846, on zero rows).
+        e = by_var.get(v)
+        if not e or e['stake'] <= 0:
+            pending.append(v)
             continue
         winners = _per_meeting_winner(rows, v, baseline='flat_min')
         ver = _bayesian_verdict(winners)
         print(f"  {v:<12} meetings-won={ver['wins']}/{ver['n']}  "
               f"posterior={ver['posterior']:.3f}  → {ver['verdict']}")
+    if pending:
+        print()
+        print(f"  Awaiting first data (no bets logged yet): {', '.join(pending)}")
     return 0
 
 

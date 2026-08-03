@@ -183,10 +183,43 @@ _BLEND_CALIBRATOR_LOADED = False
 # ~80 of 7662 samples above 0.30 (n=3 above 0.60), so PAVA collapses the entire
 # tail to one noise-driven value (blended 0.40 and 0.95 both map to ~0.737).
 # We clamp the calibrator INPUT here so every strong favourite maps to iso(0.30)
-# instead — monotone, conservative (caps over-statement, never inflates), and
-# provably untouched below 0.30 (the well-calibrated 99%). Apply-time only: no
-# refit, pickle unchanged. See 2-expert calibration-tail review 2026-06-27.
+# instead. Apply-time only: no refit, pickle unchanged.
+#
+# CORRECTION 2026-08-04 — this comment used to claim the clamp was
+# "conservative (caps over-statement, never inflates), and provably untouched
+# below 0.30". BOTH claims are false, and a review measured it:
+#   * The renormalisation at the end of calibrate_probabilities runs AFTER the
+#     clamp, so capping the favourite and dividing by a now-smaller sum
+#     redistributes the removed mass. Over 247 production races, the 14 races
+#     containing a clamped runner saw non-favourites inflated by a mean factor
+#     of 1.265x (max 1.705x) — so it is untouched below 0.30 only in races with
+#     nothing above it.
+#   * On those 14, the clamped favourite was assigned iso(0.30)=0.3636 -> 0.421
+#     after renormalisation, against an ACTUAL win rate of 8/14 = 57.1%. The
+#     unclamped isotonic would have said 0.529 — closer to truth. So on
+#     out-of-sample data the clamp moved calibration the WRONG way for its own
+#     target population (n=14: directionally clear, low power).
+# The diagnosis (a sparse tail must not be trusted) is right; flattening is a
+# crude remedy. A monotone parametric tail in logit space would preserve both
+# monotonicity and the sum. Left in place pending that work — changing it moves
+# production probabilities and needs its own forward validation.
 _BLEND_CAL_INPUT_CLIP = 0.30
+
+# Weight of the plateau tie-break term (see calibrate_probabilities). Small
+# enough that calibration is unchanged to ~1e-6, large enough to survive
+# float renormalisation and order horses inside an isotonic step.
+_BLEND_CAL_TIEBREAK_EPS = 1e-6
+
+
+def reset_blend_calibrator_cache() -> None:
+    """Drop the cached calibrator so the next call re-reads the artifact.
+
+    Needed by tests, and by any caller that rewrites blend_calibrator.pkl
+    mid-process (e.g. an auto-learn refit) and wants the new fit picked up.
+    """
+    global _BLEND_CALIBRATOR, _BLEND_CALIBRATOR_LOADED
+    _BLEND_CALIBRATOR = None
+    _BLEND_CALIBRATOR_LOADED = False
 
 
 def _load_blend_calibrator():
@@ -200,13 +233,19 @@ def _load_blend_calibrator():
     global _BLEND_CALIBRATOR, _BLEND_CALIBRATOR_LOADED
     if _BLEND_CALIBRATOR_LOADED:
         return _BLEND_CALIBRATOR
-    _BLEND_CALIBRATOR_LOADED = True
+    # NOTE: _BLEND_CALIBRATOR_LOADED is set only on a SUCCESSFUL resolution
+    # (loaded, or the file legitimately absent). Setting it up-front — as this
+    # did until 2026-08-03 — meant one bad read, missing sidecar or checksum
+    # mismatch cached None for the life of the process, so every later race ran
+    # uncalibrated and a repaired artifact was never re-read. Failures now
+    # retry on the next call; the happy path still reads the file once.
     import hashlib, pickle
     from pathlib import Path
     repo_root = Path(__file__).resolve().parent.parent
     pkl = repo_root / 'models' / 'blend_calibrator.pkl'
     sha = pkl.with_suffix('.sha256')
     if not pkl.exists():
+        _BLEND_CALIBRATOR_LOADED = True
         return None
     try:
         raw = pkl.read_bytes()
@@ -230,6 +269,7 @@ def _load_blend_calibrator():
             return None
         payload = pickle.loads(raw)
         _BLEND_CALIBRATOR = payload.get('calibrator')
+        _BLEND_CALIBRATOR_LOADED = True
     except Exception as e:
         logger.error(f"blend_calibrator load failed — pipeline running uncalibrated: {e}")
         _BLEND_CALIBRATOR = None
@@ -334,8 +374,34 @@ def calibrate_probabilities(analyses, field_size: int = 12,
             # recommender sort (assign_bet_recommendations), NOT here — so
             # calibrated_prob magnitudes stay clean (a constant calibrator still
             # yields a uniform distribution).
-            blended = list(iso.predict(
-                _np.minimum(_np.array(blended), _BLEND_CAL_INPUT_CLIP)))
+            pre_iso = _np.array(blended)
+            calibrated = iso.predict(_np.minimum(pre_iso, _BLEND_CAL_INPUT_CLIP))
+            # Tie-break term uses the PRE-BLEND model probability, not the
+            # blended one. Measured 2026-08-03: breaking plateau ties by the
+            # blended value instead made things WORSE across the board
+            # (top-pick Brier 0.1920 -> 0.1963, straight QIN -0.81% -> -2.05%,
+            # TRIO-5 -15.6% -> -19.8%). Globally the blend outranks the pure
+            # model, but INSIDE an isotonic plateau the blend has declared the
+            # horses indistinguishable, and there the model's independent
+            # opinion is the only signal left — which is precisely what the
+            # pre_blend_rank tiebreak in the recommender was already doing.
+            # This keeps that ordering and additionally removes the degenerate
+            # exact-0.0 outputs (4.4% of live runners) the raw isotonic emits.
+            tie_term = _np.array(cal_probs)
+            # Restore a strict ordering inside each isotonic plateau. The
+            # fitted isotonic is a coarse step function (48 distinct levels on
+            # [0, 0.30]; everything below 0.0202 maps to exactly 0.0), so
+            # distinct horses collapsed onto identical calibrated_prob — 4.4%
+            # of runners hit exactly 0.0, and exact ties straddled the BOX
+            # TRIO-5 leg cutoff in ~45% of races. Where that happened
+            # calibrated_prob had no resolving power and the cutoff fell
+            # through to the pre_blend_rank tiebreak, i.e. the PURE model
+            # picked the legs — measurably the weakest ranking source
+            # available (6.3% quinella capture vs 13.6% blended).
+            #
+            # The term is vanishing (1e-6), so calibration is preserved and the
+            # isotonic's own ordering always dominates.
+            blended = list(calibrated + _BLEND_CAL_TIEBREAK_EPS * tie_term)
         except Exception as e:
             # Fall through to raw blended values on any sklearn error, but
             # surface the failure — silent skip means every prediction is
@@ -358,15 +424,30 @@ def apply_calibrated_probs(analyses, calibrated_probs: List[float]) -> None:
 
     F-19: On the first call (model_probability is still None), snapshot the
     PRE-blend pure model probability into model_probability so accuracy.py
-    can measure the model itself, not the model+market blend. At call time
-    a.combined_probability still holds the pre-blend value (set by analyzer);
-    we capture it BEFORE overwriting with the post-blend calibrated value.
-    Without this, accuracy reports systematically credit the market for the
-    model's perceived performance.
+    can measure the model itself, not the model+market blend. Without this,
+    accuracy reports systematically credit the market for the model's
+    perceived performance.
+
+    2026-08-03 — that snapshot used to be `a.combined_probability`, which was
+    a SECOND, divergent definition of "the model's own opinion": it read the
+    isotonic-CALIBRATED ml_prob, was never normalised across the field (real
+    per-race sums ran 0.70-2.32), and never saw the pure calibrator. The
+    dashboard's pure_prob did all three. Same claim, different number — over
+    15 production meetings rank-1 read 0.198 here vs 0.133 there, and an edge
+    computed by subtracting a properly-scaled market prob from an unnormalised
+    model prob is not an edge at all. Now delegated to the one implementation.
+    Diagnostic only: nothing in the recommender, ticket, or leg-selection path
+    reads model_probability, so ranking is unaffected.
     """
+    from betting.edge_calculator import pure_probs_from_analyses
+
+    if any(a.model_probability is None for a in analyses):
+        pure = pure_probs_from_analyses(analyses)
+    else:
+        pure = None
     for i, a in enumerate(analyses):
         if a.model_probability is None:
-            a.model_probability = a.combined_probability  # pre-blend snapshot
+            a.model_probability = pure[i]  # pre-blend snapshot
         # value_score MUST stay pinned to the pre-blend combined_prob (set
         # by analyzer.py before calibration). Per CLAUDE.md ML Rule 4 it
         # reflects the model's independent opinion. Overwriting with the

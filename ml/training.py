@@ -22,6 +22,92 @@ from ml.features import FeatureEngineering, extract_class_rank, parse_age_score
 
 logger = logging.getLogger(__name__)
 
+# A truncated ingest can leave a race with only its leading finishers. If a
+# race holds this fraction (or less) of a typical HK card, treat it as
+# truncated rather than as a genuinely tiny field.
+_TYPICAL_HK_FIELD = 12
+
+# Absolute floor below which stored rows cannot be a real HK card. The smallest
+# genuine HK field in the 5y window is 5 runners (verified: 0 venue-present
+# races with <= 4 finishers), so this can only ever catch a broken ingest.
+_MIN_CREDIBLE_HK_FIELD = 4
+
+
+def estimate_field_size(rows) -> int:
+    """Best estimate of how many horses actually contested the race.
+
+    Training used to take the COUNT(*) of stored rows, but inference uses the
+    DECLARED field (`len(all_horses)`), so any dropped finisher taught the
+    model a field size it will never see at prediction time — a CLAUDE.md ML
+    Rule 2 violation on `field_size` and `field_rel_draw` (~0.080 combined
+    importance), and it skews `weight_vs_field`'s median too.
+
+    `max(finish_position)` is a lower bound that survives dropped rows (if
+    someone finished 12th, at least 12 went round), so take the larger of that
+    and the row count. Dead heats repeat a position and so cannot inflate it;
+    non-finishers stored at position 0 still count as rows.
+    """
+    if not rows:
+        return 0
+    positions = [int(r.get("finish_position") or 0) for r in rows]
+    return max(len(rows), max(positions, default=0))
+
+
+def looks_truncated(rows, typical_field: int = _TYPICAL_HK_FIELD) -> bool:
+    """True when these rows are not a complete HK race card.
+
+    Detects a bad INGEST, not a small FIELD. This originally gated on
+    `estimate_field_size <= 6`, which dropped 53 races from the training window
+    — and 38 of them were GENUINE: complete Group/Class fields with contiguous
+    saddle numbers and declared HKJC dividends (2026/03/01 R7 Group One, 6
+    runners; 2023/03/19 R7 G1, 5 runners; …). That removed ~11% of all Group
+    races, and because a 6-horse field has a ~1/6 base win rate vs ~1/12 the
+    deletion correlated with the label — MNAR deletion on a feature the model
+    uses (`field_size`, `field_rel_draw`). It also raised the minimum training
+    field to 7, so inference on a 6-runner Group race extrapolated outside
+    training support. One train/predict skew traded for another.
+
+    The artefact's real signature (memory: project_overseas_runner_rows) is a
+    MISSING VENUE — HK horses racing abroad (Dubai/Saudi/Japan) are stored
+    without one. 15 such races; every one of the 38 genuine short fields has a
+    venue.
+
+    `typical_field` is retained for signature compatibility but no longer gates
+    on the declared field: the floor below is absolute. The smallest genuine HK
+    field in five years is 5 runners (0 venue-present races have <= 4), so a
+    <= 4 backstop cannot delete a real race while still catching a future
+    truncated ingest.
+    """
+    if not rows:
+        return False
+    if not any(str(r.get('venue') or '').strip() for r in rows):
+        return True
+    return estimate_field_size(rows) <= _MIN_CREDIBLE_HK_FIELD
+
+
+def drop_unusable_races(rows):
+    """Remove every row belonging to a race `looks_truncated` rejects.
+
+    THE single source of truth for "which races exist". Fold boundaries are cut
+    over the surviving race groups, so training and backtest must agree on this
+    list or their folds silently drift apart: training filtered, backtest did
+    not, and backtest's "truly-virgin" 85-100% test fold ended up containing
+    races that were inside the model's 70-85% CALIB fold — in-sample for the
+    win/place isotonics. Small (0.48%) when caught, but unbounded in principle
+    and completely unguarded.
+
+    Call this from every consumer that slices folds. See
+    tests/test_fold_population_parity_2026_08_04.py.
+    """
+    by_race = {}
+    for r in rows:
+        d = r if isinstance(r, dict) else dict(r)
+        key = (d.get('race_date', ''), d.get('race_number', 0))
+        by_race.setdefault(key, []).append(d)
+    keep = [k for k, rs in by_race.items() if not looks_truncated(rs)]
+    keep_set = set(keep)
+    return [d for k in by_race for d in by_race[k] if k in keep_set]
+
 
 def build_training_data_from_db(
     years_back: Optional[int] = None,
@@ -88,13 +174,19 @@ def build_training_data_from_db(
 
         logger.info(f"Building training data from {len(rows)} real race results")
 
-        # Precompute field sizes and median weights per race
-        field_sizes = {}
+        # Precompute field sizes and median weights per race.
+        # field_size comes from estimate_field_size (row count OR the highest
+        # finish position, whichever is larger) rather than a bare COUNT(*):
+        # inference uses the DECLARED field, so a dropped finisher used to
+        # teach the model a field size it can never see (ML Rule 2). Races
+        # whose whole tail is missing can't be repaired that way and are
+        # skipped — see `_truncated` below.
+        race_rows = {}
         race_weights = {}  # race_key → list of carried weights
         for row in rows:
             r = dict(row)
             rk = f"{r.get('race_date', '')}-{r.get('race_number', 0)}"
-            field_sizes[rk] = field_sizes.get(rk, 0) + 1
+            race_rows.setdefault(rk, []).append(r)
             wt = r.get('weight', 0) or 0
             try:
                 wt = int(wt)
@@ -102,6 +194,16 @@ def build_training_data_from_db(
                 wt = 0
             if wt > 0:
                 race_weights.setdefault(rk, []).append(wt)
+        field_sizes = {rk: estimate_field_size(rs) for rk, rs in race_rows.items()}
+        _truncated = {rk for rk, rs in race_rows.items() if looks_truncated(rs)}
+        _recovered = sum(1 for rk, rs in race_rows.items()
+                         if field_sizes[rk] > len(rs))
+        if _recovered or _truncated:
+            logger.info(
+                f"field_size: recovered {_recovered} race(s) from dropped "
+                f"finishers; skipping {len(_truncated)} truncated race(s)"
+            )
+
         field_median_weights = {}
         for rk, wts in race_weights.items():
             sw = sorted(wts)
@@ -203,6 +305,12 @@ def build_training_data_from_db(
             race_date = r.get('race_date', '')
             race_no = r.get('race_number', 0)
             race_key = f"{race_date}-{race_no}"
+            # Skip races whose tail was lost to a partial ingest — their
+            # field_size (and therefore field_rel_draw and the weight_vs_field
+            # median) cannot be reconstructed, so training on them teaches
+            # values inference will never produce.
+            if race_key in _truncated:
+                continue
             field_size = field_sizes.get(race_key, 12)
             going = r.get('going', '') or ''
 
@@ -244,18 +352,18 @@ def build_training_data_from_db(
                 jockey_name, [], conn=conn, before_date=race_date,
             )
 
-            # Feature 5: trainer win rate (Task #51 fix — same call as inference)
+            # Feature 4: trainer win rate (Task #51 fix — same call as inference)
             # Caps at 0.5 (was capped at 0.4 in old in-memory path).
             trainer_name = r.get('trainer', '') or ''
             feat_trainer = FeatureEngineering.calculate_trainer_win_rate(
                 trainer_name, [], conn=conn, before_date=race_date,
             )
 
-            # Feature 6: field size — clipped to [0,1]; legacy data has stray
+            # Feature 5: field size — clipped to [0,1]; legacy data has stray
             # rows with field_size > 14 (oversize fields pre-2000s).
             feat_field_size = min(1.0, field_size / 14.0)
 
-            # Feature 7: field-relative draw — clipped to [0,1]; old DB rows
+            # Feature 6: field-relative draw — clipped to [0,1]; old DB rows
             # had draw values up to 28 from oversize legacy fields, which
             # pushed feat_field_draw to 15.0 in training (matches F-16 fix
             # already applied at inference in features.py).
@@ -263,7 +371,7 @@ def build_training_data_from_db(
 
             # prior_pace, adjusted_speed dropped v6.4 — see feature_schema.py.
 
-            # Feature 8: C&D form — removed +0.2 floor (matches features.py).
+            # Feature 7: C&D form — removed +0.2 floor (matches features.py).
             # Unraced=0.5; 0-for-N=0.0; recent winning trip (≤180d) +0.15.
             prior_at_dist = [p for p in prior if p.get('distance') == distance]
             if prior_at_dist:
@@ -286,14 +394,14 @@ def build_training_data_from_db(
             else:
                 feat_cd = 0.5
 
-            # Feature 9: class level (INVERTED: Group 1/2=1.0, Class 1=0.8, Class 5=0.0)
+            # Feature 8: class level (INVERTED: Group 1/2=1.0, Class 1=0.8, Class 5=0.0)
             # Uses extract_class_rank to handle G1/G2/G3/GRIFFIN/4YO correctly.
             class_type = r.get('class_type', '') or ''
             class_rank_or_none = extract_class_rank(class_type)
             class_rank = class_rank_or_none if class_rank_or_none is not None else 3
             feat_class = max(0.0, min(1.0, 1.0 - class_rank / 5.0))
 
-            # Feature 10: freshness
+            # Feature 9: freshness
             # 87.7% of race_results rows have days_since_last_run = 0/null (it's
             # only populated for races where predictions were generated). Falling
             # back to 0.5 there made freshness a near-constant feature (0.0
@@ -314,7 +422,7 @@ def build_training_data_from_db(
             else:
                 feat_freshness = 0.5
 
-            # Feature 11: going performance — Bayesian-smoothed (matches features.py).
+            # Feature 10: going performance — Bayesian-smoothed (matches features.py).
             # Beta(0.08, 5) prior on win rate, Beta(0.25, 5) on top3 rate.
             # Bucket-match going strings (mirrors features.py + _going_bucket)
             # so a prior race stored as 'GOOD TO FIRM' is recognised as the
@@ -334,7 +442,7 @@ def build_training_data_from_db(
                     top3_rate_smooth = (g_top3 + 0.25 * 5) / (n + 5)
                     going_perf = min(1.0, win_rate_smooth * 0.6 * 5 + top3_rate_smooth * 0.4 * 2)
 
-            # Feature 12: weight vs field (carried weight relative to field median)
+            # Feature 11: weight vs field (carried weight relative to field median)
             weight_vs_field = 0.5
             weight_val = r.get('weight', 0) or 0
             try:
@@ -349,7 +457,7 @@ def build_training_data_from_db(
                 else:
                     weight_vs_field = max(0.0, min(1.0, 1.0 - (weight_val - 108) / 27.0))
 
-            # Feature 13: jockey-horse cooperation
+            # Feature 12: jockey-horse cooperation
             jockey_name = r.get('jockey', '') or ''
             if prior and jockey_name:
                 prior_same_jh = [p for p in prior if p.get('jockey', '') == jockey_name]
@@ -364,7 +472,7 @@ def build_training_data_from_db(
 
             # distance_pb_ratio dropped v6.4 — see feature_schema.py.
 
-            # Feature 14: last start margin (top importance ~16% in v6.4)
+            # Feature 13: last start margin (top importance ~16% in v6.4)
             feat_last_margin = 0.5
             if prior:
                 last_race = prior[-1]
@@ -374,7 +482,7 @@ def build_training_data_from_db(
                 elif m > 0:
                     feat_last_margin = max(0.1, min(0.9, 1.0 - m / 12.0))
 
-            # Feature 15: class change — ternary {dropping=1.0, same=0.5, rising=0.0}
+            # Feature 14: class change — ternary {dropping=1.0, same=0.5, rising=0.0}
             # Uses extract_class_rank — Group races (G1/G2/G3) properly placed
             # above the digit ladder, GRIFFIN/MAIDEN/4YO handled. M15: when
             # EITHER side is unknown (current race or prior had unparseable
@@ -397,7 +505,7 @@ def build_training_data_from_db(
 
             # days_since_last_win (was Feature 19) dropped Wave 2c — see feature_schema.py.
 
-            # Feature 16: horse body weight change (fitness signal)
+            # Feature 15: horse body weight change (fitness signal)
             feat_hw_change = 0.5
             hw_current = r.get('horse_weight', 0) or 0
             if prior and hw_current > 0:

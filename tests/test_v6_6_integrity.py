@@ -153,8 +153,16 @@ class TestRebuildStatsCurrentSeasonFilter:
     leaderboards with inflated wins. v6.6 filters to race_date >= season
     start (Jul 1)."""
 
-    def test_current_season_start_format(self):
-        start = HorseDatabase._current_season_start()
+    def test_current_season_start_format(self, tmp_path):
+        # _current_season_start became an INSTANCE method 2026-08-03: it now
+        # derives the season from MAX(race_date) instead of datetime.now(), so
+        # rebuild_stats is deterministic and doesn't collapse to a stub window
+        # during the off-season. Format contract is unchanged.
+        db = HorseDatabase(db_path=str(tmp_path / "t.db"))
+        try:
+            start = db._current_season_start()
+        finally:
+            db.close()
         assert len(start) == 10  # YYYY/MM/DD
         assert start.endswith("/07/01")
         assert start[4] == "/" and start[7] == "/"

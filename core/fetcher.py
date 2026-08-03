@@ -137,30 +137,29 @@ class HKJCApiClient:
 
     def fetch_odds_html(self, race_date: str, race_no: int,
                         odds_type: str = "WIN") -> Optional[str]:
-        """Fetch odds page HTML.  odds_type: WIN, PLA, QIN, QPL, FCT, TCE, ..."""
-        # Primary URL format
-        url = (
-            f"{self.BASE}/information/English/Odds/"
-            f"DisplayOdds.aspx?RaceNo={race_no}&OddsType={odds_type}"
-        )
-        try:
-            resp = self.session.get(url, timeout=30)
-            if resp.status_code == 200 and len(resp.text) > 5000:
-                return resp.text
-        except Exception as e:
-            logger.warning(f"Odds primary URL failed: {e}")
+        """Fetch odds page HTML.  odds_type: WIN, PLA, QIN, QPL, FCT, TCE, ...
 
-        # Fallback URL with date
-        url2 = (
+        EVERY candidate URL carries RaceDate. The undated
+        `Odds/DisplayOdds.aspx?RaceNo=` form used to be tried first and
+        short-circuited on any 200 over 5 KB, so re-rendering an old meeting
+        (or any `--date` backfill) silently stamped the CURRENT meeting's odds
+        onto the card — which then flowed into implied_prob, the market blend,
+        pure_prob edge math and the frozen bet ticket with no date assertion
+        anywhere downstream. (Code review 2026-08-03.)
+        """
+        candidates = (
             f"{self.BASE}/information/English/Racing/"
-            f"DisplayOdds.aspx?RaceDate={race_date}&RaceNo={race_no}&OddsType={odds_type}"
+            f"DisplayOdds.aspx?RaceDate={race_date}&RaceNo={race_no}&OddsType={odds_type}",
+            f"{self.BASE}/information/English/Odds/"
+            f"DisplayOdds.aspx?RaceDate={race_date}&RaceNo={race_no}&OddsType={odds_type}",
         )
-        try:
-            resp = self.session.get(url2, timeout=30)
-            if resp.status_code == 200 and len(resp.text) > 5000:
-                return resp.text
-        except Exception as e:
-            logger.warning(f"Odds fallback URL failed: {e}")
+        for url in candidates:
+            try:
+                resp = self.session.get(url, timeout=30)
+                if resp.status_code == 200 and len(resp.text) > 5000:
+                    return resp.text
+            except Exception as e:
+                logger.warning(f"Odds URL failed ({url}): {e}")
 
         return None
 
@@ -452,12 +451,13 @@ class HKJCParser:
             last_6 = "/".join(last_6_positions)
 
             # Jockey from cell [6] (may include claim like "(-2)")
-            jockey = ""
+            jockey_raw = ""
             if len(cells) > 6:
                 j_links = cells[6].find_all("a")
-                jockey = j_links[0].get_text(strip=True) if j_links else texts[6]
-            # Strip claim notation
-            jockey = re.sub(r"\s*\(-?\d+\)", "", jockey).strip()
+                jockey_raw = j_links[0].get_text(strip=True) if j_links else texts[6]
+            # Strip claim notation from the NAME (kept clean for DB keying);
+            # the claim itself is applied to the weight below.
+            jockey = HKJCParser.strip_jockey_claim(jockey_raw)
 
             # Trainer from cell [9]
             trainer = ""
@@ -468,8 +468,14 @@ class HKJCParser:
             # Draw from cell [8]
             draw = HKJCParser._safe_int(texts[8]) if len(texts) > 8 else 0
 
-            # Weight from cell [5]
+            # Weight from cell [5] — the DECLARED (allotted) weight. Subtract
+            # the apprentice claim so this matches `race_results.weight`, which
+            # stores the ACTUAL weight carried. Without this the
+            # `weight_vs_field` feature is trained on post-claim weight and
+            # evaluated on pre-claim weight (ML Rule 2 violation affecting
+            # ~1 in 3 runners, since the claim also moves the field median).
             weight = texts[5] if len(texts) > 5 else ""
+            weight = HKJCParser.apply_apprentice_claim(weight, jockey_raw)
 
             # Rating from cell [11] (may be "-" for unrated horses)
             rating = 0.0
@@ -968,6 +974,40 @@ class HKJCParser:
                 })
 
         return results
+
+    # Apprentice claim: HKJC writes it in the jockey cell as "(-7)". The claim
+    # is subtracted from the allotted weight to give the weight actually
+    # carried — which is what the results table (and therefore the training
+    # data) records. Kept as two small shared helpers so the card parser and
+    # any future parser apply the identical rule (CLAUDE.md ML Rule 2).
+    _CLAIM_RE = re.compile(r"\(\s*-\s*(\d+)\s*\)")
+
+    @staticmethod
+    def strip_jockey_claim(jockey: str) -> str:
+        """Remove the claim notation from a jockey name."""
+        return re.sub(r"\s*\(-?\d+\)", "", str(jockey or "")).strip()
+
+    @staticmethod
+    def apply_apprentice_claim(weight: str, jockey_raw: str) -> str:
+        """Return the weight actually carried = declared weight - claim.
+
+        Passes the input straight through when there is no claim, when the
+        weight isn't a plain number, or when the result would be implausibly
+        low (a mis-parse must never silently invent a carried weight).
+        """
+        match = HKJCParser._CLAIM_RE.search(str(jockey_raw or ""))
+        if not match:
+            return weight
+        try:
+            declared = int(str(weight).strip())
+        except (ValueError, TypeError):
+            return weight
+        carried = declared - int(match.group(1))
+        # HK carried weights live around 113-133 lbs; anything under 100 means
+        # we mis-read either the weight or the claim, so keep the original.
+        if carried < 100:
+            return weight
+        return str(carried)
 
     @staticmethod
     def _safe_int(text: str) -> int:

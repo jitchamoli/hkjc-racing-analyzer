@@ -42,8 +42,6 @@ JOCKEY_FORM_RIDES_MIN = 15
 
 # Betting thresholds
 MIN_EXPECTED_RETURN = 0.05
-MIN_INVESTMENT = 10
-MAX_INVESTMENT = 200
 
 # Bankroll-based stake suggestions (HKD). Used by the per-card "suggested
 # stake" line in the dashboard. Adjust to your actual rolling bankroll.
@@ -97,7 +95,6 @@ XGBOOST_PARAMS = {
 # Training data thresholds
 MIN_DB_SAMPLES = 200
 MIN_REAL_SAMPLES = 50
-SYNTHETIC_FALLBACK_SIZE = 2000
 
 # Softmax temperature for probability normalization
 # Used as multiplier: exp((s - max) * T). Lower = flatter distribution.
@@ -107,11 +104,12 @@ SYNTHETIC_FALLBACK_SIZE = 2000
 # 1.5 = mild differentiation without overconfidence.
 SOFTMAX_TEMPERATURE = 1.5
 
-# Market blend ratio (model vs market)
-# 40% market anchors probabilities to realistic levels (bookmakers are well-calibrated)
-# 60% model preserves our ranking edge from rule engine + ML
-MARKET_BLEND_WEIGHT = 0.40
-MODEL_BLEND_WEIGHT = 0.60
+# NOTE: the model/market blend is NOT configured here. It lives in
+# `core/scorer.BlendConfig` (base_model_w = 0.45, i.e. 45/55 model/market, with
+# dynamic ramps by field size and distance). Two dead constants named
+# MARKET_BLEND_WEIGHT/MODEL_BLEND_WEIGHT used to sit here declaring 40/60 —
+# unreferenced anywhere, and contradicting what production actually does.
+# Removed 2026-08-03; change the blend in core/scorer.py.
 
 # HKJC URLs
 HKJC_BASE_URL = "https://racing.hkjc.com/racing/information/English"

@@ -90,6 +90,39 @@ DB_DIR.mkdir(exist_ok=True)
 DB_FILE = DB_DIR / 'horse_history.db'
 
 
+def place_profit_per_10(conn, race_date: str, race_number: int,
+                        horse_number, win_odds: float, placed: bool) -> float:
+    """P&L per HK$10 PLACE bet, from the DECLARED dividend where available.
+
+    This used to be `max(odds / 3, 1.2) * 10 - 10` — a GUESS at the place
+    dividend derived from the win odds, while the real figure sat in
+    `race_dividends` (pool 'PLACE', keyed by horse number) for the same race,
+    unread. Over 604 resolved rows the proxy over-credited by mean +$6.16 /
+    median +$1.33 per HK$10, total +$3,721 of fabricated profit; worst case
+    2026/06/07 R3 NEXT FORTUNE read $143.30 against a real $41.00. That flows
+    into get_accuracy_summary, so the dashboard's PLACE ROI was systematically
+    overstated. (The WIN path never had this problem — a WIN dividend really is
+    the win odds: median error $0.00 over 201 winners.)
+
+    The odds/3 heuristic is retained ONLY as a fallback for races with no
+    declared PLACE row. It is an ESTIMATE, not a payout.
+    """
+    if not placed:
+        return -10.0
+    if horse_number is not None:
+        try:
+            row = conn.execute(
+                "SELECT dividend FROM race_dividends WHERE race_date=? "
+                "AND race_number=? AND pool='PLACE' AND combination=?",
+                (race_date, race_number, str(int(horse_number))),
+            ).fetchone()
+        except Exception:
+            row = None
+        if row and row[0]:
+            return float(row[0]) - 10.0
+    return max((win_odds or 0) / 3, 1.2) * 10 - 10
+
+
 def apply_perf_pragmas(conn: sqlite3.Connection) -> None:
     """Connection-local PRAGMAs for read-heavy workloads.
 
@@ -631,9 +664,20 @@ class HorseDatabase:
         # failed if only the derived stats tables fell over (e.g. missing
         # renavon ranking tables). Stats can be rebuilt later via
         # `python3 -m scripts.scrape_history --rankings`.
+        self._rebuild_stats_after_ingest()
+
+    def _rebuild_stats_after_ingest(self) -> None:
+        """Rebuild derived stats, swallowing failures (see caller's note)."""
         try:
             self.rebuild_stats()
         except Exception:
+            # MUST roll back: rebuild_stats opens with DELETE FROM jockey_stats
+            # / trainer_stats and only commits at the end. Without this, the
+            # pending DELETEs survive on the shared connection and the next
+            # unrelated commit (backfill_card_fields during auto-learn)
+            # finalises them — silently emptying both tables while this log
+            # line claims the stats are merely "stale".
+            self.conn.rollback()
             logger.error("rebuild_stats failed after ingest — race_results "
                          "already committed; jockey/trainer stats may be stale. "
                          "Re-run `scripts.scrape_history --rankings` to refresh.",
@@ -1378,11 +1422,29 @@ class HorseDatabase:
         else:
             return f"{now.year - 1}-{str(now.year)[-2:]}"
 
-    @staticmethod
-    def _current_season_start() -> str:
-        """First day of the current HK racing season as 'YYYY/MM/DD'.
-        Seasons run Jul 1 – Jun 30, so July 2025 starts the 2025-26 season.
+    def _current_season_start(self) -> str:
+        """First day of the season containing the LATEST race in the DB.
+
+        Seasons run Jul 1 - Jun 30. Derived from MAX(race_date), not
+        datetime.now(), for two reasons (code review 2026-08-03):
+
+        * Determinism — rebuild_stats used the wall clock while the leak-free
+          backtest path used `_season_start_for(race_date)`, so the same DB
+          rebuilt on different days aggregated over different windows and
+          backtests were not reproducible across a season boundary.
+        * Off-season collapse — run on 2026-08-03 the wall clock claimed the
+          season started 2026/07/01 while the last race was 2026/07/15, so
+          "season to date" covered five meetings and jockey_stats /
+          trainer_stats (which feed the rule engine's jockey and trainer
+          factors) were rebuilt over that stub.
+
+        Falls back to the wall clock only when the DB holds no races.
         """
+        row = self.conn.execute(
+            "SELECT MAX(race_date) FROM race_results").fetchone()
+        latest = row[0] if row else None
+        if latest:
+            return HorseDatabase._season_start_for(latest)
         now = datetime.now()
         year = now.year if now.month >= 7 else now.year - 1
         return f"{year}/07/01"
@@ -1641,7 +1703,9 @@ class HorseDatabase:
                 if bet in ('WIN', 'BANKER WIN'):
                     profit = (odds * 10 - 10) if won else -10.0
                 elif bet == 'PLACE':
-                    profit = (max(odds / 3, 1.2) * 10 - 10) if top3 else -10.0
+                    profit = place_profit_per_10(
+                        c, race_date, race_number, r.get('number'),
+                        odds, bool(top3))
                 elif bet in ('QIN', 'QNL PL', 'TRIO'):
                     # Exotic bets: mark as -10 loss per horse; race-level query handles wins
                     profit = -10.0 if not top3 else 0.0

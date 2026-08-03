@@ -277,29 +277,35 @@ class TestFeatureConsistency:
     """Ensure training and prediction feature pipelines produce consistent output."""
 
     def test_training_features_match_schema_width(self):
-        """build_training_data_from_db output should have NUM_FEATURES columns."""
+        """build_training_data_from_db output should have NUM_FEATURES columns.
+
+        Windowed to 1 year: the full-DB build took 36s of a 58s suite to assert
+        one integer. And it no longer swallows exceptions — the old bare
+        `except Exception: pytest.skip(...)` meant that if training ever broke,
+        this guard silently evaporated instead of failing.
+        """
         from ml.training import build_training_data_from_db
-        try:
-            result = build_training_data_from_db()
-            X, y = result[0], result[1]
-        except Exception:
-            pytest.skip("Cannot build training data from DB")
+        result = build_training_data_from_db(years_back=1)
+        X = result[0]
         if X is None or len(X) == 0:
-            pytest.skip("No training data available")
+            pytest.skip("No training data available in the 1-year window")
         assert X.shape[1] == NUM_FEATURES, (
             f"Training data has {X.shape[1]} features, expected {NUM_FEATURES}"
         )
 
 
     def test_no_constant_training_features(self):
-        """No feature should be near-constant in training data."""
+        """No feature should be near-constant in training data.
+
+        Windowed to 2 years (was the full DB, 29s) — a dead feature is dead on
+        any representative slice, and 2y keeps enough spread that a genuinely
+        varying rate feature is not mistaken for a constant. Exceptions are no
+        longer swallowed; see the sibling test above.
+        """
         from ml.training import build_training_data_from_db
-        try:
-            X = build_training_data_from_db()[0]
-        except Exception:
-            pytest.skip("Cannot build training data from DB")
+        X = build_training_data_from_db(years_back=2)[0]
         if X is None or len(X) < 50:
-            pytest.skip("Not enough training data")
+            pytest.skip("Not enough training data in the 2-year window")
 
         constant = []
         for i in range(NUM_FEATURES):

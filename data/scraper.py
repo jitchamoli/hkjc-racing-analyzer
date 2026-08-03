@@ -87,15 +87,7 @@ async def scrape_meeting_results(race_date: str, max_races: int = 12) -> List[Di
             continue
 
         soup = BeautifulSoup(html, "html.parser")
-        table_data = []
-        for table in soup.find_all("table"):
-            rows = table.find_all("tr")
-            if len(rows) >= 3:
-                data = []
-                for row in rows:
-                    cells = row.find_all(["td", "th"])
-                    data.append([c.get_text(strip=True) for c in cells])
-                table_data.append(data)
+        table_data = _extract_table_data(soup)
 
         # Venue now lives in a 1-row table dropped by the >=3-row filter above;
         # scan the full page text as a fallback (HV checked first — "Sha Tin"
@@ -122,6 +114,53 @@ async def scrape_meeting_results(race_date: str, max_races: int = 12) -> List[Di
         )
 
     return races
+
+
+def _meeting_is_complete(race_numbers) -> bool:
+    """True when the stored race numbers form a contiguous 1..N card.
+
+    `scrape_meeting_results` abandons a card after EMPTY_TOLERANCE consecutive
+    unparseable races, so a transient failure can truncate a meeting. The
+    re-scrape guard used to skip any date with >0 rows, which froze those
+    partial meetings forever (2025/11/15 is missing race 8 permanently).
+    Treat a gap — or a missing race 1 — as "re-scrape me".
+    """
+    numbers = {int(n) for n in race_numbers}
+    if not numbers:
+        return False
+    return numbers == set(range(1, max(numbers) + 1))
+
+
+def _cell_text(cell) -> str:
+    """Flatten one table cell to text, PRESERVING inline-node boundaries.
+
+    HKJC renders multi-valued cells with <br> between the parts — most
+    importantly Running Position ("<td>13<br>12<br>10</td>"). A bare
+    `get_text(strip=True)` concatenates those into "131210", which
+    `FeatureEngineering.parse_running_position` then reads per-character as
+    [1,3,1,2,1,0] — inverting `early_speed` for every horse that ran in a
+    double-digit position. Separators cannot be recovered downstream, so they
+    must be kept here. Mirrors `core/fetcher.py::parse_barrier_trials`.
+
+    Runs of whitespace (including the &nbsp; HKJC sprinkles between calls)
+    collapse to a single space so single-valued cells are byte-identical to
+    the previous `get_text(strip=True)` output.
+    """
+    return re.sub(r"\s+", " ", cell.get_text(" ", strip=True)).strip()
+
+
+def _extract_table_data(soup) -> List[List[List[str]]]:
+    """Flatten every >=3-row HTML table into rows of cell strings."""
+    table_data = []
+    for table in soup.find_all("table"):
+        rows = table.find_all("tr")
+        if len(rows) >= 3:
+            data = []
+            for row in rows:
+                cells = row.find_all(["td", "th"])
+                data.append([_cell_text(c) for c in cells])
+            table_data.append(data)
+    return table_data
 
 
 def _parse_tables(table_data: List[List[List[str]]], race_date: str, race_no: int,
@@ -782,13 +821,22 @@ async def main():
     total_runners = 0
 
     for date_str in dates:
-        # Check if we already have this date in DB
-        existing = db.conn.execute(
-            "SELECT COUNT(*) FROM race_results WHERE race_date = ?", (date_str,)
-        ).fetchone()[0]
-        if existing > 0:
-            logger.info(f"Skipping {date_str} — already have {existing} results in DB")
+        # Skip only meetings that look COMPLETE (contiguous 1..N races). A
+        # truncated card — the signature of a transient mid-scrape failure —
+        # must be allowed through, otherwise the gap is frozen forever
+        # (2025/11/15 lost race 8 to the old `existing > 0` guard).
+        stored_races = [r[0] for r in db.conn.execute(
+            "SELECT DISTINCT race_number FROM race_results WHERE race_date = ?",
+            (date_str,)
+        ).fetchall()]
+        if stored_races and _meeting_is_complete(stored_races):
+            logger.info(f"Skipping {date_str} — already have "
+                        f"{len(stored_races)} races in DB")
             continue
+        if stored_races:
+            missing = sorted(set(range(1, max(stored_races) + 1)) - set(stored_races))
+            logger.warning(f"{date_str} is incomplete (missing race(s) "
+                           f"{missing}) — re-scraping to repair")
 
         logger.info(f"Scraping results for {date_str}...")
         races = await scrape_meeting_results(date_str)
