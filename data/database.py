@@ -90,6 +90,39 @@ DB_DIR.mkdir(exist_ok=True)
 DB_FILE = DB_DIR / 'horse_history.db'
 
 
+def place_profit_per_10(conn, race_date: str, race_number: int,
+                        horse_number, win_odds: float, placed: bool) -> float:
+    """P&L per HK$10 PLACE bet, from the DECLARED dividend where available.
+
+    This used to be `max(odds / 3, 1.2) * 10 - 10` — a GUESS at the place
+    dividend derived from the win odds, while the real figure sat in
+    `race_dividends` (pool 'PLACE', keyed by horse number) for the same race,
+    unread. Over 604 resolved rows the proxy over-credited by mean +$6.16 /
+    median +$1.33 per HK$10, total +$3,721 of fabricated profit; worst case
+    2026/06/07 R3 NEXT FORTUNE read $143.30 against a real $41.00. That flows
+    into get_accuracy_summary, so the dashboard's PLACE ROI was systematically
+    overstated. (The WIN path never had this problem — a WIN dividend really is
+    the win odds: median error $0.00 over 201 winners.)
+
+    The odds/3 heuristic is retained ONLY as a fallback for races with no
+    declared PLACE row. It is an ESTIMATE, not a payout.
+    """
+    if not placed:
+        return -10.0
+    if horse_number is not None:
+        try:
+            row = conn.execute(
+                "SELECT dividend FROM race_dividends WHERE race_date=? "
+                "AND race_number=? AND pool='PLACE' AND combination=?",
+                (race_date, race_number, str(int(horse_number))),
+            ).fetchone()
+        except Exception:
+            row = None
+        if row and row[0]:
+            return float(row[0]) - 10.0
+    return max((win_odds or 0) / 3, 1.2) * 10 - 10
+
+
 def apply_perf_pragmas(conn: sqlite3.Connection) -> None:
     """Connection-local PRAGMAs for read-heavy workloads.
 
@@ -1670,7 +1703,9 @@ class HorseDatabase:
                 if bet in ('WIN', 'BANKER WIN'):
                     profit = (odds * 10 - 10) if won else -10.0
                 elif bet == 'PLACE':
-                    profit = (max(odds / 3, 1.2) * 10 - 10) if top3 else -10.0
+                    profit = place_profit_per_10(
+                        c, race_date, race_number, r.get('number'),
+                        odds, bool(top3))
                 elif bet in ('QIN', 'QNL PL', 'TRIO'):
                     # Exotic bets: mark as -10 loss per horse; race-level query handles wins
                     profit = -10.0 if not top3 else 0.0
