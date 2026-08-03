@@ -240,7 +240,11 @@ def _load_training_window_rows(conn):
         f"{cutoff_clause} ORDER BY race_date, race_number",
         cutoff_args,
     ).fetchall()
-    return [dict(r) for r in rows]
+    # Apply the SAME race filter training uses. Fold boundaries are cut over
+    # the surviving race groups, so without this backtest sliced a longer list
+    # and its "truly-virgin" test fold overlapped the model's calib fold.
+    from ml.training import drop_unusable_races
+    return drop_unusable_races([dict(r) for r in rows])
 
 
 def load_held_out_races(conn, last_n=None):
@@ -250,11 +254,24 @@ def load_held_out_races(conn, last_n=None):
     earlystop_val, 70-85% calib, 85-100% test. Every runner from a race stays
     in the same fold.
     """
-    rows = _load_training_window_rows(conn)
-    if last_n is not None:
-        return rows[-last_n:]
     from ml.folds import split_rows_by_race
-    return split_rows_by_race(rows)["test"]
+    test_rows = split_rows_by_race(_load_training_window_rows(conn))["test"]
+    if last_n is None:
+        return test_rows
+    # `--last N` means N RACES, and it must stay inside the test fold. It used
+    # to slice `rows[-last_n:]` on the UNSPLIT list of horse rows: `--last 500`
+    # evaluated ~42 races, any N above the test-fold size reached back through
+    # the calibration fold into training data with no warning, and the slice cut
+    # mid-race so the first race had a wrong field_size and market normalisation.
+    seen, keep = [], []
+    for r in reversed(test_rows):
+        key = (r.get('race_date'), r.get('race_number'))
+        if key not in seen:
+            if len(seen) >= last_n:
+                break
+            seen.append(key)
+        keep.append(r)
+    return list(reversed(keep))
 
 
 def load_calibration_window(conn):

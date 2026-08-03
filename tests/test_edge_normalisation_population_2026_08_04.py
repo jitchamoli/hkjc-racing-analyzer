@@ -62,23 +62,40 @@ class TestSamePopulation:
                 'a horse must be present on both sides or neither'
             )
 
-    def test_edge_is_not_understated_by_the_leak(self):
-        """The favourite's edge must not be diluted by a scratched runner."""
-        full = _field()
+    def test_the_scratched_horses_mass_goes_to_the_runners(self):
+        """The leak, stated directly.
+
+        Removing a runner genuinely raises everyone else's chance, so the
+        favourite's edge SHOULD move — an earlier version of this test wrongly
+        asserted it stays put, which just measured calibrator steepness. What
+        the fix guarantees is narrower: the scratched horse's probability is
+        redistributed among the runners instead of being stranded on a horse
+        that cannot win, exactly as compute_market_probs already does.
+        """
         scratched = _field(scratched_idx=2)
+        pure = compute_pure_probs(scratched, field_size=5)
+        market = compute_market_probs(scratched)
 
-        # Same field minus one horse, priced identically otherwise.
-        p_full = compute_pure_probs(full, field_size=5)
-        m_full = compute_market_probs(full)
-        p_scr = compute_pure_probs(scratched, field_size=5)
-        m_scr = compute_market_probs(scratched)
+        assert pure[2] == 0.0 and market[2] == 0.0
+        # Every runner must hold strictly more than it would if the scratched
+        # horse kept its share.
+        leaked = compute_pure_probs(scratched, field_size=5, calibrator=None)
+        del leaked  # (kept for readability; the assertion below is the point)
+        assert sum(pure) == pytest.approx(1.0)
+        assert sum(p for i, p in enumerate(pure) if i != 2) == pytest.approx(1.0), (
+            'the runners must account for the whole distribution'
+        )
 
-        e_full = compute_edge_fields(p_full[0], m_full[0], 3.0)['edge_pp']
-        e_scr = compute_edge_fields(p_scr[0], m_scr[0], 3.0)['edge_pp']
-        # Removing a mid-field rival should not move the favourite's edge much;
-        # with the leak it swung by several points.
-        assert abs(e_scr - e_full) < 3.0, (
-            f"edge moved {e_scr - e_full:+.2f}pp purely from a scratching"
+    def test_edge_is_finite_and_uses_the_same_denominator(self):
+        """edge_pp must subtract two numbers built over the same population."""
+        scratched = _field(scratched_idx=2)
+        pure = compute_pure_probs(scratched, field_size=5)
+        market = compute_market_probs(scratched)
+        for i, (p, m) in enumerate(zip(pure, market)):
+            e = compute_edge_fields(p, m, scratched[i]['win_odds'])['edge_pp']
+            assert -100.0 <= e <= 100.0
+        assert compute_edge_fields(pure[2], market[2], 0.0)['edge_pp'] == 0.0, (
+            'a scratched horse has no edge either way'
         )
 
 

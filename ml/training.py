@@ -85,6 +85,30 @@ def looks_truncated(rows, typical_field: int = _TYPICAL_HK_FIELD) -> bool:
     return estimate_field_size(rows) <= _MIN_CREDIBLE_HK_FIELD
 
 
+def drop_unusable_races(rows):
+    """Remove every row belonging to a race `looks_truncated` rejects.
+
+    THE single source of truth for "which races exist". Fold boundaries are cut
+    over the surviving race groups, so training and backtest must agree on this
+    list or their folds silently drift apart: training filtered, backtest did
+    not, and backtest's "truly-virgin" 85-100% test fold ended up containing
+    races that were inside the model's 70-85% CALIB fold — in-sample for the
+    win/place isotonics. Small (0.48%) when caught, but unbounded in principle
+    and completely unguarded.
+
+    Call this from every consumer that slices folds. See
+    tests/test_fold_population_parity_2026_08_04.py.
+    """
+    by_race = {}
+    for r in rows:
+        d = r if isinstance(r, dict) else dict(r)
+        key = (d.get('race_date', ''), d.get('race_number', 0))
+        by_race.setdefault(key, []).append(d)
+    keep = [k for k, rs in by_race.items() if not looks_truncated(rs)]
+    keep_set = set(keep)
+    return [d for k in by_race for d in by_race[k] if k in keep_set]
+
+
 def build_training_data_from_db(
     years_back: Optional[int] = None,
     return_groups: bool = False,

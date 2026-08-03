@@ -183,9 +183,26 @@ _BLEND_CALIBRATOR_LOADED = False
 # ~80 of 7662 samples above 0.30 (n=3 above 0.60), so PAVA collapses the entire
 # tail to one noise-driven value (blended 0.40 and 0.95 both map to ~0.737).
 # We clamp the calibrator INPUT here so every strong favourite maps to iso(0.30)
-# instead — monotone, conservative (caps over-statement, never inflates), and
-# provably untouched below 0.30 (the well-calibrated 99%). Apply-time only: no
-# refit, pickle unchanged. See 2-expert calibration-tail review 2026-06-27.
+# instead. Apply-time only: no refit, pickle unchanged.
+#
+# CORRECTION 2026-08-04 — this comment used to claim the clamp was
+# "conservative (caps over-statement, never inflates), and provably untouched
+# below 0.30". BOTH claims are false, and a review measured it:
+#   * The renormalisation at the end of calibrate_probabilities runs AFTER the
+#     clamp, so capping the favourite and dividing by a now-smaller sum
+#     redistributes the removed mass. Over 247 production races, the 14 races
+#     containing a clamped runner saw non-favourites inflated by a mean factor
+#     of 1.265x (max 1.705x) — so it is untouched below 0.30 only in races with
+#     nothing above it.
+#   * On those 14, the clamped favourite was assigned iso(0.30)=0.3636 -> 0.421
+#     after renormalisation, against an ACTUAL win rate of 8/14 = 57.1%. The
+#     unclamped isotonic would have said 0.529 — closer to truth. So on
+#     out-of-sample data the clamp moved calibration the WRONG way for its own
+#     target population (n=14: directionally clear, low power).
+# The diagnosis (a sparse tail must not be trusted) is right; flattening is a
+# crude remedy. A monotone parametric tail in logit space would preserve both
+# monotonicity and the sum. Left in place pending that work — changing it moves
+# production probabilities and needs its own forward validation.
 _BLEND_CAL_INPUT_CLIP = 0.30
 
 # Weight of the plateau tie-break term (see calibrate_probabilities). Small
