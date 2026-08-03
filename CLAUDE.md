@@ -143,7 +143,10 @@ Backup: `models/hkjc_racing_model.pkl.pre-prune-tier1`. Gate-tune attempt (+0.15
 ```
 rule_score (0-100) → sigmoid(0.06×(score-50)+logit(1/field_size)) → ×0.60
 ml_prob (isotonic) → ×0.40
-pure_prob = softmax(rule×0.6 + ml×0.4)         # independent opinion, pre-market
+pure_prob = normalise(rule×0.6 + ml_RAW×0.4) → pure_calibrator.pkl isotonic
+            # independent opinion, pre-market. NOT softmax (that flattens the
+            # model's own spread and drives every edge_pp negative). Uses the
+            # RAW pre-isotonic XGBoost prob, not MLPrediction.win_probability.
 
 → dynamic blend: model × (30-60%) + market × (40-70%)
   (base 45/55, sprint threshold 1200m, field threshold 10)
@@ -171,6 +174,26 @@ dashboard/generator.py (fixed 2026-05-21):
   overlay = pure_prob × win_odds
 → 6 EDGE gates → edge_fires bool → conviction_tier
 ```
+
+**ONE definition of the model's own opinion (2026-08-03).** `betting/edge_calculator`
+owns it: `compute_pure_probs(dicts)` / `pure_probs_from_analyses(analyses)`.
+`HorseAnalysis.model_probability` is now that same number (verified bit-identical
+to the dashboard's `pure_prob` on 150 real races, max Δ 1.1e-16, per-race sum
+exactly 1.0). It used to be a parallel re-derivation reading the CALIBRATED
+ml_prob with no normalisation and no isotonic — per-race sums ran 0.70–2.32, so
+subtracting a normalised market prob from it produced a number that was not an
+edge. That mis-scaling generated a spurious "+44% edge / n=109" reading which is
+now WITHDRAWN. Diagnostic only — nothing in the recommender, ticket, or
+leg-selection path reads it, so ranking is unaffected (straight QIN −0.81%,
+box-4 −15.74%, Brier 0.1920, place ECE 0.0079 — all bit-identical after).
+**Do not add a third definition.**
+
+pure_prob is calibrated by `models/pure_calibrator.pkl` (`scripts/calibrate_pure`,
+fit on the disjoint 70-85% calib fold, signed, refuses unsigned). Refit it after
+any retrain — an uncalibrated pure_prob reads ~2× under-confident and bakes a
+structural −10pp into every edge_pp, which is what kept the EDGE tier dead.
+Stored `edge_pp` in `results/race_data_*.json` from BEFORE 2026/08/03 is on the
+old scale — `stake_ab.PURE_CALIBRATION_DATE` gates `edge_filtered` accordingly.
 
 ## 🚨 LEAK CORRECTION & HONEST POSTURE (2026-05-22, supersedes every ROI in this repo)
 

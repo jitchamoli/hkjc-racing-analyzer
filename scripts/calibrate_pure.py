@@ -66,7 +66,7 @@ def collect_pairs(last_n=None):
     from scripts.backtest import (
         load_calibration_window, group_by_race, predict_race_production,
     )
-    from betting.edge_calculator import compute_pure_probs
+    from betting.edge_calculator import pure_probs_from_analyses
     import betting.edge_calculator as _ec
 
     # Fit on the domain we apply to — see module docstring.
@@ -91,23 +91,14 @@ def collect_pairs(last_n=None):
         if not preds:
             skipped += 1
             continue
-        horses_for_edge = []
-        won = []
-        for row, _cal, _mkt, an in preds:
-            mlp = getattr(an, 'ml_prediction', None)
-            raw_ml = getattr(mlp, 'raw_win_probability', None) if mlp else None
-            if raw_ml is None:
-                raw_ml = getattr(mlp, 'win_probability', 0.0) if mlp else 0.0
-            horses_for_edge.append({
-                'rule_score': an.rule_score,
-                'ml_prob': raw_ml,
-                'win_odds': row.get('win_odds') or 0,
-            })
-            won.append(1 if (row.get('finish_position') or 0) == 1 else 0)
-        if len(horses_for_edge) < 2:
+        analyses = [an for _row, _cal, _mkt, an in preds]
+        odds = [(row.get('win_odds') or 0) for row, _c, _m, _a in preds]
+        won = [1 if (row.get('finish_position') or 0) == 1 else 0
+               for row, _c, _m, _a in preds]
+        if len(analyses) < 2:
             skipped += 1
             continue
-        pp = compute_pure_probs(horses_for_edge, field_size=len(horses_for_edge))
+        pp = pure_probs_from_analyses(analyses, odds=odds)
         probs.extend(pp)
         labels.extend(won)
 

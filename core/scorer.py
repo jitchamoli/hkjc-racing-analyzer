@@ -407,15 +407,30 @@ def apply_calibrated_probs(analyses, calibrated_probs: List[float]) -> None:
 
     F-19: On the first call (model_probability is still None), snapshot the
     PRE-blend pure model probability into model_probability so accuracy.py
-    can measure the model itself, not the model+market blend. At call time
-    a.combined_probability still holds the pre-blend value (set by analyzer);
-    we capture it BEFORE overwriting with the post-blend calibrated value.
-    Without this, accuracy reports systematically credit the market for the
-    model's perceived performance.
+    can measure the model itself, not the model+market blend. Without this,
+    accuracy reports systematically credit the market for the model's
+    perceived performance.
+
+    2026-08-03 — that snapshot used to be `a.combined_probability`, which was
+    a SECOND, divergent definition of "the model's own opinion": it read the
+    isotonic-CALIBRATED ml_prob, was never normalised across the field (real
+    per-race sums ran 0.70-2.32), and never saw the pure calibrator. The
+    dashboard's pure_prob did all three. Same claim, different number — over
+    15 production meetings rank-1 read 0.198 here vs 0.133 there, and an edge
+    computed by subtracting a properly-scaled market prob from an unnormalised
+    model prob is not an edge at all. Now delegated to the one implementation.
+    Diagnostic only: nothing in the recommender, ticket, or leg-selection path
+    reads model_probability, so ranking is unaffected.
     """
+    from betting.edge_calculator import pure_probs_from_analyses
+
+    if any(a.model_probability is None for a in analyses):
+        pure = pure_probs_from_analyses(analyses)
+    else:
+        pure = None
     for i, a in enumerate(analyses):
         if a.model_probability is None:
-            a.model_probability = a.combined_probability  # pre-blend snapshot
+            a.model_probability = pure[i]  # pre-blend snapshot
         # value_score MUST stay pinned to the pre-blend combined_prob (set
         # by analyzer.py before calibration). Per CLAUDE.md ML Rule 4 it
         # reflects the model's independent opinion. Overwriting with the
