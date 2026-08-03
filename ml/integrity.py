@@ -248,17 +248,56 @@ def check_blend_calibrator_artifact(blend_path: Optional[Path] = None) -> Dict[s
     return payload
 
 
+def check_pure_calibrator_artifact(pure_path: Optional[Path] = None) -> Dict[str, Any]:
+    """Validate the pure-prob calibrator used by betting.edge_calculator.
+
+    Mirrors check_blend_calibrator_artifact. Exists because
+    `_load_pure_calibrator` fails OPEN — a missing sidecar or checksum mismatch
+    logs one error and returns None, and the pipeline then scores every race
+    with an UNCALIBRATED pure_prob. That is worth ~-10pp on every edge_pp, so
+    the EDGE tier silently stops firing and conviction tiers drift down while
+    the dashboard looks entirely normal. The blend calibrator has the same
+    fail-open loader but was already backstopped here; this one was not.
+    """
+    import config
+
+    default_path = config.MODEL_DIR / 'pure_calibrator.pkl'
+    path = Path(pure_path) if pure_path is not None else default_path
+    payload = _read_verified_pickle(path, "pure calibrator")
+
+    calibrator = payload.get('calibrator')
+    if calibrator is None or not hasattr(calibrator, 'predict'):
+        raise IntegrityError("Integrity check failed: pure calibrator missing predict().")
+
+    metadata = payload.get('metadata')
+    if not isinstance(metadata, dict):
+        raise IntegrityError("Integrity check failed: pure calibrator metadata missing.")
+
+    n_winners = metadata.get('n_winners')
+    base_rate = metadata.get('base_rate')
+    if not isinstance(n_winners, int) or n_winners <= 0:
+        raise IntegrityError("Integrity check failed: pure calibrator n_winners is invalid.")
+    if not isinstance(base_rate, (int, float)) or not 0 < float(base_rate) < 1:
+        raise IntegrityError("Integrity check failed: pure calibrator base_rate is invalid.")
+
+    return payload
+
+
 def check_dashboard_ml_integrity(
     model_path: Optional[Path] = None,
     blend_path: Optional[Path] = None,
+    pure_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Fail-closed preflight for race-day dashboard generation."""
     model_payload = check_production_model_artifact(model_path)
     blend_payload = check_blend_calibrator_artifact(blend_path)
+    pure_payload = check_pure_calibrator_artifact(pure_path)
     return {
         'model_version': model_payload.get('version'),
         'model_n_samples': model_payload.get('n_samples'),
         'model_fold_groups': (model_payload.get('fold_metadata') or {}).get('n_groups'),
         'blend_version': (blend_payload.get('metadata') or {}).get('version'),
         'blend_n_samples': (blend_payload.get('metadata') or {}).get('n_samples'),
+        'pure_version': (pure_payload.get('metadata') or {}).get('version'),
+        'pure_n_samples': (pure_payload.get('metadata') or {}).get('n_samples'),
     }

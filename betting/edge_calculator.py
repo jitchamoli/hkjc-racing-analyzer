@@ -127,7 +127,15 @@ def _load_pure_calibrator():
             logger.error("pure_calibrator checksum mismatch — edge math runs "
                          "uncalibrated.")
             return None
-        _PURE_CALIBRATOR = pickle.loads(raw).get('calibrator')
+        cal = pickle.loads(raw).get('calibrator')
+        if cal is None:
+            # A correctly-signed payload whose key was renamed would otherwise
+            # cache None for the life of the process — silently uncalibrated
+            # with no log line, and no retry once the artifact is repaired.
+            logger.error("pure_calibrator payload has no 'calibrator' key — "
+                         "edge math runs uncalibrated; not caching.")
+            return None
+        _PURE_CALIBRATOR = cal
         _PURE_CALIBRATOR_LOADED = True
     except Exception as e:
         logger.error(f"pure_calibrator load failed — edge math uncalibrated: {e}")
@@ -152,6 +160,20 @@ def compute_pure_probs(horses: List[Dict], field_size: int = None,
     rule_w, ml_w = config.RULE_WEIGHT, config.ML_WEIGHT
     raw = [rule_w * _rule_score_to_prob(h['rule_score'], n) + ml_w * h['ml_prob']
            for h in horses]
+
+    # Normalise over the PRICED field only, matching compute_market_probs,
+    # which zeroes any horse with win_odds <= 0 and renormalises without it.
+    # Until 2026-08-04 this normalised over every horse, so a scratched or
+    # not-yet-priced runner absorbed model probability the market side had
+    # already redistributed — in 10 production races it held 5.1%-11.5% of the
+    # mass. Since edge_pp = pure - market, that understated EVERY runner's edge
+    # (about -2.5pp on a 20% top pick) and fed all six EDGE gates.
+    # If NOTHING is priced (morning run before odds publish) there is no market
+    # to compare against, so keep the whole field rather than zeroing it.
+    priced = [(h.get('win_odds') or 0) > 0 for h in horses]
+    if any(priced):
+        raw = [r if ok else 0.0 for r, ok in zip(raw, priced)]
+
     total = sum(raw) or 1.0
     probs = [r / total for r in raw]
 
@@ -177,6 +199,12 @@ def compute_pure_probs(horses: List[Dict], field_size: int = None,
             # pre-calibration value restores a strict ordering without moving
             # the calibration.
             out = out + _PURE_CAL_TIEBREAK_EPS * pre
+            # Re-zero the unpriced runners. The production isotonic maps 0 -> 0
+            # so this is currently a no-op, but that is incidental: a calibrator
+            # whose lowest knot sits above zero would hand a scratched horse a
+            # full share of the field after renormalisation.
+            if any(priced):
+                out = _np.where(_np.array(priced), out, 0.0)
             t2 = float(out.sum()) or 1.0
             probs = [float(p) / t2 for p in out]
         except Exception as e:

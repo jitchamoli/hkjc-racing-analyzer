@@ -842,24 +842,33 @@ async def auto_learn(race_date: str = None):
     # Skip when retrain failed/timed out — the model on disk is still
     # the OLD model, so re-fitting would produce the same calibrator-vs-
     # model mismatch this whole step exists to prevent.
+    # BOTH calibrators must be refit, for the same reason. pure_prob is a direct
+    # function of rule_score and raw_win_probability, both of which move on every
+    # retrain, and it drives all six EDGE gates + the exotic overlay. Refitting
+    # only the blend calibrator (as this did until 2026-08-04) left pure_prob
+    # frozen against a model that no longer exists, with no observable signal:
+    # a stale isotonic still loads and still passes its sha256.
     if not retrain_ok:
-        logger.warning("Skipping blend calibration — retrain did not succeed; "
-                       "calibrator on disk left untouched (matches existing model)")
+        logger.warning("Skipping calibration — retrain did not succeed; "
+                       "calibrators on disk left untouched (match existing model)")
     else:
-        logger.info("Re-fitting blend calibrator...")
-        try:
-            result = subprocess.run(
-                [sys.executable, '-m', 'scripts.calibrate_blend'],
-                capture_output=True, text=True, timeout=300,
-                cwd=str(Path(__file__).parent.parent),
-            )
-            if result.returncode == 0:
-                for line in result.stdout.strip().split('\n')[-3:]:
-                    logger.info(f"Blend calibration: {line}")
-            else:
-                logger.warning(f"Blend calibration failed: {result.stderr[:200]}")
-        except subprocess.TimeoutExpired:
-            logger.warning("Blend calibration timed out — run 'python3 -m scripts.calibrate_blend' manually")
+        for _mod, _label in (('scripts.calibrate_blend', 'Blend'),
+                             ('scripts.calibrate_pure', 'Pure')):
+            logger.info(f"Re-fitting {_label.lower()} calibrator...")
+            try:
+                result = subprocess.run(
+                    [sys.executable, '-m', _mod],
+                    capture_output=True, text=True, timeout=300,
+                    cwd=str(Path(__file__).parent.parent),
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split('\n')[-3:]:
+                        logger.info(f"{_label} calibration: {line}")
+                else:
+                    logger.warning(f"{_label} calibration failed: {result.stderr[:200]}")
+            except subprocess.TimeoutExpired:
+                logger.warning(f"{_label} calibration timed out — run "
+                               f"'python3 -m {_mod}' manually")
 
     # 4. Recalibrate gear scores from new race_results.
     # Skip when no new rows since the last calibration — the gear-scores
