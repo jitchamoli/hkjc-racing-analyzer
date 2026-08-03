@@ -114,11 +114,23 @@ NUM_FEATURES = len(FEATURE_SCHEMA)
 
 
 def validate_features(features) -> bool:
-    """Assert feature vector matches schema length and has no NaN/Inf."""
+    """Assert the vector matches schema length, is finite, and is IN RANGE.
+
+    The per-feature `range` bounds were declared but never enforced until
+    2026-08-03. Length + NaN/Inf alone cannot catch a permuted or mis-scaled
+    vector — the exact train/predict drift this repo has been bitten by — so
+    the declared bounds are checked too. Bounds are inclusive.
+    """
     arr = np.asarray(features, dtype=np.float32)
     assert len(arr) == NUM_FEATURES, (
         f"Expected {NUM_FEATURES} features, got {len(arr)}"
     )
     assert not np.any(np.isnan(arr)), "Feature vector contains NaN"
     assert not np.any(np.isinf(arr)), "Feature vector contains Inf"
+    for i, spec in enumerate(FEATURE_SCHEMA):
+        lo, hi = spec["range"]
+        assert lo <= arr[i] <= hi, (
+            f"Feature {i} ({spec['name']}) = {arr[i]!r} outside "
+            f"declared range [{lo}, {hi}]"
+        )
     return True

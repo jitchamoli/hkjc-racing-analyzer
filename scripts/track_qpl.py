@@ -44,6 +44,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.forward_common import bayesian_verdict
+from betting.dead_heat import group_by_position, winning_combo_entries
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOG_PATH = REPO_ROOT / 'tracking_data' / 'qpl_log.csv'
@@ -83,8 +84,15 @@ def _rows_for_meeting(races: list, date: str) -> list[dict]:
             and str(h.get('number') or '').isdigit())
         if len(fin) < 3:
             continue
-        top3_set = {n for _, n in fin[:3]}
-        top2_set = {n for _, n in fin[:2]}
+        # DEAD-HEAT AWARE (code review 2026-08-03). fin[:3] / fin[:2] sliced a
+        # position-sorted list, picking one arbitrary member of a tied group.
+        # QPL asks "did BOTH finish top-3", so a horse tied FOR 3rd counts —
+        # filter on position. QIN has one winning pair per tie combination, so
+        # enumerate them via the shared helper the other scorers use.
+        top3_set = {n for p, n in fin if p <= 3}
+        _entries = [{'number': n, 'actual_position': p} for p, n in fin]
+        _win2 = [{e['number'] for e in combo}
+                 for combo in winning_combo_entries(group_by_position(_entries), 2)]
         tier = (r.get('conviction_tier') or '').upper()
         horses_sorted = sorted(r['horses'], key=lambda h: h.get('rank') or 99)
         if len(horses_sorted) < 2:
@@ -95,7 +103,7 @@ def _rows_for_meeting(races: list, date: str) -> list[dict]:
         except (TypeError, ValueError, KeyError):
             continue
         qpl_hit = int(a_num in top3_set and b_num in top3_set)
-        qin_hit = int({a_num, b_num} == top2_set)
+        qin_hit = int({a_num, b_num} in _win2)
         base = {
             'race_date': date, 'race_number': r.get('race_number'), 'tier': tier,
             'a_num': a_num, 'a_name': a.get('name', ''),
