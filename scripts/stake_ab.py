@@ -38,6 +38,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config
 from betting.dividends import hkjc_declared_to_unit
+from betting.dead_heat import (
+    group_by_position, winning_combo_entries, winning_name_sets,
+)
 
 # Date the CHAOS no-bet filter shipped. A ticket frozen on or after this date
 # already encodes the chaos decision, so re-deriving it here (from the MUTABLE
@@ -337,9 +340,18 @@ def hit_and_dividend(bet_label: str, race: dict, conn,
     if not finishers:
         return False, 0.0
 
-    actual_top2 = _names(finishers[:2])
-    actual_top3 = _names(finishers[:3])
-    actual_top4 = _names(finishers[:4])
+    # DEAD-HEAT AWARE (code review 2026-08-03). These used to be
+    # `_names(finishers[:k])` — slicing a position-sorted list, which picks one
+    # arbitrary horse out of a tied group and books a genuinely winning box as
+    # a miss. HKJC pays EVERY tied combination, so a race can have more than
+    # one winning pair/trio. Same enumeration validate_hk uses.
+    win2 = winning_name_sets(finishers, 2)
+    win3 = winning_name_sets(finishers, 3)
+    win4 = winning_name_sets(finishers, 4)
+    # PLACE asks "did our pick finish top-3", so a horse tied FOR 3rd counts —
+    # filter on position rather than slicing.
+    actual_top3 = {h['name'] for h in finishers
+                   if (h.get('actual_position') or 99) <= 3}
     top1 = finishers[0]['name']
     top1_won = True  # we already have the winner
 
@@ -401,17 +413,19 @@ def hit_and_dividend(bet_label: str, race: dict, conn,
                     hit_any = True
         return (hit_any, div_sum)
 
-    # QIN family — straight & box
+    # QIN family — straight & box. `win2` holds EVERY winning pair (more than
+    # one when a dead heat straddles 2nd), so a straight bet hits if our pair
+    # is any of them and a box hits if it contains any of them.
     if bet_label == 'STRAIGHT QIN':
         picks = _top_picks(race, 2)
-        hit = _names(picks) == actual_top2
+        hit = _names(picks) in win2
         div = race.get('qin_top_pair_dividend')
         unit_div = hkjc_declared_to_unit(div) if div else None
         return (hit, unit_div if unit_div is not None else 0.0)
     if bet_label.startswith('BOX QIN-'):
         n = int(bet_label.split('-')[1])
         box = _names(_top_picks(race, n))
-        hit = actual_top2.issubset(box)
+        hit = any(w <= box for w in win2)
         div = race.get('qin_top_pair_dividend')
         unit_div = hkjc_declared_to_unit(div) if div else None
         return (hit, unit_div if unit_div is not None else 0.0)
@@ -419,7 +433,7 @@ def hit_and_dividend(bet_label: str, race: dict, conn,
     # TRIO family
     if bet_label == 'STRAIGHT TRIO':
         picks = _top_picks(race, 3)
-        hit = _names(picks) == actual_top3
+        hit = _names(picks) in win3
         if len(finishers) < 3:
             return (hit, 0.0)
         combo = ','.join(str(h['number']) for h in
@@ -428,17 +442,17 @@ def hit_and_dividend(bet_label: str, race: dict, conn,
     if bet_label.startswith('BOX TRIO-'):
         n = int(bet_label.split('-')[1])
         box = _names(_top_picks(race, n))
-        hit = actual_top3.issubset(box)
+        hit = any(w <= box for w in win3)
         if len(finishers) < 3:
             return (hit, 0.0)
         combo = ','.join(str(h['number']) for h in
                          sorted(finishers[:3], key=lambda h: h['number']))
         return (hit, _lookup_dividend(conn, race_date, rn, 'TRIO', combo))
 
-    # F4 BOX-5 — actual top-4 ⊂ our top-5
+    # F4 BOX-5 — a winning top-4 ⊂ our top-5
     if bet_label == 'F4 BOX-5':
         picks5 = _names(_top_picks(race, 5))
-        hit = actual_top4.issubset(picks5)
+        hit = any(w <= picks5 for w in win4)
         if len(finishers) < 4:
             return (hit, 0.0)
         combo = ','.join(str(h['number']) for h in
@@ -474,11 +488,33 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
 
     _key = _score_key(legs, finishers)
     leg_ids = {_key(leg) for leg in legs if _key(leg)}
-    actual_top2 = {_key(h) for h in finishers[:2]}
-    actual_top3 = {_key(h) for h in finishers[:3]}
-    actual_top4 = {_key(h) for h in finishers[:4]}
+    # PLACE asks "did this leg finish top-3", so tied-for-3rd counts.
+    actual_top3 = {_key(h) for h in finishers
+                   if (h.get('actual_position') or 99) <= 3}
     top1 = _key(finishers[0])
     rn = race['race_number']
+
+    pos_groups = group_by_position(finishers)
+
+    def _score_pool(k: int, pool_name: str) -> tuple[bool, float]:
+        """Sum EVERY winning k-combination our legs hold (dead-heat aware).
+
+        HKJC declares a dividend per tied combination, so a box straddling a
+        dead heat can collect more than one. Mirrors validate_hk._score_box.
+        """
+        combos = winning_combo_entries(pos_groups, k)
+        won = [c for c in combos if {_key(e) for e in c} <= leg_ids]
+        if not won or len(finishers) < k:
+            return (False, 0.0)
+        total = 0.0
+        for combo in won:
+            nums = sorted(int(e['number']) for e in combo
+                          if e.get('number') is not None)
+            if len(nums) != k:
+                continue
+            total += _lookup_dividend(conn, race_date, rn, pool_name,
+                                      ','.join(str(n) for n in nums))
+        return (True, total)
 
     if pool in ('WIN', 'BANKER WIN'):
         first_id = _key(legs[0]) if legs else None
@@ -504,34 +540,13 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
         return (placed_any, placed_div)
 
     if pool == 'QUINELLA':
-        if not actual_top2.issubset(leg_ids) or len(finishers) < 2:
-            return (False, 0.0)
-        nums = sorted(int(h['number']) for h in finishers[:2]
-                       if h.get('number') is not None)
-        if len(nums) != 2:
-            return (True, 0.0)
-        return (True, _lookup_dividend(conn, race_date, rn, 'QUINELLA',
-                                         f"{nums[0]},{nums[1]}"))
+        return _score_pool(2, 'QUINELLA')
 
     if pool == 'TRIO':
-        if not actual_top3.issubset(leg_ids) or len(finishers) < 3:
-            return (False, 0.0)
-        nums = sorted(int(h['number']) for h in finishers[:3]
-                       if h.get('number') is not None)
-        if len(nums) != 3:
-            return (True, 0.0)
-        return (True, _lookup_dividend(conn, race_date, rn, 'TRIO',
-                                         ','.join(str(n) for n in nums)))
+        return _score_pool(3, 'TRIO')
 
     if pool == 'FIRST 4':
-        if not actual_top4.issubset(leg_ids) or len(finishers) < 4:
-            return (False, 0.0)
-        nums = sorted(int(h['number']) for h in finishers[:4]
-                       if h.get('number') is not None)
-        if len(nums) != 4:
-            return (True, 0.0)
-        return (True, _lookup_dividend(conn, race_date, rn, 'FIRST 4',
-                                         ','.join(str(n) for n in nums)))
+        return _score_pool(4, 'FIRST 4')
 
     if pool == 'QIN PLACE':
         # QPL BANKER ticket: legs[0] = pivot, legs[1:] = bankers. Each

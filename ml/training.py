@@ -244,18 +244,18 @@ def build_training_data_from_db(
                 jockey_name, [], conn=conn, before_date=race_date,
             )
 
-            # Feature 5: trainer win rate (Task #51 fix — same call as inference)
+            # Feature 4: trainer win rate (Task #51 fix — same call as inference)
             # Caps at 0.5 (was capped at 0.4 in old in-memory path).
             trainer_name = r.get('trainer', '') or ''
             feat_trainer = FeatureEngineering.calculate_trainer_win_rate(
                 trainer_name, [], conn=conn, before_date=race_date,
             )
 
-            # Feature 6: field size — clipped to [0,1]; legacy data has stray
+            # Feature 5: field size — clipped to [0,1]; legacy data has stray
             # rows with field_size > 14 (oversize fields pre-2000s).
             feat_field_size = min(1.0, field_size / 14.0)
 
-            # Feature 7: field-relative draw — clipped to [0,1]; old DB rows
+            # Feature 6: field-relative draw — clipped to [0,1]; old DB rows
             # had draw values up to 28 from oversize legacy fields, which
             # pushed feat_field_draw to 15.0 in training (matches F-16 fix
             # already applied at inference in features.py).
@@ -263,7 +263,7 @@ def build_training_data_from_db(
 
             # prior_pace, adjusted_speed dropped v6.4 — see feature_schema.py.
 
-            # Feature 8: C&D form — removed +0.2 floor (matches features.py).
+            # Feature 7: C&D form — removed +0.2 floor (matches features.py).
             # Unraced=0.5; 0-for-N=0.0; recent winning trip (≤180d) +0.15.
             prior_at_dist = [p for p in prior if p.get('distance') == distance]
             if prior_at_dist:
@@ -286,14 +286,14 @@ def build_training_data_from_db(
             else:
                 feat_cd = 0.5
 
-            # Feature 9: class level (INVERTED: Group 1/2=1.0, Class 1=0.8, Class 5=0.0)
+            # Feature 8: class level (INVERTED: Group 1/2=1.0, Class 1=0.8, Class 5=0.0)
             # Uses extract_class_rank to handle G1/G2/G3/GRIFFIN/4YO correctly.
             class_type = r.get('class_type', '') or ''
             class_rank_or_none = extract_class_rank(class_type)
             class_rank = class_rank_or_none if class_rank_or_none is not None else 3
             feat_class = max(0.0, min(1.0, 1.0 - class_rank / 5.0))
 
-            # Feature 10: freshness
+            # Feature 9: freshness
             # 87.7% of race_results rows have days_since_last_run = 0/null (it's
             # only populated for races where predictions were generated). Falling
             # back to 0.5 there made freshness a near-constant feature (0.0
@@ -314,7 +314,7 @@ def build_training_data_from_db(
             else:
                 feat_freshness = 0.5
 
-            # Feature 11: going performance — Bayesian-smoothed (matches features.py).
+            # Feature 10: going performance — Bayesian-smoothed (matches features.py).
             # Beta(0.08, 5) prior on win rate, Beta(0.25, 5) on top3 rate.
             # Bucket-match going strings (mirrors features.py + _going_bucket)
             # so a prior race stored as 'GOOD TO FIRM' is recognised as the
@@ -334,7 +334,7 @@ def build_training_data_from_db(
                     top3_rate_smooth = (g_top3 + 0.25 * 5) / (n + 5)
                     going_perf = min(1.0, win_rate_smooth * 0.6 * 5 + top3_rate_smooth * 0.4 * 2)
 
-            # Feature 12: weight vs field (carried weight relative to field median)
+            # Feature 11: weight vs field (carried weight relative to field median)
             weight_vs_field = 0.5
             weight_val = r.get('weight', 0) or 0
             try:
@@ -349,7 +349,7 @@ def build_training_data_from_db(
                 else:
                     weight_vs_field = max(0.0, min(1.0, 1.0 - (weight_val - 108) / 27.0))
 
-            # Feature 13: jockey-horse cooperation
+            # Feature 12: jockey-horse cooperation
             jockey_name = r.get('jockey', '') or ''
             if prior and jockey_name:
                 prior_same_jh = [p for p in prior if p.get('jockey', '') == jockey_name]
@@ -364,7 +364,7 @@ def build_training_data_from_db(
 
             # distance_pb_ratio dropped v6.4 — see feature_schema.py.
 
-            # Feature 14: last start margin (top importance ~16% in v6.4)
+            # Feature 13: last start margin (top importance ~16% in v6.4)
             feat_last_margin = 0.5
             if prior:
                 last_race = prior[-1]
@@ -374,7 +374,7 @@ def build_training_data_from_db(
                 elif m > 0:
                     feat_last_margin = max(0.1, min(0.9, 1.0 - m / 12.0))
 
-            # Feature 15: class change — ternary {dropping=1.0, same=0.5, rising=0.0}
+            # Feature 14: class change — ternary {dropping=1.0, same=0.5, rising=0.0}
             # Uses extract_class_rank — Group races (G1/G2/G3) properly placed
             # above the digit ladder, GRIFFIN/MAIDEN/4YO handled. M15: when
             # EITHER side is unknown (current race or prior had unparseable
@@ -397,7 +397,7 @@ def build_training_data_from_db(
 
             # days_since_last_win (was Feature 19) dropped Wave 2c — see feature_schema.py.
 
-            # Feature 16: horse body weight change (fitness signal)
+            # Feature 15: horse body weight change (fitness signal)
             feat_hw_change = 0.5
             hw_current = r.get('horse_weight', 0) or 0
             if prior and hw_current > 0:

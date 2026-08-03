@@ -631,9 +631,20 @@ class HorseDatabase:
         # failed if only the derived stats tables fell over (e.g. missing
         # renavon ranking tables). Stats can be rebuilt later via
         # `python3 -m scripts.scrape_history --rankings`.
+        self._rebuild_stats_after_ingest()
+
+    def _rebuild_stats_after_ingest(self) -> None:
+        """Rebuild derived stats, swallowing failures (see caller's note)."""
         try:
             self.rebuild_stats()
         except Exception:
+            # MUST roll back: rebuild_stats opens with DELETE FROM jockey_stats
+            # / trainer_stats and only commits at the end. Without this, the
+            # pending DELETEs survive on the shared connection and the next
+            # unrelated commit (backfill_card_fields during auto-learn)
+            # finalises them — silently emptying both tables while this log
+            # line claims the stats are merely "stale".
+            self.conn.rollback()
             logger.error("rebuild_stats failed after ingest — race_results "
                          "already committed; jockey/trainer stats may be stale. "
                          "Re-run `scripts.scrape_history --rankings` to refresh.",
