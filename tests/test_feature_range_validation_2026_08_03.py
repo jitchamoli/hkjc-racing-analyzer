@@ -75,11 +75,14 @@ class TestRangeValidation:
         conn = sqlite3.connect(str(config.DB_PATH))
         conn.row_factory = sqlite3.Row
         try:
+            # Take the most recent meeting rather than a hardcoded date: a DB
+            # restored from a dump that predates 2026/07/15 used to fail this
+            # HARD (`assert rows`) rather than adapting.
             rows = conn.execute(
                 "SELECT horse_name, race_date, distance, going, jockey, trainer "
-                "FROM race_results WHERE race_date = '2026/07/15' LIMIT 25"
+                "FROM race_results ORDER BY race_date DESC LIMIT 25"
             ).fetchall()
-            assert rows, "no sample rows found"
+            assert rows, "race_results is empty"
             for row in rows:
                 data = dict(row)
                 data["name"] = data.pop("horse_name")
