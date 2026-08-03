@@ -56,14 +56,25 @@ class TestEstimateFieldSize:
 
 
 class TestTruncatedTailDetection:
-    """A race whose tail is entirely missing cannot be repaired by the above."""
+    """A race whose rows are not a complete HK card.
+
+    REVISED 2026-08-04: the original `<= typical_field/2` rule deleted 38
+    GENUINE short-field Group races. The signal is now a missing venue (the
+    overseas-runner artefact) plus an absolute <= 4 floor. See
+    tests/test_training_truncation_signal_2026_08_04.py for the full rationale
+    and the live-DB check. Fixtures below now carry a venue, as real HK rows do.
+    """
 
     def test_truncated_tail_is_reported(self):
-
-        # 4 rows, positions 1-4: consistent, but a 12-runner card lost 8 rows.
-        rows = [{"finish_position": i} for i in range(1, 5)]
+        # 4 rows: below the absolute floor — cannot be a real HK card.
+        rows = [{"finish_position": i, "venue": "Sha Tin"} for i in range(1, 5)]
         assert looks_truncated(rows, typical_field=12) is True
 
     def test_normal_small_field_is_not_flagged(self):
-        rows = [{"finish_position": i} for i in range(1, 10)]
+        rows = [{"finish_position": i, "venue": "Sha Tin"} for i in range(1, 10)]
+        assert looks_truncated(rows, typical_field=12) is False
+
+    def test_genuine_six_runner_group_race_is_not_flagged(self):
+        """The regression this revision exists to prevent."""
+        rows = [{"finish_position": i, "venue": "Sha Tin"} for i in range(1, 7)]
         assert looks_truncated(rows, typical_field=12) is False

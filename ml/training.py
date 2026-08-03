@@ -25,8 +25,12 @@ logger = logging.getLogger(__name__)
 # A truncated ingest can leave a race with only its leading finishers. If a
 # race holds this fraction (or less) of a typical HK card, treat it as
 # truncated rather than as a genuinely tiny field.
-_TRUNCATION_RATIO = 0.5
 _TYPICAL_HK_FIELD = 12
+
+# Absolute floor below which stored rows cannot be a real HK card. The smallest
+# genuine HK field in the 5y window is 5 runners (verified: 0 venue-present
+# races with <= 4 finishers), so this can only ever catch a broken ingest.
+_MIN_CREDIBLE_HK_FIELD = 4
 
 
 def estimate_field_size(rows) -> int:
@@ -50,15 +54,35 @@ def estimate_field_size(rows) -> int:
 
 
 def looks_truncated(rows, typical_field: int = _TYPICAL_HK_FIELD) -> bool:
-    """True when a race looks like it lost its whole tail to a partial ingest.
+    """True when these rows are not a complete HK race card.
 
-    `estimate_field_size` cannot repair this case — a 12-runner race stored as
-    positions 1..4 is internally consistent — so such races are flagged and
-    skipped rather than silently trained on with field_size=4.
+    Detects a bad INGEST, not a small FIELD. This originally gated on
+    `estimate_field_size <= 6`, which dropped 53 races from the training window
+    — and 38 of them were GENUINE: complete Group/Class fields with contiguous
+    saddle numbers and declared HKJC dividends (2026/03/01 R7 Group One, 6
+    runners; 2023/03/19 R7 G1, 5 runners; …). That removed ~11% of all Group
+    races, and because a 6-horse field has a ~1/6 base win rate vs ~1/12 the
+    deletion correlated with the label — MNAR deletion on a feature the model
+    uses (`field_size`, `field_rel_draw`). It also raised the minimum training
+    field to 7, so inference on a 6-runner Group race extrapolated outside
+    training support. One train/predict skew traded for another.
+
+    The artefact's real signature (memory: project_overseas_runner_rows) is a
+    MISSING VENUE — HK horses racing abroad (Dubai/Saudi/Japan) are stored
+    without one. 15 such races; every one of the 38 genuine short fields has a
+    venue.
+
+    `typical_field` is retained for signature compatibility but no longer gates
+    on the declared field: the floor below is absolute. The smallest genuine HK
+    field in five years is 5 runners (0 venue-present races have <= 4), so a
+    <= 4 backstop cannot delete a real race while still catching a future
+    truncated ingest.
     """
     if not rows:
         return False
-    return estimate_field_size(rows) <= typical_field * _TRUNCATION_RATIO
+    if not any(str(r.get('venue') or '').strip() for r in rows):
+        return True
+    return estimate_field_size(rows) <= _MIN_CREDIBLE_HK_FIELD
 
 
 def build_training_data_from_db(
