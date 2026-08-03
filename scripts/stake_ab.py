@@ -91,6 +91,21 @@ VARIANTS = {
                    # the comparison isolates STRUCTURE, not stake size.
                    'qin_straight_only': True,
                    'label': 'straight QIN only (1 combo)'},
+    'edge_filtered': {
+                   'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
+                   'skip_tiers': set(), 'apply_chaos': True,
+                   # Bet only races where the model's TOP pick looks underpriced
+                   # by >= this many points vs its market-implied probability.
+                   # Holdout 2026-08-03: edge >= +5pp races (n=109) returned
+                   # +44.1% with an 18.3% top-2 hit rate, vs -2.0% / 14.6% where
+                   # the model agrees with the market. Changes WHICH races we
+                   # bet, never the order of horses inside them — pure-model
+                   # ordering is measurably the worst available (6.3% top-2
+                   # capture vs 13.6% blended). Hypothesis only: the edge
+                   # buckets are non-monotonic (+0..+5pp comes in at -38.2%),
+                   # and this is the burned holdout.
+                   'min_edge_pp': 5.0,
+                   'label': 'bet only edge >= +5pp races'},
     'production': {'mode': 'race_ramp_split',
                    'ramp': {'EDGE': 0.030, 'HIGH': 0.020, 'MED': 0.010,
                             'LOW': 0.005, 'SKIP': 0.000},
@@ -291,11 +306,31 @@ def restrict_to_straight_qin(fires: dict[str, int]) -> dict[str, int]:
     return {'STRAIGHT QIN': 1} if has_qin else {}
 
 
+def race_meets_edge_floor(race: dict, min_edge_pp: float) -> bool:
+    """True when our RANK-1 horse looks underpriced by >= min_edge_pp.
+
+    Only rank 1 counts: a large edge on an outsider is the inflated-noise
+    signature documented for rank-4+ CLV, not a reason to back the race.
+    """
+    horses = race.get('horses') or []
+    top = next((h for h in horses if (h.get('rank') or 99) == 1), None)
+    if top is None:
+        return False
+    edge = top.get('edge_pp')
+    return edge is not None and float(edge) >= min_edge_pp
+
+
 def variant_stakes(variant: str, race: dict, fires: dict[str, int],
                    bankroll: float) -> dict[str, float]:
     """Return {bet_label: total_stake_HKD} for this variant on this race."""
     cfg = VARIANTS[variant]
     tier = (race.get('conviction_tier') or 'SKIP').upper()
+
+    # Race-selection filter (edge_filtered): skip races the model does not
+    # think are mispriced. Applies before any staking mode.
+    min_edge = cfg.get('min_edge_pp')
+    if min_edge is not None and not race_meets_edge_floor(race, min_edge):
+        return {bt: 0.0 for bt in fires}
 
     # Tier-level skip filter (applies to any variant). Used by
     # flat_min_skip_aware to mirror production's SKIP-on-SKIP-tier behavior

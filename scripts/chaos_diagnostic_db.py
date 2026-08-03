@@ -63,8 +63,30 @@ def normalize_going(g: str) -> str:
 
 
 def is_chaos_db(going: str) -> bool:
-    """Soft-going DB-side detection. Mirrors betting/conviction.detect_chaos
-    but with augmented keyword set + short-form normalization."""
+    """Soft-going detection — DELEGATES to the shipped filter.
+
+    This used to keep its own substring match, which fired on
+    'Good To Yielding' (and GY) and on 'Wet-Fast'. Production `detect_chaos`
+    excludes both — GY was deliberately narrowed out on 2026-07-15 because the
+    favourite strikes ~31% on it, indistinguishable from firm. So the
+    diagnostic was measuring a strictly WIDER filter than the one deployed,
+    and the "~-7pp expected lift" figure in CLAUDE.md came from this script.
+
+    A diagnostic that disagrees with production can't inform a decision about
+    production, so it now calls the same function. Use `is_chaos_db_augmented`
+    if you specifically want the exploratory wider sweep.
+    """
+    from betting.conviction import detect_chaos
+    return bool(detect_chaos(normalize_going(going))[0])
+
+
+def is_chaos_db_augmented(going: str) -> bool:
+    """Exploratory WIDER sweep — NOT what production ships.
+
+    Adds RAIN / WET labels that never appear in live race-card JSON. Kept for
+    hypothesis generation only; never quote its numbers as the shipped
+    filter's effect.
+    """
     g = normalize_going(going)
     return any(kw in g for kw in SOFT_KEYWORDS_DB)
 
