@@ -623,13 +623,11 @@ def simulate_bets(races, conn):
         # Pre-blend overlay for the EV-gate test (#5). pure_prob is the
         # PRE-market-blend prob (docs spec: edge uses pure_prob, not calibrated)
         # built from rule_score + RAW ml_prob — same as dashboard/generator.
-        from betting.edge_calculator import compute_pure_probs
-        _edge_horses = [{
-            'rule_score': a.rule_score,
-            'ml_prob': (a.ml_prediction.raw_win_probability if a.ml_prediction else 0.0),
-            'win_odds': (h.get('win_odds') or 0.0),
-        } for (h, _, _, a) in preds]
-        _pure = compute_pure_probs(_edge_horses, field_size=len(_edge_horses))
+        from betting.edge_calculator import pure_probs_from_analyses
+        _pure = pure_probs_from_analyses(
+            [a for (_h, _, _, a) in preds],
+            odds=[(h.get('win_odds') or 0.0) for (h, _, _, _a) in preds],
+        )
         pure_ev_top = (_pure[0] * top_odds - 1.0) if _pure and top_odds > 0 else None
 
         # Place-model calibration pairs (place_prob, actual is_top3) for EVERY

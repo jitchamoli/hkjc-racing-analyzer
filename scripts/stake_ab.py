@@ -96,14 +96,31 @@ VARIANTS = {
                    'skip_tiers': set(), 'apply_chaos': True,
                    # Bet only races where the model's TOP pick looks underpriced
                    # by >= this many points vs its market-implied probability.
-                   # Holdout 2026-08-03: edge >= +5pp races (n=109) returned
-                   # +44.1% with an 18.3% top-2 hit rate, vs -2.0% / 14.6% where
-                   # the model agrees with the market. Changes WHICH races we
-                   # bet, never the order of horses inside them — pure-model
-                   # ordering is measurably the worst available (6.3% top-2
-                   # capture vs 13.6% blended). Hypothesis only: the edge
-                   # buckets are non-monotonic (+0..+5pp comes in at -38.2%),
-                   # and this is the burned holdout.
+                   # Changes WHICH races we bet, never the order of horses
+                   # inside them — pure-model ordering is measurably the worst
+                   # available (6.3% top-2 capture vs 13.6% blended).
+                   #
+                   # RE-GROUNDED 2026-08-03 after pure_prob was calibrated. The
+                   # original "+44.1% on n=109" note is withdrawn: it was
+                   # computed from the analyzer's UNNORMALISED model_probability
+                   # (per-race sums 0.70-2.32) against a normalised market prob,
+                   # so it was not an edge at all. On the calibrated scale the
+                   # 634-race holdout says:
+                   #
+                   #   floor   races  %kept  hits    ROI
+                   #   none      634  100%     86   -1.0%
+                   #   -10pp     322   51%     38   +5.1%
+                   #     0pp      91   14%     10  -10.3%
+                   #   +2.5pp     68   11%      7  -21.5%
+                   #    +5pp      44    7%      6   +9.7%
+                   #   +10pp      16    3%      2  +63.8%
+                   #
+                   # Non-monotone, and the positive cells are 6/44 and 2/16 —
+                   # noise by the repo's own n<50 discount rule. So the sweep
+                   # supports NO floor, and the threshold is deliberately left
+                   # at its original +5.0 rather than tuned on burned holdout
+                   # data. Forward log is the only honest verdict; note this
+                   # keeps only ~7% of races, so N accrues slowly.
                    'min_edge_pp': 5.0,
                    'label': 'bet only edge >= +5pp races'},
     'production': {'mode': 'race_ramp_split',
@@ -306,12 +323,32 @@ def restrict_to_straight_qin(fires: dict[str, int]) -> dict[str, int]:
     return {'STRAIGHT QIN': 1} if has_qin else {}
 
 
+# pure_prob was recalibrated on this date (scripts/calibrate_pure). Before it,
+# stored edge_pp carried a structural ~-10pp from an under-confident pure_prob;
+# after it, edge_pp means what it says. The two are not on the same ruler, so
+# edge_filtered may only read meetings from the cutover onward.
+PURE_CALIBRATION_DATE = '2026/08/03'
+
+# Private key stamped onto each race dict by evaluate_date so the edge floor can
+# tell which scale it is reading. Race dicts in the frozen JSON carry no date of
+# their own — only the payload does.
+MEETING_DATE_KEY = '_meeting_date'
+
+
 def race_meets_edge_floor(race: dict, min_edge_pp: float) -> bool:
     """True when our RANK-1 horse looks underpriced by >= min_edge_pp.
 
     Only rank 1 counts: a large edge on an outsider is the inflated-noise
     signature documented for rank-4+ CLV, not a reason to back the race.
+
+    Refuses meetings scored before PURE_CALIBRATION_DATE, and meetings with no
+    date stamp (unknown provenance is treated as pre-calibration). Mixing the
+    two edge_pp scales would make the variant's fire rate a function of the
+    recalibration date rather than of the market.
     """
+    meeting_date = race.get(MEETING_DATE_KEY)
+    if not meeting_date or str(meeting_date) < PURE_CALIBRATION_DATE:
+        return False
     horses = race.get('horses') or []
     top = next((h for h in horses if (h.get('rank') or 99) == 1), None)
     if top is None:
@@ -683,9 +720,18 @@ def evaluate_date(race_date: str, bankroll: float) -> int:
           f"{'Stake':>8} {'Hit':>4} {'Div/$1':>8} {'P&L':>9}")
     print('-' * 78)
 
+    pre_cal_meeting = race_date < PURE_CALIBRATION_DATE
+    if pre_cal_meeting:
+        print(f"  note: {race_date} predates the pure_prob recalibration "
+              f"({PURE_CALIBRATION_DATE}); edge_filtered stakes nothing here — "
+              f"its stored edge_pp is on the old, under-confident scale.")
+
     for race in races:
         if not race.get('results_available'):
             continue
+        # Race dicts carry no date of their own; stamp the meeting's so
+        # race_meets_edge_floor can tell which edge_pp scale it is reading.
+        race[MEETING_DATE_KEY] = race_date
         rn = race.get('race_number')
         # Ticket-first scoring map: when bet_ticket exists, score each
         # bet from its pool + legs via _score_bet_from_ticket so the

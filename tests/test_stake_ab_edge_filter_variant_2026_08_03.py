@@ -1,30 +1,34 @@
 """`edge_filtered` forward-A/B variant — bet only where we think it's mispriced.
 
-Motivation (holdout diagnostic 2026-08-03, 634 races): splitting races by how
-far the model's top pick disagrees with its market price,
+The idea: how far the model's top pick disagrees with its market price might be
+a good RACE SELECTOR. It is NOT a good leg orderer — ranking by the pure model
+collapses top-2 capture to 6.3% vs 13.6% for the production blend — so this
+variant changes WHICH races we bet, never the order of horses within them.
 
-    model edge >= +5pp   n=109   top-2 hit 18.3%   ROI  +44.1%
-    model edge <  0      n=404   top-2 hit 14.6%   ROI   -2.0%
+The motivating "+44.1% on n=109" split is WITHDRAWN (2026-08-03): it compared
+the analyzer's UNNORMALISED model_probability (per-race sums 0.70-2.32) against
+a normalised market probability, so the difference was not an edge. Re-run on
+the calibrated pure_prob the 634-race holdout is non-monotone and the positive
+cells are 6/44 and 2/16 bets — noise. The floor is therefore left at its
+original +5.0 rather than tuned on burned data; see the sweep table in
+scripts/stake_ab.py. Forward log is the verdict; ships only at posterior >= 0.95.
 
-i.e. mispricing looks like a good RACE SELECTOR. Note it is NOT a good leg
-orderer: ranking by the pure model inside those same races collapses top-2
-capture from ~19% to ~4%, and wholesale pure-model ranking captures 6.3% vs
-13.6% for the production blend. So this variant changes WHICH races we bet,
-never the order of the horses within them.
-
-Held as a hypothesis, not a rule: the edge buckets are non-monotonic (the
-+0..+5pp bucket comes in at -38.2%), which is what noise looks like, and this
-is the burned holdout. Forward-logged alongside straight_qin_only; ships only
-at posterior >= 0.95.
+Because the edge_pp stored in old meeting JSONs is on the pre-calibration
+scale, the floor also refuses meetings before PURE_CALIBRATION_DATE — see
+tests/test_stake_ab_edge_scale_guard_2026_08_03.py.
 """
 import pytest
 
-from scripts.stake_ab import VARIANTS, race_meets_edge_floor, variant_stakes
+from scripts.stake_ab import (
+    VARIANTS, race_meets_edge_floor, variant_stakes, MEETING_DATE_KEY,
+)
 
 
 def _race(edge_pp, tier='HIGH'):
     return {
         'conviction_tier': tier,
+        # Post-recalibration meeting — otherwise the scale guard refuses it.
+        MEETING_DATE_KEY: '2026/08/10',
         'horses': [
             {'rank': 1, 'name': 'A', 'edge_pp': edge_pp},
             {'rank': 2, 'name': 'B', 'edge_pp': -3.0},
@@ -60,6 +64,7 @@ class TestEdgeFloor:
         """A big edge on a rank-5 outsider must not qualify the race."""
         race = {
             'conviction_tier': 'HIGH',
+            MEETING_DATE_KEY: '2026/08/10',
             'horses': [
                 {'rank': 1, 'name': 'A', 'edge_pp': -2.0},
                 {'rank': 5, 'name': 'E', 'edge_pp': 40.0},
@@ -68,11 +73,13 @@ class TestEdgeFloor:
         assert race_meets_edge_floor(race, 5.0) is False
 
     def test_missing_edge_field_does_not_qualify(self):
-        race = {'conviction_tier': 'HIGH', 'horses': [{'rank': 1, 'name': 'A'}]}
+        race = {'conviction_tier': 'HIGH', MEETING_DATE_KEY: '2026/08/10',
+                'horses': [{'rank': 1, 'name': 'A'}]}
         assert race_meets_edge_floor(race, 5.0) is False
 
     def test_empty_race_does_not_qualify(self):
-        assert race_meets_edge_floor({'horses': []}, 5.0) is False
+        assert race_meets_edge_floor(
+            {MEETING_DATE_KEY: '2026/08/10', 'horses': []}, 5.0) is False
 
 
 class TestStaking:

@@ -1,11 +1,24 @@
 """Pure-prob and edge math with 6-gate filtering.
 
-pure_prob = softmax(0.6·sigmoid_anchored(rule_score, 1/N) + 0.4·ml_prob)
-— our independent opinion BEFORE the market blend.
+    pure_prob = normalise(RULE_WEIGHT·sigmoid_anchored(rule_score, 1/N)
+                          + ML_WEIGHT·raw_ml_prob)   -> pure_calibrator isotonic
+
+— our independent opinion BEFORE the market blend. Note "normalise", not
+softmax: exponentiating flattens the model's own signal (a 0.50-vs-0.05 field
+becomes 0.18-vs-0.07), which mechanically drives edge_pp negative everywhere.
 
 Feeds edge_pp, ev_win, overlay; gated by EV + prob floor + edge gap + rank
 + odds freshness + model integrity. See
 docs/superpowers/specs/2026-04-24-dashboard-redesign-design.md §4.
+
+THIS MODULE IS THE ONE DEFINITION of "the model's own opinion". Everything
+that needs it — dashboard/generator, scripts/backtest, scripts/calibrate_pure,
+and HorseAnalysis.model_probability via core/scorer.apply_calibrated_probs —
+routes through compute_pure_probs (or pure_probs_from_analyses for objects).
+Until 2026-08-03 the analyzer maintained a second, divergent version that read
+the CALIBRATED ml_prob, skipped the field normalisation, and skipped the
+isotonic; it gave rank-1 a mean of 0.198 (per-race sums 0.70-2.32) where this
+gave 0.133 for the same horses. Add no third one.
 """
 
 import logging
@@ -170,6 +183,50 @@ def compute_pure_probs(horses: List[Dict], field_size: int = None,
             logger.warning("pure_calibrator.predict failed — edge math "
                            "uncalibrated this run: %s", e)
     return probs
+
+
+def analysis_to_edge_input(analysis, win_odds: float = None) -> Dict[str, float]:
+    """Extract the canonical (rule_score, ml_prob) pair from a HorseAnalysis.
+
+    THE single place that answers "which ML probability is the model's own
+    opinion?" — the RAW pre-isotonic XGBoost output, per the docs spec, NOT
+    MLPrediction.win_probability (which is already calibrated). Falls back to
+    the calibrated value when raw is absent or zero, matching legacy
+    MLPrediction objects written before `raw_win_probability` existed.
+
+    Duck-typed on purpose: `analysis` need only expose `rule_score`,
+    `ml_prediction`, and (when win_odds is not passed) `horse.win_odds`.
+    """
+    mlp = getattr(analysis, 'ml_prediction', None)
+    raw = getattr(mlp, 'raw_win_probability', 0.0) if mlp is not None else 0.0
+    if not raw:
+        raw = getattr(mlp, 'win_probability', 0.0) if mlp is not None else 0.0
+    if win_odds is None:
+        win_odds = getattr(getattr(analysis, 'horse', None), 'win_odds', 0.0)
+    return {
+        'rule_score': float(getattr(analysis, 'rule_score', 0.0) or 0.0),
+        'ml_prob': float(raw or 0.0),
+        'win_odds': float(win_odds or 0.0),
+    }
+
+
+def pure_probs_from_analyses(analyses, odds: List[float] = None,
+                             calibrator=USE_PRODUCTION_PURE_CALIBRATOR) -> List[float]:
+    """pure_prob for a field of HorseAnalysis objects.
+
+    Exists so `HorseAnalysis.model_probability` and the dashboard's `pure_prob`
+    are the SAME number rather than two re-derivations that drifted apart —
+    the analyzer's used to read the CALIBRATED ml_prob and skip both the
+    field normalisation and the isotonic, so over 15 production meetings it
+    gave rank-1 a mean of 0.198 (per-race sum 0.70-2.32) where this gives
+    0.133 for the identical horses. See core/scorer.apply_calibrated_probs.
+    """
+    if not analyses:
+        return []
+    horses = [analysis_to_edge_input(a, None if odds is None else odds[i])
+              for i, a in enumerate(analyses)]
+    return compute_pure_probs(horses, field_size=len(horses),
+                              calibrator=calibrator)
 
 
 def compute_market_probs(horses: List[Dict]) -> List[float]:
