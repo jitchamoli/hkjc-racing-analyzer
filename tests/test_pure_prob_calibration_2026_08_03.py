@@ -66,14 +66,25 @@ class TestCalibratorIsApplied:
             f"raw top {max(raw):.3f} -> cal top {max(cal):.3f}"
         )
 
-    def test_linear_calibrator_is_a_noop_after_renormalisation(self):
-        """Documents the property above so it can't be mistaken for a bug."""
+    def test_linear_calibrator_is_a_noop_below_the_clamp(self):
+        """Documents the property above so it can't be mistaken for a bug.
+
+        NARROWED 2026-08-04: the input clamp (_PURE_CAL_INPUT_CLIP) makes the
+        applied map `2 * min(p, clip)`, which is NOT linear once any runner
+        exceeds the clamp. The no-op property therefore holds only for a field
+        that sits entirely below it — which is 99% of runners, and is the
+        regime the property was ever about.
+        """
         class _Linear:
             def predict(self, xs):
                 return np.asarray(xs) * 2.0
 
-        raw = compute_pure_probs(_field(), field_size=12, calibrator=None)
-        cal = compute_pure_probs(_field(), field_size=12, calibrator=_Linear())
+        # A flat 14-runner field: every horse well under the clamp.
+        flat = [{'rule_score': 50.0, 'ml_prob': 0.07, 'win_odds': 12.0}
+                for _ in range(14)]
+        raw = compute_pure_probs(flat, field_size=14, calibrator=None)
+        cal = compute_pure_probs(flat, field_size=14, calibrator=_Linear())
+        assert max(raw) < ec._PURE_CAL_INPUT_CLIP, 'fixture must sit below the clamp'
         assert cal == pytest.approx(raw)
 
     def test_still_a_distribution(self):

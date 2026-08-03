@@ -87,6 +87,24 @@ USE_PRODUCTION_PURE_CALIBRATOR = object()
 # core.scorer._BLEND_CAL_TIEBREAK_EPS.
 _PURE_CAL_TIEBREAK_EPS = 1e-6
 
+# Last densely-supported input to the pure calibrator. Mirrors
+# core.scorer._BLEND_CAL_INPUT_CLIP, which exists for the identical pathology.
+#
+# The calibrator is fit on ~7,700 rows at an 8% base rate, so almost nothing
+# lands high: on the 2026-08-03 refit only 4 of 49 knots sit above 0.20 and the
+# top one maps 0.2661 -> 1.0000 — an isotonic asserting CERTAINTY off roughly
+# one sample. Renormalised, that hands a single horse the whole race, straight
+# into edge_pp / ev_win / overlay and all six EDGE gates. On held-out data 9
+# runners landed above 0.20: model 40.8% vs market 43.7%, only 3 of 9 won, yet
+# 5 of 9 cleared the EDGE gate purely on the unsupported inflation.
+#
+# NOT purely conservative, and the blend-clamp docstring used to claim it was.
+# Because the output is renormalised per race, capping the top horse
+# redistributes the removed mass to the rest. It caps a measured over-statement
+# at the cost of a small diffuse inflation elsewhere — worth it only because
+# the tail being removed is fit on ~1 sample.
+_PURE_CAL_INPUT_CLIP = 0.20
+
 
 def reset_pure_calibrator_cache() -> None:
     """Drop the cached pure calibrator so the next call re-reads the artifact."""
@@ -191,7 +209,9 @@ def compute_pure_probs(horses: List[Dict], field_size: int = None,
         try:
             import numpy as _np
             pre = _np.array(probs)
-            out = _np.asarray(iso.predict(pre), dtype=float)
+            # Clamp the INPUT at the last dense knot — see _PURE_CAL_INPUT_CLIP.
+            out = _np.asarray(
+                iso.predict(_np.minimum(pre, _PURE_CAL_INPUT_CLIP)), dtype=float)
             # Same plateau tie-break as core/scorer: a fitted isotonic is a
             # step function (here 0.30 and 0.40 both map to 0.5625), so
             # distinct horses would otherwise collapse to identical pure_prob
