@@ -1389,11 +1389,29 @@ class HorseDatabase:
         else:
             return f"{now.year - 1}-{str(now.year)[-2:]}"
 
-    @staticmethod
-    def _current_season_start() -> str:
-        """First day of the current HK racing season as 'YYYY/MM/DD'.
-        Seasons run Jul 1 – Jun 30, so July 2025 starts the 2025-26 season.
+    def _current_season_start(self) -> str:
+        """First day of the season containing the LATEST race in the DB.
+
+        Seasons run Jul 1 - Jun 30. Derived from MAX(race_date), not
+        datetime.now(), for two reasons (code review 2026-08-03):
+
+        * Determinism — rebuild_stats used the wall clock while the leak-free
+          backtest path used `_season_start_for(race_date)`, so the same DB
+          rebuilt on different days aggregated over different windows and
+          backtests were not reproducible across a season boundary.
+        * Off-season collapse — run on 2026-08-03 the wall clock claimed the
+          season started 2026/07/01 while the last race was 2026/07/15, so
+          "season to date" covered five meetings and jockey_stats /
+          trainer_stats (which feed the rule engine's jockey and trainer
+          factors) were rebuilt over that stub.
+
+        Falls back to the wall clock only when the DB holds no races.
         """
+        row = self.conn.execute(
+            "SELECT MAX(race_date) FROM race_results").fetchone()
+        latest = row[0] if row else None
+        if latest:
+            return HorseDatabase._season_start_for(latest)
         now = datetime.now()
         year = now.year if now.month >= 7 else now.year - 1
         return f"{year}/07/01"

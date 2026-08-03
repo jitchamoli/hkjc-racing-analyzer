@@ -61,8 +61,16 @@ def test_injected_calibrator_is_applied():
                                        calibrator=_ConstCal())
     none_cal = calibrate_probabilities(_mk(), field_size=3, distance=1200,
                                        calibrator=None)
-    # constant calibrator → uniform after renorm; None → non-uniform
-    assert max(injected) - min(injected) < 1e-9
+    # Constant calibrator → uniform after renorm; None → non-uniform.
+    # Tolerance is 1e-5 rather than 1e-9 because calibrate_probabilities adds
+    # _BLEND_CAL_TIEBREAK_EPS (1e-6) x the blended input to the isotonic
+    # output, so a constant calibrator now yields a near-uniform distribution
+    # that is strictly ordered instead of exactly tied (2026-08-03). Without
+    # that term the coarse production isotonic collapsed distinct horses onto
+    # identical probabilities and box leg cutoffs fell through to the
+    # pre_blend_rank tiebreak. Still ~4 orders of magnitude tighter than the
+    # non-calibrated spread asserted below, so a real regression still trips.
+    assert max(injected) - min(injected) < 1e-5
     assert max(none_cal) - min(none_cal) > 1e-3
 
 

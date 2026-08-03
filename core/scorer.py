@@ -188,6 +188,11 @@ _BLEND_CALIBRATOR_LOADED = False
 # refit, pickle unchanged. See 2-expert calibration-tail review 2026-06-27.
 _BLEND_CAL_INPUT_CLIP = 0.30
 
+# Weight of the plateau tie-break term (see calibrate_probabilities). Small
+# enough that calibration is unchanged to ~1e-6, large enough to survive
+# float renormalisation and order horses inside an isotonic step.
+_BLEND_CAL_TIEBREAK_EPS = 1e-6
+
 
 def reset_blend_calibrator_cache() -> None:
     """Drop the cached calibrator so the next call re-reads the artifact.
@@ -352,8 +357,34 @@ def calibrate_probabilities(analyses, field_size: int = 12,
             # recommender sort (assign_bet_recommendations), NOT here — so
             # calibrated_prob magnitudes stay clean (a constant calibrator still
             # yields a uniform distribution).
-            blended = list(iso.predict(
-                _np.minimum(_np.array(blended), _BLEND_CAL_INPUT_CLIP)))
+            pre_iso = _np.array(blended)
+            calibrated = iso.predict(_np.minimum(pre_iso, _BLEND_CAL_INPUT_CLIP))
+            # Tie-break term uses the PRE-BLEND model probability, not the
+            # blended one. Measured 2026-08-03: breaking plateau ties by the
+            # blended value instead made things WORSE across the board
+            # (top-pick Brier 0.1920 -> 0.1963, straight QIN -0.81% -> -2.05%,
+            # TRIO-5 -15.6% -> -19.8%). Globally the blend outranks the pure
+            # model, but INSIDE an isotonic plateau the blend has declared the
+            # horses indistinguishable, and there the model's independent
+            # opinion is the only signal left — which is precisely what the
+            # pre_blend_rank tiebreak in the recommender was already doing.
+            # This keeps that ordering and additionally removes the degenerate
+            # exact-0.0 outputs (4.4% of live runners) the raw isotonic emits.
+            tie_term = _np.array(cal_probs)
+            # Restore a strict ordering inside each isotonic plateau. The
+            # fitted isotonic is a coarse step function (48 distinct levels on
+            # [0, 0.30]; everything below 0.0202 maps to exactly 0.0), so
+            # distinct horses collapsed onto identical calibrated_prob — 4.4%
+            # of runners hit exactly 0.0, and exact ties straddled the BOX
+            # TRIO-5 leg cutoff in ~45% of races. Where that happened
+            # calibrated_prob had no resolving power and the cutoff fell
+            # through to the pre_blend_rank tiebreak, i.e. the PURE model
+            # picked the legs — measurably the weakest ranking source
+            # available (6.3% quinella capture vs 13.6% blended).
+            #
+            # The term is vanishing (1e-6), so calibration is preserved and the
+            # isotonic's own ordering always dominates.
+            blended = list(calibrated + _BLEND_CAL_TIEBREAK_EPS * tie_term)
         except Exception as e:
             # Fall through to raw blended values on any sklearn error, but
             # surface the failure — silent skip means every prediction is
