@@ -22,6 +22,44 @@ from ml.features import FeatureEngineering, extract_class_rank, parse_age_score
 
 logger = logging.getLogger(__name__)
 
+# A truncated ingest can leave a race with only its leading finishers. If a
+# race holds this fraction (or less) of a typical HK card, treat it as
+# truncated rather than as a genuinely tiny field.
+_TRUNCATION_RATIO = 0.5
+_TYPICAL_HK_FIELD = 12
+
+
+def estimate_field_size(rows) -> int:
+    """Best estimate of how many horses actually contested the race.
+
+    Training used to take the COUNT(*) of stored rows, but inference uses the
+    DECLARED field (`len(all_horses)`), so any dropped finisher taught the
+    model a field size it will never see at prediction time — a CLAUDE.md ML
+    Rule 2 violation on `field_size` and `field_rel_draw` (~0.080 combined
+    importance), and it skews `weight_vs_field`'s median too.
+
+    `max(finish_position)` is a lower bound that survives dropped rows (if
+    someone finished 12th, at least 12 went round), so take the larger of that
+    and the row count. Dead heats repeat a position and so cannot inflate it;
+    non-finishers stored at position 0 still count as rows.
+    """
+    if not rows:
+        return 0
+    positions = [int(r.get("finish_position") or 0) for r in rows]
+    return max(len(rows), max(positions, default=0))
+
+
+def looks_truncated(rows, typical_field: int = _TYPICAL_HK_FIELD) -> bool:
+    """True when a race looks like it lost its whole tail to a partial ingest.
+
+    `estimate_field_size` cannot repair this case — a 12-runner race stored as
+    positions 1..4 is internally consistent — so such races are flagged and
+    skipped rather than silently trained on with field_size=4.
+    """
+    if not rows:
+        return False
+    return estimate_field_size(rows) <= typical_field * _TRUNCATION_RATIO
+
 
 def build_training_data_from_db(
     years_back: Optional[int] = None,
@@ -88,13 +126,19 @@ def build_training_data_from_db(
 
         logger.info(f"Building training data from {len(rows)} real race results")
 
-        # Precompute field sizes and median weights per race
-        field_sizes = {}
+        # Precompute field sizes and median weights per race.
+        # field_size comes from estimate_field_size (row count OR the highest
+        # finish position, whichever is larger) rather than a bare COUNT(*):
+        # inference uses the DECLARED field, so a dropped finisher used to
+        # teach the model a field size it can never see (ML Rule 2). Races
+        # whose whole tail is missing can't be repaired that way and are
+        # skipped — see `_truncated` below.
+        race_rows = {}
         race_weights = {}  # race_key → list of carried weights
         for row in rows:
             r = dict(row)
             rk = f"{r.get('race_date', '')}-{r.get('race_number', 0)}"
-            field_sizes[rk] = field_sizes.get(rk, 0) + 1
+            race_rows.setdefault(rk, []).append(r)
             wt = r.get('weight', 0) or 0
             try:
                 wt = int(wt)
@@ -102,6 +146,16 @@ def build_training_data_from_db(
                 wt = 0
             if wt > 0:
                 race_weights.setdefault(rk, []).append(wt)
+        field_sizes = {rk: estimate_field_size(rs) for rk, rs in race_rows.items()}
+        _truncated = {rk for rk, rs in race_rows.items() if looks_truncated(rs)}
+        _recovered = sum(1 for rk, rs in race_rows.items()
+                         if field_sizes[rk] > len(rs))
+        if _recovered or _truncated:
+            logger.info(
+                f"field_size: recovered {_recovered} race(s) from dropped "
+                f"finishers; skipping {len(_truncated)} truncated race(s)"
+            )
+
         field_median_weights = {}
         for rk, wts in race_weights.items():
             sw = sorted(wts)
@@ -203,6 +257,12 @@ def build_training_data_from_db(
             race_date = r.get('race_date', '')
             race_no = r.get('race_number', 0)
             race_key = f"{race_date}-{race_no}"
+            # Skip races whose tail was lost to a partial ingest — their
+            # field_size (and therefore field_rel_draw and the weight_vs_field
+            # median) cannot be reconstructed, so training on them teaches
+            # values inference will never produce.
+            if race_key in _truncated:
+                continue
             field_size = field_sizes.get(race_key, 12)
             going = r.get('going', '') or ''
 
