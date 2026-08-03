@@ -436,6 +436,39 @@ def _lookup_dividend(conn, race_date: str, race_no: int, pool: str,
     return div if div is not None else 0.0
 
 
+def _quinella_dividend(conn, race_date: str, race_no: int,
+                       finishers: list[dict], held: set) -> float:
+    """Real declared QUINELLA payout per $1, summed over every winning pair
+    our ticket actually held.
+
+    This used to read `race['qin_top_pair_dividend']` — which
+    dashboard/generator.py writes as a PRE-RACE Harville ESTIMATE, not a
+    payout. 133 of 176 race JSONs carry `qin_dividend_source == 'harville'`,
+    so most QIN hits in the A/B were priced by the model's own guess at what
+    it would pay. 2026/05/13 R6 really paid $321.50/HK$10 and was scored at
+    $24.18; 2026/04/26 R11 paid $119.50 and was booked as a LOSS. Every other
+    pool already used the declared dividend — QIN was the exception.
+
+    Dead-heat aware: HKJC declares a QUINELLA per tied combination, so a box
+    holding several winning pairs collects each (same rule as TRIO/FIRST 4).
+    Returns 0.0 when nothing is declared — an unpriced win, never an estimate.
+    """
+    from betting.dead_heat import group_by_position, winning_combo_entries
+
+    pos = group_by_position(finishers)
+    total = 0.0
+    for entries in winning_combo_entries(pos, 2):
+        names = {e['name'] for e in entries}
+        if not names <= held:
+            continue
+        nums = sorted(int(e['number']) for e in entries if e.get('number'))
+        if len(nums) != 2:
+            continue
+        total += _lookup_dividend(conn, race_date, race_no, 'QUINELLA',
+                                  f"{nums[0]},{nums[1]}")
+    return total
+
+
 def hit_and_dividend(bet_label: str, race: dict, conn,
                      race_date: str) -> tuple[bool, float]:
     """Return (hit, dividend_per_$1_stake) for this bet on this race.
@@ -521,18 +554,14 @@ def hit_and_dividend(bet_label: str, race: dict, conn,
     # one when a dead heat straddles 2nd), so a straight bet hits if our pair
     # is any of them and a box hits if it contains any of them.
     if bet_label == 'STRAIGHT QIN':
-        picks = _top_picks(race, 2)
-        hit = _names(picks) in win2
-        div = race.get('qin_top_pair_dividend')
-        unit_div = hkjc_declared_to_unit(div) if div else None
-        return (hit, unit_div if unit_div is not None else 0.0)
+        picks = _names(_top_picks(race, 2))
+        hit = picks in win2
+        return (hit, _quinella_dividend(conn, race_date, rn, finishers, picks))
     if bet_label.startswith('BOX QIN-'):
         n = int(bet_label.split('-')[1])
         box = _names(_top_picks(race, n))
         hit = any(w <= box for w in win2)
-        div = race.get('qin_top_pair_dividend')
-        unit_div = hkjc_declared_to_unit(div) if div else None
-        return (hit, unit_div if unit_div is not None else 0.0)
+        return (hit, _quinella_dividend(conn, race_date, rn, finishers, box))
 
     # TRIO family
     if bet_label == 'STRAIGHT TRIO':
@@ -818,14 +847,24 @@ def _per_meeting_winner(rows, variant, baseline='flat_min') -> list[int]:
     """For each meeting in chronological order, returns 1 if `variant`
     cumulative ROI through that meeting > `baseline` cumulative ROI, else 0.
     """
-    # A variant with no staked rows has never bet. Its ROI would evaluate to 0,
-    # which spuriously "beats" a losing baseline every meeting — manufacturing
-    # a confident posterior out of no evidence. Return no meetings instead.
-    if not any(r['variant'] == variant and float(r['stake_hkd']) > 0
-               for r in rows):
-        return []
+    # Only meetings where BOTH arms actually staked are evidence. A variant
+    # that stakes nothing scores _roi == 0, which "beats" a losing baseline —
+    # manufacturing a confident posterior out of no bets at all.
+    #
+    # The 2026-08-03 guard only caught a variant that had NEVER staked, which
+    # left the far more likely case wide open: a variant that bets on SOME
+    # meetings collected a free win on every meeting it sat out. Simulated,
+    # `edge_filtered` reached posterior 0.885 off ONE real (losing) meeting and
+    # crossed the 0.95 SHIP bar on about four — entirely on meetings it skipped.
+    def _staked(v, date):
+        return any(r['variant'] == v and r['race_date'] == date
+                   and float(r['stake_hkd']) > 0 for r in rows)
 
-    meetings = sorted(set(r['race_date'] for r in rows))
+    meetings = sorted({r['race_date'] for r in rows
+                       if _staked(variant, r['race_date'])
+                       and _staked(baseline, r['race_date'])})
+    if not meetings:
+        return []
     out = []
     for end_date in meetings:
         through = [r for r in rows if r['race_date'] <= end_date]
