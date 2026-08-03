@@ -189,6 +189,17 @@ _BLEND_CALIBRATOR_LOADED = False
 _BLEND_CAL_INPUT_CLIP = 0.30
 
 
+def reset_blend_calibrator_cache() -> None:
+    """Drop the cached calibrator so the next call re-reads the artifact.
+
+    Needed by tests, and by any caller that rewrites blend_calibrator.pkl
+    mid-process (e.g. an auto-learn refit) and wants the new fit picked up.
+    """
+    global _BLEND_CALIBRATOR, _BLEND_CALIBRATOR_LOADED
+    _BLEND_CALIBRATOR = None
+    _BLEND_CALIBRATOR_LOADED = False
+
+
 def _load_blend_calibrator():
     """Lazy-load models/blend_calibrator.pkl. Returns None if absent.
 
@@ -200,13 +211,19 @@ def _load_blend_calibrator():
     global _BLEND_CALIBRATOR, _BLEND_CALIBRATOR_LOADED
     if _BLEND_CALIBRATOR_LOADED:
         return _BLEND_CALIBRATOR
-    _BLEND_CALIBRATOR_LOADED = True
+    # NOTE: _BLEND_CALIBRATOR_LOADED is set only on a SUCCESSFUL resolution
+    # (loaded, or the file legitimately absent). Setting it up-front — as this
+    # did until 2026-08-03 — meant one bad read, missing sidecar or checksum
+    # mismatch cached None for the life of the process, so every later race ran
+    # uncalibrated and a repaired artifact was never re-read. Failures now
+    # retry on the next call; the happy path still reads the file once.
     import hashlib, pickle
     from pathlib import Path
     repo_root = Path(__file__).resolve().parent.parent
     pkl = repo_root / 'models' / 'blend_calibrator.pkl'
     sha = pkl.with_suffix('.sha256')
     if not pkl.exists():
+        _BLEND_CALIBRATOR_LOADED = True
         return None
     try:
         raw = pkl.read_bytes()
@@ -230,6 +247,7 @@ def _load_blend_calibrator():
             return None
         payload = pickle.loads(raw)
         _BLEND_CALIBRATOR = payload.get('calibrator')
+        _BLEND_CALIBRATOR_LOADED = True
     except Exception as e:
         logger.error(f"blend_calibrator load failed — pipeline running uncalibrated: {e}")
         _BLEND_CALIBRATOR = None

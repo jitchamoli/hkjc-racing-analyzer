@@ -51,6 +51,7 @@ from pathlib import Path
 
 import config
 from betting.dividends import hkjc_declared_to_unit
+from betting.dead_heat import winning_combo_entries
 
 CUTOFF_RE = re.compile(r'^\d{4}/\d{2}/\d{2}$')
 
@@ -69,39 +70,18 @@ STRATS = [
 CSV_COLS = ["race_date", "races"] + [f"{s[0]}_{k}" for s in STRATS for k in ("stake", "ret", "hits")]
 
 
-def _winning_combo_entries(pos_to_entries: dict, k: int) -> list[list[dict]]:
-    """Every winning k-horse (unordered) combination, DEAD-HEAT aware.
-
-    HKJC declares a dividend for EACH tied combination. A dead heat for 2nd
-    means two winning quinellas (1st+A and 1st+B) — 2026/06/07 R1 really has
-    two declared QUINELLA rows, '1,3' ($37) and '1,8' ($354) — and a box
-    holding all three horses collects BOTH.
-
-    Horses finishing above the cutoff are certain; a tie that straddles the
-    cutoff expands into one combination per way of filling the open slots.
-    Returns [] when there aren't k finishers.
-
-    Both scorers used to key finishers by position (dict) and bail out on a
-    tie: _score_meeting `continue`d past the whole race (survivorship on a
-    POST-race property — it silently deleted a real HK$37 winner from the
-    forward log), while _score_meeting_replay let the tie overwrite a
-    finisher and then booked the stake as a guaranteed loss.
-    """
-    certain: list[dict] = []
-    for pos in sorted(pos_to_entries):
-        group = pos_to_entries[pos]
-        if not group:
-            continue
-        if len(certain) + len(group) <= k:
-            certain = certain + list(group)
-            if len(certain) == k:
-                return [certain]
-        else:
-            slots = k - len(certain)
-            if slots <= 0:
-                break
-            return [certain + list(c) for c in combinations(group, slots)]
-    return []
+# The dead-heat enumeration now lives in betting/dead_heat.py so stake_ab and
+# the tracker scripts share ONE implementation (code review 2026-08-03 found
+# five re-implementations, of which stake_ab's had silently diverged and was
+# scoring genuine dead-heat winners as misses). Alias kept: this name is used
+# throughout this module and by tests.
+#
+# Historical note preserved: both scorers here used to key finishers by
+# position (dict) and bail out on a tie — _score_meeting `continue`d past the
+# whole race (survivorship on a POST-race property, silently deleting a real
+# HK$37 winner from the forward log), while _score_meeting_replay let the tie
+# overwrite a finisher and then booked the stake as a guaranteed loss.
+_winning_combo_entries = winning_combo_entries
 
 
 def _combo_div(conn, d, rno, pool, entries: list[dict]) -> float | None:

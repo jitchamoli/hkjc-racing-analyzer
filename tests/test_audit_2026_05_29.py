@@ -130,33 +130,33 @@ def test_going_bucket_groups_synonyms():
 def test_going_performance_uses_bucket_not_raw_eq():
     """Both inference and training sites must use _going_bucket() for the
     same-going comparison. Raw 'going'] == going equality silently nulls
-    Feature 11 for the majority of horses because DB stores 'GOOD TO FIRM'
+    Feature 10 for the majority of horses because DB stores 'GOOD TO FIRM'
     where today's card may have 'GF'."""
     # extract_features in features.py
     src_f = (REPO / 'ml' / 'features.py').read_text()
-    # Find the Feature 11 block by anchor comment
-    f11_idx = src_f.find('Feature 11: going performance')
+    # Find the going-performance block by anchor comment
+    f11_idx = src_f.find('Feature 10: going performance')
     assert f11_idx > 0
     f11_block = src_f[f11_idx:f11_idx + 1200]
     assert "_going_bucket(going)" in f11_block, (
-        "ml/features.py Feature 11 must bucket today's going via "
+        "ml/features.py Feature 10 must bucket today's going via "
         "FeatureEngineering._going_bucket()"
     )
     # Old buggy line was: p.get('going', '') == going
     assert "p.get('going', '') == going" not in f11_block, (
-        "ml/features.py Feature 11 still uses raw exact-string match"
+        "ml/features.py Feature 10 still uses raw exact-string match"
     )
 
     # build_training_data_from_db in training.py
     src_t = (REPO / 'ml' / 'training.py').read_text()
-    t11_idx = src_t.find('Feature 11: going performance')
+    t11_idx = src_t.find('Feature 10: going performance')
     assert t11_idx > 0
     t11_block = src_t[t11_idx:t11_idx + 1200]
     assert "_going_bucket(going)" in t11_block, (
-        "ml/training.py Feature 11 must bucket today's going"
+        "ml/training.py Feature 10 must bucket today's going"
     )
     assert "p.get('going', '') == going" not in t11_block, (
-        "ml/training.py Feature 11 still uses raw exact-string match"
+        "ml/training.py Feature 10 still uses raw exact-string match"
     )
 
 

@@ -69,7 +69,11 @@ def _get_analyzer():
     global _analyzer_singleton
     if _analyzer_singleton is None:
         from core.analyzer import CombinedRaceAnalyzer
-        _analyzer_singleton = CombinedRaceAnalyzer()
+        # fail_closed_ml matches the production entry points. Without it a
+        # broken/missing model silently scores every horse at 1/field_size and
+        # the backtest reports plausible-looking ROI — and this script is where
+        # ship/kill decisions come from. (Code review 2026-08-03.)
+        _analyzer_singleton = CombinedRaceAnalyzer(fail_closed_ml=True)
     return _analyzer_singleton
 
 

@@ -12,6 +12,8 @@ import math
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 
+import config
+
 
 @dataclass
 class EdgeGates:
@@ -52,7 +54,13 @@ def compute_pure_probs(horses: List[Dict], field_size: int = None) -> List[float
     # (mean -14pp on 124-race holdout, G3 gate fired 0 times by design but
     # actually because pure_prob was compressed). Just normalize.
     n = field_size if field_size is not None else len(horses)
-    raw = [0.6 * _rule_score_to_prob(h['rule_score'], n) + 0.4 * h['ml_prob']
+    # Read the blend from config at CALL time so this cannot drift from
+    # ml/model.py:create_combined_prediction, which does the same. These were
+    # hardcoded 0.6/0.4 literals until 2026-08-03 — identical to config today,
+    # but pure_prob feeds all six EDGE gates and the exotic overlay, so a
+    # silent desync here would measure a different model than value_score.
+    rule_w, ml_w = config.RULE_WEIGHT, config.ML_WEIGHT
+    raw = [rule_w * _rule_score_to_prob(h['rule_score'], n) + ml_w * h['ml_prob']
            for h in horses]
     total = sum(raw) or 1.0
     return [r / total for r in raw]

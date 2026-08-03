@@ -439,9 +439,18 @@ class FeatureEngineering:
     def parse_running_position(rp: str):
         """Parse race_results.running_position into a list of ints.
 
-        Modern data is space-separated ('7 6 2'). Legacy concatenated format
-        ('762') is also supported but rare in our DB (>99% modern). Returns
-        an empty list for unparseable input.
+        Space-separated ('7 6 2') is the correct format and what the scraper
+        now writes. The concatenated fallback ('762') is LOSSY — it cannot
+        distinguish "13 12 10" from "1 3 1 2 1 0" — and exists only for rows
+        written between 2026/05/03 and 2026/08/03, when the scraper dropped
+        the separators (see data/scraper._cell_text). Those ~2,701 rows still
+        parse wrong; they need a re-scrape to be repaired.
+
+        Do NOT read the old ">99% modern" claim that used to be here as
+        reassurance: it was true DB-wide only because of the frozen Renavon
+        backfill, while 100% of newly-scraped rows were concatenated.
+
+        Returns an empty list for unparseable input.
         """
         if not rp:
             return []
@@ -942,7 +951,19 @@ class FeatureEngineering:
                 ).fetchall()
                 prior = [dict(r) for r in rows]
         except Exception as e:
-            logger.warning(f"Failed to load prior history for {horse_name}: {e}")
+            # FAIL CLOSED (code review 2026-08-03). This used to be a
+            # logger.warning that left prior=[], silently collapsing NINE
+            # features to schema defaults while validate_features() (length +
+            # NaN/Inf only) still passed and predict() returned a
+            # confident-looking probability. A `database is locked` is
+            # entirely plausible mid-meeting — the monitor holds a long-lived
+            # connection while auto_dump/auto-learn write. Matches F-17 and
+            # the empty-race_date ValueError above: refuse rather than quietly
+            # produce a plausible wrong answer.
+            raise RuntimeError(
+                f"extract_features: failed to load prior history for "
+                f"{horse_name!r} — refusing to score on default features: {e}"
+            ) from e
 
         # Feature 1: prior win rate
         # Lightly-raced horses (≤3 starts) get a floor of 0.35 — penalizing
@@ -1002,25 +1023,25 @@ class FeatureEngineering:
             jockey, all_results, conn=conn, before_date=race_date or None)
         features.append(jockey_rate if jockey_rate > 0 else 0.08)
 
-        # Feature 5: trainer win rate (prior-only to match training)
+        # Feature 4: trainer win rate (prior-only to match training)
         # Cap 0.5 + fallback 0.08 — matches FeatureEngineering.calculate_trainer_win_rate.
         trainer = horse_data.get('trainer', '')
         trainer_rate = FeatureEngineering.calculate_trainer_win_rate(
             trainer, all_results, conn=conn, before_date=race_date or None)
         features.append(trainer_rate if trainer_rate > 0 else 0.08)
 
-        # Feature 6: field size — clipped to [0,1] (parity with training fix v6.4).
+        # Feature 5: field size — clipped to [0,1] (parity with training fix v6.4).
         # Legacy oversize fields and bad-data rows could push field_size > 14.
         features.append(min(1.0, field_size / 14.0))
 
-        # Feature 7: field-relative draw — clipped to [0,1] (F-16: 14-gate races
+        # Feature 6: field-relative draw — clipped to [0,1] (F-16: 14-gate races
         # can push draw/field_size > 1 when field_size defaults to 12 at inference)
         features.append(min(1.0, draw / max(1, field_size)) if draw > 0 else 0.5)
 
         # prior_pace, adjusted_speed dropped v6.4 — both had 0.0 importance
         # in v6.3 because last_start_margin (16.9%) carried the form signal.
 
-        # Feature 8: C&D form from prior races (winning trip = strong signal).
+        # Feature 7: C&D form from prior races (winning trip = strong signal).
         # Removed the +0.2 floor that previously made a 0-for-5 horse (cd_score=0.2)
         # rank as "more C&D ability" than an unraced horse (default 0.5). Now:
         # unraced = 0.5 (high uncertainty); 0-for-N = 0.0 (clear failure); higher
@@ -1044,14 +1065,14 @@ class FeatureEngineering:
         else:
             features.append(0.5)
 
-        # Feature 9: class level (INVERTED: Group 1/2=1.0, Class 1=0.8, Class 5=0.0)
+        # Feature 8: class level (INVERTED: Group 1/2=1.0, Class 1=0.8, Class 5=0.0)
         class_type = horse_data.get('class_type', '')
         class_rank = extract_class_rank(class_type)
         if class_rank is None:
             class_rank = 3
         features.append(max(0.0, min(1.0, 1.0 - class_rank / 5.0)))
 
-        # Feature 10: freshness (closer to ideal 21d spacing → higher score)
+        # Feature 9: freshness (closer to ideal 21d spacing → higher score)
         # When days_since_last_run is missing, fall back to (race_date - prior race_date)
         # — NOT (datetime.now() - prior race_date), which would give wrong values when
         # back-testing past races or predicting future-dated cards. If race_date itself
@@ -1073,7 +1094,7 @@ class FeatureEngineering:
         else:
             features.append(0.5)
 
-        # Feature 11: going performance (merged — combines win rate + place rate on this going)
+        # Feature 10: going performance (merged — combines win rate + place rate on this going)
         # Bayesian-smoothed with HK base rates (~8% win, ~25% top3). Without
         # smoothing, 1 win on the going saturates to 1.0 — same as a 4/8
         # battle-tested horse. Beta(0.08, 5) prior on win rate, Beta(0.25, 5)
@@ -1102,7 +1123,7 @@ class FeatureEngineering:
                 going_perf = min(1.0, win_rate_smooth * 0.6 * 5 + top3_rate_smooth * 0.4 * 2)
         features.append(going_perf)
 
-        # Feature 12: weight vs field (carried weight relative to field median)
+        # Feature 11: weight vs field (carried weight relative to field median)
         # Lighter weight = advantage. Normalized so below-median → >0.5, above → <0.5
         weight_vs_field = 0.5
         # Coerce field_weights to ints (2026-07-01 expert re-review): at inference
@@ -1132,7 +1153,7 @@ class FeatureEngineering:
             pass
         features.append(weight_vs_field)
 
-        # Feature 13: jockey-horse cooperation rate
+        # Feature 12: jockey-horse cooperation rate
         jockey_horse_coop = 0.5
         jockey = horse_data.get('jockey', '')
         if prior and jockey:
@@ -1145,7 +1166,7 @@ class FeatureEngineering:
 
         # distance_pb_ratio dropped v6.4 — 0.0 importance in v6.3.
 
-        # Feature 14: last start margin (how far behind winner last race)
+        # Feature 13: last start margin (how far behind winner last race)
         # — top importance feature in v6.4 (~16%); subsumes the dropped
         # speed-figure features.
         last_margin = 0.5
@@ -1159,7 +1180,7 @@ class FeatureEngineering:
                 last_margin = max(0.1, min(0.9, 1.0 - m / 12.0))
         features.append(last_margin)
 
-        # Feature 15: class change — ternary {dropping=1.0, same=0.5, rising=0.0}
+        # Feature 14: class change — ternary {dropping=1.0, same=0.5, rising=0.0}
         # Uses proper class extractor — handles G1/G2/G3 above the digit ladder.
         class_change_feat = 0.5
         if prior:
@@ -1178,7 +1199,7 @@ class FeatureEngineering:
 
         # days_since_last_win (was Feature 19) dropped Wave 2c — see feature_schema.py.
 
-        # Feature 16: horse body weight change from prior race (fitness signal)
+        # Feature 15: horse body weight change from prior race (fitness signal)
         hw_change = 0.5
         horse_weight_val = horse_data.get('horse_weight', 0) or 0
         try:
@@ -1198,11 +1219,11 @@ class FeatureEngineering:
 
         # speed_consistency dropped v6.4 — degenerate after adjusted_speed dropped.
 
-        # Feature 17: horse age (v6.5). 3yo→1.0, 6yo→0.5, 9yo+→0.0.
+        # Feature 16: horse age (v6.5). 3yo→1.0, 6yo→0.5, 9yo+→0.0.
         # Younger HK horses systematically improve; older horses decline.
         features.append(parse_age_score(horse_data.get('age', 0)))
 
-        # Feature 18: rating change from previous race (v6.5). +10pts→1.0,
+        # Feature 17: rating change from previous race (v6.5). +10pts→1.0,
         # 0→0.5, -10→0.0. Captures handicapper's view of recent form change.
         rc_raw = horse_data.get('rating_change', 0) or 0
         try:
@@ -1212,7 +1233,7 @@ class FeatureEngineering:
         rating_change_score = max(0.0, min(1.0, 0.5 + rc / 20.0))
         features.append(rating_change_score)
 
-        # Feature 19: jockey 30-day form (v6.5). Captures hot streaks the
+        # Feature 18: jockey 30-day form (v6.5). Captures hot streaks the
         # all-time strike rate (Feature 4) hides. Bayesian-smoothed with
         # the same Beta prior so unknown/new jockeys default to league avg.
         jockey_30d = FeatureEngineering.calculate_jockey_form_window(
@@ -1220,7 +1241,7 @@ class FeatureEngineering:
         )
         features.append(min(0.6, jockey_30d) if jockey_30d > 0 else 0.08)
 
-        # Feature 20: jockey×trainer pairing strike rate (v6.6). Stable-
+        # Feature 19: jockey×trainer pairing strike rate (v6.6). Stable-
         # confidence signal — top HK pairings (Cruz×Purton, Size×Moreira)
         # win at 22-28% vs 8.3% baseline.
         jt_pair = FeatureEngineering.calculate_jt_pair_win_rate(
