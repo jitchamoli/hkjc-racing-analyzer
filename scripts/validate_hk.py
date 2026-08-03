@@ -281,7 +281,7 @@ def _score_meeting_replay(conn, date) -> dict | None:
             "actual_position": r["actual_position"],
         }
 
-    acc: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0])
+    acc: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0, 0])
     n_races = 0
     skipped_unverified: list[int] = []
     for row in ticket_rows:
@@ -450,18 +450,7 @@ def _score_meeting_replay(conn, date) -> dict | None:
                 if priced_any:
                     div_per_unit = qpl_div_sum
 
-            if hit and div_per_unit is None and pool in ("QUINELLA", "TRIO", "FIRST 4", "WIN", "PLACE", "QIN PLACE"):
-                continue
-
-            # Box bets: only the one winning combo pays out, NOT every combo
-            # in the box. Stake covers all `combos`; return on hit is sized
-            # to the single winning combo. Matches HKJC mechanics + mirrors
-            # the synthetic scorer's `ncombo` stake / `div_per_$1` return.
-            stake = combos * stake_per_combo
-            ret = (stake_per_combo * div_per_unit) if (hit and div_per_unit) else 0.0
-            acc[label][0] += stake
-            acc[label][1] += ret
-            acc[label][2] += 1 if hit else 0
+            _book_bet(acc, label, combos, stake_per_combo, hit, div_per_unit)
 
     if skipped_unverified:
         # Never drop races silently — a hidden exclusion reads as "we covered
@@ -479,6 +468,35 @@ def _read_csv() -> list[dict]:
         return list(csv.DictReader(f))
 
 
+def _book_bet(acc, label, combos, stake_per_combo, hit, div_per_unit) -> None:
+    """Book one staked bet into `acc[label]` = [stake, return, hits, unpriced].
+
+    The unpriced counter exists because this used to `continue` — dropping the
+    stake AND the return — whenever a HIT could not be priced. A miss always
+    prices (return 0.0), so only winners could take that path: the ledger lost
+    winners and kept losers, biasing every replay ROI downward. Re-scoring
+    2026/07/12 alone moved BOX TRIO-5 from -62.0% to -37.6%.
+
+    An unpriced win is a known win of unknown size, so its stake and its hit
+    are real and must be booked; only the return is unknown, and 0.0 makes the
+    reported ROI an explicit LOWER BOUND rather than a silent deletion. The
+    count is surfaced in the report so the floor is visible.
+
+    Box bets: only the one winning combo pays, not every combo in the box.
+    Stake covers all `combos`; return is sized to the single winning combo.
+    """
+    row = acc.setdefault(label, [0.0, 0.0, 0, 0])   # works for dict + defaultdict
+    if len(row) == 3:                               # legacy 3-field row
+        row.append(0)
+    row[0] += combos * stake_per_combo
+    if hit:
+        row[2] += 1
+        if div_per_unit:
+            row[1] += stake_per_combo * div_per_unit
+        else:
+            row[3] += 1
+
+
 def _read_replay_csv() -> list[dict]:
     if not REPLAY_LOG_FILE.exists():
         return []
@@ -486,12 +504,21 @@ def _read_replay_csv() -> list[dict]:
         return list(csv.DictReader(f))
 
 
-def _append_replay_csv(date, replay):
-    rows = _read_replay_csv()
+def _write_replay_row(date, replay):
+    """Upsert one meeting's replay row, keeping the file in date order.
+
+    UPSERT, not append: dividends arrive via a separate backfill
+    (`scripts.backfill_dividends`), so a meeting scored before its dividends
+    landed was permanently frozen as a total loss. 2026/07/12 sat in this log
+    as 0 hits / $0 across all seven pools while the DB held 175 dividend rows
+    for that date. Re-scoring every run is what makes the ledger self-healing.
+    """
+    rows = [r for r in _read_replay_csv() if r.get("race_date") != date]
     labels = replay["labels"]
     newrow = {"race_date": date, "races": replay["_races"],
               "ticket_json": json.dumps(labels)}
     rows.append(newrow)
+    rows.sort(key=lambda r: r.get("race_date", ""))
     tmp = REPLAY_LOG_FILE.with_suffix(".csv.tmp")
     cols = ["race_date", "races", "ticket_json"]
     with open(tmp, "w", newline="") as f:
@@ -512,24 +539,36 @@ def _report_replay(rows: list[dict], title: str):
     gate = "" if len(dates) >= 6 else "   [WARN] N<6 — DIRECTIONAL ONLY"
     print(f"  {'bet label':<18}{'hits':>6}{'stake':>9}{'P&L':>11}{'ROI':>9}{gate}")
     print("  " + "-" * 54)
-    totals: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0])
+    totals: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0, 0])
     for r in rows:
         try:
             labels = json.loads(r.get("ticket_json", "{}"))
         except json.JSONDecodeError:
             continue
-        for lbl, (stake, ret, hits) in labels.items():
+        for lbl, vals in labels.items():
+            # Rows written before 2026-08-03 have no `unpriced` field.
+            stake, ret, hits = vals[0], vals[1], vals[2]
+            unpriced = vals[3] if len(vals) > 3 else 0
             totals[lbl][0] += float(stake)
             totals[lbl][1] += float(ret)
             totals[lbl][2] += int(hits)
+            totals[lbl][3] += int(unpriced)
+    total_unpriced = 0
     for lbl in sorted(totals):
-        stake, ret, hits = totals[lbl]
+        stake, ret, hits, unpriced = totals[lbl]
+        total_unpriced += unpriced
         if stake <= 0:
             continue
         roi = 100 * (ret - stake) / stake
-        print(f"  {lbl:<18}{hits:>6}{stake:>9.0f}{ret-stake:>+11.1f}{roi:>+9.1f}%")
+        flag = f"  [{unpriced} unpriced win(s)]" if unpriced else ""
+        print(f"  {lbl:<18}{hits:>6}{stake:>9.0f}{ret-stake:>+11.1f}{roi:>+9.1f}%{flag}")
     print("\n  REPLAY: scored from the actual frozen bet_ticket (not synthetic).")
     print("  This is what was really recommended/staked, post-gate filtering.")
+    if total_unpriced:
+        # Never let a floor read as a point estimate.
+        print(f"  ⚠ {total_unpriced} winning bet(s) had NO dividend row and were "
+              f"booked at $0 return —\n    the ROI above is a LOWER BOUND. Run "
+              f"`python3 -m scripts.backfill_dividends --force` then re-run.")
 
 
 def _atomic_write_text(path, text):
@@ -626,16 +665,17 @@ def main() -> int:
         logged = _read_csv()
 
         if args.replay:
-            replay_logged = _read_replay_csv()
-            replay_already = {r["race_date"] for r in replay_logged}
+            # Re-score EVERY meeting, not just unseen ones. Dividends land via
+            # a separate backfill, so skipping already-logged dates froze any
+            # meeting scored before its dividends arrived as a permanent total
+            # loss (2026/07/12: 0 hits / $0 logged, 175 dividend rows in DB).
+            # _write_replay_row upserts, so this is idempotent.
             for d in _meeting_dates(conn, after=cutoff):
-                if d in replay_already:
-                    continue
                 replay = _score_meeting_replay(conn, d)
                 if replay is None:
                     continue  # no frozen ticket — pre-fix meeting
-                _append_replay_csv(d, replay)
-                print(f"  [replay] logged {d}: {replay['_races']} races")
+                _write_replay_row(d, replay)
+                print(f"  [replay] scored {d}: {replay['_races']} races")
 
     _report(logged, "HK FORWARD VALIDATION (clean, un-burned) — SYNTHETIC strategies")
 

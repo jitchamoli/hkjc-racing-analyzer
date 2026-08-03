@@ -132,9 +132,11 @@ def test_qpl_banker_replay_scores_winning_ticket():
         assert result is not None
         scored = result['labels'].get('QIN PLACE BANKER')
         assert scored is not None, 'QPL pool branch did not match the bet'
-        stake, ret, hits = scored
+        # 4th field (`unpriced`) added 2026-08-03 — see _book_bet.
+        stake, ret, hits, unpriced = scored
         assert hits == 1, f'expected 1 hit, got {hits}'
         assert ret > 0, f'expected positive return on QPL hit, got {ret}'
+        assert unpriced == 0, 'this hit has a declared dividend'
         # Stake = combos × unit_stake = 1 × 10 = 10
         assert stake == 10.0
     finally:
