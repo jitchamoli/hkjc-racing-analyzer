@@ -101,9 +101,23 @@ class TestCalibratorIsApplied:
         assert sum(probs) == pytest.approx(1.0)
 
     def test_default_uses_the_production_artifact(self):
-        """Default path must load the signed pkl, not silently skip it."""
-        probs = compute_pure_probs(_field(), field_size=12)
-        assert sum(probs) == pytest.approx(1.0)
+        """Default path must load the signed pkl, not silently skip it.
+
+        The original assertion here was `sum(probs) == 1.0`, which holds
+        whether or not the calibrator loads — it stayed green with calibration
+        disabled entirely. Assert the artifact resolves AND that it changes the
+        output; see also
+        tests/test_wiring_and_vacuity_2026_08_04.py::TestPureCalibrationIsActuallyApplied.
+        """
+        assert ec._load_pure_calibrator() is not None, (
+            'the signed production pure_calibrator.pkl did not load'
+        )
+        cal = compute_pure_probs(_field(), field_size=12)
+        raw = compute_pure_probs(_field(), field_size=12, calibrator=None)
+        assert sum(cal) == pytest.approx(1.0)
+        assert cal != pytest.approx(raw), (
+            'default path produced uncalibrated output'
+        )
 
 
 class TestUnderConfidenceIsCorrected:

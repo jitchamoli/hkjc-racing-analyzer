@@ -53,26 +53,16 @@ class TestSharedHelperCoversTheseCases:
         assert len(combos) == 2
 
 
-class TestGateImpactUsesSharedHelper:
-    def test_gate_impact_imports_the_canonical_helper(self):
-        import scripts.gate_impact as gi
-        src = open(gi.__file__).read()
-        assert "dead_heat" in src, (
-            "gate_impact still hand-rolls finisher slicing instead of using "
-            "betting/dead_heat"
-        )
-        # The dividend LOOKUP may still index finishers[:3] (it builds the
-        # combination string); what must not slice is the HIT test.
-        assert "top3_actual = {h['name'] for h in finishers[:3]}" not in src, (
-            "gate_impact still slices a position-sorted list to decide the hit"
-        )
-
-
-class TestTrackQplUsesSharedHelper:
-    def test_track_qpl_imports_the_canonical_helper(self):
-        import scripts.track_qpl as tq
-        src = open(tq.__file__).read()
-        assert "dead_heat" in src, (
-            "track_qpl still hand-rolls finisher slicing instead of using "
-            "betting/dead_heat"
-        )
+# REMOVED 2026-08-04 — two source-grep guards used to live here:
+#
+#   assert "top3_actual = {h['name'] for h in finishers[:3]}" not in src
+#
+# A test audit proved they were worse than nothing. Reintroducing the exact bug
+# under a renamed variable (`winning_trios = [{h['name'] for h in
+# finishers[:3]}]`) left the grep unmatched and all 1,056 tests green, while
+# creating the appearance of coverage for gate_impact and track_qpl.
+#
+# Replaced by behavioural tests in tests/test_scoring_call_sites_2026_08_04.py,
+# which feed a real dead-heat fixture through `track_qpl._rows_for_meeting` and
+# `stake_ab._score_bet_from_ticket` and assert the hit is booked. Those were
+# verified to FAIL when the position-slice is restored.

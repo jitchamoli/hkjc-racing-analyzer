@@ -45,8 +45,14 @@ class TestPureProbUsesConfiguredWeights:
         assert rule_heavy[0] > baseline[0]
 
     def test_default_config_behaviour_is_unchanged(self):
-        """Regression guard: production numbers must not move today."""
+        """Regression guard on BEHAVIOUR, not on the config values.
+
+        This used to also assert `config.RULE_WEIGHT == 0.60` — pinning a
+        tunable inside a test whose whole point is that the weights are read
+        from config rather than hardcoded. Any legitimate blend change would
+        have broken it for no reason; the assertions below already prove the
+        property.
+        """
         probs = compute_pure_probs(_field(), field_size=12)
-        assert config.RULE_WEIGHT == 0.60 and config.ML_WEIGHT == 0.40
         assert sum(probs) == pytest.approx(1.0)
         assert probs[0] > probs[1] > probs[2]
