@@ -76,6 +76,21 @@ VARIANTS = {
                    # production's edge is the RAMP or the SKIP filter.
                    'skip_tiers': {'SKIP'}, 'apply_chaos': True,
                    'label': 'flat HK$10/combo + skip SKIP-tier'},
+    'straight_qin_only': {
+                   'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
+                   'skip_tiers': set(), 'apply_chaos': True,
+                   # Collapse every WIN-quinella bet to a single 1-combo
+                   # STRAIGHT QIN and stake nothing on other pools. Holdout
+                   # diagnostic 2026-08-03 (634 races, real dividends): box
+                   # widening destroys ROI monotonically — straight -1.0%,
+                   # box-3 -12.9%, box-4 -15.9%, box-5 -18.6%, because each
+                   # widening adds combos faster than hit-rate x dividend.
+                   # Paired bootstrap P(straight beats box-4) = 0.899: below
+                   # the 0.95 ship bar, hence a forward-logged variant rather
+                   # than a production gate change. Stake matches flat_min so
+                   # the comparison isolates STRUCTURE, not stake size.
+                   'qin_straight_only': True,
+                   'label': 'straight QIN only (1 combo)'},
     'production': {'mode': 'race_ramp_split',
                    'ramp': {'EDGE': 0.030, 'HIGH': 0.020, 'MED': 0.010,
                             'LOW': 0.005, 'SKIP': 0.000},
@@ -258,6 +273,23 @@ def _reconstruct_bets(race: dict, horses: list) -> dict:
 # ---------------------------------------------------------------------------
 # Stake sizing per variant
 # ---------------------------------------------------------------------------
+
+# WIN-quinella pool labels. QIN PLACE BANKER is the QUINELLA PLACE pool and is
+# deliberately NOT here — different pool, different dividend, not a substitute.
+_WIN_QIN_LABELS = ('STRAIGHT QIN', 'BOX QIN-')
+
+
+def restrict_to_straight_qin(fires: dict[str, int]) -> dict[str, int]:
+    """Collapse every WIN-quinella bet to one 1-combo STRAIGHT QIN.
+
+    Drops all other pools (TRIO / FIRST 4 / QUINELLA PLACE) entirely. Returns
+    a NEW dict — the caller's `fires` is shared across variants in the scoring
+    loop and must not be mutated.
+    """
+    has_qin = any(lbl == 'STRAIGHT QIN' or lbl.startswith('BOX QIN-')
+                  for lbl in fires)
+    return {'STRAIGHT QIN': 1} if has_qin else {}
+
 
 def variant_stakes(variant: str, race: dict, fires: dict[str, int],
                    bankroll: float) -> dict[str, float]:
@@ -631,6 +663,8 @@ def evaluate_date(race_date: str, bankroll: float) -> int:
             # Fires now per-variant — `flat_min_pre_chaos` bypasses the
             # CHAOS filter; everyone else applies it (production behavior).
             fires = firing_bets(race, apply_chaos=cfg.get('apply_chaos', True))
+            if cfg.get('qin_straight_only'):
+                fires = restrict_to_straight_qin(fires)
             if not fires:
                 continue
             stakes = variant_stakes(variant, race, fires, bankroll)
@@ -703,6 +737,13 @@ def _per_meeting_winner(rows, variant, baseline='flat_min') -> list[int]:
     """For each meeting in chronological order, returns 1 if `variant`
     cumulative ROI through that meeting > `baseline` cumulative ROI, else 0.
     """
+    # A variant with no staked rows has never bet. Its ROI would evaluate to 0,
+    # which spuriously "beats" a losing baseline every meeting — manufacturing
+    # a confident posterior out of no evidence. Return no meetings instead.
+    if not any(r['variant'] == variant and float(r['stake_hkd']) > 0
+               for r in rows):
+        return []
+
     meetings = sorted(set(r['race_date'] for r in rows))
     out = []
     for end_date in meetings:
@@ -777,13 +818,27 @@ def report() -> int:
     print("Bayesian posterior P(variant beats flat_min over meetings)")
     print("  SHIP if >= 0.95, KILL if <= 0.05, else WATCH")
     print('-' * 84)
+    pending = []
     for v in VARIANTS:
         if v == 'flat_min':
+            continue
+        # A variant with NO logged rows must not be scored. _per_meeting_winner
+        # compares cumulative ROI, and a variant that never bet has ROI 0 —
+        # which "beats" a losing baseline in most meetings and printed a
+        # confident-looking posterior for a variant that has never placed a
+        # bet (found 2026-08-03 when straight_qin_only was added and reported
+        # meetings-won=14/23, posterior=0.846, on zero rows).
+        e = by_var.get(v)
+        if not e or e['stake'] <= 0:
+            pending.append(v)
             continue
         winners = _per_meeting_winner(rows, v, baseline='flat_min')
         ver = _bayesian_verdict(winners)
         print(f"  {v:<12} meetings-won={ver['wins']}/{ver['n']}  "
               f"posterior={ver['posterior']:.3f}  → {ver['verdict']}")
+    if pending:
+        print()
+        print(f"  Awaiting first data (no bets logged yet): {', '.join(pending)}")
     return 0
 
 
