@@ -28,7 +28,8 @@ python3 -m scripts.validate_hk [--report]      # OOS-only ROI — the ONLY hones
 python3 -m scripts.shadow_evaluate [--report] [--variant jockey_form|tips]
 python3 -m scripts.stake_ab     [--report]     # flat-$10 vs ramp vs flat-1% vs invert
 python3 -m scripts.tier_b_evaluate [--report]
-python3 -m scripts.track_spoilers | track_edge | track_longshot_trio [--report]
+python3 -m scripts.track_longshot_trio [--report]
+python3 -m scripts.track_spoilers DATE | track_edge DATE   # or --backfill-all (no --report)
 python3 -m scripts.gate_impact [--last 12 | --all]   # OLD vs NEW BOX TRIO-5 triple gate
 python3 -m scripts.clv_report                  # closing-line value on rank-1 picks
 python3 -m scripts.clv_report --split-by-market-rank  # EDGE GAUGE (auto-runs in raceday finish):
@@ -56,7 +57,7 @@ python3 -m scripts.restore_db  # replay SQL + reload Renavon CSVs; idempotent
 python3 -m scripts.backfill_dividends [--last 20 | --force]
 
 # Bankroll discipline (stateful stop-loss / daily caps; reads frozen tickets)
-python3 -m scripts.bankroll_status [DATE]      # daily exposure vs caps (config.py pcts)
+python3 -m scripts.bankroll_status DATE         # daily exposure vs caps (config.py pcts); DATE required
 
 # Barrier trials (data infra only — feature KILLED; keep accruing for the record)
 python3 -m scripts.scrape_trials --since-last  # → barrier_trials table (ST/HV/Conghua)
