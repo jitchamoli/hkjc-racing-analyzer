@@ -31,6 +31,7 @@ Thumbs.db
 models/*.pkl.*-backup
 models/*.sha256.*-backup
 models/*.pkl.pre-*
+models/*.sha256.pre-*
 models/blend_calibrator.pkl.pre-*
 
 # Killed-experiment archive CSVs (kept locally as evidence; do NOT consume
