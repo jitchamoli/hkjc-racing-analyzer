@@ -41,6 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config
 from betting.dividends import hkjc_declared_to_unit
+from betting.dead_heat import winning_name_sets
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = REPO_ROOT / 'results'
@@ -125,10 +126,15 @@ def analyze(last_n: int | None) -> int:
             if len(finishers) < 3:
                 continue
 
-            top3_actual = {h['name'] for h in finishers[:3]}
+            # DEAD-HEAT AWARE: a tie for 3rd means HKJC declares more than one
+            # winning trio, and a box holding any of them collects. Slicing
+            # finishers[:3] picked one arbitrary member of the tied group and
+            # booked a genuine winner as a miss (code review 2026-08-03).
+            # Same enumeration validate_hk and stake_ab use.
+            winning_trios = winning_name_sets(finishers, 3)
             top5_picks = {h['name'] for h in
                           sorted(horses, key=lambda h: h.get('rank', 99))[:5]}
-            hit = top3_actual.issubset(top5_picks)
+            hit = any(w <= top5_picks for w in winning_trios)
 
             div = _trio_div_per1(conn, race_date, race['race_number'], finishers)
             if div is None:
