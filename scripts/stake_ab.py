@@ -436,37 +436,53 @@ def _lookup_dividend(conn, race_date: str, race_no: int, pool: str,
     return div if div is not None else 0.0
 
 
-def _quinella_dividend(conn, race_date: str, race_no: int,
-                       finishers: list[dict], held: set) -> float:
-    """Real declared QUINELLA payout per $1, summed over every winning pair
-    our ticket actually held.
+def _pool_dividend(conn, race_date: str, race_no: int, pool: str, k: int,
+                   finishers: list[dict], held: set) -> float:
+    """Declared payout per $1 for `pool`, summed over every winning
+    k-combination our selection actually held.
 
-    This used to read `race['qin_top_pair_dividend']` — which
-    dashboard/generator.py writes as a PRE-RACE Harville ESTIMATE, not a
-    payout. 133 of 176 race JSONs carry `qin_dividend_source == 'harville'`,
-    so most QIN hits in the A/B were priced by the model's own guess at what
-    it would pay. 2026/05/13 R6 really paid $321.50/HK$10 and was scored at
-    $24.18; 2026/04/26 R11 paid $119.50 and was booked as a LOSS. Every other
-    pool already used the declared dividend — QIN was the exception.
+    HKJC declares one dividend PER tied combination, so a box straddling a dead
+    heat collects more than one. The legacy scorers built the lookup key by
+    slicing a position-sorted list — `sorted(finishers[:3], ...)` — which picks
+    one arbitrary member of a tied group, so a box holding BOTH winning trios
+    was paid for one of them (or, if the arbitrary slice produced a combination
+    that was never declared, for none). On 2026/06/24 R8 the two declared TRIOs
+    were $318 and $348: a box holding all four horses is owed $666 per $10
+    combo and was credited at most $348.
 
-    Dead-heat aware: HKJC declares a QUINELLA per tied combination, so a box
-    holding several winning pairs collects each (same rule as TRIO/FIRST 4).
-    Returns 0.0 when nothing is declared — an unpriced win, never an estimate.
+    Mirrors validate_hk._score_box and stake_ab._score_pool.
     """
     from betting.dead_heat import group_by_position, winning_combo_entries
 
+    if len(finishers) < k:
+        return 0.0
     pos = group_by_position(finishers)
     total = 0.0
-    for entries in winning_combo_entries(pos, 2):
-        names = {e['name'] for e in entries}
-        if not names <= held:
+    for entries in winning_combo_entries(pos, k):
+        if not {e['name'] for e in entries} <= held:
             continue
-        nums = sorted(int(e['number']) for e in entries if e.get('number'))
-        if len(nums) != 2:
+        nums = sorted(int(e['number']) for e in entries
+                      if e.get('number') is not None)
+        if len(nums) != k:
             continue
-        total += _lookup_dividend(conn, race_date, race_no, 'QUINELLA',
-                                  f"{nums[0]},{nums[1]}")
+        total += _lookup_dividend(conn, race_date, race_no, pool,
+                                  ','.join(str(n) for n in nums))
     return total
+
+
+def _quinella_dividend(conn, race_date: str, race_no: int,
+                       finishers: list[dict], held: set) -> float:
+    """Declared QUINELLA payout per $1 over every winning pair we held.
+
+    This used to read `race['qin_top_pair_dividend']`, which the dashboard
+    writes as a PRE-RACE Harville ESTIMATE, not a payout — 133 of 176 race
+    JSONs carry qin_dividend_source == 'harville'. 2026/05/13 R6 really paid
+    $321.50/HK$10 and was scored at $24.18; 2026/04/26 R11 paid $119.50 and was
+    booked as a LOSS. Every other pool already used the declared dividend.
+    Returns 0.0 when nothing is declared — an unpriced win, never an estimate.
+    """
+    return _pool_dividend(conn, race_date, race_no, 'QUINELLA', 2,
+                          finishers, held)
 
 
 def hit_and_dividend(bet_label: str, race: dict, conn,
@@ -567,30 +583,21 @@ def hit_and_dividend(bet_label: str, race: dict, conn,
     if bet_label == 'STRAIGHT TRIO':
         picks = _top_picks(race, 3)
         hit = _names(picks) in win3
-        if len(finishers) < 3:
-            return (hit, 0.0)
-        combo = ','.join(str(h['number']) for h in
-                         sorted(finishers[:3], key=lambda h: h['number']))
-        return (hit, _lookup_dividend(conn, race_date, rn, 'TRIO', combo))
+        return (hit, _pool_dividend(conn, race_date, rn, 'TRIO', 3,
+                                    finishers, _names(picks)))
     if bet_label.startswith('BOX TRIO-'):
         n = int(bet_label.split('-')[1])
         box = _names(_top_picks(race, n))
         hit = any(w <= box for w in win3)
-        if len(finishers) < 3:
-            return (hit, 0.0)
-        combo = ','.join(str(h['number']) for h in
-                         sorted(finishers[:3], key=lambda h: h['number']))
-        return (hit, _lookup_dividend(conn, race_date, rn, 'TRIO', combo))
+        return (hit, _pool_dividend(conn, race_date, rn, 'TRIO', 3,
+                                    finishers, box))
 
     # F4 BOX-5 — a winning top-4 ⊂ our top-5
     if bet_label == 'F4 BOX-5':
         picks5 = _names(_top_picks(race, 5))
         hit = any(w <= picks5 for w in win4)
-        if len(finishers) < 4:
-            return (hit, 0.0)
-        combo = ','.join(str(h['number']) for h in
-                         sorted(finishers[:4], key=lambda h: h['number']))
-        return (hit, _lookup_dividend(conn, race_date, rn, 'FIRST 4', combo))
+        return (hit, _pool_dividend(conn, race_date, rn, 'FIRST 4', 4,
+                                    finishers, picks5))
 
     return False, 0.0
 

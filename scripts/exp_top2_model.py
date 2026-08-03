@@ -33,6 +33,7 @@ except ImportError:
     def apply_perf_pragmas(conn): pass
 from ml.feature_schema import FEATURE_NAMES, NUM_FEATURES
 from ml.training import build_training_data_from_db
+from betting.dividends import hkjc_declared_to_unit
 from scripts.backtest import (
     load_held_out_races, group_by_race, predict_race_production,
 )
@@ -220,7 +221,13 @@ def evaluate_rankings(top2_payload, label: str):
             "WHERE race_date=? AND race_number=? AND pool='QUINELLA' AND combination=?",
             (rd, rn, combo),
         ).fetchone()
-        return row[0] if row else None
+        if not row:
+            return None
+        # HKJC declares per HK$10; the P&L below stakes 1 unit per combo.
+        # Returning the raw figure inflated every ROI this script printed by
+        # ~10x — the exact dividend-basis bug the repo retired elsewhere on
+        # 2026-05-22 but never fixed here (memory: project_dividend_basis_bug_fixed).
+        return hkjc_declared_to_unit(row[0])
 
     n_races_used = 0
 

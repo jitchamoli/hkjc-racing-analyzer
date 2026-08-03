@@ -41,7 +41,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config
 from betting.dividends import hkjc_declared_to_unit
-from betting.dead_heat import winning_name_sets
+from betting.dead_heat import (
+    group_by_position, winning_combo_entries, winning_name_sets,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = REPO_ROOT / 'results'
@@ -53,19 +55,37 @@ BOX_TRIO5_TOTAL_STAKE = BOX_TRIO5_STAKE_PER_COMBO * BOX_TRIO5_COMBOS  # $100
 
 
 def _trio_div_per1(conn, race_date: str, race_no: int,
-                   finishers: list[dict]) -> float | None:
-    """Look up TRIO dividend from race_dividends, return per-$1 stake.
-    HKJC stores per HK$10; divide by 10."""
+                   finishers: list[dict], held: set | None = None) -> float | None:
+    """Declared TRIO payout per $1, summed over every winning trio we held.
+
+    The key used to be `sorted(h['number'] for h in finishers[:3])` — slicing a
+    position-sorted list, which picks ONE arbitrary member of a tied group. On a
+    dead heat for 3rd HKJC declares a dividend per combination (2026/06/24 R8:
+    $318 for 2,3,11 AND $348 for 3,7,11), so a box holding all four horses is
+    owed both. The slice paid at most one of them, and when the arbitrary
+    combination was never declared it returned None and dropped the race from
+    BOTH arms of the gate A/B.
+    """
     if len(finishers) < 3:
         return None
-    nums = sorted(h['number'] for h in finishers[:3])
-    combo = ','.join(str(n) for n in nums)
-    row = conn.execute(
-        "SELECT dividend FROM race_dividends WHERE race_date=? "
-        "AND race_number=? AND pool='TRIO' AND combination=?",
-        (race_date, race_no, combo),
-    ).fetchone()
-    return hkjc_declared_to_unit(row[0]) if row else None
+    pos = group_by_position(finishers)
+    total, found = 0.0, False
+    for entries in winning_combo_entries(pos, 3):
+        if held is not None and not {e['name'] for e in entries} <= held:
+            continue
+        nums = sorted(int(e['number']) for e in entries
+                      if e.get('number') is not None)
+        if len(nums) != 3:
+            continue
+        row = conn.execute(
+            "SELECT dividend FROM race_dividends WHERE race_date=? "
+            "AND race_number=? AND pool='TRIO' AND combination=?",
+            (race_date, race_no, ','.join(str(n) for n in nums)),
+        ).fetchone()
+        if row:
+            total += hkjc_declared_to_unit(row[0]) or 0.0
+            found = True
+    return total if found else None
 
 
 def _triple_gate_skip(race: dict) -> tuple[bool, str]:
@@ -136,7 +156,9 @@ def analyze(last_n: int | None) -> int:
                           sorted(horses, key=lambda h: h.get('rank', 99))[:5]}
             hit = any(w <= top5_picks for w in winning_trios)
 
-            div = _trio_div_per1(conn, race_date, race['race_number'], finishers)
+            # Pass the box so a dead heat pays only the trios we actually held.
+            div = _trio_div_per1(conn, race_date, race['race_number'],
+                                 finishers, held=top5_picks if hit else None)
             if div is None:
                 continue  # no dividend data for this race; skip
 
