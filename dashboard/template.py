@@ -2022,8 +2022,15 @@ function _buildRaceDetailPanel(race) {{
   }}).join('');
 
   // Per-horse detail table (spec §5 KEEP: last_6, horse_weight, days_since_last_run,
-  // rating_change, going_form, jockey_horse_stats, distance_pb)
+  // rating_change, going_form, jockey_horse_stats, distance_pb; age added 2026-09-06)
   var detailFields = [
+    {{key: 'age', label: 'AGE', render: function(h){{
+      // Live HKJC race cards write '4'; Renavon DB rows write '5.0'. Print a
+      // plain integer either way, mirroring parse_age_int() in ml/features.py,
+      // so a re-rendered historical meeting never shows "5.0".
+      var n = parseFloat(h.age);
+      return (isFinite(n) && n > 0) ? String(Math.round(n)) : '\u2014';
+    }}}},
     {{key: 'last_6', label: 'L6', render: function(h){{ return esc(h.last_6 || ''); }}}},
     {{key: 'horse_weight', label: 'WT', render: function(h){{ return h.horse_weight != null ? h.horse_weight : '—'; }}}},
     {{key: 'days_since_last_run', label: 'DSLR', render: function(h){{ return h.days_since_last_run != null ? h.days_since_last_run : '—'; }}}},
