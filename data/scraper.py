@@ -131,6 +131,36 @@ def _meeting_is_complete(race_numbers) -> bool:
     return numbers == set(range(1, max(numbers) + 1))
 
 
+# No HK meeting race in 4,769 stored races has fewer than 5 finishers; every
+# race with <=4 rows is a venue=NULL overseas runner. Verified 2026-09-06.
+_MIN_HK_FINISHERS = 5
+
+
+def truncated_races(rows) -> list:
+    """Race numbers whose stored result looks PARTIALLY PUBLISHED.
+
+    HKJC posts the first four placings within a minute of the all-clear, with
+    win odds still 0.00, and fills the rest of the field several minutes later.
+    A race ingested inside that window is frozen forever by the re-scrape
+    guard, because `_meeting_is_complete` only checks that race NUMBERS are
+    contiguous — the number is present, so the date is skipped. Same freeze
+    bug as the missing-race-8 case, one level down.
+
+    `rows` are per-race dicts: race_number, finishers, odds_rows, venue.
+
+    venue=NULL rows are HK horses racing overseas (Dubai/Saudi/Japan). They
+    legitimately carry 1-4 rows and no HKJC results page exists to repair
+    them, so flagging one would loop the scraper forever — skip them.
+    """
+    bad = []
+    for r in rows:
+        if not str(r.get('venue') or '').strip():
+            continue
+        if (r.get('finishers') or 0) < _MIN_HK_FINISHERS or not (r.get('odds_rows') or 0):
+            bad.append(int(r['race_number']))
+    return sorted(bad)
+
+
 def _cell_text(cell) -> str:
     """Flatten one table cell to text, PRESERVING inline-node boundaries.
 
@@ -825,14 +855,26 @@ async def main():
         # truncated card — the signature of a transient mid-scrape failure —
         # must be allowed through, otherwise the gap is frozen forever
         # (2025/11/15 lost race 8 to the old `existing > 0` guard).
-        stored_races = [r[0] for r in db.conn.execute(
-            "SELECT DISTINCT race_number FROM race_results WHERE race_date = ?",
+        stored = [dict(race_number=r[0], finishers=r[1], odds_rows=r[2], venue=r[3])
+                  for r in db.conn.execute(
+            """SELECT race_number, COUNT(*),
+                      SUM(CASE WHEN win_odds>0 THEN 1 ELSE 0 END), MAX(venue)
+               FROM race_results WHERE race_date = ? GROUP BY race_number""",
             (date_str,)
         ).fetchall()]
-        if stored_races and _meeting_is_complete(stored_races):
+        stored_races = [r['race_number'] for r in stored]
+        # A race ingested during HKJC's first-four partial publish has its
+        # number present, so the contiguity check alone calls the card
+        # complete and freezes the truncation in place (2026-09-06).
+        partial = truncated_races(stored)
+        if stored_races and _meeting_is_complete(stored_races) and not partial:
             logger.info(f"Skipping {date_str} — already have "
                         f"{len(stored_races)} races in DB")
             continue
+        if partial:
+            logger.warning(f"{date_str} has partially-published race(s) "
+                           f"{partial} (first-four publish or missing odds) "
+                           f"— re-scraping to repair")
         if stored_races:
             missing = sorted(set(range(1, max(stored_races) + 1)) - set(stored_races))
             logger.warning(f"{date_str} is incomplete (missing race(s) "
