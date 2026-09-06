@@ -201,6 +201,19 @@ Three audit rounds found 10 date-leaking rule-engine DB lookups (no `before_date
 
 **Fully leak-free 668-race holdout — every bet type NEGATIVE**: straight QIN −10.7%, gated QIN −27%, Box-4 −23%, TRIO-5 −45.4%, F4 BOX-5 −44.8%. **Earlier figures (incl. "+44% / +19%") were leak-inflated AND inflated 10× by a dividend-basis bug** (HKJC dividends are per HK$10, backtest scored vs $1 — fixed in `scripts/backtest.py`). **Treat every pre-2026-05-22 ROI as ~10× overstated AND leak-contaminated.**
 
+> **⚠️ SUPERSEDED 2026-09-06 — the 668-race figures above were computed on a corrupted `last_6` parse.** `parse_form_positions` read the space-separated Renavon form character-wise, so an 11th placing became two apparent WINS (`'4 11 9 5 0 8'` → `[4,1,1,9,5,0,8]`). 58% of holdout rows (4,558/7,891) are space-form, so the rule engine's form factor was wrong across most of the fold. Fixed in `80fc093`. Re-measured on the same code and folds with only the parse swapped:
+>
+> | | pre-fix | post-fix |
+> |---|---|---|
+> | straight QIN | −11.18% | **−2.39%** (hits 78→83) |
+> | BOX Q4 | −5.90% | −5.59% |
+> | BOX Q | −19.53% | −19.86% |
+> | BOX TRIO-5 | −16.1% | **−19.2%** (hits 196→194) |
+> | flat-$10 (user habit) | −21.3% | **−22.9%** |
+> | Brier top-pick / place ECE | 0.1966 / 0.0057 | 0.1965 / 0.0057 |
+>
+> **Mixed, NOT an improvement** — the flat-$10 figure closest to the user's real habit got *worse*. The straight-QIN gain is 5 extra hits at a ~$7 median dividend: directional, not evidence. ML metrics barely moved (`last_6` feeds the rule engine only). **Gate conclusions moved more than the ROI did** — BOX Q4 fired on 229→168 races, stake $2,095→$1,783 — so anything tuned on the old numbers (the TRIO-5 triple gate especially) is stale. Quote the post-fix column; do not treat the pre-fix numbers as a baseline.
+
 **The PLACE model is unaffected (ML, not rule engine): BSS +0.10, ECE 0.0093** — model discriminates (rank-1 top-3 54.9% ≈ 2.2× random) but does NOT beat market + takeout on any bet type.
 
 **HONEST POSTURE: no demonstrated betting edge. PAPER-ONLY until `scripts/validate_hk.py` shows positive lower-CI over N≥250 bets.** Judge changes on place/top-4 capture, NOT top-1 win Brier. Detail: `memory/project_7expert_panel_2026-05-22.md`.
@@ -218,7 +231,8 @@ Six tables: `race_results` (primary; sectional_times 99.4%), `race_dividends` (r
 ### DB data gaps (audited 2026-05-16)
 - `rating`/`rating_change`: 100%. `last_6`: 95.5%. `gear`: 93%. `sectional_times`: 99.4%.
 - `age`: **68.4%** (degrades back in time: 2021=20%, 2022=45%, 2023=79%, 2024=86%, 2025=95%, 2026=100%). Format gotcha: Renavon writes `'5.0'`, live race-card writes `'5'`. ML uses `parse_age_score()`, rule engine uses `parse_age_int()` — both in `ml/features.py`, never reimplement inline.
-- `running_position`: two formats — space-separated `"6 5 6"` and concatenated `"665"`. Handle both.
+- `running_position`: two formats — space-separated `"6 5 6"` and concatenated `"665"`. Handle both (concatenated is only ~8 rows).
+- `last_6`: **three** formats — slash `'5/5/1/2/1/1'` (live HKJC card), space `'4 11 9 5 0 8'` (Renavon, 95% of rows), concatenated `'13425'` (legacy). Parse ONLY via `analytics.parse_form_positions`; never inline. Splitting on `/` alone reads a two-digit placing as two positions — 60% of stored values contain one (bug 2026-09-06, `80fc093`).
 - `horse_weight` in lbs (900-1350); `weight` is carried (113-133 lbs).
 - `class_type`: 96%; `extract_class_rank()` handles G1/G2/G3/GRIFFIN/4YO; default class 3.
 - `days_since_last_run`: 87.7% missing in legacy 5y — fall back to date math.
