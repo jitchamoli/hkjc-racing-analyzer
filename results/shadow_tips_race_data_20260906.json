@@ -1,0 +1,468 @@
+{
+  "variant": "tips",
+  "tips_weight": 0.0,
+  "generated_at": "2026-09-06T13:44:53",
+  "race_date": "2026/09/06",
+  "races": [
+    {
+      "race_number": 1,
+      "bet_type": "QIN",
+      "legs": [
+        {
+          "rank": 1,
+          "horse_number": 4,
+          "horse_name": "SUNNY Q",
+          "win_odds": 2.3,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.3758
+        },
+        {
+          "rank": 2,
+          "horse_number": 13,
+          "horse_name": "GOOD FORTUNE",
+          "win_odds": 5.7,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.1693
+        },
+        {
+          "rank": 3,
+          "horse_number": 11,
+          "horse_name": "YEE CHEONG RAIDER",
+          "win_odds": 6.7,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0996
+        },
+        {
+          "rank": 4,
+          "horse_number": 6,
+          "horse_name": "VERBIER",
+          "win_odds": 22.0,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0757
+        },
+        {
+          "rank": 5,
+          "horse_number": 5,
+          "horse_name": "RISING ELITE",
+          "win_odds": 10.0,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0668
+        }
+      ]
+    },
+    {
+      "race_number": 2,
+      "bet_type": "BOX Q4",
+      "legs": [
+        {
+          "rank": 1,
+          "horse_number": 1,
+          "horse_name": "LIGHTNESS OF MUSIC",
+          "win_odds": 2.3,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.3572
+        },
+        {
+          "rank": 2,
+          "horse_number": 2,
+          "horse_name": "RAPID PHANTOM",
+          "win_odds": 6.0,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.1834
+        },
+        {
+          "rank": 3,
+          "horse_number": 6,
+          "horse_name": "MABUBU",
+          "win_odds": 7.1,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.0947
+        },
+        {
+          "rank": 4,
+          "horse_number": 9,
+          "horse_name": "THUNDER PRINCE",
+          "win_odds": 8.5,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.0719
+        },
+        {
+          "rank": 5,
+          "horse_number": 4,
+          "horse_name": "RUN RUN SUNRISE",
+          "win_odds": 12.0,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0635
+        }
+      ]
+    },
+    {
+      "race_number": 3,
+      "bet_type": "QIN",
+      "legs": [
+        {
+          "rank": 1,
+          "horse_number": 1,
+          "horse_name": "KA YING RISING",
+          "win_odds": 1.0,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.4829
+        },
+        {
+          "rank": 2,
+          "horse_number": 3,
+          "horse_name": "PATCH OF STARS",
+          "win_odds": 109.0,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.2176
+        },
+        {
+          "rank": 3,
+          "horse_number": 4,
+          "horse_name": "TOMODACHI KOKOROE",
+          "win_odds": 220.0,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0859
+        },
+        {
+          "rank": 4,
+          "horse_number": 5,
+          "horse_name": "LUCKY WITH YOU",
+          "win_odds": 235.0,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0859
+        },
+        {
+          "rank": 5,
+          "horse_number": 2,
+          "horse_name": "COPARTNER PRANCE",
+          "win_odds": 107.0,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0753
+        }
+      ]
+    },
+    {
+      "race_number": 4,
+      "bet_type": "BOX Q",
+      "legs": [
+        {
+          "rank": 1,
+          "horse_number": 10,
+          "horse_name": "GENERAL SMART",
+          "win_odds": 4.1,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.22
+        },
+        {
+          "rank": 2,
+          "horse_number": 1,
+          "horse_name": "AMAZING DUCK",
+          "win_odds": 4.2,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.193
+        },
+        {
+          "rank": 3,
+          "horse_number": 2,
+          "horse_name": "HAILTOTHEVICTORS",
+          "win_odds": 14.0,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.0862
+        },
+        {
+          "rank": 4,
+          "horse_number": 5,
+          "horse_name": "FIGHTING MACHINE",
+          "win_odds": 7.7,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0862
+        },
+        {
+          "rank": 5,
+          "horse_number": 12,
+          "horse_name": "GO GO GO",
+          "win_odds": 19.0,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0762
+        }
+      ]
+    },
+    {
+      "race_number": 5,
+      "bet_type": "QIN",
+      "legs": [
+        {
+          "rank": 1,
+          "horse_number": 7,
+          "horse_name": "LIGHT YEARS GLORY",
+          "win_odds": 5.1,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.1776
+        },
+        {
+          "rank": 2,
+          "horse_number": 4,
+          "horse_name": "STUNNING BUNDLE",
+          "win_odds": 7.1,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.125
+        },
+        {
+          "rank": 3,
+          "horse_number": 3,
+          "horse_name": "CAVA PIONEER",
+          "win_odds": 5.8,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.125
+        },
+        {
+          "rank": 4,
+          "horse_number": 1,
+          "horse_name": "ISLAND BUDDY",
+          "win_odds": 7.4,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.1188
+        },
+        {
+          "rank": 5,
+          "horse_number": 5,
+          "horse_name": "VIRTUS GLORY",
+          "win_odds": 8.3,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0942
+        }
+      ]
+    },
+    {
+      "race_number": 6,
+      "bet_type": "QIN",
+      "legs": [
+        {
+          "rank": 1,
+          "horse_number": 2,
+          "horse_name": "HAROLD WIN",
+          "win_odds": 4.3,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.2125
+        },
+        {
+          "rank": 2,
+          "horse_number": 4,
+          "horse_name": "KA YING RESILIENCE",
+          "win_odds": 6.2,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.1801
+        },
+        {
+          "rank": 3,
+          "horse_number": 3,
+          "horse_name": "MATZDEN",
+          "win_odds": 5.6,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.1555
+        },
+        {
+          "rank": 4,
+          "horse_number": 7,
+          "horse_name": "GROUPER",
+          "win_odds": 7.8,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.1097
+        },
+        {
+          "rank": 5,
+          "horse_number": 12,
+          "horse_name": "VICTORY CHAMPION",
+          "win_odds": 7.7,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.1097
+        }
+      ]
+    },
+    {
+      "race_number": 7,
+      "bet_type": "BOX Q4",
+      "legs": [
+        {
+          "rank": 1,
+          "horse_number": 3,
+          "horse_name": "WINNING OVATION",
+          "win_odds": 2.2,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.3601
+        },
+        {
+          "rank": 2,
+          "horse_number": 4,
+          "horse_name": "SIX PACK",
+          "win_odds": 4.8,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.1622
+        },
+        {
+          "rank": 3,
+          "horse_number": 5,
+          "horse_name": "MAX QUE",
+          "win_odds": 7.0,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.1121
+        },
+        {
+          "rank": 4,
+          "horse_number": 1,
+          "horse_name": "SOLEIL FIGHTER",
+          "win_odds": 12.0,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.1005
+        },
+        {
+          "rank": 5,
+          "horse_number": 8,
+          "horse_name": "DROMBEG BANNER",
+          "win_odds": 12.0,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0725
+        }
+      ]
+    },
+    {
+      "race_number": 8,
+      "bet_type": "QIN",
+      "legs": [
+        {
+          "rank": 1,
+          "horse_number": 1,
+          "horse_name": "JOYFUL JOY",
+          "win_odds": 3.9,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.2754
+        },
+        {
+          "rank": 2,
+          "horse_number": 6,
+          "horse_name": "GRAND PATCH",
+          "win_odds": 4.2,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.1973
+        },
+        {
+          "rank": 3,
+          "horse_number": 4,
+          "horse_name": "POSITIVE SMILE",
+          "win_odds": 5.8,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.1222
+        },
+        {
+          "rank": 4,
+          "horse_number": 2,
+          "horse_name": "MASTER LUCKY",
+          "win_odds": 12.0,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0779
+        },
+        {
+          "rank": 5,
+          "horse_number": 8,
+          "horse_name": "SOLID CAR",
+          "win_odds": 13.0,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0683
+        }
+      ]
+    },
+    {
+      "race_number": 9,
+      "bet_type": "BOX Q4",
+      "legs": [
+        {
+          "rank": 1,
+          "horse_number": 5,
+          "horse_name": "BABY SAKURA",
+          "win_odds": 2.4,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.3576
+        },
+        {
+          "rank": 2,
+          "horse_number": 6,
+          "horse_name": "CIRCUIT CHAMPION",
+          "win_odds": 3.8,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.2194
+        },
+        {
+          "rank": 3,
+          "horse_number": 4,
+          "horse_name": "AEROINVINCIBLE",
+          "win_odds": 5.7,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.1836
+        },
+        {
+          "rank": 4,
+          "horse_number": 1,
+          "horse_name": "LUCKY SAM GOR",
+          "win_odds": 12.0,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.0752
+        },
+        {
+          "rank": 5,
+          "horse_number": 2,
+          "horse_name": "THE RED HARE",
+          "win_odds": 17.0,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.0636
+        }
+      ]
+    },
+    {
+      "race_number": 10,
+      "bet_type": "BOX Q4",
+      "legs": [
+        {
+          "rank": 1,
+          "horse_number": 12,
+          "horse_name": "MASTER PAYMENT",
+          "win_odds": 3.3,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.2873
+        },
+        {
+          "rank": 2,
+          "horse_number": 8,
+          "horse_name": "SUPER STRONG KID",
+          "win_odds": 5.2,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.1698
+        },
+        {
+          "rank": 3,
+          "horse_number": 6,
+          "horse_name": "GOLD PATCH",
+          "win_odds": 6.7,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.1416
+        },
+        {
+          "rank": 4,
+          "horse_number": 1,
+          "horse_name": "PUBLIC ATTENTION",
+          "win_odds": 5.1,
+          "bet_recommendation": "QIN",
+          "calibrated_prob": 0.1416
+        },
+        {
+          "rank": 5,
+          "horse_number": 10,
+          "horse_name": "THE HEIR",
+          "win_odds": 28.0,
+          "bet_recommendation": "SKIP",
+          "calibrated_prob": 0.041
+        }
+      ]
+    }
+  ]
+}
