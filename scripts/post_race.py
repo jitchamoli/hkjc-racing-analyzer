@@ -204,6 +204,19 @@ def main():
          [sys.executable, '-m', 'scripts.fetch_results', args.race_date],
          required=False)
 
+    # Barrier-trials accrual. The trials FEATURE is killed (4-gate
+    # investigation, CLAUDE.md) — this keeps the DATA current so the one
+    # regime the kill left open (first-up horses, where nothing else measures
+    # fitness) stays testable. Nothing called scrape_trials before 2026-09-06,
+    # so the table sat 93 days stale and held zero rows for the pre-season
+    # block — discovered on the morning of a season opener where all 120
+    # runners were first-up. required=False: a network scrape unrelated to
+    # this meeting must never abort a phase that has already ingested results.
+    # Runs BEFORE the dump so the new rows are in the dump that gets committed.
+    _run("5e/6 scrape_trials (barrier-trial accrual)",
+         [sys.executable, '-m', 'scripts.scrape_trials', '--since-last'],
+         required=False)
+
     if args.skip_dump:
         print(f"\n  [6/6 DB dump] SKIPPED — run `bash scripts/auto_dump.sh` later")
     else:
