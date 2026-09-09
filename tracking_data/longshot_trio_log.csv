@@ -174,3 +174,9 @@ race_date,race_number,variant,longshot_num,longshot_name,longshot_rank,longshot_
 2026/09/06,8,mix_hot_cold,14,CALIFORNIA BANNER,8,13.0,31,8,SOLID CAR,6,16.0,23,1|14|8,8|1|2,0,0,0,11
 2026/09/06,9,calc_hot,10,TITANCK,7,28.0,33,,,,,,5|6|4|1|2|10,8|5|7,0,0,0,11
 2026/09/06,9,mix_hot_cold,10,TITANCK,7,28.0,33,3,POCKETING,9,38.0,40,5|10|3,8|5|7,0,0,0,11
+2026/09/09,4,calc_hot,7,ROMANTIC LAOS,8,10.0,33,,,,,,2|4|10|1|3|7,10|4|6,0,0,0,5
+2026/09/09,4,mix_hot_cold,7,ROMANTIC LAOS,8,10.0,33,11,THE LION KING,7,15.0,57,2|7|11,10|4|6,0,0,0,5
+2026/09/09,6,calc_hot,3,SUPERB KING,6,10.0,29,,,,,,2|6|9|5|8|3,3|5|6,0,1,1,2
+2026/09/09,6,mix_hot_cold,3,SUPERB KING,6,10.0,0,12,ZETA HEDGE,8,22.0,21,2|3|12,3|5|6,0,0,0,2
+2026/09/09,8,calc_hot,10,TANG HEART,6,9.6,20,,,,,,4|3|2|11|8|10,1|11|4,0,0,0,7
+2026/09/09,8,mix_hot_cold,1,AURIO,8,16.0,20,5,NORTHERN FIRE BALL,12,31.0,24,4|1|5,1|11|4,0,0,0,3
