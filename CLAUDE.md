@@ -201,6 +201,19 @@ Three audit rounds found 10 date-leaking rule-engine DB lookups (no `before_date
 
 **Fully leak-free 668-race holdout — every bet type NEGATIVE**: straight QIN −10.7%, gated QIN −27%, Box-4 −23%, TRIO-5 −45.4%, F4 BOX-5 −44.8%. **Earlier figures (incl. "+44% / +19%") were leak-inflated AND inflated 10× by a dividend-basis bug** (HKJC dividends are per HK$10, backtest scored vs $1 — fixed in `scripts/backtest.py`). **Treat every pre-2026-05-22 ROI as ~10× overstated AND leak-contaminated.**
 
+> **⚠️ SUPERSEDED 2026-09-06 — the 668-race figures above were computed on a corrupted `last_6` parse.** `parse_form_positions` read the space-separated Renavon form character-wise, so an 11th placing became two apparent WINS (`'4 11 9 5 0 8'` → `[4,1,1,9,5,0,8]`). 58% of holdout rows (4,558/7,891) are space-form, so the rule engine's form factor was wrong across most of the fold. Fixed in `80fc093`. Re-measured on the same code and folds with only the parse swapped:
+>
+> | | pre-fix | post-fix |
+> |---|---|---|
+> | straight QIN | −11.18% | **−2.39%** (hits 78→83) |
+> | BOX Q4 | −5.90% | −5.59% |
+> | BOX Q | −19.53% | −19.86% |
+> | BOX TRIO-5 | −16.1% | **−19.2%** (hits 196→194) |
+> | flat-$10 (user habit) | −21.3% | **−22.9%** |
+> | Brier top-pick / place ECE | 0.1966 / 0.0057 | 0.1965 / 0.0057 |
+>
+> **Mixed, NOT an improvement** — the flat-$10 figure closest to the user's real habit got *worse*. The straight-QIN gain is 5 extra hits at a ~$7 median dividend: directional, not evidence. ML metrics barely moved (`last_6` feeds the rule engine only). **Gate conclusions moved more than the ROI did** — BOX Q4 fired on 229→168 races, stake $2,095→$1,783 — so anything tuned on the old numbers (the TRIO-5 triple gate especially) is stale. Quote the post-fix column; do not treat the pre-fix numbers as a baseline.
+
 **The PLACE model is unaffected (ML, not rule engine): BSS +0.10, ECE 0.0093** — model discriminates (rank-1 top-3 54.9% ≈ 2.2× random) but does NOT beat market + takeout on any bet type.
 
 **HONEST POSTURE: no demonstrated betting edge. PAPER-ONLY until `scripts/validate_hk.py` shows positive lower-CI over N≥250 bets.** Judge changes on place/top-4 capture, NOT top-1 win Brier. Detail: `memory/project_7expert_panel_2026-05-22.md`.
@@ -211,14 +224,15 @@ Three audit rounds found 10 date-leaking rule-engine DB lookups (no `before_date
 
 Six tables: `race_results` (primary; sectional_times 99.4%), `race_dividends` (real HKJC payouts; backfill via `scripts.backfill_dividends`), `horses` (master; `get_horse_record()` aggregates from race_results), `jockey_stats` / `trainer_stats` (season; `rebuild_stats()` from local + optional `scrape_history.py --rankings` for full-season HKJC), **`race_bet_ticket`** (NEW 2026-05-24 — frozen per-meeting bet ticket: pool/label/legs/combos/amount/reason; ground truth for `validate_hk --replay`, dashboard STRIKE, WA copy, `stake_ab`; included in dump/restore).
 
-**Data integrity**: `ingest_race_day()` calls `rebuild_stats()` which overwrites jockey/trainer stats with local-only data — re-run `--rankings` after ingest to restore. `horses` upsert derives counters from race_results via subquery (idempotent). After any DB rebuild from Renavon, re-run `scripts.backfill_from_renavon` to restore `rating_change` (lives in `renavon_race_catalog`, not `renavon_race_results`).
+**Data integrity**: `ingest_race_day()` calls `rebuild_stats()`, which recomputes jockey/trainer stats from `race_results` for the CURRENT SEASON ONLY. This is deliberate and correct, NOT damage to be undone — the window comes from `MAX(race_date)` (not the wall clock) so the same DB rebuilt on different days aggregates identically, which is what makes backtests reproducible across a season boundary (fixed 2026-08-03). Early in a season the counts are legitimately small — six meetings in, the top jockey has ~50 rides, not the ~700 of a full season; that is a stub season, not corruption. `scrape_history.py --rankings` is OPTIONAL enrichment with authoritative HKJC season figures, not a repair step. Note the season window here is Jul 1-Jun 30 while HK racing actually resumes in September, so a September card's `jockey_stats` mixes the previous season's July tail with the new opener — deliberate (recency beats a table that zeroes on opening day), but the season LABEL is then a mild misnomer. `horses` upsert derives counters from race_results via subquery (idempotent). After any DB rebuild from Renavon, re-run `scripts.backfill_from_renavon` to restore `rating_change` (lives in `renavon_race_catalog`, not `renavon_race_results`).
 
 **Auto-dump**: launchd `com.hkjc.dbdump` runs `scripts/auto_dump.sh` Mon+Thu 02:00 HKT (after Sun ST + Wed HV). Logs to `logs/auto_dump.log`; commits + pushes only if dump bytes changed.
 
 ### DB data gaps (audited 2026-05-16)
 - `rating`/`rating_change`: 100%. `last_6`: 95.5%. `gear`: 93%. `sectional_times`: 99.4%.
 - `age`: **68.4%** (degrades back in time: 2021=20%, 2022=45%, 2023=79%, 2024=86%, 2025=95%, 2026=100%). Format gotcha: Renavon writes `'5.0'`, live race-card writes `'5'`. ML uses `parse_age_score()`, rule engine uses `parse_age_int()` — both in `ml/features.py`, never reimplement inline.
-- `running_position`: two formats — space-separated `"6 5 6"` and concatenated `"665"`. Handle both.
+- `running_position`: two formats — space-separated `"6 5 6"` and concatenated `"665"`. Handle both (concatenated is only ~8 rows).
+- `last_6`: **three** formats — slash `'5/5/1/2/1/1'` (live HKJC card), space `'4 11 9 5 0 8'` (Renavon, 95% of rows), concatenated `'13425'` (legacy). Parse ONLY via `analytics.parse_form_positions`; never inline. Splitting on `/` alone reads a two-digit placing as two positions — 60% of stored values contain one (bug 2026-09-06, `80fc093`).
 - `horse_weight` in lbs (900-1350); `weight` is carried (113-133 lbs).
 - `class_type`: 96%; `extract_class_rank()` handles G1/G2/G3/GRIFFIN/4YO; default class 3.
 - `days_since_last_run`: 87.7% missing in legacy 5y — fall back to date math.
@@ -229,6 +243,7 @@ Six tables: `race_results` (primary; sectional_times 99.4%), `race_dividends` (r
 - **Multi-paren**: `'STAR (NZ)(H173)'` → `'STAR (NZ)'` (only trailing brand stripped).
 - **Venue detection** (`HKJCApiClient.detect_venue`): wrong venue returns empty HTML. Wed = HV, weekends = ST.
 - **HTML parser** expects 27-cell HKJC table rows with documented column indices; check `_parse_horse_table()` if horses come back empty.
+- **Two-stage result publish**: HKJC posts the first four placings within a minute of the all-clear with win odds still 0.00, then the full field + dividends several minutes later. Do NOT ingest inside that window — `data.scraper.truncated_races()` detects it (HK race with <5 finishers or no odds on any row; venue=NULL overseas rows exempt) and forces a re-scrape. Before running `raceday finish`, confirm every race shows its full field (observed on 4 races on 2026/09/06).
 - `_safe_int()` preserves minus signs (regex `[^\d\-]`) — required for `rating_change` and `weight_change`.
 
 ## Codebase conventions

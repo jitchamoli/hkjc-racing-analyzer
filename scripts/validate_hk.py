@@ -323,12 +323,13 @@ def _score_meeting_replay(conn, date) -> dict | None:
                        for n, h in horses.items()}
 
         for bet in ticket.get("bets", []) or []:
-            # Paper bets (EDGE PLACE) are reference/tracking only — never staked,
-            # so they must not appear in the actual-staked replay ROI. Their
-            # outcome is tracked separately via edge_log.csv (track_edge).
-            if bet.get("paper"):
-                continue
             label = bet.get("label", "?")
+            # Paper bets are reference/tracking only — never staked, so they
+            # must not appear in the actual-staked replay ROI. They are booked
+            # under a prefixed label instead of dropped, so they stay VISIBLE
+            # in the report without polluting the real-money rows.
+            if bet.get("paper"):
+                label = PAPER_LABEL_PREFIX + label
             pool = bet.get("pool", "")
             combos = int(bet.get("combos", 0) or 0)
             unit_stake = float(bet.get("unit_stake", 0) or 0)
@@ -466,6 +467,16 @@ def _read_csv() -> list[dict]:
         return []
     with open(LOG_FILE) as f:
         return list(csv.DictReader(f))
+
+
+# Paper bets are booked under a prefixed label so they appear in the replay
+# report WITHOUT being mixed into real-money ROI. Before 2026-09-06 paper bets
+# were simply `continue`d, which was right while EDGE PLACE (tracked separately
+# via edge_log.csv) was the only one — but demoting BOX TRIO-6 to paper would
+# then have deleted the card's largest line from the only report that measures
+# it. The prefix is non-alphanumeric so a paper row can never be misread as
+# staked money.
+PAPER_LABEL_PREFIX = "~paper "
 
 
 def _book_bet(acc, label, combos, stake_per_combo, hit, div_per_unit) -> None:

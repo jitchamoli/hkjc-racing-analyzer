@@ -850,6 +850,12 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
         )
 
 
+# Bet labels that are generated and tracked but NEVER staked. Kept in the
+# ticket (not deleted) so the demotion stays reversible on forward data rather
+# than on memory. See tests/test_trio6_paper_only_2026_09_06.py for the numbers.
+_PAPER_ONLY_LABELS = {'BOX TRIO-6'}
+
+
 def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
                      generated_at: str) -> dict:
     """Server-side frozen bet ticket; dashboard/evaluators should render this.
@@ -1019,6 +1025,18 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
         b['amount'] = float(b['combos'] * unit_rounded)
         allocated += b['amount']
     over_amount = max(0.0, allocated - amount) if amount > 0 else 0.0
+
+    # Labels demoted to PAPER: still generated, displayed and tracked, but
+    # never staked. BOX TRIO-6 over 16 forward meetings was the LARGEST single
+    # exposure (12,000 = 37% of all money staked) AND the worst return
+    # (-56.4%, net positive in only 2 of 16). 20 combos x $10 = $200/race, so
+    # a hit must clear the whole card's outlay — but the races we hit are the
+    # predictable ones, which pay least (see the conviction/exotic mismatch in
+    # memory). 2026/09/06 is the illustration: TRIO-6 HIT on R8 and the
+    # meeting still lost $426 on it. Demoted 2026-09-06 at the user's call.
+    for b in bets:
+        if b.get('label') in _PAPER_ONLY_LABELS:
+            b['paper'] = True
 
     # Paper bets (EDGE PLACE) carry a flat HK$10 display stake — the user's
     # standard flat unit — but do NOT consume the real budget (`allocated`),

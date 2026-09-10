@@ -32,6 +32,7 @@ from ml.features import parse_age_int
 
 from betting.optimizer import BettingOptimizer, BettingReportGenerator
 
+from analytics import parse_form_positions
 from analytics.draw_bias import DrawBiasAnalyzer
 from analytics.pace import PaceAnalyzer
 from analytics.sectionals import SectionalAnalyzer
@@ -236,18 +237,11 @@ class BettingStrategy:
             if p <= 9: return 5
             return 2  # 10th or worse
 
-        # Parse positions — handles both "1/2/3/10/5" and legacy "12345" formats
-        positions = []
-        if "/" in str(last_6):
-            for part in str(last_6).split("/"):
-                part = part.strip()
-                if part.isdigit():
-                    positions.append(int(part))
-        else:
-            # Legacy single-digit format (may be inaccurate for 10+)
-            for ch in str(last_6):
-                if ch.isdigit():
-                    positions.append(int(ch))
+        # Parse positions — ONE definition, shared with analytics/pace.py.
+        # The inline copy this replaces branched only on "/", so the
+        # space-separated Renavon form ('4 11 9 5 0 8') was read character-wise
+        # and an 11th placing scored as two WINS (bug found 2026-09-06).
+        positions = parse_form_positions(last_6)
 
         if not positions:
             return 0.0, "No recent form data"
