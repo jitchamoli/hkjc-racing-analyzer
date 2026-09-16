@@ -1502,12 +1502,18 @@ class HKJCDataFetcher:
 
         return race
 
-    async def get_live_odds(self, race_date: str, race_no: int) -> Dict[int, float]:
+    async def get_live_odds(self, race_date: str, race_no: int,
+                            venue: str = "") -> Dict[int, float]:
         """Get latest win odds (for refreshing during a meeting)."""
         # Try requests first
         html = self.api.fetch_odds_html(race_date, race_no, "WIN")
         odds = HKJCParser.parse_odds(html) if html else {}
 
+        if odds:
+            return odds
+
+        # DisplayOdds.aspx is dead (404 / maintenance page) — read the pool.
+        odds = self._pool_odds(race_date, race_no, venue, "WIN")
         if odds:
             return odds
 
@@ -1521,11 +1527,22 @@ class HKJCDataFetcher:
 
         return {}
 
-    async def get_place_odds(self, race_date: str, race_no: int) -> Dict[int, float]:
+    async def get_place_odds(self, race_date: str, race_no: int,
+                             venue: str = "") -> Dict[int, float]:
         """Get latest place odds."""
         html = self.api.fetch_odds_html(race_date, race_no, "PLA")
         odds = HKJCParser.parse_place_odds(html) if html else {}
-        return odds
+        return odds or self._pool_odds(race_date, race_no, venue, "PLA")
+
+    def _pool_odds(self, race_date: str, race_no: int, venue: str,
+                   odds_type: str) -> Dict[int, float]:
+        """One pool's odds from HKJC GraphQL. Venue is detected when omitted —
+        the query returns no meeting without it."""
+        venue = venue or self.api.detect_venue(race_date)
+        return HKJCParser.parse_pool_odds(
+            self.api.fetch_pool_odds_json(race_date, race_no, venue, [odds_type]),
+            odds_type,
+        )
 
     async def get_results(self, race_date: str, race_no: int) -> List[Dict]:
         """Get race results (after the race is finished)."""
