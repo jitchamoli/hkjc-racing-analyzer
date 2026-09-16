@@ -213,6 +213,14 @@ def main():
     # runners were first-up. required=False: a network scrape unrelated to
     # this meeting must never abort a phase that has already ingested results.
     # Runs BEFORE the dump so the new rows are in the dump that gets committed.
+    _run("4e/6 shadow_pure_rank (model-only vs blended ranking)",
+         [sys.executable, '-m', 'scripts.shadow_pure_rank', race_date],
+         required=False)
+
+    _run("4d/6 track_gate_skips (do the gates earn their skips?)",
+         [sys.executable, '-m', 'scripts.track_gate_skips', race_date],
+         required=False)
+
     _run("5e/6 scrape_trials (barrier-trial accrual)",
          [sys.executable, '-m', 'scripts.scrape_trials', '--since-last'],
          required=False)

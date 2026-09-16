@@ -18,6 +18,8 @@ Usage:
 
 import argparse
 import hashlib
+
+from ml.integrity import write_signed_bytes
 import logging
 import os
 import pickle
@@ -136,9 +138,7 @@ def fit_and_save(probs, labels):
     sha = out.with_suffix('.sha256')
 
     raw = pickle.dumps(payload)
-    out.write_bytes(raw)
-    digest = hashlib.sha256(raw).hexdigest()
-    sha.write_text(digest + '\n')
+    digest = write_signed_bytes(out, raw)
 
     logger.info(f"Saved blend calibrator → {out}")
     logger.info(f"  metadata: {metadata}")

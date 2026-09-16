@@ -25,6 +25,8 @@ try:
 except ImportError:
     ML_AVAILABLE = False
 
+from ml.integrity import write_signed_bytes
+
 logger = logging.getLogger(__name__)
 
 
@@ -210,8 +212,7 @@ class HKJCRacingMLModel:
         }
 
         model_bytes = pickle.dumps(data)
-        self.MODEL_FILE.write_bytes(model_bytes)
-        self._checksum_path().write_text(hashlib.sha256(model_bytes).hexdigest())
+        write_signed_bytes(self.MODEL_FILE, model_bytes)
 
         logger.info(f"Saved model version {self.model_version} (n_samples={n_samples})")
 

@@ -82,6 +82,39 @@ def check_model_integrity(metadata: Dict[str, Any]) -> None:
         )
 
 
+def write_signed_bytes(path: Path, raw: bytes) -> str:
+    """Write an artifact and its .sha256 sidecar without a torn-write window.
+
+    The three artifact writers (ml/model.py, scripts/calibrate_blend.py,
+    scripts/calibrate_pure.py) used to do `path.write_bytes(...)` followed by
+    a separate sidecar write. A crash or full disk between the two left a
+    TRUNCATED pickle next to the previous digest, and every reader here is
+    fail-closed — so the next race-day run could not load a model at all.
+
+    Both files are staged as .tmp and then renamed, so an interrupted save
+    leaves the previous artifact intact and loadable. Returns the digest.
+    """
+    import os
+
+    path = Path(path)
+    digest = hashlib.sha256(raw).hexdigest()
+    sha_path = path.with_suffix('.sha256')
+    tmp = path.with_suffix(path.suffix + '.tmp')
+    sha_tmp = Path(str(sha_path) + '.tmp')
+    try:
+        tmp.write_bytes(raw)
+        sha_tmp.write_text(digest + '\n')
+        os.replace(tmp, path)
+        os.replace(sha_tmp, sha_path)
+    finally:
+        for leftover in (tmp, sha_tmp):
+            try:
+                leftover.unlink()
+            except FileNotFoundError:
+                pass
+    return digest
+
+
 def _read_verified_pickle(path: Path, label: str) -> Dict[str, Any]:
     """Load a pickle only after its .sha256 sidecar matches."""
     if not path.exists():
