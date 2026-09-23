@@ -118,7 +118,8 @@ _FROZEN_PREDICTION_KEYS_RACE = {'conviction_tier', 'has_edge', 'suggested_stake'
                                  # staked (audit-2026-05-29 finding A). Locked by
                                  # tests/test_audit_2026_05_29.py::test_trio6_decision_frozen.
                                  'trio6_decision'}
-_FROZEN_PREDICTION_KEYS_HORSE = {'rank', 'win_odds', 'calibrated_prob',
+_FROZEN_PREDICTION_KEYS_HORSE = {'rank', 'win_odds', 'place_odds',
+                                  'calibrated_prob',
                                   'edge_pp', 'ev_win', 'overlay', 'edge_fires',
                                   'pure_prob', 'market_prob', 'model_rank',
                                   'bet_recommendation', 'confidence',
