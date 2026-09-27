@@ -43,12 +43,6 @@ def generate_html(races_json: str, now: str, race_date: str,
 
     strip_tiles_html = _build_strip_tiles(races_list)
     accuracy_panel_html = _build_accuracy_panel(accuracy_summary or {})
-    # JSON-encoded for the JS layer (WhatsApp copy footer reads from it).
-    # Match the same defense-in-depth pattern as races_json_safe — strip both
-    # casings of </script> to avoid breaking out of the <script> block.
-    accuracy_summary_json = _json.dumps(accuracy_summary or {}) \
-        .replace('</script>', r'<\/script>') \
-        .replace('</Script>', r'<\/Script>')
 
     # EDGE stats (n_fires / n_placed / n_won) — fed by scripts/track_edge.py.
     # Banner text in WA + dashboard reads from this so the count stays live
@@ -65,7 +59,6 @@ def generate_html(races_json: str, now: str, race_date: str,
         auto_refresh_meta=auto_refresh_meta,
         strip_tiles_html=strip_tiles_html,
         accuracy_panel_html=accuracy_panel_html,
-        accuracy_summary_json=accuracy_summary_json,
         edge_stats_json=edge_stats_json,
     )
 
@@ -579,7 +572,6 @@ function escAttr(s) {{
 }}
 
 const RACES = {races_json};
-const ACCURACY_SUMMARY = {accuracy_summary_json};
 const EDGE_STATS = {edge_stats_json};
 const RACE_DATE = "{race_date}";
 const GENERATED = "{now}";
@@ -1485,25 +1477,6 @@ function renderBetCard(race) {{
     waLines.push('');
     waLines.push('_Why: ' + whyItems.slice(0, 3).join(' · ') + '_');
   }}
-
-  // Model trust footer — recent accuracy for the conviction tier on this race.
-  // Reads from ACCURACY_SUMMARY (60d window from db.get_accuracy_summary).
-  // Silent when no data yet, or when the tier has 0 bets in the window.
-  try {{
-    var convBucket = ACCURACY_SUMMARY && ACCURACY_SUMMARY.by_conviction;
-    var tierStats = convBucket && convBucket[tier];
-    if (tierStats && tierStats.bets > 0 && tierStats.stake > 0) {{
-      var tBets = tierStats.bets, tHits = tierStats.hits;
-      var tHitPct = (tHits / tBets * 100).toFixed(0);
-      // Compare BEFORE .toFixed() so tiny negatives do not render as "+-0%".
-      var tRoiNum = tierStats.profit / tierStats.stake * 100;
-      var tRoiStr = (tRoiNum >= 0 ? '+' : '') + tRoiNum.toFixed(0) + '%';
-      var noteN = tBets < 30 ? ' (small N)' : '';
-      waLines.push('');
-      waLines.push('_Model 60d · ' + tier + ' tier: ' + tHits + '/' + tBets +
-                   ' (' + tHitPct + '%) · ' + tRoiStr + ' ROI' + noteN + '_');
-    }}
-  }} catch (e) {{ /* silent — never break WA copy */ }}
 
   var waPayload = waLines.join('\\n');
 
