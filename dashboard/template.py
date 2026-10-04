@@ -1166,17 +1166,8 @@ function renderBetCard(race) {{
   waLines.push('*R' + race.race_number + ' · ' + (race.time||'') + (venueWa ? ' · ' + venueWa : '') + '*');
   waLines.push((race.distance||'') + 'm · ' + (race.class_type||'') + ' · ' +
                race.horses.length + ' horses · Tier: ' + tier);
-  // Suggested-stake banner — mirrors the dashboard per-card budget so
-  // the user knows the total $ before scanning individual MAIN blocks.
-  // Hidden on SKIP races (amount=0 there). Index is remembered so the
-  // banner can be updated later with the unallocated residual once
-  // waUnit + combo counts are known (budget floor often leaves $5-60 free).
-  var _ssBannerIdx = -1;
-  if (ss && ss.amount && ss.amount > 0) {{
-    var ssPctTxt = (ss.pct != null) ? (' (' + (ss.pct||0).toFixed(2) + '% of $' + (race.bankroll||0) + ')') : '';
-    _ssBannerIdx = waLines.length;
-    waLines.push('💰 *Suggested stake: $' + Math.round(ss.amount) + ' HKD*' + ssPctTxt);
-  }}
+  // No suggested-stake banner (2026-10-04). Sizing is decided by the
+  // user from the Tier; the message states the ticket, not a budget.
   // Only show betting copy when a real system ticket exists. A halted
   // day (bankroll STOP) or an empty/SKIP ticket has bet_ticket.bets=[], and
   // the WA-copy + visual ticket render from bet_ticket.bets — so the EDGE
@@ -1220,36 +1211,12 @@ function renderBetCard(race) {{
   var _allBets = (race.bet_ticket && race.bet_ticket.bets) || [];
   var waUnit = (race.bet_ticket && race.bet_ticket.unit_stake) || 0;
   var waTotalCombos = _allBets.reduce(function(s, b) {{ return s + (b.combos || 0); }}, 0);
-  var _waAllocated = (race.bet_ticket && race.bet_ticket.allocated_amount) || 0;
-  var _waOverBudget = !!(race.bet_ticket && race.bet_ticket.over_budget);
-  var _waOverAmount = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
   // Per-bet amount lookup — `bet.amount` is what the server allocated.
   function _waAmountFor(label) {{
     for (var i = 0; i < _allBets.length; i++) {{
       if (_allBets[i].label === label) return _allBets[i].amount || 0;
     }}
     return 0;
-  }}
-
-  // Stake banner annotation: when frozen ticket exceeds budget (HK$5 unit
-  // floor pushed allocated > suggested), surface the over-spend honestly
-  // instead of silently showing the lower budget. Otherwise, show the
-  // residual when allocated < budget (existing behaviour).
-  if (_ssBannerIdx >= 0 && ss && ss.amount > 0) {{
-    if (_waOverBudget && _waOverAmount >= 1) {{
-      waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(
-        ' HKD*',
-        ' HKD — actual $' + Math.round(_waAllocated) +
-        ' (+$' + Math.round(_waOverAmount) + ' over, $10 unit floor)*'
-      );
-    }} else if (_waAllocated > 0) {{
-      var _unalloc = Math.round(ss.amount) - Math.round(_waAllocated);
-      if (_unalloc >= 5) {{
-        waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(
-          ' HKD*', ' HKD — $' + _unalloc + ' unallocated*'
-        );
-      }}
-    }}
   }}
 
   // MAIN BET — one focused block (not a duplicate summary + detail).
@@ -1548,22 +1515,6 @@ function renderBetCard(race) {{
   var _paperTicketBets = _ticketBetsAll.filter(function(b) {{ return b.paper; }});
   if (_realTicketBets.length) {{
     // ── Real frozen system ticket: STAKE + BET TICKET only ──
-    var ssAmt = (ss && ss.amount) ? ss.amount : 0;
-    var ticketTotal = (race.bet_ticket && race.bet_ticket.allocated_amount) || 0;
-    var unitC = (race.bet_ticket && race.bet_ticket.unit_stake) || 0;
-    var overBudC = !!(race.bet_ticket && race.bet_ticket.over_budget);
-    var overAmtC = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
-    ticketLinesCompact.push('');
-    ticketLinesCompact.push('*STAKE*');
-    var stakeLine = 'Budget $' + Math.round(ssAmt) +
-                    ' · Ticket $' + Math.round(ticketTotal) +
-                    ' · Unit $' + Math.round(unitC);
-    if (overBudC && overAmtC > 0) {{
-      stakeLine += ' · +$' + Math.round(overAmtC) + ' over (HK$' +
-                   Math.round(unitC) + ' unit floor)';
-    }}
-    ticketLinesCompact.push(stakeLine);
-
     ticketLinesCompact.push('');
     ticketLinesCompact.push('*BET TICKET*');
     _realTicketBets.forEach(function(bet, idx) {{
