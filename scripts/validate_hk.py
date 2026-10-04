@@ -675,18 +675,25 @@ def main() -> int:
             print("  no new clean meetings to log.")
         logged = _read_csv()
 
-        if args.replay:
-            # Re-score EVERY meeting, not just unseen ones. Dividends land via
-            # a separate backfill, so skipping already-logged dates froze any
-            # meeting scored before its dividends arrived as a permanent total
-            # loss (2026/07/12: 0 hits / $0 logged, 175 dividend rows in DB).
-            # _write_replay_row upserts, so this is idempotent.
-            for d in _meeting_dates(conn, after=cutoff):
-                replay = _score_meeting_replay(conn, d)
-                if replay is None:
-                    continue  # no frozen ticket — pre-fix meeting
-                _write_replay_row(d, replay)
-                print(f"  [replay] scored {d}: {replay['_races']} races")
+    if args.replay:
+        # Re-score EVERY meeting, not just unseen ones. Dividends land via
+        # a separate backfill, so skipping already-logged dates froze any
+        # meeting scored before its dividends arrived as a permanent total
+        # loss (2026/07/12: 0 hits / $0 logged, 175 dividend rows in DB).
+        # _write_replay_row upserts, so this is idempotent.
+        #
+        # Runs for --report too (2026-10-04). It used to sit inside the
+        # `not args.report` branch, so `--replay --report` printed the CSV
+        # as-is — the very staleness this loop exists to prevent, on the
+        # flag people reach for when they want the cumulative number.
+        # Caught restoring the emptied 2026/09/16 R7 ticket: the totals
+        # came back byte-identical until --report was dropped.
+        for d in _meeting_dates(conn, after=cutoff):
+            replay = _score_meeting_replay(conn, d)
+            if replay is None:
+                continue  # no frozen ticket — pre-fix meeting
+            _write_replay_row(d, replay)
+            print(f"  [replay] scored {d}: {replay['_races']} races")
 
     _report(logged, "HK FORWARD VALIDATION (clean, un-burned) — SYNTHETIC strategies")
 
