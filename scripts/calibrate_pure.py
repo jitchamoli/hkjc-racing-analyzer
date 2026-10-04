@@ -42,6 +42,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+
+from ml.integrity import write_signed_bytes
 import logging
 import pickle
 import sqlite3
@@ -133,9 +135,7 @@ def fit_and_save(probs, labels):
     payload = {'calibrator': iso, 'metadata': metadata}
 
     raw = pickle.dumps(payload)
-    OUT_PATH.write_bytes(raw)
-    digest = hashlib.sha256(raw).hexdigest()
-    OUT_PATH.with_suffix('.sha256').write_text(digest + '\n')
+    digest = write_signed_bytes(OUT_PATH, raw)
 
     logger.info(f"Saved pure calibrator -> {OUT_PATH}")
     logger.info(f"  metadata: {metadata}")

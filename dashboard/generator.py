@@ -118,7 +118,8 @@ _FROZEN_PREDICTION_KEYS_RACE = {'conviction_tier', 'has_edge', 'suggested_stake'
                                  # staked (audit-2026-05-29 finding A). Locked by
                                  # tests/test_audit_2026_05_29.py::test_trio6_decision_frozen.
                                  'trio6_decision'}
-_FROZEN_PREDICTION_KEYS_HORSE = {'rank', 'win_odds', 'calibrated_prob',
+_FROZEN_PREDICTION_KEYS_HORSE = {'rank', 'win_odds', 'place_odds',
+                                  'calibrated_prob',
                                   'edge_pp', 'ev_win', 'overlay', 'edge_fires',
                                   'pure_prob', 'market_prob', 'model_rank',
                                   'bet_recommendation', 'confidence',
@@ -379,6 +380,25 @@ def backfill_meeting_going(fetched: list) -> None:
             race.going = modal_going
             logger.info(f"  Race {race_no}: blank going backfilled → "
                         f"'{modal_going}' (meeting-wide modal)")
+
+
+def meeting_missing_place_odds(fetched: list) -> list:
+    """Race numbers to flag when the meeting has win odds but NO place odds.
+
+    Place odds sat at 0 on every runner from at least May to 2026-09-14 with
+    nothing in the logs (dead DisplayOdds pages; the Tips page kept win odds
+    alive). They now come from HKJC GraphQL, which rejects any query it has
+    not whitelisted, so an HKJC-side change would bring the gap straight back.
+    Meeting-level on purpose: one race without a place price (pool closed
+    after the off) is normal; zero place prices across a trading card is an
+    outage. Returns [] when there is no outage.
+    """
+    races = [r for r in fetched
+             if not isinstance(r, Exception) and r and getattr(r, 'horses', None)]
+    trading = [r for r in races if any(h.win_odds > 0 for h in r.horses)]
+    if not trading or any(h.place_odds > 0 for r in races for h in r.horses):
+        return []
+    return [r.race_number for r in trading]
 
 
 def apply_card_exposure_cap(all_races: list, bankroll: float,
@@ -1514,6 +1534,18 @@ async def _run_generation(fetcher, analyzer, race_date: str):
     )
 
     backfill_meeting_going(fetched)
+
+    no_place = meeting_missing_place_odds(fetched)
+    if no_place:
+        logger.error(
+            "\n" + "!" * 70 + "\n"
+            f"  PLACE ODDS MISSING on every race ({len(no_place)} races have win odds, "
+            "0 place prices).\n"
+            "  HKJC likely changed or rejected the GraphQL odds query "
+            "(core/fetcher.py _RACING_ODDS_QUERY).\n"
+            "  Predictions still run on win odds; place-odds consumers fall back.\n"
+            + "!" * 70
+        )
 
     for race_no, race in enumerate(fetched, start=1):
         # Skip, do NOT break: all 11 cards are already fetched concurrently, so a

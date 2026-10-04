@@ -43,12 +43,6 @@ def generate_html(races_json: str, now: str, race_date: str,
 
     strip_tiles_html = _build_strip_tiles(races_list)
     accuracy_panel_html = _build_accuracy_panel(accuracy_summary or {})
-    # JSON-encoded for the JS layer (WhatsApp copy footer reads from it).
-    # Match the same defense-in-depth pattern as races_json_safe — strip both
-    # casings of </script> to avoid breaking out of the <script> block.
-    accuracy_summary_json = _json.dumps(accuracy_summary or {}) \
-        .replace('</script>', r'<\/script>') \
-        .replace('</Script>', r'<\/Script>')
 
     # EDGE stats (n_fires / n_placed / n_won) — fed by scripts/track_edge.py.
     # Banner text in WA + dashboard reads from this so the count stays live
@@ -65,7 +59,6 @@ def generate_html(races_json: str, now: str, race_date: str,
         auto_refresh_meta=auto_refresh_meta,
         strip_tiles_html=strip_tiles_html,
         accuracy_panel_html=accuracy_panel_html,
-        accuracy_summary_json=accuracy_summary_json,
         edge_stats_json=edge_stats_json,
     )
 
@@ -579,7 +572,6 @@ function escAttr(s) {{
 }}
 
 const RACES = {races_json};
-const ACCURACY_SUMMARY = {accuracy_summary_json};
 const EDGE_STATS = {edge_stats_json};
 const RACE_DATE = "{race_date}";
 const GENERATED = "{now}";
@@ -1174,17 +1166,8 @@ function renderBetCard(race) {{
   waLines.push('*R' + race.race_number + ' · ' + (race.time||'') + (venueWa ? ' · ' + venueWa : '') + '*');
   waLines.push((race.distance||'') + 'm · ' + (race.class_type||'') + ' · ' +
                race.horses.length + ' horses · Tier: ' + tier);
-  // Suggested-stake banner — mirrors the dashboard per-card budget so
-  // the user knows the total $ before scanning individual MAIN blocks.
-  // Hidden on SKIP races (amount=0 there). Index is remembered so the
-  // banner can be updated later with the unallocated residual once
-  // waUnit + combo counts are known (budget floor often leaves $5-60 free).
-  var _ssBannerIdx = -1;
-  if (ss && ss.amount && ss.amount > 0) {{
-    var ssPctTxt = (ss.pct != null) ? (' (' + (ss.pct||0).toFixed(2) + '% of $' + (race.bankroll||0) + ')') : '';
-    _ssBannerIdx = waLines.length;
-    waLines.push('💰 *Suggested stake: $' + Math.round(ss.amount) + ' HKD*' + ssPctTxt);
-  }}
+  // No suggested-stake banner (2026-10-04). Sizing is decided by the
+  // user from the Tier; the message states the ticket, not a budget.
   // Only show betting copy when a real system ticket exists. A halted
   // day (bankroll STOP) or an empty/SKIP ticket has bet_ticket.bets=[], and
   // the WA-copy + visual ticket render from bet_ticket.bets — so the EDGE
@@ -1228,36 +1211,12 @@ function renderBetCard(race) {{
   var _allBets = (race.bet_ticket && race.bet_ticket.bets) || [];
   var waUnit = (race.bet_ticket && race.bet_ticket.unit_stake) || 0;
   var waTotalCombos = _allBets.reduce(function(s, b) {{ return s + (b.combos || 0); }}, 0);
-  var _waAllocated = (race.bet_ticket && race.bet_ticket.allocated_amount) || 0;
-  var _waOverBudget = !!(race.bet_ticket && race.bet_ticket.over_budget);
-  var _waOverAmount = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
   // Per-bet amount lookup — `bet.amount` is what the server allocated.
   function _waAmountFor(label) {{
     for (var i = 0; i < _allBets.length; i++) {{
       if (_allBets[i].label === label) return _allBets[i].amount || 0;
     }}
     return 0;
-  }}
-
-  // Stake banner annotation: when frozen ticket exceeds budget (HK$5 unit
-  // floor pushed allocated > suggested), surface the over-spend honestly
-  // instead of silently showing the lower budget. Otherwise, show the
-  // residual when allocated < budget (existing behaviour).
-  if (_ssBannerIdx >= 0 && ss && ss.amount > 0) {{
-    if (_waOverBudget && _waOverAmount >= 1) {{
-      waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(
-        ' HKD*',
-        ' HKD — actual $' + Math.round(_waAllocated) +
-        ' (+$' + Math.round(_waOverAmount) + ' over, $10 unit floor)*'
-      );
-    }} else if (_waAllocated > 0) {{
-      var _unalloc = Math.round(ss.amount) - Math.round(_waAllocated);
-      if (_unalloc >= 5) {{
-        waLines[_ssBannerIdx] = waLines[_ssBannerIdx].replace(
-          ' HKD*', ' HKD — $' + _unalloc + ' unallocated*'
-        );
-      }}
-    }}
   }}
 
   // MAIN BET — one focused block (not a duplicate summary + detail).
@@ -1486,25 +1445,6 @@ function renderBetCard(race) {{
     waLines.push('_Why: ' + whyItems.slice(0, 3).join(' · ') + '_');
   }}
 
-  // Model trust footer — recent accuracy for the conviction tier on this race.
-  // Reads from ACCURACY_SUMMARY (60d window from db.get_accuracy_summary).
-  // Silent when no data yet, or when the tier has 0 bets in the window.
-  try {{
-    var convBucket = ACCURACY_SUMMARY && ACCURACY_SUMMARY.by_conviction;
-    var tierStats = convBucket && convBucket[tier];
-    if (tierStats && tierStats.bets > 0 && tierStats.stake > 0) {{
-      var tBets = tierStats.bets, tHits = tierStats.hits;
-      var tHitPct = (tHits / tBets * 100).toFixed(0);
-      // Compare BEFORE .toFixed() so tiny negatives do not render as "+-0%".
-      var tRoiNum = tierStats.profit / tierStats.stake * 100;
-      var tRoiStr = (tRoiNum >= 0 ? '+' : '') + tRoiNum.toFixed(0) + '%';
-      var noteN = tBets < 30 ? ' (small N)' : '';
-      waLines.push('');
-      waLines.push('_Model 60d · ' + tier + ' tier: ' + tHits + '/' + tBets +
-                   ' (' + tHitPct + '%) · ' + tRoiStr + ' ROI' + noteN + '_');
-    }}
-  }} catch (e) {{ /* silent — never break WA copy */ }}
-
   var waPayload = waLines.join('\\n');
 
   // ─────────────────────────────────────────────────────────────
@@ -1575,22 +1515,6 @@ function renderBetCard(race) {{
   var _paperTicketBets = _ticketBetsAll.filter(function(b) {{ return b.paper; }});
   if (_realTicketBets.length) {{
     // ── Real frozen system ticket: STAKE + BET TICKET only ──
-    var ssAmt = (ss && ss.amount) ? ss.amount : 0;
-    var ticketTotal = (race.bet_ticket && race.bet_ticket.allocated_amount) || 0;
-    var unitC = (race.bet_ticket && race.bet_ticket.unit_stake) || 0;
-    var overBudC = !!(race.bet_ticket && race.bet_ticket.over_budget);
-    var overAmtC = (race.bet_ticket && race.bet_ticket.over_amount) || 0;
-    ticketLinesCompact.push('');
-    ticketLinesCompact.push('*STAKE*');
-    var stakeLine = 'Budget $' + Math.round(ssAmt) +
-                    ' · Ticket $' + Math.round(ticketTotal) +
-                    ' · Unit $' + Math.round(unitC);
-    if (overBudC && overAmtC > 0) {{
-      stakeLine += ' · +$' + Math.round(overAmtC) + ' over (HK$' +
-                   Math.round(unitC) + ' unit floor)';
-    }}
-    ticketLinesCompact.push(stakeLine);
-
     ticketLinesCompact.push('');
     ticketLinesCompact.push('*BET TICKET*');
     _realTicketBets.forEach(function(bet, idx) {{

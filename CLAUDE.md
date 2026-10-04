@@ -31,6 +31,8 @@ python3 -m scripts.tier_b_evaluate [--report]
 python3 -m scripts.track_longshot_trio [--report]
 python3 -m scripts.track_spoilers DATE | track_edge DATE   # or --backfill-all (no --report)
 python3 -m scripts.gate_impact [--last 12 | --all]   # OLD vs NEW BOX TRIO-5 triple gate
+python3 -m scripts.track_gate_skips [--report | --backfill-all]  # do the GATES earn their skips?
+python3 -m scripts.shadow_pure_rank [--report | --backfill-all]  # model-only (pure_prob) ranking shadow
 python3 -m scripts.clv_report                  # closing-line value on rank-1 picks
 python3 -m scripts.clv_report --split-by-market-rank  # EDGE GAUGE (auto-runs in raceday finish):
                                                #   splits CLV by market agreement at OPEN — favourite
@@ -41,7 +43,11 @@ python3 -m scripts.clv_report --split-by-market-rank  # EDGE GAUGE (auto-runs in
                                                #   (was -12.7% n=9 on 05-30). First time positive AND
                                                #   converting — TENTATIVE signal, don't act; hold N.
 
-# Backtest
+# Backtest — reads race_results, whose win_odds are the FINAL odds. That is an
+# UPPER BOUND, not a live estimate: the market's own top 5 caught the podium
+# 30.9% on final odds vs 25.2% at 5-15 min before the off and 18.2% at 60+ min
+# (measured 2026-09-14). We bet on the stale side of that gap. Treat every
+# backtest ROI as optimistic; `validate_hk --replay` is the honest verdict.
 python3 -m scripts.backtest [--sweep | --exclude-date YYYY/MM/DD | --production-stakes]
 python3 -m scripts.accuracy --all              # Brier, BSS, calibration
 
@@ -218,6 +224,10 @@ Three audit rounds found 10 date-leaking rule-engine DB lookups (no `before_date
 
 **HONEST POSTURE: no demonstrated betting edge. PAPER-ONLY until `scripts/validate_hk.py` shows positive lower-CI over N≥250 bets.** Judge changes on place/top-4 capture, NOT top-1 win Brier. Detail: `memory/project_7expert_panel_2026-05-22.md`.
 
+**MODEL-ONLY RANKING SHADOW (2026-09-16).** User: "I don't always want to rely on market voted horses." True premise — over 236 forward races, **148 podium finishers were market rank 8+**. Ranking by `pure_prob` (our pre-market opinion) instead of the 55%-market `calibrated_prob`: same top-3-in-5 capture (24.2%), **60% more outsiders caught (26 vs 16 of 148)**, TRIO-5 ROI −15.1% vs −21.3% (survives dropping the top 1-2 dividends: −20.0% vs −26.2%) — but WORSE at naming the winner (21.2% vs 27.1%) and the bootstrap CI on the ROI gap spans zero [−22pp, +34pp]. `scripts/shadow_pure_rank` (auto-runs in `raceday finish`) accrues it. SHADOW ONLY — do not re-weight the blend on this; the 60/40-vs-45/55 A/B was already a wash and needs a fresh calibrator + ≥250-bet forward.
+
+**GATES ARE UNPROVEN (2026-09-16).** `scripts/track_gate_skips` (auto-runs in `raceday finish`) logs, per race, what the same model top-N box would have returned split by whether the gate STAKED it. 18 meetings: QIN-4 bet -47.2% vs skipped +35.4%; F4-5 bet -59.5% vs skipped -5.1%; TRIO-5 bet -45.6% vs skipped -39.7%. The skipped side looks better on every product — BUT removing the single largest dividend collapses it (QIN-4 skipped +35.4% -> -11.2%, F4-5 -5.1% -> -23.8%), so this is NOT yet evidence. Poster child: 2026/05/24 R2, model top 4 = the first 4 home, ticket EMPTY on tier LOW, F4 BOX-4 would have paid $369 on $10. Keep accruing; do not touch the gates until the gap survives the `ROI -top1` column.
+
 **FAST EDGE GAUGE (the leading indicator while N accrues):** `scripts/clv_report --split-by-market-rank` (auto-runs in `raceday finish`). CLV converges far faster than ROI, but is read-with-care: the favourite bucket shortens structurally (late-money MIRAGE, not edge) and rank-4+ longshot CLV% is inflated noise. The ONLY monetizable signal is **rank-2-3 (mild-disagreement) CLV that also converts (places)**. Progression: −12.7% n=9 (2026-05-30) → −2.6% n=13 (06-07) → +2.1% n=34 (07-01) → **+3.9% CLV, place 53%, n=36 (2026-07-04) — CROSSED POSITIVE and converting for the first time**. Still TENTATIVE (single-card variance can move it; 12-meeting replay ROI remains all-negative, STRAIGHT QIN least-bad −4.4%). Don't touch the model; keep accruing and watch the line hold. See memory: `project_clv_edge_gauge_2026-05-30.md`.
 
 ## DB (`tracking_data/horse_history.db`)
@@ -244,6 +254,7 @@ Six tables: `race_results` (primary; sectional_times 99.4%), `race_dividends` (r
 - **Venue detection** (`HKJCApiClient.detect_venue`): wrong venue returns empty HTML. Wed = HV, weekends = ST.
 - **HTML parser** expects 27-cell HKJC table rows with documented column indices; check `_parse_horse_table()` if horses come back empty.
 - **Two-stage result publish**: HKJC posts the first four placings within a minute of the all-clear with win odds still 0.00, then the full field + dividends several minutes later. Do NOT ingest inside that window — `data.scraper.truncated_races()` detects it (HK race with <5 finishers or no odds on any row; venue=NULL overseas rows exempt) and forces a re-scrape. Before running `raceday finish`, confirm every race shows its full field (observed on 4 races on 2026/09/06).
+- **Odds pages are dead — pool odds come from GraphQL** (found 2026-09-14): both `DisplayOdds.aspx` URLs return 404 / a maintenance page, so `fetch_odds_html` is None on every call. Win odds survive only via the Tips Index backfill (`_apply_tips_data`), which has no place column — `place_odds` was 0 on all 48,031 snapshots since May. Place odds now come from `HKJCApiClient.fetch_pool_odds_json` (`info.cld.hkjc.com/graphql/base/`) → `HKJCParser.parse_pool_odds`. The endpoint rejects any query it has not whitelisted (`WHITELIST_ERROR`): `_RACING_ODDS_QUERY` is bet.hkjc.com's own text, verbatim — never reformat it. Pools read `INITIAL`/`STOP_SELL` with empty `oddsNodes` until betting opens. The Playwright fallback still targets the dead `DisplayOdds.aspx`.
 - `_safe_int()` preserves minus signs (regex `[^\d\-]`) — required for `rating_change` and `weight_change`.
 
 ## Codebase conventions

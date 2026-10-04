@@ -163,6 +163,81 @@ class HKJCApiClient:
 
         return None
 
+    # -- Pool odds (GraphQL) ------------------------------------------------
+
+    # Both DisplayOdds.aspx URLs above are dead (404 / maintenance page), so
+    # fetch_odds_html returns None on every call. bet.hkjc.com reads pool odds
+    # from this endpoint. It rejects any query text it has not whitelisted
+    # ("WHITELIST_ERROR"), so the query is bet.hkjc.com's own, verbatim
+    # (captured 2026-09-14). Do not reformat it.
+    GRAPHQL_URL = "https://info.cld.hkjc.com/graphql/base/"
+    _RACING_ODDS_QUERY = """query racing($date: String, $venueCode: String, $oddsTypes: [OddsType], $raceNo: Int) {
+  raceMeetings(date: $date, venueCode: $venueCode) {
+    pmPools(oddsTypes: $oddsTypes, raceNo: $raceNo) {
+      id
+      status
+      sellStatus
+      oddsType
+      lastUpdateTime
+      guarantee
+      minTicketCost
+      name_en
+      name_ch
+      leg {
+        number
+        races
+      }
+      cWinSelections {
+        composite
+        name_ch
+        name_en
+        starters
+      }
+      oddsNodes {
+        combString
+        oddsValue
+        hotFavourite
+        oddsDropValue
+        bankerOdds {
+          combString
+          oddsValue
+        }
+      }
+    }
+  }
+}"""
+
+    def fetch_pool_odds_json(self, race_date: str, race_no: int, venue: str,
+                             odds_types: List[str]) -> Optional[dict]:
+        """Fetch pool odds (WIN, PLA, ...) for one race from HKJC GraphQL.
+        Returns the raw JSON payload, or None on any failure."""
+        body = {
+            "operationName": "racing",
+            "variables": {
+                "date": race_date.replace("/", "-"),
+                "venueCode": venue,
+                "raceNo": race_no,
+                "oddsTypes": list(odds_types),
+            },
+            "query": self._RACING_ODDS_QUERY,
+        }
+        try:
+            resp = self.session.post(
+                self.GRAPHQL_URL, json=body, timeout=30,
+                headers={"Content-Type": "application/json",
+                         "Origin": "https://bet.hkjc.com",
+                         "Referer": "https://bet.hkjc.com/"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            logger.warning(f"Pool odds fetch failed: {e}")
+            return None
+        if not isinstance(data, dict) or data.get("errors"):
+            logger.warning(f"Pool odds query rejected: {data.get('errors') if isinstance(data, dict) else data!r}")
+            return None
+        return data
+
     # -- Results page (HTML) ------------------------------------------------
 
     def fetch_results_html(self, race_date: str, race_no: int) -> Optional[str]:
@@ -610,6 +685,26 @@ class HKJCParser:
     def parse_place_odds(html: str) -> Dict[int, float]:
         """Parse PLACE odds page HTML → {horse_number: decimal_odds}."""
         return HKJCParser.parse_odds(html)  # Same structure, different page
+
+    @staticmethod
+    def parse_pool_odds(data: Optional[dict], odds_type: str) -> Dict[int, float]:
+        """Extract {horse_number: odds} for one pool (WIN, PLA) from a
+        fetch_pool_odds_json payload. Scratched/unpriced runners are skipped."""
+        odds: Dict[int, float] = {}
+        meetings = ((data or {}).get("data") or {}).get("raceMeetings") or []
+        for meeting in meetings:
+            for pool in meeting.get("pmPools") or []:
+                if pool.get("oddsType") != odds_type:
+                    continue
+                for node in pool.get("oddsNodes") or []:
+                    try:
+                        hno = int(str(node.get("combString", "")).strip())
+                        val = float(node.get("oddsValue"))
+                    except (TypeError, ValueError):
+                        continue
+                    if 1 <= hno <= 24 and val > 0:
+                        odds[hno] = val
+        return odds
 
     @staticmethod
     def parse_results(html: str) -> List[Dict]:
@@ -1369,7 +1464,7 @@ class HKJCDataFetcher:
         if race and race.horses:
             logger.info(f"[Method 1] Got {len(race.horses)} horses from HTML")
             # Try to get odds via requests too
-            await self._apply_odds_via_requests(race, race_date, race_no)
+            await self._apply_odds_via_requests(race, race_date, race_no, venue=venue)
 
             # Always apply tips data (has odds + expert ratings)
             await self._apply_tips_data(race, race_no)
@@ -1407,12 +1502,18 @@ class HKJCDataFetcher:
 
         return race
 
-    async def get_live_odds(self, race_date: str, race_no: int) -> Dict[int, float]:
+    async def get_live_odds(self, race_date: str, race_no: int,
+                            venue: str = "") -> Dict[int, float]:
         """Get latest win odds (for refreshing during a meeting)."""
         # Try requests first
         html = self.api.fetch_odds_html(race_date, race_no, "WIN")
         odds = HKJCParser.parse_odds(html) if html else {}
 
+        if odds:
+            return odds
+
+        # DisplayOdds.aspx is dead (404 / maintenance page) — read the pool.
+        odds = self._pool_odds(race_date, race_no, venue, "WIN")
         if odds:
             return odds
 
@@ -1426,11 +1527,22 @@ class HKJCDataFetcher:
 
         return {}
 
-    async def get_place_odds(self, race_date: str, race_no: int) -> Dict[int, float]:
+    async def get_place_odds(self, race_date: str, race_no: int,
+                             venue: str = "") -> Dict[int, float]:
         """Get latest place odds."""
         html = self.api.fetch_odds_html(race_date, race_no, "PLA")
         odds = HKJCParser.parse_place_odds(html) if html else {}
-        return odds
+        return odds or self._pool_odds(race_date, race_no, venue, "PLA")
+
+    def _pool_odds(self, race_date: str, race_no: int, venue: str,
+                   odds_type: str) -> Dict[int, float]:
+        """One pool's odds from HKJC GraphQL. Venue is detected when omitted —
+        the query returns no meeting without it."""
+        venue = venue or self.api.detect_venue(race_date)
+        return HKJCParser.parse_pool_odds(
+            self.api.fetch_pool_odds_json(race_date, race_no, venue, [odds_type]),
+            odds_type,
+        )
 
     async def get_results(self, race_date: str, race_no: int) -> List[Dict]:
         """Get race results (after the race is finished)."""
@@ -1537,7 +1649,7 @@ class HKJCDataFetcher:
             db.record_snapshot(race_date, race_no, horses, source="fetcher")
 
     async def _apply_odds_via_requests(
-        self, race: RaceCard, race_date: str, race_no: int
+        self, race: RaceCard, race_date: str, race_no: int, venue: str = ""
     ):
         """Try to get odds via plain requests and apply to race card."""
         win_html = self.api.fetch_odds_html(race_date, race_no, "WIN")
@@ -1551,6 +1663,11 @@ class HKJCDataFetcher:
 
         pla_html = self.api.fetch_odds_html(race_date, race_no, "PLA")
         pla_odds = HKJCParser.parse_place_odds(pla_html) if pla_html else {}
+        if not pla_odds and venue:
+            pla_odds = HKJCParser.parse_pool_odds(
+                self.api.fetch_pool_odds_json(race_date, race_no, venue, ["PLA"]),
+                "PLA",
+            )
 
         if pla_odds:
             for h in race.horses:

@@ -5592,3 +5592,1411 @@ race_date,race_number,variant,bet_label,combos,stake_hkd,hit,dividend_per_1,pnl_
 2026/09/09,8,invert,F4 SAVER,1,4.0,0,0.0,-4.0
 2026/09/09,8,invert,BOX TRIO-5,10,40.0,0,0.0,-40.0
 2026/09/09,8,invert,F4 BOX-5,5,20.0,0,0.0,-20.0
+2026/09/13,6,flat_min,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/13,6,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/13,6,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/13,6,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/13,6,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,6,flat_min_pre_chaos,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/13,6,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/13,6,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/13,6,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/13,6,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,6,flat_min_skip_aware,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/13,6,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/13,6,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/13,6,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/13,6,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,6,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/13,6,edge_filtered,BOX QIN-3,3,0.0,0,0.0,0.0
+2026/09/13,6,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/13,6,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/13,6,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/13,6,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/13,6,production,BOX QIN-3,3,24.0,0,0.0,-24.0
+2026/09/13,6,production,BOX QIN-4 PROTECTION,6,48.0,0,0.0,-48.0
+2026/09/13,6,production,F4 SAVER,1,8.0,0,0.0,-8.0
+2026/09/13,6,production,BOX TRIO-5,10,80.0,0,0.0,-80.0
+2026/09/13,6,production,F4 BOX-5,5,40.0,0,0.0,-40.0
+2026/09/13,6,flat_1pct,BOX QIN-3,3,12.0,0,0.0,-12.0
+2026/09/13,6,flat_1pct,BOX QIN-4 PROTECTION,6,24.0,0,0.0,-24.0
+2026/09/13,6,flat_1pct,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/09/13,6,flat_1pct,BOX TRIO-5,10,40.0,0,0.0,-40.0
+2026/09/13,6,flat_1pct,F4 BOX-5,5,20.0,0,0.0,-20.0
+2026/09/13,6,invert,BOX QIN-3,3,12.0,0,0.0,-12.0
+2026/09/13,6,invert,BOX QIN-4 PROTECTION,6,24.0,0,0.0,-24.0
+2026/09/13,6,invert,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/09/13,6,invert,BOX TRIO-5,10,40.0,0,0.0,-40.0
+2026/09/13,6,invert,F4 BOX-5,5,20.0,0,0.0,-20.0
+2026/09/13,7,flat_min,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/13,7,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/13,7,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/13,7,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,7,flat_min_pre_chaos,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/13,7,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/13,7,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/13,7,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,7,flat_min_skip_aware,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/13,7,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/13,7,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/13,7,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,7,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/13,7,edge_filtered,BOX QIN-4,6,0.0,0,0.0,0.0
+2026/09/13,7,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/13,7,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/13,7,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/13,7,production,BOX QIN-4,6,54.55,0,0.0,-54.55
+2026/09/13,7,production,F4 SAVER,1,9.09,0,0.0,-9.09
+2026/09/13,7,production,BOX TRIO-5,10,90.91,0,0.0,-90.91
+2026/09/13,7,production,F4 BOX-5,5,45.45,0,0.0,-45.45
+2026/09/13,7,flat_1pct,BOX QIN-4,6,27.27,0,0.0,-27.27
+2026/09/13,7,flat_1pct,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/09/13,7,flat_1pct,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/09/13,7,flat_1pct,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/09/13,7,invert,BOX QIN-4,6,27.27,0,0.0,-27.27
+2026/09/13,7,invert,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/09/13,7,invert,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/09/13,7,invert,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/09/13,8,flat_min,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/13,8,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/13,8,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,8,flat_min_pre_chaos,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/13,8,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/13,8,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,8,flat_min_skip_aware,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/13,8,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/13,8,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,8,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/13,8,edge_filtered,BOX QIN-4,6,0.0,0,0.0,0.0
+2026/09/13,8,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/13,8,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/13,8,production,BOX QIN-4,6,57.14,0,0.0,-57.14
+2026/09/13,8,production,BOX TRIO-5,10,95.24,0,0.0,-95.24
+2026/09/13,8,production,F4 BOX-5,5,47.62,0,0.0,-47.62
+2026/09/13,8,flat_1pct,BOX QIN-4,6,28.57,0,0.0,-28.57
+2026/09/13,8,flat_1pct,BOX TRIO-5,10,47.62,0,0.0,-47.62
+2026/09/13,8,flat_1pct,F4 BOX-5,5,23.81,0,0.0,-23.81
+2026/09/13,8,invert,BOX QIN-4,6,28.57,0,0.0,-28.57
+2026/09/13,8,invert,BOX TRIO-5,10,47.62,0,0.0,-47.62
+2026/09/13,8,invert,F4 BOX-5,5,23.81,0,0.0,-23.81
+2026/09/13,9,flat_min,BOX QIN-3,3,30.0,1,5.7,27.0
+2026/09/13,9,flat_min,BOX QIN-4 PROTECTION,6,60.0,1,5.7,-3.0
+2026/09/13,9,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/13,9,flat_min,BOX TRIO-5,10,100.0,1,15.9,59.0
+2026/09/13,9,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,9,flat_min_pre_chaos,BOX QIN-3,3,30.0,1,5.7,27.0
+2026/09/13,9,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,1,5.7,-3.0
+2026/09/13,9,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/13,9,flat_min_pre_chaos,BOX TRIO-5,10,100.0,1,15.9,59.0
+2026/09/13,9,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,9,flat_min_skip_aware,BOX QIN-3,3,30.0,1,5.7,27.0
+2026/09/13,9,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,1,5.7,-3.0
+2026/09/13,9,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/13,9,flat_min_skip_aware,BOX TRIO-5,10,100.0,1,15.9,59.0
+2026/09/13,9,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,9,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/13,9,edge_filtered,BOX QIN-3,3,0.0,1,5.7,0.0
+2026/09/13,9,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,1,5.7,0.0
+2026/09/13,9,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/13,9,edge_filtered,BOX TRIO-5,10,0.0,1,15.9,0.0
+2026/09/13,9,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/13,9,production,BOX QIN-3,3,24.0,1,5.7,21.6
+2026/09/13,9,production,BOX QIN-4 PROTECTION,6,48.0,1,5.7,-2.4
+2026/09/13,9,production,F4 SAVER,1,8.0,0,0.0,-8.0
+2026/09/13,9,production,BOX TRIO-5,10,80.0,1,15.9,47.2
+2026/09/13,9,production,F4 BOX-5,5,40.0,0,0.0,-40.0
+2026/09/13,9,flat_1pct,BOX QIN-3,3,12.0,1,5.7,10.8
+2026/09/13,9,flat_1pct,BOX QIN-4 PROTECTION,6,24.0,1,5.7,-1.2
+2026/09/13,9,flat_1pct,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/09/13,9,flat_1pct,BOX TRIO-5,10,40.0,1,15.9,23.6
+2026/09/13,9,flat_1pct,F4 BOX-5,5,20.0,0,0.0,-20.0
+2026/09/13,9,invert,BOX QIN-3,3,12.0,1,5.7,10.8
+2026/09/13,9,invert,BOX QIN-4 PROTECTION,6,24.0,1,5.7,-1.2
+2026/09/13,9,invert,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/09/13,9,invert,BOX TRIO-5,10,40.0,1,15.9,23.6
+2026/09/13,9,invert,F4 BOX-5,5,20.0,0,0.0,-20.0
+2026/09/13,10,flat_min,BOX QIN-3,3,30.0,1,12.35,93.5
+2026/09/13,10,flat_min,BOX QIN-4 PROTECTION,6,60.0,1,12.35,63.5
+2026/09/13,10,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/13,10,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/13,10,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,10,flat_min_pre_chaos,BOX QIN-3,3,30.0,1,12.35,93.5
+2026/09/13,10,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,1,12.35,63.5
+2026/09/13,10,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/13,10,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/13,10,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,10,flat_min_skip_aware,BOX QIN-3,3,30.0,1,12.35,93.5
+2026/09/13,10,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,1,12.35,63.5
+2026/09/13,10,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/13,10,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/13,10,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/13,10,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/13,10,edge_filtered,BOX QIN-3,3,0.0,1,12.35,0.0
+2026/09/13,10,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,1,12.35,0.0
+2026/09/13,10,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/13,10,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/13,10,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/13,10,production,BOX QIN-3,3,36.0,1,12.35,112.2
+2026/09/13,10,production,BOX QIN-4 PROTECTION,6,72.0,1,12.35,76.2
+2026/09/13,10,production,F4 SAVER,1,12.0,0,0.0,-12.0
+2026/09/13,10,production,BOX TRIO-5,10,120.0,0,0.0,-120.0
+2026/09/13,10,production,F4 BOX-5,5,60.0,0,0.0,-60.0
+2026/09/13,10,flat_1pct,BOX QIN-3,3,12.0,1,12.35,37.4
+2026/09/13,10,flat_1pct,BOX QIN-4 PROTECTION,6,24.0,1,12.35,25.4
+2026/09/13,10,flat_1pct,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/09/13,10,flat_1pct,BOX TRIO-5,10,40.0,0,0.0,-40.0
+2026/09/13,10,flat_1pct,F4 BOX-5,5,20.0,0,0.0,-20.0
+2026/09/13,10,invert,BOX QIN-3,3,6.0,1,12.35,18.7
+2026/09/13,10,invert,BOX QIN-4 PROTECTION,6,12.0,1,12.35,12.7
+2026/09/13,10,invert,F4 SAVER,1,2.0,0,0.0,-2.0
+2026/09/13,10,invert,BOX TRIO-5,10,20.0,0,0.0,-20.0
+2026/09/13,10,invert,F4 BOX-5,5,10.0,0,0.0,-10.0
+2026/09/16,1,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,1,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/16,1,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,1,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,1,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,1,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,1,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/16,1,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,1,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,1,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,1,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,1,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/16,1,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,1,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,1,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,1,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,1,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/09/16,1,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/16,1,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/16,1,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/16,1,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/16,1,production,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/16,1,production,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/16,1,production,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/16,1,production,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/16,1,production,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/16,1,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/16,1,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/16,1,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/16,1,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/16,1,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/16,1,invert,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/09/16,1,invert,BOX QIN-4 PROTECTION,6,52.17,0,0.0,-52.17
+2026/09/16,1,invert,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/09/16,1,invert,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/09/16,1,invert,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/09/16,2,flat_min,BOX QIN-4,6,60.0,1,11.05,50.5
+2026/09/16,2,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,2,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,2,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,2,flat_min_pre_chaos,BOX QIN-4,6,60.0,1,11.05,50.5
+2026/09/16,2,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,2,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,2,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,2,flat_min_skip_aware,BOX QIN-4,6,60.0,1,11.05,50.5
+2026/09/16,2,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,2,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,2,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,2,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,2,edge_filtered,BOX QIN-4,6,0.0,1,11.05,0.0
+2026/09/16,2,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/16,2,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/16,2,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/16,2,production,BOX QIN-4,6,54.55,1,11.05,45.91
+2026/09/16,2,production,F4 SAVER,1,9.09,0,0.0,-9.09
+2026/09/16,2,production,BOX TRIO-5,10,90.91,0,0.0,-90.91
+2026/09/16,2,production,F4 BOX-5,5,45.45,0,0.0,-45.45
+2026/09/16,2,flat_1pct,BOX QIN-4,6,27.27,1,11.05,22.95
+2026/09/16,2,flat_1pct,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/09/16,2,flat_1pct,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/09/16,2,flat_1pct,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/09/16,2,invert,BOX QIN-4,6,27.27,1,11.05,22.95
+2026/09/16,2,invert,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/09/16,2,invert,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/09/16,2,invert,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/09/16,3,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,3,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/16,3,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,3,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,3,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,3,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,3,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/16,3,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,3,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,3,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,3,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,3,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/16,3,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,3,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,3,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,3,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,3,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/09/16,3,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/16,3,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/16,3,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/16,3,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/16,3,production,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/16,3,production,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/16,3,production,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/16,3,production,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/16,3,production,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/16,3,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/16,3,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/16,3,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/16,3,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/16,3,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/16,3,invert,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/09/16,3,invert,BOX QIN-4 PROTECTION,6,52.17,0,0.0,-52.17
+2026/09/16,3,invert,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/09/16,3,invert,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/09/16,3,invert,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/09/16,4,flat_min,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/16,4,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,4,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,4,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,4,flat_min_pre_chaos,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/16,4,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,4,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,4,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,4,flat_min_skip_aware,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/16,4,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,4,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,4,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,4,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,4,edge_filtered,BOX QIN-4,6,0.0,0,0.0,0.0
+2026/09/16,4,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/16,4,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/16,4,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/16,4,production,BOX QIN-4,6,54.55,0,0.0,-54.55
+2026/09/16,4,production,F4 SAVER,1,9.09,0,0.0,-9.09
+2026/09/16,4,production,BOX TRIO-5,10,90.91,0,0.0,-90.91
+2026/09/16,4,production,F4 BOX-5,5,45.45,0,0.0,-45.45
+2026/09/16,4,flat_1pct,BOX QIN-4,6,27.27,0,0.0,-27.27
+2026/09/16,4,flat_1pct,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/09/16,4,flat_1pct,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/09/16,4,flat_1pct,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/09/16,4,invert,BOX QIN-4,6,27.27,0,0.0,-27.27
+2026/09/16,4,invert,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/09/16,4,invert,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/09/16,4,invert,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/09/16,5,flat_min,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/16,5,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/16,5,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,5,flat_min,BOX TRIO-5,10,100.0,1,31.5,215.0
+2026/09/16,5,flat_min,F4 BOX-5,5,50.0,1,41.4,364.0
+2026/09/16,5,flat_min_pre_chaos,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/16,5,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/16,5,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,5,flat_min_pre_chaos,BOX TRIO-5,10,100.0,1,31.5,215.0
+2026/09/16,5,flat_min_pre_chaos,F4 BOX-5,5,50.0,1,41.4,364.0
+2026/09/16,5,flat_min_skip_aware,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/16,5,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/16,5,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,5,flat_min_skip_aware,BOX TRIO-5,10,100.0,1,31.5,215.0
+2026/09/16,5,flat_min_skip_aware,F4 BOX-5,5,50.0,1,41.4,364.0
+2026/09/16,5,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,5,edge_filtered,BOX QIN-3,3,0.0,0,0.0,0.0
+2026/09/16,5,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/16,5,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/16,5,edge_filtered,BOX TRIO-5,10,0.0,1,31.5,0.0
+2026/09/16,5,edge_filtered,F4 BOX-5,5,0.0,1,41.4,0.0
+2026/09/16,5,production,BOX QIN-3,3,12.0,0,0.0,-12.0
+2026/09/16,5,production,BOX QIN-4 PROTECTION,6,24.0,0,0.0,-24.0
+2026/09/16,5,production,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/09/16,5,production,BOX TRIO-5,10,40.0,1,31.5,86.0
+2026/09/16,5,production,F4 BOX-5,5,20.0,1,41.4,145.6
+2026/09/16,5,flat_1pct,BOX QIN-3,3,12.0,0,0.0,-12.0
+2026/09/16,5,flat_1pct,BOX QIN-4 PROTECTION,6,24.0,0,0.0,-24.0
+2026/09/16,5,flat_1pct,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/09/16,5,flat_1pct,BOX TRIO-5,10,40.0,1,31.5,86.0
+2026/09/16,5,flat_1pct,F4 BOX-5,5,20.0,1,41.4,145.6
+2026/09/16,5,invert,BOX QIN-3,3,24.0,0,0.0,-24.0
+2026/09/16,5,invert,BOX QIN-4 PROTECTION,6,48.0,0,0.0,-48.0
+2026/09/16,5,invert,F4 SAVER,1,8.0,0,0.0,-8.0
+2026/09/16,5,invert,BOX TRIO-5,10,80.0,1,31.5,172.0
+2026/09/16,5,invert,F4 BOX-5,5,40.0,1,41.4,291.2
+2026/09/16,6,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,6,flat_min,BOX QIN-4 PROTECTION,6,60.0,1,10.85,48.5
+2026/09/16,6,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,6,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,6,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,6,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,6,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,1,10.85,48.5
+2026/09/16,6,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,6,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,6,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,6,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,6,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,1,10.85,48.5
+2026/09/16,6,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,6,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,6,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,6,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,6,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/09/16,6,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,1,10.85,0.0
+2026/09/16,6,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/16,6,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/16,6,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/16,6,production,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/09/16,6,production,BOX QIN-4 PROTECTION,6,52.17,1,10.85,42.17
+2026/09/16,6,production,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/09/16,6,production,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/09/16,6,production,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/09/16,6,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/16,6,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,1,10.85,21.09
+2026/09/16,6,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/16,6,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/16,6,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/16,6,invert,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/16,6,invert,BOX QIN-4 PROTECTION,6,26.09,1,10.85,21.09
+2026/09/16,6,invert,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/16,6,invert,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/16,6,invert,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/16,8,flat_min,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/16,8,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,8,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,8,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,8,flat_min_pre_chaos,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/16,8,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,8,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,8,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,8,flat_min_skip_aware,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/16,8,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/16,8,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/16,8,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/16,8,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/16,8,edge_filtered,BOX QIN-4,6,0.0,0,0.0,0.0
+2026/09/16,8,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/16,8,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/16,8,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/16,8,production,BOX QIN-4,6,27.27,0,0.0,-27.27
+2026/09/16,8,production,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/09/16,8,production,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/09/16,8,production,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/09/16,8,flat_1pct,BOX QIN-4,6,27.27,0,0.0,-27.27
+2026/09/16,8,flat_1pct,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/09/16,8,flat_1pct,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/09/16,8,flat_1pct,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/09/16,8,invert,BOX QIN-4,6,54.55,0,0.0,-54.55
+2026/09/16,8,invert,F4 SAVER,1,9.09,0,0.0,-9.09
+2026/09/16,8,invert,BOX TRIO-5,10,90.91,0,0.0,-90.91
+2026/09/16,8,invert,F4 BOX-5,5,45.45,0,0.0,-45.45
+2026/09/23,1,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,1,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,1,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,1,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,1,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,1,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,1,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,1,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,1,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,1,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,1,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,1,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,1,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,1,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,1,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,1,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,1,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/09/23,1,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/23,1,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/23,1,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/23,1,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/23,1,production,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/09/23,1,production,BOX QIN-4 PROTECTION,6,52.17,0,0.0,-52.17
+2026/09/23,1,production,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/09/23,1,production,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/09/23,1,production,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/09/23,1,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/23,1,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/23,1,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/23,1,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/23,1,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/23,1,invert,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/23,1,invert,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/23,1,invert,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/23,1,invert,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/23,1,invert,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/23,2,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,2,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,2,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,2,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,2,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,2,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,2,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,2,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,2,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,2,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,2,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,2,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,2,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,2,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,2,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,2,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,2,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/09/23,2,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/23,2,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/23,2,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/23,2,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/23,2,production,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/09/23,2,production,BOX QIN-4 PROTECTION,6,52.17,0,0.0,-52.17
+2026/09/23,2,production,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/09/23,2,production,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/09/23,2,production,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/09/23,2,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/23,2,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/23,2,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/23,2,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/23,2,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/23,2,invert,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/23,2,invert,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/23,2,invert,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/23,2,invert,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/23,2,invert,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/23,3,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,3,flat_min,BOX QIN-4 PROTECTION,6,60.0,1,15.55,95.5
+2026/09/23,3,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,3,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,3,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,3,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,3,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,1,15.55,95.5
+2026/09/23,3,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,3,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,3,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,3,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,3,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,1,15.55,95.5
+2026/09/23,3,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,3,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,3,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,3,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,3,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/09/23,3,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,1,15.55,0.0
+2026/09/23,3,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/23,3,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/23,3,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/23,3,production,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/23,3,production,BOX QIN-4 PROTECTION,6,26.09,1,15.55,41.53
+2026/09/23,3,production,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/23,3,production,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/23,3,production,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/23,3,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/23,3,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,1,15.55,41.53
+2026/09/23,3,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/23,3,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/23,3,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/23,3,invert,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/09/23,3,invert,BOX QIN-4 PROTECTION,6,52.17,1,15.55,83.04
+2026/09/23,3,invert,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/09/23,3,invert,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/09/23,3,invert,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/09/23,4,flat_min,STRAIGHT QIN,1,10.0,1,7.6,66.0
+2026/09/23,4,flat_min,QIN PLACE BANKER,3,30.0,1,5.35,23.5
+2026/09/23,4,flat_min,BOX QIN-4 PROTECTION,6,60.0,1,7.6,16.0
+2026/09/23,4,flat_min,BOX TRIO-5,10,100.0,1,11.7,17.0
+2026/09/23,4,flat_min,F4 BOX-5,5,50.0,1,8.3,33.0
+2026/09/23,4,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,1,7.6,66.0
+2026/09/23,4,flat_min_pre_chaos,QIN PLACE BANKER,3,30.0,1,5.35,23.5
+2026/09/23,4,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,1,7.6,16.0
+2026/09/23,4,flat_min_pre_chaos,BOX TRIO-5,10,100.0,1,11.7,17.0
+2026/09/23,4,flat_min_pre_chaos,F4 BOX-5,5,50.0,1,8.3,33.0
+2026/09/23,4,flat_min_skip_aware,STRAIGHT QIN,1,10.0,1,7.6,66.0
+2026/09/23,4,flat_min_skip_aware,QIN PLACE BANKER,3,30.0,1,5.35,23.5
+2026/09/23,4,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,1,7.6,16.0
+2026/09/23,4,flat_min_skip_aware,BOX TRIO-5,10,100.0,1,11.7,17.0
+2026/09/23,4,flat_min_skip_aware,F4 BOX-5,5,50.0,1,8.3,33.0
+2026/09/23,4,straight_qin_only,STRAIGHT QIN,1,10.0,1,7.6,66.0
+2026/09/23,4,edge_filtered,STRAIGHT QIN,1,0.0,1,7.6,0.0
+2026/09/23,4,edge_filtered,QIN PLACE BANKER,3,0.0,1,5.35,0.0
+2026/09/23,4,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,1,7.6,0.0
+2026/09/23,4,edge_filtered,BOX TRIO-5,10,0.0,1,11.7,0.0
+2026/09/23,4,edge_filtered,F4 BOX-5,5,0.0,1,8.3,0.0
+2026/09/23,4,production,STRAIGHT QIN,1,12.0,1,7.6,79.2
+2026/09/23,4,production,QIN PLACE BANKER,3,36.0,1,5.35,28.2
+2026/09/23,4,production,BOX QIN-4 PROTECTION,6,72.0,1,7.6,19.2
+2026/09/23,4,production,BOX TRIO-5,10,120.0,1,11.7,20.4
+2026/09/23,4,production,F4 BOX-5,5,60.0,1,8.3,39.6
+2026/09/23,4,flat_1pct,STRAIGHT QIN,1,4.0,1,7.6,26.4
+2026/09/23,4,flat_1pct,QIN PLACE BANKER,3,12.0,1,5.35,9.4
+2026/09/23,4,flat_1pct,BOX QIN-4 PROTECTION,6,24.0,1,7.6,6.4
+2026/09/23,4,flat_1pct,BOX TRIO-5,10,40.0,1,11.7,6.8
+2026/09/23,4,flat_1pct,F4 BOX-5,5,20.0,1,8.3,13.2
+2026/09/23,4,invert,STRAIGHT QIN,1,2.0,1,7.6,13.2
+2026/09/23,4,invert,QIN PLACE BANKER,3,6.0,1,5.35,4.7
+2026/09/23,4,invert,BOX QIN-4 PROTECTION,6,12.0,1,7.6,3.2
+2026/09/23,4,invert,BOX TRIO-5,10,20.0,1,11.7,3.4
+2026/09/23,4,invert,F4 BOX-5,5,10.0,1,8.3,6.6
+2026/09/23,5,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,5,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,5,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,5,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,5,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,5,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,5,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,5,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,5,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,5,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,5,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,5,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,5,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,5,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,5,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,5,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,5,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/09/23,5,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/23,5,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/23,5,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/23,5,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/23,5,production,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/23,5,production,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/23,5,production,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/23,5,production,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/23,5,production,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/23,5,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/23,5,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/23,5,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/23,5,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/23,5,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/23,5,invert,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/09/23,5,invert,BOX QIN-4 PROTECTION,6,52.17,0,0.0,-52.17
+2026/09/23,5,invert,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/09/23,5,invert,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/09/23,5,invert,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/09/23,6,flat_min,BOX QIN-3,3,30.0,1,7.0,40.0
+2026/09/23,6,flat_min,BOX QIN-4 PROTECTION,6,60.0,1,7.0,10.0
+2026/09/23,6,flat_min,F4 SAVER,1,10.0,1,7.5,65.0
+2026/09/23,6,flat_min,BOX TRIO-5,10,100.0,1,5.0,-50.0
+2026/09/23,6,flat_min,F4 BOX-5,5,50.0,1,7.5,25.0
+2026/09/23,6,flat_min_pre_chaos,BOX QIN-3,3,30.0,1,7.0,40.0
+2026/09/23,6,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,1,7.0,10.0
+2026/09/23,6,flat_min_pre_chaos,F4 SAVER,1,10.0,1,7.5,65.0
+2026/09/23,6,flat_min_pre_chaos,BOX TRIO-5,10,100.0,1,5.0,-50.0
+2026/09/23,6,flat_min_pre_chaos,F4 BOX-5,5,50.0,1,7.5,25.0
+2026/09/23,6,flat_min_skip_aware,BOX QIN-3,3,30.0,1,7.0,40.0
+2026/09/23,6,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,1,7.0,10.0
+2026/09/23,6,flat_min_skip_aware,F4 SAVER,1,10.0,1,7.5,65.0
+2026/09/23,6,flat_min_skip_aware,BOX TRIO-5,10,100.0,1,5.0,-50.0
+2026/09/23,6,flat_min_skip_aware,F4 BOX-5,5,50.0,1,7.5,25.0
+2026/09/23,6,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,6,edge_filtered,BOX QIN-3,3,0.0,1,7.0,0.0
+2026/09/23,6,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,1,7.0,0.0
+2026/09/23,6,edge_filtered,F4 SAVER,1,0.0,1,7.5,0.0
+2026/09/23,6,edge_filtered,BOX TRIO-5,10,0.0,1,5.0,0.0
+2026/09/23,6,edge_filtered,F4 BOX-5,5,0.0,1,7.5,0.0
+2026/09/23,6,production,BOX QIN-3,3,24.0,1,7.0,32.0
+2026/09/23,6,production,BOX QIN-4 PROTECTION,6,48.0,1,7.0,8.0
+2026/09/23,6,production,F4 SAVER,1,8.0,1,7.5,52.0
+2026/09/23,6,production,BOX TRIO-5,10,80.0,1,5.0,-40.0
+2026/09/23,6,production,F4 BOX-5,5,40.0,1,7.5,20.0
+2026/09/23,6,flat_1pct,BOX QIN-3,3,12.0,1,7.0,16.0
+2026/09/23,6,flat_1pct,BOX QIN-4 PROTECTION,6,24.0,1,7.0,4.0
+2026/09/23,6,flat_1pct,F4 SAVER,1,4.0,1,7.5,26.0
+2026/09/23,6,flat_1pct,BOX TRIO-5,10,40.0,1,5.0,-20.0
+2026/09/23,6,flat_1pct,F4 BOX-5,5,20.0,1,7.5,10.0
+2026/09/23,6,invert,BOX QIN-3,3,12.0,1,7.0,16.0
+2026/09/23,6,invert,BOX QIN-4 PROTECTION,6,24.0,1,7.0,4.0
+2026/09/23,6,invert,F4 SAVER,1,4.0,1,7.5,26.0
+2026/09/23,6,invert,BOX TRIO-5,10,40.0,1,5.0,-20.0
+2026/09/23,6,invert,F4 BOX-5,5,20.0,1,7.5,10.0
+2026/09/23,7,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,7,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,7,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,7,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,7,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,7,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,7,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,7,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,7,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,7,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,7,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,7,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,7,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,7,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,7,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,7,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,7,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/09/23,7,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/23,7,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/23,7,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/23,7,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/23,7,production,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/09/23,7,production,BOX QIN-4 PROTECTION,6,52.17,0,0.0,-52.17
+2026/09/23,7,production,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/09/23,7,production,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/09/23,7,production,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/09/23,7,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/23,7,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/23,7,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/23,7,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/23,7,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/23,7,invert,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/23,7,invert,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/23,7,invert,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/23,7,invert,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/23,7,invert,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/23,8,flat_min,STRAIGHT QIN,1,10.0,1,6.4,54.0
+2026/09/23,8,flat_min,BOX QIN-4 PROTECTION,6,60.0,1,6.4,4.0
+2026/09/23,8,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,8,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,8,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,8,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,1,6.4,54.0
+2026/09/23,8,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,1,6.4,4.0
+2026/09/23,8,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,8,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,8,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,8,flat_min_skip_aware,STRAIGHT QIN,1,10.0,1,6.4,54.0
+2026/09/23,8,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,1,6.4,4.0
+2026/09/23,8,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,8,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,8,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,8,straight_qin_only,STRAIGHT QIN,1,10.0,1,6.4,54.0
+2026/09/23,8,edge_filtered,STRAIGHT QIN,1,0.0,1,6.4,0.0
+2026/09/23,8,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,1,6.4,0.0
+2026/09/23,8,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/23,8,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/23,8,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/23,8,production,STRAIGHT QIN,1,8.7,1,6.4,46.98
+2026/09/23,8,production,BOX QIN-4 PROTECTION,6,52.17,1,6.4,3.48
+2026/09/23,8,production,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/09/23,8,production,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/09/23,8,production,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/09/23,8,flat_1pct,STRAIGHT QIN,1,4.35,1,6.4,23.49
+2026/09/23,8,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,1,6.4,1.74
+2026/09/23,8,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/23,8,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/23,8,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/23,8,invert,STRAIGHT QIN,1,4.35,1,6.4,23.49
+2026/09/23,8,invert,BOX QIN-4 PROTECTION,6,26.09,1,6.4,1.74
+2026/09/23,8,invert,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/23,8,invert,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/23,8,invert,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/23,9,flat_min,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/23,9,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,9,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,9,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,9,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,9,flat_min_pre_chaos,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/23,9,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,9,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,9,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,9,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,9,flat_min_skip_aware,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/23,9,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/23,9,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/23,9,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/23,9,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/23,9,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/23,9,edge_filtered,BOX QIN-3,3,0.0,0,0.0,0.0
+2026/09/23,9,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/23,9,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/23,9,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/23,9,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/23,9,production,BOX QIN-3,3,12.0,0,0.0,-12.0
+2026/09/23,9,production,BOX QIN-4 PROTECTION,6,24.0,0,0.0,-24.0
+2026/09/23,9,production,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/09/23,9,production,BOX TRIO-5,10,40.0,0,0.0,-40.0
+2026/09/23,9,production,F4 BOX-5,5,20.0,0,0.0,-20.0
+2026/09/23,9,flat_1pct,BOX QIN-3,3,12.0,0,0.0,-12.0
+2026/09/23,9,flat_1pct,BOX QIN-4 PROTECTION,6,24.0,0,0.0,-24.0
+2026/09/23,9,flat_1pct,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/09/23,9,flat_1pct,BOX TRIO-5,10,40.0,0,0.0,-40.0
+2026/09/23,9,flat_1pct,F4 BOX-5,5,20.0,0,0.0,-20.0
+2026/09/23,9,invert,BOX QIN-3,3,24.0,0,0.0,-24.0
+2026/09/23,9,invert,BOX QIN-4 PROTECTION,6,48.0,0,0.0,-48.0
+2026/09/23,9,invert,F4 SAVER,1,8.0,0,0.0,-8.0
+2026/09/23,9,invert,BOX TRIO-5,10,80.0,0,0.0,-80.0
+2026/09/23,9,invert,F4 BOX-5,5,40.0,0,0.0,-40.0
+2026/09/27,1,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,1,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,1,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,1,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,1,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,1,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,1,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,1,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,1,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,1,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,1,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,1,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,1,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,1,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,1,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,1,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,1,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/09/27,1,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/27,1,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/27,1,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/27,1,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/27,1,production,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/09/27,1,production,BOX QIN-4 PROTECTION,6,52.17,0,0.0,-52.17
+2026/09/27,1,production,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/09/27,1,production,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/09/27,1,production,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/09/27,1,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/27,1,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/27,1,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/27,1,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/27,1,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/27,1,invert,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/27,1,invert,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/27,1,invert,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/27,1,invert,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/27,1,invert,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/27,2,flat_min,BOX QIN-3,3,30.0,1,6.35,33.5
+2026/09/27,2,flat_min,BOX QIN-4 PROTECTION,6,60.0,1,6.35,3.5
+2026/09/27,2,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,2,flat_min,BOX TRIO-5,10,100.0,1,22.6,126.0
+2026/09/27,2,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,2,flat_min_pre_chaos,BOX QIN-3,3,30.0,1,6.35,33.5
+2026/09/27,2,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,1,6.35,3.5
+2026/09/27,2,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,2,flat_min_pre_chaos,BOX TRIO-5,10,100.0,1,22.6,126.0
+2026/09/27,2,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,2,flat_min_skip_aware,BOX QIN-3,3,30.0,1,6.35,33.5
+2026/09/27,2,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,1,6.35,3.5
+2026/09/27,2,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,2,flat_min_skip_aware,BOX TRIO-5,10,100.0,1,22.6,126.0
+2026/09/27,2,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,2,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,2,edge_filtered,BOX QIN-3,3,0.0,1,6.35,0.0
+2026/09/27,2,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,1,6.35,0.0
+2026/09/27,2,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/27,2,edge_filtered,BOX TRIO-5,10,0.0,1,22.6,0.0
+2026/09/27,2,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/27,2,production,BOX QIN-3,3,36.0,1,6.35,40.2
+2026/09/27,2,production,BOX QIN-4 PROTECTION,6,72.0,1,6.35,4.2
+2026/09/27,2,production,F4 SAVER,1,12.0,0,0.0,-12.0
+2026/09/27,2,production,BOX TRIO-5,10,120.0,1,22.6,151.2
+2026/09/27,2,production,F4 BOX-5,5,60.0,0,0.0,-60.0
+2026/09/27,2,flat_1pct,BOX QIN-3,3,12.0,1,6.35,13.4
+2026/09/27,2,flat_1pct,BOX QIN-4 PROTECTION,6,24.0,1,6.35,1.4
+2026/09/27,2,flat_1pct,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/09/27,2,flat_1pct,BOX TRIO-5,10,40.0,1,22.6,50.4
+2026/09/27,2,flat_1pct,F4 BOX-5,5,20.0,0,0.0,-20.0
+2026/09/27,2,invert,BOX QIN-3,3,6.0,1,6.35,6.7
+2026/09/27,2,invert,BOX QIN-4 PROTECTION,6,12.0,1,6.35,0.7
+2026/09/27,2,invert,F4 SAVER,1,2.0,0,0.0,-2.0
+2026/09/27,2,invert,BOX TRIO-5,10,20.0,1,22.6,25.2
+2026/09/27,2,invert,F4 BOX-5,5,10.0,0,0.0,-10.0
+2026/09/27,3,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,3,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,3,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,3,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,3,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,3,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,3,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,3,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,3,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,3,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,3,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,3,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,3,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,3,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,3,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,3,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,3,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/09/27,3,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/27,3,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/27,3,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/27,3,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/27,3,production,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/09/27,3,production,BOX QIN-4 PROTECTION,6,52.17,0,0.0,-52.17
+2026/09/27,3,production,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/09/27,3,production,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/09/27,3,production,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/09/27,3,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/27,3,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/27,3,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/27,3,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/27,3,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/27,3,invert,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/27,3,invert,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/27,3,invert,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/27,3,invert,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/27,3,invert,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/27,4,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,4,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,4,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,4,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,4,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,4,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,4,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,4,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,4,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,4,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,4,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,4,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,4,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,4,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,4,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,4,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,4,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/09/27,4,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/27,4,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/27,4,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/27,4,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/27,4,production,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/09/27,4,production,BOX QIN-4 PROTECTION,6,52.17,0,0.0,-52.17
+2026/09/27,4,production,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/09/27,4,production,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/09/27,4,production,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/09/27,4,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/27,4,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/27,4,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/27,4,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/27,4,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/27,4,invert,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/09/27,4,invert,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/09/27,4,invert,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/09/27,4,invert,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/09/27,4,invert,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/09/27,5,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,5,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,5,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,5,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,5,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,5,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,5,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,5,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,5,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,5,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,5,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,5,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,5,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,5,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/09/27,5,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/27,5,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/27,5,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/27,5,production,STRAIGHT QIN,1,9.09,0,0.0,-9.09
+2026/09/27,5,production,BOX QIN-4 PROTECTION,6,54.55,0,0.0,-54.55
+2026/09/27,5,production,BOX TRIO-5,10,90.91,0,0.0,-90.91
+2026/09/27,5,production,F4 BOX-5,5,45.45,0,0.0,-45.45
+2026/09/27,5,flat_1pct,STRAIGHT QIN,1,4.55,0,0.0,-4.55
+2026/09/27,5,flat_1pct,BOX QIN-4 PROTECTION,6,27.27,0,0.0,-27.27
+2026/09/27,5,flat_1pct,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/09/27,5,flat_1pct,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/09/27,5,invert,STRAIGHT QIN,1,4.55,0,0.0,-4.55
+2026/09/27,5,invert,BOX QIN-4 PROTECTION,6,27.27,0,0.0,-27.27
+2026/09/27,5,invert,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/09/27,5,invert,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/09/27,6,flat_min,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/27,6,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,6,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,6,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,6,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,6,flat_min_pre_chaos,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/27,6,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,6,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,6,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,6,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,6,flat_min_skip_aware,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/27,6,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,6,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,6,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,6,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,6,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,6,edge_filtered,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/27,6,edge_filtered,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,6,edge_filtered,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,6,edge_filtered,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,6,edge_filtered,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,6,production,BOX QIN-3,3,36.0,0,0.0,-36.0
+2026/09/27,6,production,BOX QIN-4 PROTECTION,6,72.0,0,0.0,-72.0
+2026/09/27,6,production,F4 SAVER,1,12.0,0,0.0,-12.0
+2026/09/27,6,production,BOX TRIO-5,10,120.0,0,0.0,-120.0
+2026/09/27,6,production,F4 BOX-5,5,60.0,0,0.0,-60.0
+2026/09/27,6,flat_1pct,BOX QIN-3,3,12.0,0,0.0,-12.0
+2026/09/27,6,flat_1pct,BOX QIN-4 PROTECTION,6,24.0,0,0.0,-24.0
+2026/09/27,6,flat_1pct,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/09/27,6,flat_1pct,BOX TRIO-5,10,40.0,0,0.0,-40.0
+2026/09/27,6,flat_1pct,F4 BOX-5,5,20.0,0,0.0,-20.0
+2026/09/27,6,invert,BOX QIN-3,3,6.0,0,0.0,-6.0
+2026/09/27,6,invert,BOX QIN-4 PROTECTION,6,12.0,0,0.0,-12.0
+2026/09/27,6,invert,F4 SAVER,1,2.0,0,0.0,-2.0
+2026/09/27,6,invert,BOX TRIO-5,10,20.0,0,0.0,-20.0
+2026/09/27,6,invert,F4 BOX-5,5,10.0,0,0.0,-10.0
+2026/09/27,7,flat_min,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/27,7,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,7,flat_min,BOX TRIO-5,10,100.0,1,13.7,37.0
+2026/09/27,7,flat_min,F4 BOX-5,5,50.0,1,29.9,249.0
+2026/09/27,7,flat_min_pre_chaos,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/27,7,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,7,flat_min_pre_chaos,BOX TRIO-5,10,100.0,1,13.7,37.0
+2026/09/27,7,flat_min_pre_chaos,F4 BOX-5,5,50.0,1,29.9,249.0
+2026/09/27,7,flat_min_skip_aware,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/09/27,7,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/09/27,7,flat_min_skip_aware,BOX TRIO-5,10,100.0,1,13.7,37.0
+2026/09/27,7,flat_min_skip_aware,F4 BOX-5,5,50.0,1,29.9,249.0
+2026/09/27,7,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,7,edge_filtered,BOX QIN-3,3,0.0,0,0.0,0.0
+2026/09/27,7,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/09/27,7,edge_filtered,BOX TRIO-5,10,0.0,1,13.7,0.0
+2026/09/27,7,edge_filtered,F4 BOX-5,5,0.0,1,29.9,0.0
+2026/09/27,7,production,BOX QIN-3,3,37.5,0,0.0,-37.5
+2026/09/27,7,production,BOX QIN-4 PROTECTION,6,75.0,0,0.0,-75.0
+2026/09/27,7,production,BOX TRIO-5,10,125.0,1,13.7,46.25
+2026/09/27,7,production,F4 BOX-5,5,62.5,1,29.9,311.25
+2026/09/27,7,flat_1pct,BOX QIN-3,3,12.5,0,0.0,-12.5
+2026/09/27,7,flat_1pct,BOX QIN-4 PROTECTION,6,25.0,0,0.0,-25.0
+2026/09/27,7,flat_1pct,BOX TRIO-5,10,41.67,1,13.7,15.42
+2026/09/27,7,flat_1pct,F4 BOX-5,5,20.83,1,29.9,103.73
+2026/09/27,7,invert,BOX QIN-3,3,6.25,0,0.0,-6.25
+2026/09/27,7,invert,BOX QIN-4 PROTECTION,6,12.5,0,0.0,-12.5
+2026/09/27,7,invert,BOX TRIO-5,10,20.83,1,13.7,7.71
+2026/09/27,7,invert,F4 BOX-5,5,10.42,1,29.9,51.89
+2026/09/27,8,flat_min,BOX QIN-4,6,60.0,1,21.2,152.0
+2026/09/27,8,flat_min,QIN PLACE BANKER,3,30.0,0,0.0,-30.0
+2026/09/27,8,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,8,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,8,flat_min_pre_chaos,BOX QIN-4,6,60.0,1,21.2,152.0
+2026/09/27,8,flat_min_pre_chaos,QIN PLACE BANKER,3,30.0,0,0.0,-30.0
+2026/09/27,8,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,8,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,8,flat_min_skip_aware,BOX QIN-4,6,60.0,1,21.2,152.0
+2026/09/27,8,flat_min_skip_aware,QIN PLACE BANKER,3,30.0,0,0.0,-30.0
+2026/09/27,8,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,8,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,8,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,8,edge_filtered,BOX QIN-4,6,0.0,1,21.2,0.0
+2026/09/27,8,edge_filtered,QIN PLACE BANKER,3,0.0,0,0.0,0.0
+2026/09/27,8,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/27,8,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/27,8,production,BOX QIN-4,6,75.0,1,21.2,190.0
+2026/09/27,8,production,QIN PLACE BANKER,3,37.5,0,0.0,-37.5
+2026/09/27,8,production,BOX TRIO-5,10,125.0,0,0.0,-125.0
+2026/09/27,8,production,F4 BOX-5,5,62.5,0,0.0,-62.5
+2026/09/27,8,flat_1pct,BOX QIN-4,6,25.0,1,21.2,63.33
+2026/09/27,8,flat_1pct,QIN PLACE BANKER,3,12.5,0,0.0,-12.5
+2026/09/27,8,flat_1pct,BOX TRIO-5,10,41.67,0,0.0,-41.67
+2026/09/27,8,flat_1pct,F4 BOX-5,5,20.83,0,0.0,-20.83
+2026/09/27,8,invert,BOX QIN-4,6,12.5,1,21.2,31.67
+2026/09/27,8,invert,QIN PLACE BANKER,3,6.25,0,0.0,-6.25
+2026/09/27,8,invert,BOX TRIO-5,10,20.83,0,0.0,-20.83
+2026/09/27,8,invert,F4 BOX-5,5,10.42,0,0.0,-10.42
+2026/09/27,9,flat_min,BOX QIN-4,6,60.0,1,7.15,11.5
+2026/09/27,9,flat_min,QIN PLACE BANKER,3,30.0,1,3.15,1.5
+2026/09/27,9,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,9,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,9,flat_min_pre_chaos,BOX QIN-4,6,60.0,1,7.15,11.5
+2026/09/27,9,flat_min_pre_chaos,QIN PLACE BANKER,3,30.0,1,3.15,1.5
+2026/09/27,9,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,9,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,9,flat_min_skip_aware,BOX QIN-4,6,60.0,1,7.15,11.5
+2026/09/27,9,flat_min_skip_aware,QIN PLACE BANKER,3,30.0,1,3.15,1.5
+2026/09/27,9,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,9,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,9,straight_qin_only,STRAIGHT QIN,1,10.0,1,7.15,61.5
+2026/09/27,9,edge_filtered,BOX QIN-4,6,0.0,1,7.15,0.0
+2026/09/27,9,edge_filtered,QIN PLACE BANKER,3,0.0,1,3.15,0.0
+2026/09/27,9,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/27,9,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/27,9,production,BOX QIN-4,6,75.0,1,7.15,14.37
+2026/09/27,9,production,QIN PLACE BANKER,3,37.5,1,3.15,1.88
+2026/09/27,9,production,BOX TRIO-5,10,125.0,0,0.0,-125.0
+2026/09/27,9,production,F4 BOX-5,5,62.5,0,0.0,-62.5
+2026/09/27,9,flat_1pct,BOX QIN-4,6,25.0,1,7.15,4.79
+2026/09/27,9,flat_1pct,QIN PLACE BANKER,3,12.5,1,3.15,0.63
+2026/09/27,9,flat_1pct,BOX TRIO-5,10,41.67,0,0.0,-41.67
+2026/09/27,9,flat_1pct,F4 BOX-5,5,20.83,0,0.0,-20.83
+2026/09/27,9,invert,BOX QIN-4,6,12.5,1,7.15,2.4
+2026/09/27,9,invert,QIN PLACE BANKER,3,6.25,1,3.15,0.31
+2026/09/27,9,invert,BOX TRIO-5,10,20.83,0,0.0,-20.83
+2026/09/27,9,invert,F4 BOX-5,5,10.42,0,0.0,-10.42
+2026/09/27,10,flat_min,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/27,10,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,10,flat_min,BOX TRIO-5,10,100.0,1,88.1,781.0
+2026/09/27,10,flat_min,F4 BOX-5,5,50.0,1,107.8,1028.0
+2026/09/27,10,flat_min_pre_chaos,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/27,10,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,10,flat_min_pre_chaos,BOX TRIO-5,10,100.0,1,88.1,781.0
+2026/09/27,10,flat_min_pre_chaos,F4 BOX-5,5,50.0,1,107.8,1028.0
+2026/09/27,10,flat_min_skip_aware,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/09/27,10,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/09/27,10,flat_min_skip_aware,BOX TRIO-5,10,100.0,1,88.1,781.0
+2026/09/27,10,flat_min_skip_aware,F4 BOX-5,5,50.0,1,107.8,1028.0
+2026/09/27,10,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/09/27,10,edge_filtered,BOX QIN-4,6,0.0,0,0.0,0.0
+2026/09/27,10,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/09/27,10,edge_filtered,BOX TRIO-5,10,0.0,1,88.1,0.0
+2026/09/27,10,edge_filtered,F4 BOX-5,5,0.0,1,107.8,0.0
+2026/09/27,10,production,BOX QIN-4,6,54.55,0,0.0,-54.55
+2026/09/27,10,production,F4 SAVER,1,9.09,0,0.0,-9.09
+2026/09/27,10,production,BOX TRIO-5,10,90.91,1,88.1,710.01
+2026/09/27,10,production,F4 BOX-5,5,45.45,1,107.8,934.45
+2026/09/27,10,flat_1pct,BOX QIN-4,6,27.27,0,0.0,-27.27
+2026/09/27,10,flat_1pct,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/09/27,10,flat_1pct,BOX TRIO-5,10,45.45,1,88.1,354.96
+2026/09/27,10,flat_1pct,F4 BOX-5,5,22.73,1,107.8,467.33
+2026/09/27,10,invert,BOX QIN-4,6,27.27,0,0.0,-27.27
+2026/09/27,10,invert,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/09/27,10,invert,BOX TRIO-5,10,45.45,1,88.1,354.96
+2026/09/27,10,invert,F4 BOX-5,5,22.73,1,107.8,467.33
+2026/09/27,11,flat_min,STRAIGHT QIN,1,10.0,1,5.4,44.0
+2026/09/27,11,flat_min,BOX QIN-4 PROTECTION,6,60.0,1,5.4,-6.0
+2026/09/27,11,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,11,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,11,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,1,5.4,44.0
+2026/09/27,11,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,1,5.4,-6.0
+2026/09/27,11,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,11,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,11,flat_min_skip_aware,STRAIGHT QIN,1,10.0,1,5.4,44.0
+2026/09/27,11,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,1,5.4,-6.0
+2026/09/27,11,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/09/27,11,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/09/27,11,straight_qin_only,STRAIGHT QIN,1,10.0,1,5.4,44.0
+2026/09/27,11,edge_filtered,STRAIGHT QIN,1,0.0,1,5.4,0.0
+2026/09/27,11,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,1,5.4,0.0
+2026/09/27,11,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/09/27,11,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/09/27,11,production,STRAIGHT QIN,1,9.09,1,5.4,40.0
+2026/09/27,11,production,BOX QIN-4 PROTECTION,6,54.55,1,5.4,-5.45
+2026/09/27,11,production,BOX TRIO-5,10,90.91,0,0.0,-90.91
+2026/09/27,11,production,F4 BOX-5,5,45.45,0,0.0,-45.45
+2026/09/27,11,flat_1pct,STRAIGHT QIN,1,4.55,1,5.4,20.02
+2026/09/27,11,flat_1pct,BOX QIN-4 PROTECTION,6,27.27,1,5.4,-2.73
+2026/09/27,11,flat_1pct,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/09/27,11,flat_1pct,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/09/27,11,invert,STRAIGHT QIN,1,4.55,1,5.4,20.02
+2026/09/27,11,invert,BOX QIN-4 PROTECTION,6,27.27,1,5.4,-2.73
+2026/09/27,11,invert,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/09/27,11,invert,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/10/01,1,flat_min,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/10/01,1,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,1,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,1,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,1,flat_min_pre_chaos,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/10/01,1,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,1,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,1,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,1,flat_min_skip_aware,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/10/01,1,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,1,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,1,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,1,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,1,edge_filtered,BOX QIN-4,6,0.0,0,0.0,0.0
+2026/10/01,1,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/10/01,1,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/10/01,1,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/10/01,1,production,BOX QIN-4,6,54.55,0,0.0,-54.55
+2026/10/01,1,production,F4 SAVER,1,9.09,0,0.0,-9.09
+2026/10/01,1,production,BOX TRIO-5,10,90.91,0,0.0,-90.91
+2026/10/01,1,production,F4 BOX-5,5,45.45,0,0.0,-45.45
+2026/10/01,1,flat_1pct,BOX QIN-4,6,27.27,0,0.0,-27.27
+2026/10/01,1,flat_1pct,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/10/01,1,flat_1pct,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/10/01,1,flat_1pct,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/10/01,1,invert,BOX QIN-4,6,27.27,0,0.0,-27.27
+2026/10/01,1,invert,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/10/01,1,invert,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/10/01,1,invert,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/10/01,2,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,2,flat_min,BOX QIN-4 PROTECTION,6,60.0,1,22.5,165.0
+2026/10/01,2,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,2,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,2,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,2,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,2,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,1,22.5,165.0
+2026/10/01,2,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,2,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,2,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,2,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,2,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,1,22.5,165.0
+2026/10/01,2,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,2,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,2,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,2,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,2,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/10/01,2,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,1,22.5,0.0
+2026/10/01,2,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/10/01,2,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/10/01,2,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/10/01,2,production,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/10/01,2,production,BOX QIN-4 PROTECTION,6,52.17,1,22.5,143.47
+2026/10/01,2,production,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/10/01,2,production,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/10/01,2,production,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/10/01,2,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/10/01,2,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,1,22.5,71.75
+2026/10/01,2,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/10/01,2,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/10/01,2,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/10/01,2,invert,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/10/01,2,invert,BOX QIN-4 PROTECTION,6,26.09,1,22.5,71.75
+2026/10/01,2,invert,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/10/01,2,invert,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/10/01,2,invert,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/10/01,3,flat_min,BOX QIN-4,6,60.0,1,5.25,-7.5
+2026/10/01,3,flat_min,BOX TRIO-5,10,100.0,1,10.9,9.0
+2026/10/01,3,flat_min,F4 BOX-5,5,50.0,1,18.6,136.0
+2026/10/01,3,flat_min_pre_chaos,BOX QIN-4,6,60.0,1,5.25,-7.5
+2026/10/01,3,flat_min_pre_chaos,BOX TRIO-5,10,100.0,1,10.9,9.0
+2026/10/01,3,flat_min_pre_chaos,F4 BOX-5,5,50.0,1,18.6,136.0
+2026/10/01,3,flat_min_skip_aware,BOX QIN-4,6,60.0,1,5.25,-7.5
+2026/10/01,3,flat_min_skip_aware,BOX TRIO-5,10,100.0,1,10.9,9.0
+2026/10/01,3,flat_min_skip_aware,F4 BOX-5,5,50.0,1,18.6,136.0
+2026/10/01,3,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,3,edge_filtered,BOX QIN-4,6,0.0,1,5.25,0.0
+2026/10/01,3,edge_filtered,BOX TRIO-5,10,0.0,1,10.9,0.0
+2026/10/01,3,edge_filtered,F4 BOX-5,5,0.0,1,18.6,0.0
+2026/10/01,3,production,BOX QIN-4,6,57.14,1,5.25,-7.14
+2026/10/01,3,production,BOX TRIO-5,10,95.24,1,10.9,8.57
+2026/10/01,3,production,F4 BOX-5,5,47.62,1,18.6,129.53
+2026/10/01,3,flat_1pct,BOX QIN-4,6,28.57,1,5.25,-3.57
+2026/10/01,3,flat_1pct,BOX TRIO-5,10,47.62,1,10.9,4.29
+2026/10/01,3,flat_1pct,F4 BOX-5,5,23.81,1,18.6,64.76
+2026/10/01,3,invert,BOX QIN-4,6,28.57,1,5.25,-3.57
+2026/10/01,3,invert,BOX TRIO-5,10,47.62,1,10.9,4.29
+2026/10/01,3,invert,F4 BOX-5,5,23.81,1,18.6,64.76
+2026/10/01,4,flat_min,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/10/01,4,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/10/01,4,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,4,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,4,flat_min_pre_chaos,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/10/01,4,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/10/01,4,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,4,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,4,flat_min_skip_aware,BOX QIN-3,3,30.0,0,0.0,-30.0
+2026/10/01,4,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/10/01,4,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,4,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,4,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,4,edge_filtered,BOX QIN-3,3,0.0,0,0.0,0.0
+2026/10/01,4,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/10/01,4,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/10/01,4,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/10/01,4,production,BOX QIN-3,3,37.5,0,0.0,-37.5
+2026/10/01,4,production,BOX QIN-4 PROTECTION,6,75.0,0,0.0,-75.0
+2026/10/01,4,production,BOX TRIO-5,10,125.0,0,0.0,-125.0
+2026/10/01,4,production,F4 BOX-5,5,62.5,0,0.0,-62.5
+2026/10/01,4,flat_1pct,BOX QIN-3,3,12.5,0,0.0,-12.5
+2026/10/01,4,flat_1pct,BOX QIN-4 PROTECTION,6,25.0,0,0.0,-25.0
+2026/10/01,4,flat_1pct,BOX TRIO-5,10,41.67,0,0.0,-41.67
+2026/10/01,4,flat_1pct,F4 BOX-5,5,20.83,0,0.0,-20.83
+2026/10/01,4,invert,BOX QIN-3,3,6.25,0,0.0,-6.25
+2026/10/01,4,invert,BOX QIN-4 PROTECTION,6,12.5,0,0.0,-12.5
+2026/10/01,4,invert,BOX TRIO-5,10,20.83,0,0.0,-20.83
+2026/10/01,4,invert,F4 BOX-5,5,10.42,0,0.0,-10.42
+2026/10/01,5,flat_min,STRAIGHT QIN,1,10.0,1,4.65,36.5
+2026/10/01,5,flat_min,BOX QIN-4 PROTECTION,6,60.0,1,4.65,-13.5
+2026/10/01,5,flat_min,BOX TRIO-5,10,100.0,1,10.7,7.0
+2026/10/01,5,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,5,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,1,4.65,36.5
+2026/10/01,5,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,1,4.65,-13.5
+2026/10/01,5,flat_min_pre_chaos,BOX TRIO-5,10,100.0,1,10.7,7.0
+2026/10/01,5,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,5,flat_min_skip_aware,STRAIGHT QIN,1,10.0,1,4.65,36.5
+2026/10/01,5,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,1,4.65,-13.5
+2026/10/01,5,flat_min_skip_aware,BOX TRIO-5,10,100.0,1,10.7,7.0
+2026/10/01,5,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,5,straight_qin_only,STRAIGHT QIN,1,10.0,1,4.65,36.5
+2026/10/01,5,edge_filtered,STRAIGHT QIN,1,0.0,1,4.65,0.0
+2026/10/01,5,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,1,4.65,0.0
+2026/10/01,5,edge_filtered,BOX TRIO-5,10,0.0,1,10.7,0.0
+2026/10/01,5,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/10/01,5,production,STRAIGHT QIN,1,9.09,1,4.65,33.18
+2026/10/01,5,production,BOX QIN-4 PROTECTION,6,54.55,1,4.65,-12.27
+2026/10/01,5,production,BOX TRIO-5,10,90.91,1,10.7,6.36
+2026/10/01,5,production,F4 BOX-5,5,45.45,0,0.0,-45.45
+2026/10/01,5,flat_1pct,STRAIGHT QIN,1,4.55,1,4.65,16.61
+2026/10/01,5,flat_1pct,BOX QIN-4 PROTECTION,6,27.27,1,4.65,-6.14
+2026/10/01,5,flat_1pct,BOX TRIO-5,10,45.45,1,10.7,3.18
+2026/10/01,5,flat_1pct,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/10/01,5,invert,STRAIGHT QIN,1,4.55,1,4.65,16.61
+2026/10/01,5,invert,BOX QIN-4 PROTECTION,6,27.27,1,4.65,-6.14
+2026/10/01,5,invert,BOX TRIO-5,10,45.45,1,10.7,3.18
+2026/10/01,5,invert,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/10/01,6,flat_min,BOX QIN-3,3,30.0,1,8.85,58.5
+2026/10/01,6,flat_min,BOX QIN-4 PROTECTION,6,60.0,1,8.85,28.5
+2026/10/01,6,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,6,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,6,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,6,flat_min_pre_chaos,BOX QIN-3,3,30.0,1,8.85,58.5
+2026/10/01,6,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,1,8.85,28.5
+2026/10/01,6,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,6,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,6,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,6,flat_min_skip_aware,BOX QIN-3,3,30.0,1,8.85,58.5
+2026/10/01,6,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,1,8.85,28.5
+2026/10/01,6,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,6,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,6,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,6,straight_qin_only,STRAIGHT QIN,1,10.0,1,8.85,78.5
+2026/10/01,6,edge_filtered,BOX QIN-3,3,0.0,1,8.85,0.0
+2026/10/01,6,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,1,8.85,0.0
+2026/10/01,6,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/10/01,6,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/10/01,6,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/10/01,6,production,BOX QIN-3,3,24.0,1,8.85,46.8
+2026/10/01,6,production,BOX QIN-4 PROTECTION,6,48.0,1,8.85,22.8
+2026/10/01,6,production,F4 SAVER,1,8.0,0,0.0,-8.0
+2026/10/01,6,production,BOX TRIO-5,10,80.0,0,0.0,-80.0
+2026/10/01,6,production,F4 BOX-5,5,40.0,0,0.0,-40.0
+2026/10/01,6,flat_1pct,BOX QIN-3,3,12.0,1,8.85,23.4
+2026/10/01,6,flat_1pct,BOX QIN-4 PROTECTION,6,24.0,1,8.85,11.4
+2026/10/01,6,flat_1pct,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/10/01,6,flat_1pct,BOX TRIO-5,10,40.0,0,0.0,-40.0
+2026/10/01,6,flat_1pct,F4 BOX-5,5,20.0,0,0.0,-20.0
+2026/10/01,6,invert,BOX QIN-3,3,12.0,1,8.85,23.4
+2026/10/01,6,invert,BOX QIN-4 PROTECTION,6,24.0,1,8.85,11.4
+2026/10/01,6,invert,F4 SAVER,1,4.0,0,0.0,-4.0
+2026/10/01,6,invert,BOX TRIO-5,10,40.0,0,0.0,-40.0
+2026/10/01,6,invert,F4 BOX-5,5,20.0,0,0.0,-20.0
+2026/10/01,7,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,7,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/10/01,7,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,7,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,7,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,7,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,7,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/10/01,7,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,7,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,7,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,7,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,7,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/10/01,7,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,7,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,7,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,7,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,7,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/10/01,7,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/10/01,7,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/10/01,7,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/10/01,7,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/10/01,7,production,STRAIGHT QIN,1,8.7,0,0.0,-8.7
+2026/10/01,7,production,BOX QIN-4 PROTECTION,6,52.17,0,0.0,-52.17
+2026/10/01,7,production,F4 SAVER,1,8.7,0,0.0,-8.7
+2026/10/01,7,production,BOX TRIO-5,10,86.96,0,0.0,-86.96
+2026/10/01,7,production,F4 BOX-5,5,43.48,0,0.0,-43.48
+2026/10/01,7,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/10/01,7,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/10/01,7,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/10/01,7,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/10/01,7,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/10/01,7,invert,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/10/01,7,invert,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/10/01,7,invert,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/10/01,7,invert,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/10/01,7,invert,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/10/01,8,flat_min,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,8,flat_min,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/10/01,8,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,8,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,8,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,8,flat_min_pre_chaos,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,8,flat_min_pre_chaos,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/10/01,8,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,8,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,8,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,8,flat_min_skip_aware,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,8,flat_min_skip_aware,BOX QIN-4 PROTECTION,6,60.0,0,0.0,-60.0
+2026/10/01,8,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,8,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,8,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,8,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,8,edge_filtered,STRAIGHT QIN,1,0.0,0,0.0,0.0
+2026/10/01,8,edge_filtered,BOX QIN-4 PROTECTION,6,0.0,0,0.0,0.0
+2026/10/01,8,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/10/01,8,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/10/01,8,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/10/01,8,production,STRAIGHT QIN,1,13.04,0,0.0,-13.04
+2026/10/01,8,production,BOX QIN-4 PROTECTION,6,78.26,0,0.0,-78.26
+2026/10/01,8,production,F4 SAVER,1,13.04,0,0.0,-13.04
+2026/10/01,8,production,BOX TRIO-5,10,130.43,0,0.0,-130.43
+2026/10/01,8,production,F4 BOX-5,5,65.22,0,0.0,-65.22
+2026/10/01,8,flat_1pct,STRAIGHT QIN,1,4.35,0,0.0,-4.35
+2026/10/01,8,flat_1pct,BOX QIN-4 PROTECTION,6,26.09,0,0.0,-26.09
+2026/10/01,8,flat_1pct,F4 SAVER,1,4.35,0,0.0,-4.35
+2026/10/01,8,flat_1pct,BOX TRIO-5,10,43.48,0,0.0,-43.48
+2026/10/01,8,flat_1pct,F4 BOX-5,5,21.74,0,0.0,-21.74
+2026/10/01,8,invert,STRAIGHT QIN,1,2.17,0,0.0,-2.17
+2026/10/01,8,invert,BOX QIN-4 PROTECTION,6,13.04,0,0.0,-13.04
+2026/10/01,8,invert,F4 SAVER,1,2.17,0,0.0,-2.17
+2026/10/01,8,invert,BOX TRIO-5,10,21.74,0,0.0,-21.74
+2026/10/01,8,invert,F4 BOX-5,5,10.87,0,0.0,-10.87
+2026/10/01,9,flat_min,BOX QIN-4,6,60.0,1,14.05,80.5
+2026/10/01,9,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,9,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,9,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,9,flat_min_pre_chaos,BOX QIN-4,6,60.0,1,14.05,80.5
+2026/10/01,9,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,9,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,9,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,9,flat_min_skip_aware,BOX QIN-4,6,60.0,1,14.05,80.5
+2026/10/01,9,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,9,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,9,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,9,straight_qin_only,STRAIGHT QIN,1,10.0,1,14.05,130.5
+2026/10/01,9,edge_filtered,BOX QIN-4,6,0.0,1,14.05,0.0
+2026/10/01,9,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/10/01,9,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/10/01,9,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/10/01,9,production,BOX QIN-4,6,54.55,1,14.05,73.19
+2026/10/01,9,production,F4 SAVER,1,9.09,0,0.0,-9.09
+2026/10/01,9,production,BOX TRIO-5,10,90.91,0,0.0,-90.91
+2026/10/01,9,production,F4 BOX-5,5,45.45,0,0.0,-45.45
+2026/10/01,9,flat_1pct,BOX QIN-4,6,27.27,1,14.05,36.59
+2026/10/01,9,flat_1pct,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/10/01,9,flat_1pct,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/10/01,9,flat_1pct,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/10/01,9,invert,BOX QIN-4,6,27.27,1,14.05,36.59
+2026/10/01,9,invert,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/10/01,9,invert,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/10/01,9,invert,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/10/01,10,flat_min,BOX QIN-4,6,60.0,1,35.2,292.0
+2026/10/01,10,flat_min,F4 SAVER,1,10.0,1,25.7,247.0
+2026/10/01,10,flat_min,BOX TRIO-5,10,100.0,1,41.3,313.0
+2026/10/01,10,flat_min,F4 BOX-5,5,50.0,1,25.7,207.0
+2026/10/01,10,flat_min_pre_chaos,BOX QIN-4,6,60.0,1,35.2,292.0
+2026/10/01,10,flat_min_pre_chaos,F4 SAVER,1,10.0,1,25.7,247.0
+2026/10/01,10,flat_min_pre_chaos,BOX TRIO-5,10,100.0,1,41.3,313.0
+2026/10/01,10,flat_min_pre_chaos,F4 BOX-5,5,50.0,1,25.7,207.0
+2026/10/01,10,flat_min_skip_aware,BOX QIN-4,6,60.0,1,35.2,292.0
+2026/10/01,10,flat_min_skip_aware,F4 SAVER,1,10.0,1,25.7,247.0
+2026/10/01,10,flat_min_skip_aware,BOX TRIO-5,10,100.0,1,41.3,313.0
+2026/10/01,10,flat_min_skip_aware,F4 BOX-5,5,50.0,1,25.7,207.0
+2026/10/01,10,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,10,edge_filtered,BOX QIN-4,6,0.0,1,35.2,0.0
+2026/10/01,10,edge_filtered,F4 SAVER,1,0.0,1,25.7,0.0
+2026/10/01,10,edge_filtered,BOX TRIO-5,10,0.0,1,41.3,0.0
+2026/10/01,10,edge_filtered,F4 BOX-5,5,0.0,1,25.7,0.0
+2026/10/01,10,production,BOX QIN-4,6,81.82,1,35.2,398.19
+2026/10/01,10,production,F4 SAVER,1,13.64,1,25.7,336.91
+2026/10/01,10,production,BOX TRIO-5,10,136.36,1,41.3,426.81
+2026/10/01,10,production,F4 BOX-5,5,68.18,1,25.7,282.27
+2026/10/01,10,flat_1pct,BOX QIN-4,6,27.27,1,35.2,132.71
+2026/10/01,10,flat_1pct,F4 SAVER,1,4.55,1,25.7,112.38
+2026/10/01,10,flat_1pct,BOX TRIO-5,10,45.45,1,41.3,142.26
+2026/10/01,10,flat_1pct,F4 BOX-5,5,22.73,1,25.7,94.1
+2026/10/01,10,invert,BOX QIN-4,6,13.64,1,35.2,66.38
+2026/10/01,10,invert,F4 SAVER,1,2.27,1,25.7,56.07
+2026/10/01,10,invert,BOX TRIO-5,10,22.73,1,41.3,71.14
+2026/10/01,10,invert,F4 BOX-5,5,11.36,1,25.7,47.03
+2026/10/01,11,flat_min,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/10/01,11,flat_min,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,11,flat_min,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,11,flat_min,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,11,flat_min_pre_chaos,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/10/01,11,flat_min_pre_chaos,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,11,flat_min_pre_chaos,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,11,flat_min_pre_chaos,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,11,flat_min_skip_aware,BOX QIN-4,6,60.0,0,0.0,-60.0
+2026/10/01,11,flat_min_skip_aware,F4 SAVER,1,10.0,0,0.0,-10.0
+2026/10/01,11,flat_min_skip_aware,BOX TRIO-5,10,100.0,0,0.0,-100.0
+2026/10/01,11,flat_min_skip_aware,F4 BOX-5,5,50.0,0,0.0,-50.0
+2026/10/01,11,straight_qin_only,STRAIGHT QIN,1,10.0,0,0.0,-10.0
+2026/10/01,11,edge_filtered,BOX QIN-4,6,0.0,0,0.0,0.0
+2026/10/01,11,edge_filtered,F4 SAVER,1,0.0,0,0.0,0.0
+2026/10/01,11,edge_filtered,BOX TRIO-5,10,0.0,0,0.0,0.0
+2026/10/01,11,edge_filtered,F4 BOX-5,5,0.0,0,0.0,0.0
+2026/10/01,11,production,BOX QIN-4,6,54.55,0,0.0,-54.55
+2026/10/01,11,production,F4 SAVER,1,9.09,0,0.0,-9.09
+2026/10/01,11,production,BOX TRIO-5,10,90.91,0,0.0,-90.91
+2026/10/01,11,production,F4 BOX-5,5,45.45,0,0.0,-45.45
+2026/10/01,11,flat_1pct,BOX QIN-4,6,27.27,0,0.0,-27.27
+2026/10/01,11,flat_1pct,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/10/01,11,flat_1pct,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/10/01,11,flat_1pct,F4 BOX-5,5,22.73,0,0.0,-22.73
+2026/10/01,11,invert,BOX QIN-4,6,27.27,0,0.0,-27.27
+2026/10/01,11,invert,F4 SAVER,1,4.55,0,0.0,-4.55
+2026/10/01,11,invert,BOX TRIO-5,10,45.45,0,0.0,-45.45
+2026/10/01,11,invert,F4 BOX-5,5,22.73,0,0.0,-22.73
