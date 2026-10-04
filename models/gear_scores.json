@@ -1,79 +1,79 @@
 {
   "_meta": {
-    "baseline_win_rate": 0.082726,
-    "n_total_rows": 57515,
+    "baseline_win_rate": 0.08268,
+    "n_total_rows": 58140,
     "prior_strength": 200,
     "lift_to_score": 2.0
   },
   "B": {
     "score": 49,
-    "n": 16181,
-    "win_rate": 0.0771,
-    "lift_pp": -0.57,
-    "effective_lift_pp": -0.56
+    "n": 16342,
+    "win_rate": 0.0769,
+    "lift_pp": -0.58,
+    "effective_lift_pp": -0.58
   },
   "TT": {
     "score": 50,
-    "n": 26248,
+    "n": 26577,
     "win_rate": 0.0833,
     "lift_pp": 0.06,
     "effective_lift_pp": 0.06
   },
   "V": {
     "score": 49,
-    "n": 2683,
-    "win_rate": 0.0783,
+    "n": 2723,
+    "win_rate": 0.0782,
     "lift_pp": -0.45,
-    "effective_lift_pp": -0.41
+    "effective_lift_pp": -0.42
   },
   "H": {
     "score": 51,
-    "n": 5733,
-    "win_rate": 0.0891,
-    "lift_pp": 0.64,
-    "effective_lift_pp": 0.62
+    "n": 5783,
+    "win_rate": 0.0892,
+    "lift_pp": 0.65,
+    "effective_lift_pp": 0.63
   },
   "P": {
-    "score": 51,
-    "n": 1325,
-    "win_rate": 0.086,
-    "lift_pp": 0.33,
-    "effective_lift_pp": 0.29
+    "score": 50,
+    "n": 1336,
+    "win_rate": 0.0853,
+    "lift_pp": 0.26,
+    "effective_lift_pp": 0.23
   },
   "CP": {
     "score": 49,
-    "n": 4997,
-    "win_rate": 0.075,
-    "lift_pp": -0.77,
-    "effective_lift_pp": -0.74
+    "n": 5068,
+    "win_rate": 0.0754,
+    "lift_pp": -0.73,
+    "effective_lift_pp": -0.7
   },
   "XB": {
     "score": 48,
-    "n": 5635,
+    "n": 5702,
     "win_rate": 0.0744,
-    "lift_pp": -0.84,
-    "effective_lift_pp": -0.81
+    "lift_pp": -0.83,
+    "effective_lift_pp": -0.8
   },
   "BO": {
-    "score": 55,
-    "n": 188,
-    "win_rate": 0.1383,
-    "lift_pp": 5.56,
-    "effective_lift_pp": 2.69
+    "score": 56,
+    "n": 190,
+    "win_rate": 0.1421,
+    "lift_pp": 5.94,
+    "effective_lift_pp": 2.9
   },
   "SR": {
     "score": 47,
-    "n": 1736,
-    "win_rate": 0.0685,
-    "lift_pp": -1.42,
-    "effective_lift_pp": -1.27
+    "n": 1747,
+    "win_rate": 0.0687,
+    "lift_pp": -1.4,
+    "effective_lift_pp": -1.26
   },
   "B1": {
     "score": 48,
-    "n": 376,
-    "win_rate": 0.0665,
-    "lift_pp": -1.62,
-    "effective_lift_pp": -1.06
+    "n": 377,
+    "win_rate": 0.0663,
+    "lift_pp": -1.64,
+    "effective_lift_pp": -1.07
   },
   "V1": {
     "score": 50,

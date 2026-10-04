@@ -550,7 +550,8 @@ def test_copy_wa_ticket_payload_renders_exact_frozen_legs_and_amounts(
        - Use HKJC-derived pool names (QIN BOX-4, FIRST 4 BOX-5)
        - List leg horse-numbers from frozen bet_ticket (not rank slice)
        - Show per-bet $ amount from bet.amount (not recomputed)
-       - Show Budget / Ticket / Unit from frozen ticket fields
+       - NOT include a STAKE block (removed 2026-10-04 — the user sizes
+         each race from the Tier, so the message suggests no budget)
        - NOT include TOP PICK or NOTES (those bias entry).
     """
     bets = [
@@ -581,11 +582,14 @@ def test_copy_wa_ticket_payload_renders_exact_frozen_legs_and_amounts(
         f"missing STATUS: LIVE guard: {payload[:200]!r}"
     )
 
-    # Stake block (frozen ticket has bets → STAKE must appear, WhatsApp-bold)
-    assert '*STAKE*' in payload, payload[:400]
-    assert 'Budget $' in payload and 'Ticket $' in payload and 'Unit $' in payload, (
-        f"missing Budget/Ticket/Unit: {payload[:400]!r}"
+    # No stake block: sizing is the bettor's decision (2026-10-04).
+    assert '*STAKE*' not in payload, (
+        f"STAKE block should be gone: {payload[:400]!r}"
     )
+    for frag in ('Budget $', 'Unit $'):
+        assert frag not in payload, (
+            f"stake remnant {frag!r} still in compact WA: {payload[:400]!r}"
+        )
 
     # BET TICKET block: numbered list, HKJC-derived pool names, exact legs
     assert '*BET TICKET*' in payload, payload[:400]
