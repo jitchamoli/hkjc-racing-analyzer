@@ -185,3 +185,9 @@ race_date,race_number,variant,longshot_num,longshot_name,longshot_rank,longshot_
 2026/09/13,9,calc_hot,13,ANODE,7,14.0,22,,,,,,5|8|1|12|2|13,1|2|5,1,1,0,7
 2026/09/27,2,mix_hot_cold,6,KYOTO SPRING,11,21.0,38,9,RYUI KOKOROE,8,17.0,13,8|6|9,8|4|7,0,0,0,9
 2026/09/27,7,mix_hot_cold,4,ALL'S WELL,9,25.0,24,7,HOTT SHOTT,12,49.0,19,8|4|7,8|1|12,0,0,0,10
+2026/10/04,2,calc_hot,7,SILVER SPURS,8,16.0,24,,,,,,13|3|2|14|11|7,2|3|13,1,1,0,12
+2026/10/04,2,mix_hot_cold,7,SILVER SPURS,8,16.0,23,8,SMILING SKY,9,70.0,70,13|7|8,2|3|13,0,0,0,12
+2026/10/04,3,calc_hot,5,AWESOME FLUKE,7,15.0,21,,,,,,2|3|8|7|6|5,2|6|7,1,1,0,7
+2026/10/04,3,mix_hot_cold,5,AWESOME FLUKE,7,15.0,21,4,GORGEOUS WIN,8,15.0,50,2|5|4,2|6|7,0,0,0,7
+2026/10/04,10,calc_hot,1,HORSEPOWER,6,10.0,23,,,,,,2|13|10|9|14|1,1|14|7,0,0,0,1
+2026/10/04,10,mix_hot_cold,1,HORSEPOWER,6,10.0,23,8,MICKLEY,10,13.0,51,2|1|8,1|14|7,0,0,0,1

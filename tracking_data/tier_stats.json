@@ -1,17 +1,24 @@
 {
   "EDGE": {
-    "hit": 5,
-    "total": 10,
+    "hit": 6,
+    "total": 12,
     "rate": 0.5,
-    "ci_low": 0.2366,
-    "ci_high": 0.7634
+    "ci_low": 0.2538,
+    "ci_high": 0.7462
   },
   "HIGH": {
-    "hit": 14,
-    "total": 49,
-    "rate": 0.2857,
-    "ci_low": 0.1785,
-    "ci_high": 0.4241
+    "hit": 12,
+    "total": 46,
+    "rate": 0.2609,
+    "ci_low": 0.156,
+    "ci_high": 0.4026
+  },
+  "LOW": {
+    "hit": 0,
+    "total": 1,
+    "rate": 0.0,
+    "ci_low": 0.0,
+    "ci_high": 0.7935
   },
   "MED": {
     "hit": 5,
