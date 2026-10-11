@@ -76,6 +76,9 @@ def main():
     _run("1/6 results ingest + auto-learn",
          [sys.executable, 'results_fetcher.py', args.race_date, '--auto-learn'])
 
+    _run("calibration audit (frozen pre-off probabilities)",
+         [sys.executable, '-m', 'scripts.calibration_report'], required=False)
+
     # Step 2: shadow eval — skip cleanly if shadow file missing.
     # Two variants share this step: rule_w (legacy) and jockey_form.
     date_str = args.race_date.replace('/', '')
