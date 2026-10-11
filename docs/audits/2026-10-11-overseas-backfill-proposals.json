@@ -1,0 +1,2387 @@
+{
+  "audit_date": "2026-10-11",
+  "status": "PROPOSAL ONLY; NO DATABASE UPDATES",
+  "scope": "37 missing-venue horse-history rows, not the 221 quarantined local races",
+  "row_count": 37,
+  "date_count": 22,
+  "missing_counts": {
+    "venue": 37,
+    "course": 37,
+    "horse_number": 37,
+    "running_position": 37,
+    "sectional_times": 37,
+    "weather": 37,
+    "horse_weight": 37,
+    "age": 2,
+    "win_odds": 4,
+    "finish_time": 10,
+    "class_type": 1,
+    "gear": 3
+  },
+  "database_rows_unchanged": true,
+  "row_digest": "9c8dbe1c741fbee2362c83257a9bb60ac9f2e9defbe00b612117a430bf40e4ac",
+  "records": [
+    {
+      "row_id": 37972,
+      "stored": {
+        "id": 37972,
+        "race_date": "2022/09/04",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "G3",
+        "going": "RA",
+        "course": null,
+        "horse_name": "COMPUTER PATCH",
+        "horse_number": null,
+        "jockey": "M Chadwick",
+        "trainer": "K H Ting",
+        "draw": 8,
+        "weight": "126",
+        "rating": 114.0,
+        "win_odds": 3.4,
+        "finish_position": 5,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 105,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "CP/TT",
+        "margin": 7.5,
+        "last_6": "6 2 6 5 8 6",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "1.12.50",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2022-09%2Fnews_2022090401830.html",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Seoul",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2022-09%2Fnews_2022090401830.html",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 37973,
+      "stored": {
+        "id": 37973,
+        "race_date": "2022/09/04",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1800,
+        "class_type": "G3",
+        "going": "RA",
+        "course": null,
+        "horse_name": "KINGS SHIELD",
+        "horse_number": null,
+        "jockey": "M Chadwick",
+        "trainer": "F C Lor",
+        "draw": 1,
+        "weight": "126",
+        "rating": 103.0,
+        "win_odds": 5.1,
+        "finish_position": 9,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 50,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "B",
+        "margin": 24.25,
+        "last_6": "8 2 5 7 7 12",
+        "age": "",
+        "running_position": "",
+        "finish_time": "1.57.20",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2022-09%2Fnews_2022090401830.html",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Seoul",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2022-09%2Fnews_2022090401830.html",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "age",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 32857,
+      "stored": {
+        "id": 32857,
+        "race_date": "2023/02/18",
+        "race_number": 1,
+        "venue": null,
+        "distance": 2400,
+        "class_type": "QA G1",
+        "going": "G",
+        "course": null,
+        "horse_name": "RUSSIAN EMPEROR",
+        "horse_number": null,
+        "jockey": "A Sanna",
+        "trainer": "D J Whyte",
+        "draw": 4,
+        "weight": "128",
+        "rating": 118.0,
+        "win_odds": 0.0,
+        "finish_position": 1,
+        "is_winner": 1,
+        "is_top3": 1,
+        "days_since_last_run": 20,
+        "rating_change": -2,
+        "horse_weight": 0,
+        "gear": "B-/SR2",
+        "margin": 0.5,
+        "last_6": "6 5 9 12 1 5",
+        "age": "6.0",
+        "running_position": "",
+        "finish_time": "2.25.46",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2023-24-eng.pdf",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Al Rayyan",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2023-24-eng.pdf",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight",
+        "win_odds"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 32858,
+      "stored": {
+        "id": 32858,
+        "race_date": "2023/02/18",
+        "race_number": 1,
+        "venue": null,
+        "distance": 2400,
+        "class_type": "QA G1",
+        "going": "G",
+        "course": null,
+        "horse_name": "SENOR TOBA",
+        "horse_number": null,
+        "jockey": "H Bentley",
+        "trainer": "C Fownes",
+        "draw": 8,
+        "weight": "128",
+        "rating": 118.0,
+        "win_odds": 0.0,
+        "finish_position": 7,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 13,
+        "rating_change": 4,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 4.75,
+        "last_6": "1 7 3 3 6 3",
+        "age": "6.0",
+        "running_position": "",
+        "finish_time": "--",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2023-24-eng.pdf",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Al Rayyan",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2023-24-eng.pdf",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "finish_time",
+        "sectional_times",
+        "weather",
+        "horse_weight",
+        "win_odds"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 32412,
+      "stored": {
+        "id": 32412,
+        "race_date": "2023/03/04",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1800,
+        "class_type": "G1",
+        "going": "G",
+        "course": null,
+        "horse_name": "RUSSIAN EMPEROR",
+        "horse_number": null,
+        "jockey": "A Sanna",
+        "trainer": "D J Whyte",
+        "draw": 3,
+        "weight": "126",
+        "rating": 118.0,
+        "win_odds": 9.3,
+        "finish_position": 5,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 14,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "SR",
+        "margin": 2.75,
+        "last_6": "1 6 5 9 12 1",
+        "age": "6.0",
+        "running_position": "",
+        "finish_time": "--",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://res.hkjc.com/campaigns/wp-content/uploads/sites/714/2023HKIR_Formguide-Eng.pdf",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://res.hkjc.com/campaigns/wp-content/uploads/sites/714/2023HKIR_Formguide-Eng.pdf",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "finish_time",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 32413,
+      "stored": {
+        "id": 32413,
+        "race_date": "2023/03/04",
+        "race_number": 1,
+        "venue": null,
+        "distance": 2410,
+        "class_type": "G2",
+        "going": "G",
+        "course": null,
+        "horse_name": "SENOR TOBA",
+        "horse_number": null,
+        "jockey": "A Sanna",
+        "trainer": "C Fownes",
+        "draw": 8,
+        "weight": "126",
+        "rating": 118.0,
+        "win_odds": 4.0,
+        "finish_position": 8,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 14,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 6.5,
+        "last_6": "7 1 7 3 3 6",
+        "age": "6.0",
+        "running_position": "",
+        "finish_time": "--",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://res.hkjc.com/campaigns/wp-content/uploads/sites/714/2023HKIR_Formguide-Eng.pdf",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://res.hkjc.com/campaigns/wp-content/uploads/sites/714/2023HKIR_Formguide-Eng.pdf",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "finish_time",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 31712,
+      "stored": {
+        "id": 31712,
+        "race_date": "2023/03/25",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "G1",
+        "going": "G",
+        "course": null,
+        "horse_name": "DUKE WAI",
+        "horse_number": null,
+        "jockey": "C L Chau",
+        "trainer": "P C Ng",
+        "draw": 7,
+        "weight": "131",
+        "rating": 115.0,
+        "win_odds": 10.0,
+        "finish_position": 5,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 20,
+        "rating_change": 3,
+        "horse_weight": 0,
+        "gear": "V",
+        "margin": 1.0,
+        "last_6": "1 7 3 11 3 5",
+        "age": "8.0",
+        "running_position": "",
+        "finish_time": "--",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2024-25-eng.pdf",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2024-25-eng.pdf",
+          "requires_separate_storage": true
+        },
+        "horse_number": {
+          "value": 4,
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2023-03%2Fnews_2023032401623.html",
+          "namespace": "HKJC overseas saddlecloth",
+          "status": "racecard_verified; check final result before applying"
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "finish_time",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 31715,
+      "stored": {
+        "id": 31715,
+        "race_date": "2023/03/25",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1800,
+        "class_type": "G1",
+        "going": "G",
+        "course": null,
+        "horse_name": "GLORIOUS DRAGON",
+        "horse_number": null,
+        "jockey": "N Callan",
+        "trainer": "P C Ng",
+        "draw": 13,
+        "weight": "126",
+        "rating": 115.0,
+        "win_odds": 30.0,
+        "finish_position": 12,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 27,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 12.5,
+        "last_6": "4 4 9 8 3 5",
+        "age": "",
+        "running_position": "",
+        "finish_time": "--",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2024-25-eng.pdf",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2024-25-eng.pdf",
+          "requires_separate_storage": true
+        },
+        "horse_number": {
+          "value": 5,
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2023-03%2Fnews_2023032401623.html",
+          "namespace": "HKJC overseas saddlecloth",
+          "status": "racecard_verified; check final result before applying"
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "age",
+        "running_position",
+        "finish_time",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 31713,
+      "stored": {
+        "id": 31713,
+        "race_date": "2023/03/25",
+        "race_number": 1,
+        "venue": null,
+        "distance": 2410,
+        "class_type": "G1",
+        "going": "G",
+        "course": null,
+        "horse_name": "RUSSIAN EMPEROR",
+        "horse_number": null,
+        "jockey": "A Sanna",
+        "trainer": "D J Whyte",
+        "draw": 3,
+        "weight": "126",
+        "rating": 118.0,
+        "win_odds": 15.0,
+        "finish_position": 8,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 21,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "SR",
+        "margin": 11.25,
+        "last_6": "5 1 6 5 9 12",
+        "age": "6.0",
+        "running_position": "",
+        "finish_time": "--",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2024-25-eng.pdf",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2024-25-eng.pdf",
+          "requires_separate_storage": true
+        },
+        "horse_number": {
+          "value": 4,
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2023-03%2Fnews_2023032401623.html",
+          "namespace": "HKJC overseas saddlecloth",
+          "status": "racecard_verified; check final result before applying"
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "finish_time",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 31714,
+      "stored": {
+        "id": 31714,
+        "race_date": "2023/03/25",
+        "race_number": 1,
+        "venue": null,
+        "distance": 2410,
+        "class_type": "G1",
+        "going": "G",
+        "course": null,
+        "horse_name": "SENOR TOBA",
+        "horse_number": null,
+        "jockey": "L Dettori",
+        "trainer": "C Fownes",
+        "draw": 9,
+        "weight": "126",
+        "rating": 118.0,
+        "win_odds": 41.0,
+        "finish_position": 10,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 21,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 13.0,
+        "last_6": "8 7 1 7 3 3",
+        "age": "6.0",
+        "running_position": "",
+        "finish_time": "--",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2024-25-eng.pdf",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2024-25-eng.pdf",
+          "requires_separate_storage": true
+        },
+        "horse_number": {
+          "value": 5,
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2023-03%2Fnews_2023032401623.html",
+          "namespace": "HKJC overseas saddlecloth",
+          "status": "racecard_verified; check final result before applying"
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "finish_time",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 31711,
+      "stored": {
+        "id": 31711,
+        "race_date": "2023/03/25",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "G1",
+        "going": "G",
+        "course": null,
+        "horse_name": "SIGHT SUCCESS",
+        "horse_number": null,
+        "jockey": "R Moore",
+        "trainer": "J Size",
+        "draw": 13,
+        "weight": "131",
+        "rating": 121.0,
+        "win_odds": 3.9,
+        "finish_position": 4,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 48,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "E",
+        "margin": 1.0,
+        "last_6": "3 1 2 4 12 8",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "--",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2024-25-eng.pdf",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://campaign.hkjc.com/media-guide/pdf/media-guide-2024-25-eng.pdf",
+          "requires_separate_storage": true
+        },
+        "horse_number": {
+          "value": 11,
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2023-03%2Fnews_2023032401623.html",
+          "namespace": "HKJC overseas saddlecloth",
+          "status": "racecard_verified; check final result before applying"
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "finish_time",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 28844,
+      "stored": {
+        "id": 28844,
+        "race_date": "2023/06/24",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "G1",
+        "going": "GF",
+        "course": null,
+        "horse_name": "WELLINGTON",
+        "horse_number": null,
+        "jockey": "R Moore",
+        "trainer": "R Gibson",
+        "draw": 15,
+        "weight": "131",
+        "rating": 126.0,
+        "win_odds": 4.7,
+        "finish_position": 10,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 55,
+        "rating_change": -2,
+        "horse_weight": 0,
+        "gear": "CP-/XB",
+        "margin": 5.75,
+        "last_6": "3 2 3 2 1 6",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "1.13.40",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/?p=69341",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Ascot",
+          "source": "https://racingnews.hkjc.com/english/?p=69341",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 27815,
+      "stored": {
+        "id": 27815,
+        "race_date": "2023/09/10",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1800,
+        "class_type": "G3",
+        "going": "GD",
+        "course": null,
+        "horse_name": "APACHE PASS",
+        "horse_number": null,
+        "jockey": "D Lane",
+        "trainer": "P C Ng",
+        "draw": 13,
+        "weight": "126",
+        "rating": 90.0,
+        "win_odds": 20.0,
+        "finish_position": 9,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 123,
+        "rating_change": -1,
+        "horse_weight": 0,
+        "gear": "BO-/XB/PC1",
+        "margin": 21.75,
+        "last_6": "6 3 10 2 8 4",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "1.55.20",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2023-09%2Fnews_2023091001825.html",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Seoul",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2023-09%2Fnews_2023091001825.html",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 27810,
+      "stored": {
+        "id": 27810,
+        "race_date": "2023/09/10",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "G3",
+        "going": "GD",
+        "course": null,
+        "horse_name": "DUKE WAI",
+        "horse_number": null,
+        "jockey": "D Lane",
+        "trainer": "P C Ng",
+        "draw": 11,
+        "weight": "126",
+        "rating": 113.0,
+        "win_odds": 11.0,
+        "finish_position": 4,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 63,
+        "rating_change": -1,
+        "horse_weight": 0,
+        "gear": "V-/PC1",
+        "margin": 9.0,
+        "last_6": "4 6 5 1 7 3",
+        "age": "8.0",
+        "running_position": "",
+        "finish_time": "1.11.60",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2023-09%2Fnews_2023091001825.html",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Seoul",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2023-09%2Fnews_2023091001825.html",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 27146,
+      "stored": {
+        "id": 27146,
+        "race_date": "2023/10/07",
+        "race_number": 1,
+        "venue": null,
+        "distance": 2000,
+        "class_type": "Group 1",
+        "going": "Good",
+        "course": null,
+        "horse_name": "ROMANTIC WARRIOR",
+        "horse_number": null,
+        "jockey": "J McDonald",
+        "trainer": "C S Shum",
+        "draw": 10,
+        "weight": "130",
+        "rating": 130.0,
+        "win_odds": 1.6,
+        "finish_position": 4,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 132,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 4.0,
+        "last_6": "2 1 2 2 1 1",
+        "age": "8.0",
+        "running_position": "",
+        "finish_time": "2.02.24",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2023-10%2Fnews_2023100701640.html",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Flemington",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2023-10%2Fnews_2023100701640.html",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 26596,
+      "stored": {
+        "id": 26596,
+        "race_date": "2023/10/25",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1700,
+        "class_type": "--",
+        "going": "G",
+        "course": null,
+        "horse_name": "ROMANTIC CHARM",
+        "horse_number": null,
+        "jockey": "J McDonald",
+        "trainer": "C S Shum",
+        "draw": 2,
+        "weight": "135",
+        "rating": 70.0,
+        "win_odds": 0.0,
+        "finish_position": 4,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 108,
+        "rating_change": 1,
+        "horse_weight": 0,
+        "gear": "B/TT",
+        "margin": 2.25,
+        "last_6": "2 0 5 6 11 7",
+        "age": "5.0",
+        "running_position": "",
+        "finish_time": "--",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2022_H227",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Geelong",
+          "source": "https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2022_H227",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "class_type",
+        "course",
+        "horse_number",
+        "running_position",
+        "finish_time",
+        "sectional_times",
+        "weather",
+        "horse_weight",
+        "win_odds"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 26592,
+      "stored": {
+        "id": 26592,
+        "race_date": "2023/10/28",
+        "race_number": 1,
+        "venue": null,
+        "distance": 2040,
+        "class_type": "Group 1",
+        "going": "Good",
+        "course": null,
+        "horse_name": "ROMANTIC WARRIOR",
+        "horse_number": null,
+        "jockey": "J McDonald",
+        "trainer": "C S Shum",
+        "draw": 7,
+        "weight": "130",
+        "rating": 130.0,
+        "win_odds": 2.8,
+        "finish_position": 1,
+        "is_winner": 1,
+        "is_top3": 1,
+        "days_since_last_run": 21,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 0.05,
+        "last_6": "4 2 1 2 2 1",
+        "age": "8.0",
+        "running_position": "",
+        "finish_time": "2.03.16",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2023/10/28/romantic-warrior-creates-history-with-epic-g1-w-s-cox-plate-victory/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Moonee Valley",
+          "source": "https://racingnews.hkjc.com/english/2023/10/28/romantic-warrior-creates-history-with-epic-g1-w-s-cox-plate-victory/",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 22919,
+      "stored": {
+        "id": 22919,
+        "race_date": "2024/02/17",
+        "race_number": 1,
+        "venue": null,
+        "distance": 2400,
+        "class_type": "G3",
+        "going": "G",
+        "course": null,
+        "horse_name": "RUSSIAN EMPEROR",
+        "horse_number": null,
+        "jockey": "A Sanna",
+        "trainer": "D J Whyte",
+        "draw": 7,
+        "weight": "128",
+        "rating": 121.0,
+        "win_odds": 0.0,
+        "finish_position": 5,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 27,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "SR",
+        "margin": 6.5,
+        "last_6": "7 8 10 1 6 8",
+        "age": "6.0",
+        "running_position": "",
+        "finish_time": "--",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2020_E198",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Al Rayyan",
+          "source": "https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2020_E198",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "finish_time",
+        "sectional_times",
+        "weather",
+        "horse_weight",
+        "win_odds"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 21669,
+      "stored": {
+        "id": 21669,
+        "race_date": "2024/03/24",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "Group 1",
+        "going": "Yielding",
+        "course": null,
+        "horse_name": "VICTOR THE WINNER",
+        "horse_number": null,
+        "jockey": "K C Leung",
+        "trainer": "C S Shum",
+        "draw": 10,
+        "weight": "128",
+        "rating": 124.0,
+        "win_odds": 5.7,
+        "finish_position": 3,
+        "is_winner": 0,
+        "is_top3": 1,
+        "days_since_last_run": 56,
+        "rating_change": 5,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 3.0,
+        "last_6": "1 7 4 2 5 1",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "1.09.40",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2024/03/24/victor-the-winner-finishes-third-in-g1-takamatsunomiya-kinen/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Chukyo",
+          "source": "https://racingnews.hkjc.com/english/2024/03/24/victor-the-winner-finishes-third-in-g1-takamatsunomiya-kinen/",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 21556,
+      "stored": {
+        "id": 21556,
+        "race_date": "2024/03/30",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "G1",
+        "going": "G",
+        "course": null,
+        "horse_name": "CALIFORNIA SPANGLE",
+        "horse_number": null,
+        "jockey": "B Avdulla",
+        "trainer": "A S Cruz",
+        "draw": 5,
+        "weight": "130",
+        "rating": 126.0,
+        "win_odds": 3.0,
+        "finish_position": 1,
+        "is_winner": 1,
+        "is_top3": 1,
+        "days_since_last_run": 20,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 0.75,
+        "last_6": "1 4 7 13 4 1",
+        "age": "5.0",
+        "running_position": "",
+        "finish_time": "1.07.50",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2024/03/30/california-spangle-wins-g1-al-quoz-sprint-for-cruz-avdulla/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://racingnews.hkjc.com/english/2024/03/30/california-spangle-wins-g1-al-quoz-sprint-for-cruz-avdulla/",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 21557,
+      "stored": {
+        "id": 21557,
+        "race_date": "2024/03/30",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "G1",
+        "going": "G",
+        "course": null,
+        "horse_name": "SIGHT SUCCESS",
+        "horse_number": null,
+        "jockey": "R Moore",
+        "trainer": "J Size",
+        "draw": 12,
+        "weight": "130",
+        "rating": 117.0,
+        "win_odds": 14.0,
+        "finish_position": 5,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 62,
+        "rating_change": -2,
+        "horse_weight": 0,
+        "gear": "E/PC1",
+        "margin": 2.5,
+        "last_6": "12 9 4 1 5 5",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "1.07.89",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2024/03/30/california-spangle-wins-g1-al-quoz-sprint-for-cruz-avdulla/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://racingnews.hkjc.com/english/2024/03/30/california-spangle-wins-g1-al-quoz-sprint-for-cruz-avdulla/",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 21558,
+      "stored": {
+        "id": 21558,
+        "race_date": "2024/03/30",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1800,
+        "class_type": "G1",
+        "going": "G",
+        "course": null,
+        "horse_name": "STRAIGHT ARRON",
+        "horse_number": null,
+        "jockey": "B Avdulla",
+        "trainer": "C Fownes",
+        "draw": 12,
+        "weight": "126",
+        "rating": 117.0,
+        "win_odds": 34.0,
+        "finish_position": 6,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 34,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "--",
+        "margin": 4.5,
+        "last_6": "4 3 6 4 1 4",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "1.46.56",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2024/03/30/california-spangle-wins-g1-al-quoz-sprint-for-cruz-avdulla/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://racingnews.hkjc.com/english/2024/03/30/california-spangle-wins-g1-al-quoz-sprint-for-cruz-avdulla/",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "gear",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 21559,
+      "stored": {
+        "id": 21559,
+        "race_date": "2024/03/30",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1800,
+        "class_type": "Group 1",
+        "going": "Good",
+        "course": null,
+        "horse_name": "VOYAGE BUBBLE",
+        "horse_number": null,
+        "jockey": "M Barzalona",
+        "trainer": "P F Yiu",
+        "draw": 1,
+        "weight": "126",
+        "rating": 125.0,
+        "win_odds": 4.1,
+        "finish_position": 13,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 34,
+        "rating_change": 1,
+        "horse_weight": 0,
+        "gear": "CP",
+        "margin": 10.5,
+        "last_6": "2 1 2 3 4 1",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "1.47.48",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2024/03/30/california-spangle-wins-g1-al-quoz-sprint-for-cruz-avdulla/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://racingnews.hkjc.com/english/2024/03/30/california-spangle-wins-g1-al-quoz-sprint-for-cruz-avdulla/",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 19396,
+      "stored": {
+        "id": 19396,
+        "race_date": "2024/06/02",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1600,
+        "class_type": "Group 1",
+        "going": "Good",
+        "course": null,
+        "horse_name": "ROMANTIC WARRIOR",
+        "horse_number": null,
+        "jockey": "J McDonald",
+        "trainer": "C S Shum",
+        "draw": 7,
+        "weight": "128",
+        "rating": 133.0,
+        "win_odds": 2.5,
+        "finish_position": 1,
+        "is_winner": 1,
+        "is_top3": 1,
+        "days_since_last_run": 35,
+        "rating_change": 1,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 0.5,
+        "last_6": "1 1 1 1 4 2",
+        "age": "8.0",
+        "running_position": "",
+        "finish_time": "1.32.30",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2024/06/02/extraordinary-romantic-warrior-wins-yasuda-kinen/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Tokyo",
+          "source": "https://racingnews.hkjc.com/english/2024/06/02/extraordinary-romantic-warrior-wins-yasuda-kinen/",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 19409,
+      "stored": {
+        "id": 19409,
+        "race_date": "2024/06/02",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1600,
+        "class_type": "Group 1",
+        "going": "Good",
+        "course": null,
+        "horse_name": "VOYAGE BUBBLE",
+        "horse_number": null,
+        "jockey": "Z Purton",
+        "trainer": "P F Yiu",
+        "draw": 15,
+        "weight": "128",
+        "rating": 125.0,
+        "win_odds": 11.0,
+        "finish_position": 17,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 35,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "CP",
+        "margin": 8.0,
+        "last_6": "3 13 2 1 2 3",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "1.33.60",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2024/06/02/extraordinary-romantic-warrior-wins-yasuda-kinen/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Tokyo",
+          "source": "https://racingnews.hkjc.com/english/2024/06/02/extraordinary-romantic-warrior-wins-yasuda-kinen/",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 17377,
+      "stored": {
+        "id": 17377,
+        "race_date": "2024/09/29",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "Group 1",
+        "going": "Good to Firm",
+        "course": null,
+        "horse_name": "MUGEN",
+        "horse_number": null,
+        "jockey": "K Teetan",
+        "trainer": "P C Ng",
+        "draw": 9,
+        "weight": "128",
+        "rating": 110.0,
+        "win_odds": 13.0,
+        "finish_position": 13,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 98,
+        "rating_change": 10,
+        "horse_weight": 0,
+        "gear": "--",
+        "margin": 3.75,
+        "last_6": "1 4 3 3 2 1",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "1.07.70",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2024-09%2Fnews_2024092801708.html",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Nakayama",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2024-09%2Fnews_2024092801708.html",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "gear",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 17376,
+      "stored": {
+        "id": 17376,
+        "race_date": "2024/09/29",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "Group 1",
+        "going": "Good to Firm",
+        "course": null,
+        "horse_name": "VICTOR THE WINNER",
+        "horse_number": null,
+        "jockey": "J Moreira",
+        "trainer": "C S Shum",
+        "draw": 14,
+        "weight": "128",
+        "rating": 124.0,
+        "win_odds": 8.3,
+        "finish_position": 6,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 119,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 2.0,
+        "last_6": "6 7 3 1 7 4",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "1.07.40",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2024-09%2Fnews_2024092801708.html",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Nakayama",
+          "source": "https://www.hkjc.com/english/corporate/racing_news_item.asp?in_file=%2Fenglish%2Fnews%2F2024-09%2Fnews_2024092801708.html",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 13588,
+      "stored": {
+        "id": 13588,
+        "race_date": "2025/01/24",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1800,
+        "class_type": "Group 1",
+        "going": "Good",
+        "course": null,
+        "horse_name": "ROMANTIC WARRIOR",
+        "horse_number": null,
+        "jockey": "J McDonald",
+        "trainer": "C S Shum",
+        "draw": 1,
+        "weight": "126",
+        "rating": 134.0,
+        "win_odds": 1.5,
+        "finish_position": 1,
+        "is_winner": 1,
+        "is_top3": 1,
+        "days_since_last_run": 47,
+        "rating_change": 1,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 4.5,
+        "last_6": "1 1 1 1 1 1",
+        "age": "8.0",
+        "running_position": "",
+        "finish_time": "1.45.10",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://member.hkjc.com/member/english/horse-owner/glorious-moments/heroes-winning-overseas.aspx",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://member.hkjc.com/member/english/horse-owner/glorious-moments/heroes-winning-overseas.aspx",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 12708,
+      "stored": {
+        "id": 12708,
+        "race_date": "2025/02/22",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1800,
+        "class_type": "Group 1",
+        "going": "Fast",
+        "course": null,
+        "horse_name": "ROMANTIC WARRIOR",
+        "horse_number": null,
+        "jockey": "J McDonald",
+        "trainer": "C S Shum",
+        "draw": 3,
+        "weight": "126",
+        "rating": 134.0,
+        "win_odds": 1.8,
+        "finish_position": 2,
+        "is_winner": 0,
+        "is_top3": 1,
+        "days_since_last_run": 29,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 0.05,
+        "last_6": "1 1 1 1 1 1",
+        "age": "8.0",
+        "running_position": "",
+        "finish_time": "1.49.14",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://worldpool.hkjc.com/en-US/moment-of-the-year-2025/moment-detail/2025/20250222-saudi-cup-day/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Riyadh",
+          "source": "https://worldpool.hkjc.com/en-US/moment-of-the-year-2025/moment-detail/2025/20250222-saudi-cup-day/",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 11347,
+      "stored": {
+        "id": 11347,
+        "race_date": "2025/04/05",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1800,
+        "class_type": "Group 1",
+        "going": "Good",
+        "course": null,
+        "horse_name": "ROMANTIC WARRIOR",
+        "horse_number": null,
+        "jockey": "J McDonald",
+        "trainer": "C S Shum",
+        "draw": 9,
+        "weight": "126",
+        "rating": 134.0,
+        "win_odds": 1.3,
+        "finish_position": 2,
+        "is_winner": 0,
+        "is_top3": 1,
+        "days_since_last_run": 42,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "TT",
+        "margin": 0.05,
+        "last_6": "2 1 1 1 1 1",
+        "age": "8.0",
+        "running_position": "",
+        "finish_time": "1.45.84",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2025/04/03/simulcast-and-betting-arrangements-for-doncaster-mile-day-and-dubai-world-cup-day/",
+          "evidence_status": "entry_only"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://racingnews.hkjc.com/english/2025/04/03/simulcast-and-betting-arrangements-for-doncaster-mile-day-and-dubai-world-cup-day/",
+          "requires_separate_storage": true
+        },
+        "horse_number": {
+          "value": 8,
+          "source": "https://racingnews.hkjc.com/english/2025/04/04/dubai-world-cup-day-reference-odds/",
+          "namespace": "HKJC overseas saddlecloth",
+          "status": "racecard_verified; check final result before applying"
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 11348,
+      "stored": {
+        "id": 11348,
+        "race_date": "2025/04/05",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1600,
+        "class_type": "Group 2",
+        "going": "Fast",
+        "course": null,
+        "horse_name": "SWORD POINT",
+        "horse_number": null,
+        "jockey": "J McDonald",
+        "trainer": "F C Lor",
+        "draw": 2,
+        "weight": "126",
+        "rating": 111.0,
+        "win_odds": 6.7,
+        "finish_position": 14,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 41,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "CP2",
+        "margin": 46.5,
+        "last_6": "10 8 1 9 4 1",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "1.45.00",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2025/04/03/simulcast-and-betting-arrangements-for-doncaster-mile-day-and-dubai-world-cup-day/",
+          "evidence_status": "entry_only"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://racingnews.hkjc.com/english/2025/04/03/simulcast-and-betting-arrangements-for-doncaster-mile-day-and-dubai-world-cup-day/",
+          "requires_separate_storage": true
+        },
+        "horse_number": {
+          "value": 16,
+          "source": "https://racingnews.hkjc.com/english/2025/04/04/dubai-world-cup-day-reference-odds/",
+          "namespace": "HKJC overseas saddlecloth",
+          "status": "racecard_verified; check final result before applying"
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 7765,
+      "stored": {
+        "id": 7765,
+        "race_date": "2025/09/07",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1800,
+        "class_type": "Group 3",
+        "going": "Rain Affected",
+        "course": null,
+        "horse_name": "CHANCHENG GLORY",
+        "horse_number": null,
+        "jockey": "C L Chau",
+        "trainer": "K W Lui",
+        "draw": 2,
+        "weight": "126",
+        "rating": 113.0,
+        "win_odds": 3.3,
+        "finish_position": 2,
+        "is_winner": 0,
+        "is_top3": 1,
+        "days_since_last_run": 56,
+        "rating_change": -1,
+        "horse_weight": 0,
+        "gear": "B/XB",
+        "margin": 1.0,
+        "last_6": "6 6 2 8 9 3",
+        "age": "6.0",
+        "running_position": "",
+        "finish_time": "1.51.00",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2025/09/07/sha-tin-shines-despite-challenging-weather-with-perfect-start-to-2025-26-racing-season/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Seoul",
+          "source": "https://racingnews.hkjc.com/english/2025/09/07/sha-tin-shines-despite-challenging-weather-with-perfect-start-to-2025-26-racing-season/",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 7762,
+      "stored": {
+        "id": 7762,
+        "race_date": "2025/09/07",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "Group 3",
+        "going": "Rain Affected",
+        "course": null,
+        "horse_name": "SELF IMPROVEMENT",
+        "horse_number": null,
+        "jockey": "C L Chau",
+        "trainer": "K L Man",
+        "draw": 7,
+        "weight": "126",
+        "rating": 83.0,
+        "win_odds": 9.7,
+        "finish_position": 1,
+        "is_winner": 1,
+        "is_top3": 1,
+        "days_since_last_run": 53,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "B2/TT",
+        "margin": 0.5,
+        "last_6": "11 4 7 4 11 1",
+        "age": "6.0",
+        "running_position": "",
+        "finish_time": "1.10.50",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2025/09/07/sha-tin-shines-despite-challenging-weather-with-perfect-start-to-2025-26-racing-season/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Seoul",
+          "source": "https://racingnews.hkjc.com/english/2025/09/07/sha-tin-shines-despite-challenging-weather-with-perfect-start-to-2025-26-racing-season/",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 7235,
+      "stored": {
+        "id": 7235,
+        "race_date": "2025/09/28",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "Group 1",
+        "going": "Good to Firm",
+        "course": null,
+        "horse_name": "LUCKY SWEYNESSE",
+        "horse_number": null,
+        "jockey": "K C Leung",
+        "trainer": "K L Man",
+        "draw": 10,
+        "weight": "128",
+        "rating": 125.0,
+        "win_odds": 7.3,
+        "finish_position": 11,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 21,
+        "rating_change": 0,
+        "horse_weight": 0,
+        "gear": "V",
+        "margin": 4.25,
+        "last_6": "2 4 6 1 5 6",
+        "age": "7.0",
+        "running_position": "",
+        "finish_time": "1.07.70",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2025/09/28/win-carnelian-shocks-in-sprinters-stakes-as-lucky-sweynesse-finishes-down-the-order/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Nakayama",
+          "source": "https://racingnews.hkjc.com/english/2025/09/28/win-carnelian-shocks-in-sprinters-stakes-as-lucky-sweynesse-finishes-down-the-order/",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 6626,
+      "stored": {
+        "id": 6626,
+        "race_date": "2025/10/18",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "Group 1",
+        "going": "Good",
+        "course": null,
+        "horse_name": "KA YING RISING",
+        "horse_number": null,
+        "jockey": "Z Purton",
+        "trainer": "D A Hayes",
+        "draw": 7,
+        "weight": "129",
+        "rating": 137.0,
+        "win_odds": 1.5,
+        "finish_position": 1,
+        "is_winner": 1,
+        "is_top3": 1,
+        "days_since_last_run": 41,
+        "rating_change": 3,
+        "horse_weight": 0,
+        "gear": "--",
+        "margin": 1.25,
+        "last_6": "1 1 1 1 1 1",
+        "age": "5.0",
+        "running_position": "",
+        "finish_time": "1.08.13",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://racingnews.hkjc.com/english/2025/10/18/ka-ying-rising-surges-into-racing-history-with-g1-the-everest-triumph/",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Randwick",
+          "source": "https://racingnews.hkjc.com/english/2025/10/18/ka-ying-rising-surges-into-racing-history-with-g1-the-everest-triumph/",
+          "requires_separate_storage": true
+        },
+        "horse_number": {
+          "value": 1,
+          "source": "https://campaigns.hkjc.com/simulcast-everest-2025/en/",
+          "namespace": "HKJC overseas saddlecloth",
+          "status": "racecard_verified; check final result before applying"
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "gear",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 2345,
+      "stored": {
+        "id": 2345,
+        "race_date": "2026/02/14",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "Group 2",
+        "going": "Fast",
+        "course": null,
+        "horse_name": "SELF IMPROVEMENT",
+        "horse_number": null,
+        "jockey": "C L Chau",
+        "trainer": "K L Man",
+        "draw": 8,
+        "weight": "126",
+        "rating": 95.0,
+        "win_odds": 7.3,
+        "finish_position": 11,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 69,
+        "rating_change": -2,
+        "horse_weight": 0,
+        "gear": "B/TT",
+        "margin": 17.5,
+        "last_6": "8 9 1 11 4 7",
+        "age": "6.0",
+        "running_position": "",
+        "finish_time": "1.14.97",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://www.hkjc.com/english/pressrelease/mcs01_showhtml.asp?SelType=NEWS&filename=20260215_004935_E_NEWS.htm",
+          "evidence_status": "results"
+        },
+        "foreign_track": {
+          "value": "Riyadh",
+          "source": "https://www.hkjc.com/english/pressrelease/mcs01_showhtml.asp?SelType=NEWS&filename=20260215_004935_E_NEWS.htm",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    },
+    {
+      "row_id": 1944,
+      "stored": {
+        "id": 1944,
+        "race_date": "2026/02/28",
+        "race_number": 1,
+        "venue": null,
+        "distance": 1200,
+        "class_type": "Group 3",
+        "going": "Fast",
+        "course": null,
+        "horse_name": "SING DRAGON",
+        "horse_number": null,
+        "jockey": "K Teetan",
+        "trainer": "W Y So",
+        "draw": 1,
+        "weight": "126",
+        "rating": 90.0,
+        "win_odds": 7.4,
+        "finish_position": 8,
+        "is_winner": 0,
+        "is_top3": 0,
+        "days_since_last_run": 83,
+        "rating_change": 1,
+        "horse_weight": 0,
+        "gear": "P1/TT",
+        "margin": 13.5,
+        "last_6": "2 7 1 10 6 2",
+        "age": "6.0",
+        "running_position": "",
+        "finish_time": "1.13.65",
+        "sectional_times": "",
+        "weather": ""
+      },
+      "proposed": {
+        "venue": {
+          "value": "Overseas",
+          "source": "https://consvc.hkjc.com/-/media/Sites/JCRW/FormGuide/Simulcast/25_26/20260228/OSE20260228_starter_all.pdf",
+          "evidence_status": "entry_only"
+        },
+        "foreign_track": {
+          "value": "Meydan",
+          "source": "https://consvc.hkjc.com/-/media/Sites/JCRW/FormGuide/Simulcast/25_26/20260228/OSE20260228_starter_all.pdf",
+          "requires_separate_storage": true
+        }
+      },
+      "missing_or_unavailable_fields": [
+        "venue",
+        "course",
+        "horse_number",
+        "running_position",
+        "sectional_times",
+        "weather",
+        "horse_weight"
+      ],
+      "unresolved": [
+        "actual race identity/host race number",
+        "complete field",
+        "odds source/convention",
+        "independent verification of remaining populated fields"
+      ]
+    }
+  ]
+}

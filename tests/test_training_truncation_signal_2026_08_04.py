@@ -64,10 +64,10 @@ class TestArtefactsAreStillDropped:
         """Backstop: 4 or fewer runners cannot be a real HK card."""
         assert looks_truncated(_rows(4)) is True
 
-    def test_a_venue_on_any_row_counts(self):
+    def test_a_missing_venue_cannot_be_assigned_to_a_local_race(self):
         rows = _rows(6)
-        rows[0]['venue'] = None      # one row missing it is not an artefact
-        assert looks_truncated(rows) is False
+        rows[0]['venue'] = None
+        assert looks_truncated(rows) is True
 
     def test_empty_input_is_not_truncated(self):
         assert looks_truncated([]) is False
