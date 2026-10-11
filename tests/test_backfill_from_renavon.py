@@ -35,8 +35,8 @@ def db(tmp_path):
 def _seed_result(db, race_date, race_no, horse_name, horse_no=1, rating_change=0, rating=0):
     db.conn.execute(
         """INSERT INTO race_results
-              (race_date, race_number, horse_name, horse_number, rating_change, rating)
-           VALUES (?, ?, ?, ?, ?, ?)""",
+              (race_date, race_number, horse_name, horse_number, rating_change, rating, venue)
+           VALUES (?, ?, ?, ?, ?, ?, 'Sha Tin')""",
         (race_date, race_no, horse_name, horse_no, rating_change, rating),
     )
     db.conn.commit()

@@ -1,4 +1,41 @@
 from dashboard.generator import build_bet_ticket, _merge_ticket_pre_result
+import pytest
+
+
+@pytest.mark.parametrize('tier', ['EDGE', 'HIGH', 'MED', 'LOW', 'SKIP', 'CHAOS'])
+def test_played_qpl_all_tiers_and_f4_high_edge_only(tier):
+    race = {'race_number': 1, 'conviction_tier': tier,
+            'suggested_stake': {'amount': 100},
+            'horses': [_horse(i, odds=4) for i in range(1, 9)]}
+    ticket = build_bet_ticket(race, race_date='2026/10/11', model_version='test', generated_at='')
+    qpl = next(b for b in ticket['bets'] if b['label'] == 'QPL BOX-3')
+    assert [l['number'] for l in qpl['legs']] == [1, 2, 3]
+    assert (qpl['combos'], qpl['unit_stake'], qpl['amount']) == (3, 10, 30)
+    labels = {b['label'] for b in ticket['bets']}
+    assert ('F4 BOX-5' in labels) == (tier in ('HIGH', 'EDGE'))
+    assert ('F4 SAVER' in labels) == (tier in ('HIGH', 'EDGE'))
+
+
+def test_qpl_zero_budget_is_optional_but_bankroll_halt_blocks_it():
+    race = {'race_number': 1, 'conviction_tier': 'SKIP',
+            'suggested_stake': {'amount': 0},
+            'horses': [_horse(i) for i in range(1, 4)]}
+    ticket = build_bet_ticket(race, race_date='2026/10/11', model_version='test', generated_at='')
+    assert [b['label'] for b in ticket['bets']] == ['QPL BOX-3']
+    assert ticket['allocated_amount'] == 30
+    assert ticket['over_budget']
+    race['bankroll_halt'] = 'DAILY LOSS CAP'
+    assert not build_bet_ticket(race, race_date='2026/10/11', model_version='test', generated_at='')['bets']
+
+
+def test_qpl_requires_three_priced_runners_and_no_result():
+    race = {'race_number': 1, 'suggested_stake': {'amount': 0},
+            'horses': [_horse(i) for i in range(1, 4)]}
+    race['horses'][2]['win_odds'] = 0
+    assert not build_bet_ticket(race, race_date='', model_version='', generated_at='')['bets']
+    race['horses'][2]['win_odds'] = 4
+    race['horses'][0]['actual_position'] = 1
+    assert not build_bet_ticket(race, race_date='', model_version='', generated_at='')['bets']
 
 
 def _horse(rank, rec='SKIP', odds=6.0, steam=False):
@@ -43,11 +80,11 @@ def test_bet_ticket_persists_recommender_and_main_extras():
     # fires. EDGE/HIGH/MED + field≥8 + top1=$3.4 → F4 SAVER fires.
     labels = [b['label'] for b in ticket['bets']]
     assert labels == ['BOX QIN-3', 'BOX QIN-4 PROTECTION', 'F4 SAVER',
-                      'BOX TRIO-5', 'F4 BOX-5']
-    assert ticket['total_combos'] == 3 + 6 + 1 + 10 + 5  # 25
+                      'BOX TRIO-5', 'F4 BOX-5', 'QPL BOX-3']
+    assert ticket['total_combos'] == 3 + 6 + 1 + 10 + 5 + 3
     # HK$10 HKJC minimum floor (2026-06-08): 200 / 25 → 8 → floor-10 → 10.
     assert ticket['unit_stake'] == 10.0
-    assert ticket['allocated_amount'] == 250.0
+    assert ticket['allocated_amount'] == 280.0
     assert ticket['model_version'] == 'm1'
 
 

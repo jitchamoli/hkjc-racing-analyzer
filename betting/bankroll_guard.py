@@ -6,7 +6,7 @@ number but never knows how much you've already lost today, so there is no
 daily-loss limit and no chase-prevention.
 
 This module fills that gap. It recomputes the day's realised P&L from
-`race_bet_ticket` (what was actually staked) + results EVERY call — no
+`race_bet_ticket` (recommended bets in configured played pools) + results EVERY call — no
 persistent state file, so it can't drift. Realised P&L is taken from the
 canonical replay scorer (`scripts.validate_hk._score_meeting_replay`), the same
 one `validate_hk --replay` and `stake_ab` use, so the numbers match everywhere
@@ -60,17 +60,20 @@ def _open(conn: Optional[sqlite3.Connection]) -> Tuple[sqlite3.Connection, bool]
 def _is_counted_label(label: str) -> bool:
     """Whether a bet line counts toward the guard's stake / P&L.
 
-    The user plays QIN only (STRAIGHT QIN + the BOX QIN-4 PROTECTION leg) at a
-    flat HK$10/combo; the TRIO/F4 boxes on the system ticket are never staked. A
-    realized stop-loss scored on the FULL ticket therefore fired on losses the
-    user never took and blanked every later HIGH race as NO SYSTEM BET. Scope the
-    guard to the QIN pool the user actually plays. User decision 2026-06-21.
-
-    Matches 'STRAIGHT QIN' and 'BOX QIN-*' (incl. 'BOX QIN-4 PROTECTION'); excludes
-    TRIO, FIRST 4, WIN, PLACE, and QIN PLACE (QPL) — a different pool.
+    Count configured played pools consistently for pending stake and replay.
+    WIN/PLACE and legacy QPL banker remain excluded (user decision 2026-10-11).
     """
     lab = (label or "").strip().upper()
-    return lab == "STRAIGHT QIN" or lab.startswith("BOX QIN-")
+    pool = None
+    if lab == "STRAIGHT QIN" or lab.startswith("BOX QIN-"):
+        pool = 'QUINELLA'
+    elif lab == 'STRAIGHT TRIO' or lab.startswith('BOX TRIO-'):
+        pool = 'TRIO'
+    elif lab == 'F4 SAVER' or lab.startswith('F4 BOX-'):
+        pool = 'FIRST 4'
+    elif lab == 'QPL BOX-3':
+        pool = 'QIN PLACE'
+    return pool is not None and pool in config.BANKROLL_COUNTED_POOLS
 
 
 def _ticket_total_stake(ticket_json: str, counted_only: bool = False) -> Tuple[float, int]:
@@ -84,9 +87,8 @@ def _ticket_total_stake(ticket_json: str, counted_only: bool = False) -> Tuple[f
     that carry neither identifier (audit 2026-06-09 #9). The parity is pinned by
     test_resolved_stake_matches_replay_scorer.
 
-    `counted_only=True` restricts the total to the QIN pool the user actually
-    plays (see _is_counted_label) — used by daily_status so the stop-loss /
-    exposure reflect real exposure, not the unplayed TRIO/F4 boxes.
+    `counted_only=True` restricts the total to configured played pools.
+    This estimates spending from recommendations, not confirmed purchases.
     """
     try:
         ticket = json.loads(ticket_json)
@@ -95,6 +97,8 @@ def _ticket_total_stake(ticket_json: str, counted_only: bool = False) -> Tuple[f
     total = 0.0
     n = 0
     for bet in ticket.get("bets", []) or []:
+        if bet.get('paper'):
+            continue
         if counted_only and not _is_counted_label(bet.get("label")):
             continue
         combos = int(bet.get("combos", 0) or 0)
@@ -133,8 +137,7 @@ def daily_status(date: str, bankroll: Optional[float] = None,
             staked_resolved = returned = 0.0
             n_resolved = 0
         else:
-            # Scope realized P&L to the QIN pool the user actually plays so a
-            # stop-loss reflects real losses, not the unplayed TRIO/F4 boxes.
+            # Use the same configured pools for replay losses and exposure.
             labels = {k: v for k, v in replay["labels"].items()
                       if _is_counted_label(k)}
             staked_resolved = sum(v[0] for v in labels.values())

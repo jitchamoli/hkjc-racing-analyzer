@@ -842,11 +842,7 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
     pending = [r for r in all_races
                if _is_unresolved(r) and not r.get('bankroll_halt')
                and r.get('bet_ticket')]
-    # Scope the exposure banner to the QIN pool the user actually stakes
-    # (2026-07-01 expert review). Summing allocated_amount across ALL pools
-    # (TRIO/F4 boxes the user never plays) over-warned ~4x on 2026/07/01 and
-    # disagreed with bankroll_guard, which counts QIN only (_is_counted_label).
-    # Align the two so the one real-wallet number is the one shown.
+    # Use the bankroll guard's configured played pools for the exposure banner.
     from betting.bankroll_guard import _is_counted_label
 
     def _counted_alloc(ticket):
@@ -856,14 +852,14 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
     card_allocated = sum(_counted_alloc(r['bet_ticket']) for r in pending)
     over_cap = max(0.0, card_allocated - cap_amount) if cap_amount > 0 else 0.0
     for r in pending:
-        r['card_allocated_total'] = round(card_allocated, 2)  # QIN-scoped
+        r['card_allocated_total'] = round(card_allocated, 2)
         r['card_exposure_cap'] = round(cap_amount, 2)
         r['card_exposure_cap_pct'] = round(cap_frac * 100, 1)
         r['card_over_cap'] = over_cap > 0
         r['card_over_cap_amount'] = round(over_cap, 2)
     if over_cap > 0:
         logger.warning(
-            f"Card QIN exposure ${card_allocated:.0f} exceeds "
+            f"Card played-pool exposure ${card_allocated:.0f} exceeds "
             f"{cap_frac*100:.0f}% cap (${cap_amount:.0f}) by ${over_cap:.0f} on "
             f"{race_date} — bets NOT dropped (MAIN bets kept); flagged for "
             f"manual trim."
@@ -886,6 +882,8 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
     horses = sorted(race.get('horses') or [], key=lambda h: h.get('rank') or 99)
     stake = race.get('suggested_stake') or {}
     amount = float(stake.get('amount') or 0.0)
+    if race.get('bankroll_halt'):
+        amount = 0.0
     bets = []
 
     if amount > 0 and horses:
@@ -909,19 +907,6 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
                 combos = 1 if n == 3 else n * (n - 1) * (n - 2) // 6
                 label = 'STRAIGHT TRIO' if n == 3 else f'BOX TRIO-{n}'
                 _ticket_add_bet(bets, label, 'TRIO', legs, combos, 'recommender')
-
-        # QIN PLACE BANKER — short-favorite races (top1 ≤ $1.8): WIN pays
-        # barely above stake. Banker the fav with next 3 picks for 3
-        # combos that hit when fav places + any banker places.
-        # Mirrors JS at template.py:1947-1959 (moved server-side 2026-05-24
-        # to make bet_ticket the single source of truth).
-        top1 = horses[0] if horses else None
-        if top1 and (top1.get('win_odds') or 99) <= 1.8 and len(horses) >= 4:
-            bankers = horses[1:4]
-            _ticket_add_bet(
-                bets, 'QIN PLACE BANKER', 'QIN PLACE',
-                [top1] + bankers, 3, 'qin_place_banker',
-            )
 
         # BOX QIN-4 PROTECTION — always show when top-4 has horses outside
         # primary recommender QIN bets (catches the rank 3-4 spoiler placings).
@@ -961,7 +946,7 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
             # template.py:1988-2018 (moved server-side 2026-05-24).
             f4_saver_skip = (
                 (top1_odds > 0 and top1_odds < 2.5) or
-                (tier not in ('EDGE', 'HIGH', 'MED')) or
+                (tier not in ('EDGE', 'HIGH')) or
                 (field < 8)
             )
             if not f4_saver_skip:
@@ -977,6 +962,7 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
             )
             if not triple_gate_skip:
                 _ticket_add_bet(bets, 'BOX TRIO-5', 'TRIO', top5, 10, 'main_trio5_gate')
+            if tier in ('EDGE', 'HIGH') and field >= 8:
                 _ticket_add_bet(bets, 'F4 BOX-5', 'FIRST 4', top5, 5, 'main_f4_gate')
 
             # Single source of truth for BOX TRIO-6 take/skip + chaos badge.
@@ -1027,6 +1013,13 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
                 if b.get('reason') == 'edge_place_paper':
                     b['paper'] = True
 
+    # User-selected coverage across all tiers, including optional SKIP picks.
+    # Keep its unit fixed rather than scaling it with the tier budget.
+    if (len(horses) >= 3 and not race.get('bankroll_halt')
+            and not race.get('results_available')
+            and not any(h.get('actual_position') is not None for h in horses)):
+        _ticket_add_bet(bets, 'QPL BOX-3', 'QIN PLACE', horses[:3], 3,
+                        'user_qpl_top3')
     total_combos = sum(b['combos'] for b in bets)
     unit = (amount / total_combos) if amount > 0 and total_combos > 0 else 0.0
     # HKJC minimum bet is HK$10 — WIN / PLACE / QUINELLA / QUINELLA PLACE are
@@ -1039,10 +1032,14 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
     # show "$100 budget / $150 allocated (+$50 over)" instead of misleading
     # the user (GPT-5.5 R12 #2 2026-05-25).
     unit_rounded = max(10.0, (unit // 10.0) * 10.0) if unit > 0 else 0.0
+    if bets and all(b['label'] == 'QPL BOX-3' for b in bets):
+        unit_rounded = 10.0
     allocated = 0.0
     for b in bets:
         b['unit_stake'] = float(unit_rounded)
-        b['amount'] = float(b['combos'] * unit_rounded)
+        if b['label'] == 'QPL BOX-3':
+            b['unit_stake'] = 10.0
+        b['amount'] = float(b['combos'] * b['unit_stake'])
         allocated += b['amount']
     over_amount = max(0.0, allocated - amount) if amount > 0 else 0.0
 
@@ -1069,6 +1066,7 @@ def build_bet_ticket(race: dict, *, race_date: str, model_version: str,
     # paper bet can never inflate allocated_amount (e.g. a <4-horse field where
     # the first loop assigned it a nonzero unit_rounded before the override).
     allocated = sum(b['amount'] for b in bets if not b.get('paper'))
+    over_amount = max(0.0, allocated - amount)
 
     return {
         'version': 1,
