@@ -112,6 +112,7 @@ def drop_unusable_races(rows):
 def build_training_data_from_db(
     years_back: Optional[int] = None,
     return_groups: bool = False,
+    return_metadata: bool = False,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
     """Build training data from real race results in horse_database.
 
@@ -123,6 +124,8 @@ def build_training_data_from_db(
             the recent-only window — older eras dilute current-market signal.
 
     Returns (features, win_labels, sample_weights, place_labels) or (None, None, None, None).
+    return_metadata adds race groups and explicit runner/finish keys for isolated
+    research. The default and return_groups-only contracts are unchanged.
     """
     conn = None
     try:
@@ -295,6 +298,7 @@ def build_training_data_from_db(
         # Now both training and inference use the same conn-based DB query.
 
         X, y, y_place, weights, groups = [], [], [], [], []
+        metadata = []
         for row in rows:
             r = dict(row)
             draw = r.get('draw', 0) or 0
@@ -593,6 +597,10 @@ def build_training_data_from_db(
             y_place.append(1 if r.get('is_top3', 0) else 0)
             weights.append(0.0)  # placeholder; overwritten below
             groups.append(race_key)
+            if return_metadata:
+                metadata.append({'race_date': race_date, 'race_number': race_no,
+                                 'horse_number': r['horse_number'],
+                                 'finish_position': r['finish_position']})
 
         # Recency weights — exponential decay so recent races dominate.
         # Diagnostic 2026-04-25: linear 0.3→1.0 over 5y window made the most
@@ -631,6 +639,8 @@ def build_training_data_from_db(
         np.array(weights),
         np.array(y_place),
     )
+    if return_metadata:
+        return (*result, np.array(groups, dtype=object), metadata)
     if return_groups:
         return (*result, np.array(groups, dtype=object))
     return result

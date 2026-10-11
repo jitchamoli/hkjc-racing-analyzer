@@ -282,6 +282,7 @@ def _score_meeting_replay(conn, date) -> dict | None:
         }
 
     acc: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0, 0])
+    metrics: dict[str, dict] = {}
     n_races = 0
     skipped_unverified: list[int] = []
     for row in ticket_rows:
@@ -451,7 +452,7 @@ def _score_meeting_replay(conn, date) -> dict | None:
                 if priced_any:
                     div_per_unit = qpl_div_sum
 
-            _book_bet(acc, label, combos, stake_per_combo, hit, div_per_unit)
+            _book_bet(acc, label, combos, stake_per_combo, hit, div_per_unit, metrics)
 
     if skipped_unverified:
         # Never drop races silently — a hidden exclusion reads as "we covered
@@ -459,7 +460,7 @@ def _score_meeting_replay(conn, date) -> dict | None:
         print(f"  ⚠ {date}: skipped race(s) {sorted(skipped_unverified)} — ticket was "
               f"rebuilt post-off with no pre-off freeze on record (unverifiable)")
 
-    return {"_races": n_races, "labels": dict(acc)}
+    return {"_races": n_races, "labels": dict(acc), "metrics": metrics}
 
 
 def _read_csv() -> list[dict]:
@@ -479,7 +480,8 @@ def _read_csv() -> list[dict]:
 PAPER_LABEL_PREFIX = "~paper "
 
 
-def _book_bet(acc, label, combos, stake_per_combo, hit, div_per_unit) -> None:
+def _book_bet(acc, label, combos, stake_per_combo, hit, div_per_unit,
+              metrics=None) -> None:
     """Book one staked bet into `acc[label]` = [stake, return, hits, unpriced].
 
     The unpriced counter exists because this used to `continue` — dropping the
@@ -500,6 +502,11 @@ def _book_bet(acc, label, combos, stake_per_combo, hit, div_per_unit) -> None:
     if len(row) == 3:                               # legacy 3-field row
         row.append(0)
     row[0] += combos * stake_per_combo
+    if metrics is not None:
+        m = metrics.setdefault(label, {"tickets": 0, "profitable": 0})
+        m["tickets"] += 1
+        if hit and div_per_unit and div_per_unit > combos:
+            m["profitable"] += 1
     if hit:
         row[2] += 1
         if div_per_unit:
@@ -527,11 +534,12 @@ def _write_replay_row(date, replay):
     rows = [r for r in _read_replay_csv() if r.get("race_date") != date]
     labels = replay["labels"]
     newrow = {"race_date": date, "races": replay["_races"],
-              "ticket_json": json.dumps(labels)}
+              "ticket_json": json.dumps(labels),
+              "metrics_json": json.dumps(replay.get("metrics", {}))}
     rows.append(newrow)
     rows.sort(key=lambda r: r.get("race_date", ""))
     tmp = REPLAY_LOG_FILE.with_suffix(".csv.tmp")
-    cols = ["race_date", "races", "ticket_json"]
+    cols = ["race_date", "races", "ticket_json", "metrics_json"]
     with open(tmp, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
@@ -548,14 +556,18 @@ def _report_replay(rows: list[dict], title: str):
     dates = sorted(r["race_date"] for r in rows)
     print(f"  meetings: {len(dates)}  ({dates[0]} .. {dates[-1]})")
     gate = "" if len(dates) >= 6 else "   [WARN] N<6 — DIRECTIONAL ONLY"
-    print(f"  {'bet label':<18}{'hits':>6}{'stake':>9}{'P&L':>11}{'ROI':>9}{gate}")
-    print("  " + "-" * 54)
+    print(f"  {'bet label':<23}{'hits/tickets':>13}{'Hit%':>8} {'95% CI':>13}"
+          f"{'Profit%':>9}{'stake':>9}{'P&L':>11}{'ROI':>9}{gate}")
+    print("  " + "-" * 106)
     totals: dict[str, list] = defaultdict(lambda: [0.0, 0.0, 0, 0])
+    counts = defaultdict(lambda: [0, 0])
+    unknown = set()
     for r in rows:
         try:
             labels = json.loads(r.get("ticket_json", "{}"))
         except json.JSONDecodeError:
             continue
+        metrics = json.loads(r.get("metrics_json") or "{}")
         for lbl, vals in labels.items():
             # Rows written before 2026-08-03 have no `unpriced` field.
             stake, ret, hits = vals[0], vals[1], vals[2]
@@ -564,6 +576,11 @@ def _report_replay(rows: list[dict], title: str):
             totals[lbl][1] += float(ret)
             totals[lbl][2] += int(hits)
             totals[lbl][3] += int(unpriced)
+            if lbl in metrics:
+                counts[lbl][0] += int(metrics[lbl]["tickets"])
+                counts[lbl][1] += int(metrics[lbl]["profitable"])
+            else:
+                unknown.add(lbl)
     total_unpriced = 0
     for lbl in sorted(totals):
         stake, ret, hits, unpriced = totals[lbl]
@@ -572,9 +589,24 @@ def _report_replay(rows: list[dict], title: str):
             continue
         roi = 100 * (ret - stake) / stake
         flag = f"  [{unpriced} unpriced win(s)]" if unpriced else ""
-        print(f"  {lbl:<18}{hits:>6}{stake:>9.0f}{ret-stake:>+11.1f}{roi:>+9.1f}%{flag}")
+        tickets, profitable = counts[lbl]
+        if lbl in unknown or not tickets:
+            hit_count, hit_pct, interval, profit_pct = str(hits) + '/unknown', '-', '-', '-'
+        else:
+            from betting.tier_stats import wilson_ci_95
+            low, high = wilson_ci_95(hits, tickets)
+            hit_count = f'{hits}/{tickets}'
+            hit_pct = f'{100 * hits / tickets:.1f}%'
+            interval = f'{100 * low:.1f}-{100 * high:.1f}%'
+            profit_pct = f'{100 * profitable / tickets:.1f}%'
+        print(f"  {lbl:<23}{hit_count:>13}{hit_pct:>8} {interval:>13}"
+              f"{profit_pct:>9}{stake:>9.0f}{ret-stake:>+11.1f}{roi:>+9.1f}%{flag}")
     print("\n  REPLAY: scored from the actual frozen bet_ticket (not synthetic).")
     print("  This is what was really recommended/staked, post-gate filtering.")
+    print("  Hit% = winning selections, including unpriced wins; Profit% = return > entire ticket cost.")
+    print("  95% CI is a ticket-level Wilson interval; correlated races/meetings may widen it.")
+    if unknown:
+        print("  Legacy denominators unknown: re-run --replay to rebuild ticket metrics.")
     if total_unpriced:
         # Never let a floor read as a point estimate.
         print(f"  ⚠ {total_unpriced} winning bet(s) had NO dividend row and were "
