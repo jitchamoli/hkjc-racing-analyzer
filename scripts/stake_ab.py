@@ -40,7 +40,7 @@ import sqlite3
 import sys
 from collections import defaultdict
 from pathlib import Path
-from itertools import permutations
+from itertools import permutations, combinations
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -306,6 +306,8 @@ def _reconstruct_bets(race: dict, horses: list) -> dict:
                 out[f'BOX TRIO-{n}'] = n * (n - 1) * (n - 2) // 6
 
     horses_by_rank = sorted(horses, key=lambda h: h.get('rank') or 99)
+    # Legacy no-ticket reconstruction retains the historical policy. Current
+    # F4 restrictions and QPL boxes are read from frozen tickets above.
     if (horses_by_rank
             and (horses_by_rank[0].get('win_odds') or 99) <= 1.8
             and len(horses_by_rank) >= 4):
@@ -749,18 +751,15 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
         # all hit pairs.
         if len(legs) < 2:
             return (False, 0.0)
-        pivot = legs[0]
-        if _key(pivot) not in actual_top3:
-            return (False, 0.0)
-        piv_num = pivot.get('number')
-        if piv_num is None:
-            return (False, 0.0)
         div_sum = 0.0
         hit_any = False
-        for bk in legs[1:]:
-            if _key(bk) in actual_top3:
+        pairs = (combinations(legs, 2) if bet.get('label') == 'QPL BOX-3'
+                 else ((legs[0], leg) for leg in legs[1:]))
+        for pivot, bk in pairs:
+            piv_num = pivot.get('number')
+            if _key(pivot) in actual_top3 and _key(bk) in actual_top3:
                 bk_num = bk.get('number')
-                if bk_num is None:
+                if piv_num is None or bk_num is None:
                     continue
                 lo, hi = sorted([int(piv_num), int(bk_num)])
                 d2 = _lookup_dividend(conn, race_date, rn,

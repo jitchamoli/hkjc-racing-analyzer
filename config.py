@@ -2,6 +2,9 @@
 """Centralized configuration for HKJC Racing Analyzer."""
 
 import os
+
+# Played pools; standalone WIN/PLACE and legacy QPL banker excluded.
+BANKROLL_COUNTED_POOLS = ('QUINELLA', 'TRIO', 'FIRST 4', 'QIN PLACE')
 from pathlib import Path
 
 # Project root

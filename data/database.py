@@ -1509,7 +1509,10 @@ class HorseDatabase:
         horse_name), only writing when the new value is non-empty AND the
         existing row's value is missing/zero (preserves manually corrected data).
 
-        Returns the count of rows actually updated.
+        Only matched local card runners are eligible. Missing venues require
+        matching positive runner numbers; explicit overseas venues are excluded.
+
+        Returns the count of update operations affecting rows.
         """
         c = self.conn.cursor()
         n_updated = 0
@@ -1531,30 +1534,48 @@ class HorseDatabase:
                 j_dist = 0
             j_class = (race.get('class_type') or race.get('class') or '').strip()
             j_venue = (race.get('venue') or '').strip()
-            # Venue first, so a row that just had its venue filled is then
-            # eligible for the venue-guarded distance/class corrections below.
-            if j_venue:
-                c.execute("UPDATE race_results SET venue=? WHERE race_date=? "
-                          "AND race_number=? AND IFNULL(venue,'')!=?",
-                          (j_venue, race_date, race_no, j_venue))
-                n_updated += c.rowcount
-            # distance/class are venue-guarded: never overwrite an overseas
-            # (venue-NULL) runner's foreign distance/class with HK card values.
-            if j_dist in _VALID_HK_DISTANCES:
-                c.execute("UPDATE race_results SET distance=? WHERE race_date=? "
-                          "AND race_number=? AND distance!=? AND IFNULL(venue,'')!=''",
-                          (j_dist, race_date, race_no, j_dist))
-                n_updated += c.rowcount
-            if j_class:
-                c.execute("UPDATE race_results SET class_type=? WHERE race_date=? "
-                          "AND race_number=? AND IFNULL(class_type,'')!=? AND IFNULL(venue,'')!=''",
-                          (j_class, race_date, race_no, j_class))
-                n_updated += c.rowcount
+            if j_venue and j_venue not in ('Sha Tin', 'Happy Valley'):
+                continue
 
             for h in race.get('horses', []):
                 horse_name = h.get('name', '')
                 if not horse_name:
                     continue
+                try:
+                    card_number = int(h.get('number') or 0)
+                except (ValueError, TypeError):
+                    card_number = 0
+                rows = c.execute(
+                    "SELECT rowid AS matched_rowid, venue, horse_number FROM race_results "
+                    "WHERE race_date=? AND race_number=? AND horse_name=?",
+                    (race_date, race_no, horse_name)).fetchall()
+                eligible = []
+                for row in rows:
+                    stored_venue = (row['venue'] or '').strip()
+                    stored_number = row['horse_number'] or 0
+                    if stored_venue in ('Sha Tin', 'Happy Valley'):
+                        if card_number > 0 and stored_number and card_number != stored_number:
+                            continue
+                    elif stored_venue or not j_venue or card_number <= 0 or card_number != stored_number:
+                        continue
+                    eligible.append(row['matched_rowid'])
+                if not eligible:
+                    continue
+                # Scope even race-level repairs to verified runners, not date/race.
+                placeholders = ','.join('?' for _ in eligible)
+                row_filter = f"rowid IN ({placeholders})"
+                if j_venue:
+                    c.execute(f"UPDATE race_results SET venue=? WHERE {row_filter} "
+                              "AND IFNULL(venue,'')!=?", (j_venue, *eligible, j_venue))
+                    n_updated += c.rowcount
+                if j_dist in _VALID_HK_DISTANCES:
+                    c.execute(f"UPDATE race_results SET distance=? WHERE {row_filter} "
+                              "AND IFNULL(distance,0)!=?", (j_dist, *eligible, j_dist))
+                    n_updated += c.rowcount
+                if j_class:
+                    c.execute(f"UPDATE race_results SET class_type=? WHERE {row_filter} "
+                              "AND IFNULL(class_type,'')!=?", (j_class, *eligible, j_class))
+                    n_updated += c.rowcount
                 rating = h.get('rating') or 0
                 last_6 = h.get('last_6') or ''
                 gear = h.get('gear') or ''
@@ -1563,21 +1584,21 @@ class HorseDatabase:
 
                 # Only update fields where new value is meaningful AND
                 # existing row's value is missing — preserves manual edits.
-                c.execute("""
+                c.execute(f"""
                     UPDATE race_results SET
                         rating = CASE WHEN ? > 0 AND (rating IS NULL OR rating = 0) THEN ? ELSE rating END,
                         last_6 = CASE WHEN ? != '' AND (last_6 IS NULL OR last_6 = '') THEN ? ELSE last_6 END,
                         gear = CASE WHEN ? != '' AND (gear IS NULL OR gear = '') THEN ? ELSE gear END,
                         age = CASE WHEN ? != '' AND (age IS NULL OR age = '') THEN ? ELSE age END,
                         rating_change = CASE WHEN ? != 0 AND (rating_change IS NULL OR rating_change = 0) THEN ? ELSE rating_change END
-                    WHERE race_date = ? AND race_number = ? AND horse_name = ?
+                    WHERE {row_filter}
                 """, (
                     rating, rating,
                     last_6, last_6,
                     gear, gear,
                     age, age,
                     rating_change, rating_change,
-                    race_date, race_no, horse_name,
+                    *eligible,
                 ))
                 if c.rowcount > 0:
                     n_updated += c.rowcount

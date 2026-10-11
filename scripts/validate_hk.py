@@ -389,10 +389,11 @@ def _score_meeting_replay(conn, date) -> dict | None:
                 hit = any(_key_ent(e) in leg_ids
                           for p in (1, 2, 3) for e in pos_to_entries.get(p, []))
             elif pool == "QIN PLACE":
-                if _key_leg(legs[0]) in placed_top3:
-                    for bk_leg in legs[1:]:
-                        if _key_leg(bk_leg) in placed_top3:
-                            qpl_hit_pairs.append((legs[0], bk_leg))
+                pairs = (combinations(legs, 2) if label == 'QPL BOX-3'
+                         else ((legs[0], leg) for leg in legs[1:]))
+                for first, second in pairs:
+                    if _key_leg(first) in placed_top3 and _key_leg(second) in placed_top3:
+                        qpl_hit_pairs.append((first, second))
                 hit = len(qpl_hit_pairs) > 0
 
             if hit and pool == "WIN":

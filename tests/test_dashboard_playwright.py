@@ -367,6 +367,29 @@ def test_strike_place_badge_renders_when_pick_places(browser: Browser, tmp_path)
     page.close()
 
 
+@pytest.mark.parametrize('width', [1440, 390])
+def test_qpl_box_visual_wa_and_non_pivot_hit(browser: Browser, tmp_path, width):
+    bet = {'label': 'QPL BOX-3', 'pool': 'QIN PLACE', 'combos': 3,
+           'unit_stake': 10, 'amount': 30,
+           'legs': [{'number': n, 'name': f'HORSE{n}'} for n in (1, 2, 3)]}
+    race = _make_race(race_number=9, bet_ticket_bets=[bet],
+                      horses_top4_positions=[2, 3, 5, 1])
+    page = browser.new_page(viewport={'width': width, 'height': 900})
+    errors = []
+    page.on('pageerror', lambda error: errors.append(str(error)))
+    page.goto(_render_to_file([race], tmp_path))
+    page.wait_for_load_state('networkidle')
+    assert 'QPL' in page.locator('[data-testid="strike-badge-R9"]').inner_text()
+    payload = page.locator('[data-testid="copy-wa-R9"]').get_attribute('data-payload')
+    assert 'QPL BOX-3' in payload
+    assert all(f'#{n}' in payload for n in (1, 2, 3))
+    page.locator('[data-testid="race-card-R9"]').click()
+    assert 'QPL BOX-3' in page.locator('[data-testid="bet-ticket-R9"]').inner_text()
+    page.screenshot(path=str(tmp_path / f'qpl-{width}.png'), full_page=True)
+    assert not errors
+    page.close()
+
+
 def test_strike_qpl_badge_renders_when_pivot_and_banker_both_place(browser: Browser, tmp_path):
     """QPL BANKER pivot=#1 + bankers=[#2, #3, #4]. Top-3 = [#1, #2, #5].
     Pivot (1) and banker (2) both placed → ≥1 hit pair → STRIKE-QPL."""
