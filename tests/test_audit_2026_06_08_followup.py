@@ -93,7 +93,25 @@ def _patch_guard(monkeypatch, *, halted, reason='', realized_pnl_pct=0.0):
 
 
 class TestBankrollGuardEnforced:
+    def test_advisory_loss_limit_preserves_payable_suggestions(self, monkeypatch):
+        import config
+        from dashboard.generator import finalize_tickets_and_stakes
+        monkeypatch.setattr(config, 'BANKROLL_LOSS_BLOCKS_BETS', False)
+        _patch_guard(monkeypatch, halted=True,
+                     reason='DAILY LOSS CAP (-8%)', realized_pnl_pct=-0.10)
+        race = _unresolved_win_race()
+        race['bankroll_halt'] = 'DAILY LOSS CAP (-8%)'
+        finalize_tickets_and_stakes([race], '2026/06/07', object())
+        assert race['suggested_stake']['amount'] > 0
+        assert race['bet_ticket']['bets']
+        assert race['bet_ticket']['allocated_amount'] > 0
+        assert 'bankroll_halt' not in race
+        assert race['bankroll_warning'] == 'DAILY LOSS CAP (-8%)'
+        assert race['bet_ticket']['bankroll_warning'] == race['bankroll_warning']
+
     def test_halted_day_zeroes_stake_and_flags(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, 'BANKROLL_LOSS_BLOCKS_BETS', True)
         from dashboard.generator import finalize_tickets_and_stakes
         # Realized stop-loss (pnl% past the loss cap) -> blank the card.
         _patch_guard(monkeypatch, halted=True,
