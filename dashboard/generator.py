@@ -764,6 +764,7 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
     # signal is already surfaced honestly by the #1 card-over-cap banner below,
     # so here we react ONLY to a genuine realized loss (chase-prevention).
     halt_reason = None
+    loss_warning = None
     try:
         from betting.bankroll_guard import daily_status
         guard = daily_status(race_date, _cfg.BANKROLL)
@@ -773,12 +774,23 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
         # the guard actually halted on. daily_status sets halt_reason to
         # "DAILY LOSS CAP ..." or "DAILY EXPOSURE CAP ..." (bankroll_guard.py).
         if guard.halted and 'LOSS CAP' in (guard.halt_reason or ''):
-            halt_reason = guard.halt_reason
+            loss_warning = guard.halt_reason
+            if _cfg.BANKROLL_LOSS_BLOCKS_BETS:
+                halt_reason = guard.halt_reason
     except Exception as e:
         logger.debug(f"bankroll guard check skipped: {e}")
 
     def _is_unresolved(r):
         return not _race_off(r)
+
+    for r in all_races:
+        if _is_unresolved(r):
+            if not _cfg.BANKROLL_LOSS_BLOCKS_BETS:
+                r.pop('bankroll_halt', None)
+            if loss_warning and not halt_reason:
+                r['bankroll_warning'] = loss_warning
+            else:
+                r.pop('bankroll_warning', None)
 
     if halt_reason:
         for r in all_races:
@@ -806,6 +818,10 @@ def finalize_tickets_and_stakes(all_races: list, race_date: str, analyzer) -> No
             r, race_date=race_date, model_version=model_ver, generated_at=ticket_ts,
         )
         merged = _merge_ticket_pre_result(old_ticket, new_ticket, ticket_ts)
+        if r.get('bankroll_warning'):
+            merged['bankroll_warning'] = r['bankroll_warning']
+        else:
+            merged.pop('bankroll_warning', None)
         # Halted day: force the frozen ticket itself to a zero/empty system
         # ticket (belt-and-braces over the amount=0 build above, in case an
         # older non-empty ticket survives the merge). This is the ticket the

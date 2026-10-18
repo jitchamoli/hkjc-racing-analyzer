@@ -1049,6 +1049,11 @@ function renderBetCard(race) {{
         '</div>' +
       '</div>';
   }}
+  if (race.bankroll_warning) {{
+    stakeHtml += '<div class="trust-block">' +
+      '<strong>LOSS LIMIT REACHED — OPTIONAL BETS, NOT SYSTEM-APPROVED</strong>' +
+      '<div>' + esc(race.bankroll_warning) + '</div></div>';
+  }}
   // Card-exposure over-cap disclosure (audit 2026-06-08 #1). Bets are NOT
   // dropped; the real allocated total simply exceeds the day cap, so flag it
   // honestly for a manual trim. Hidden on a halted day (already NO SYSTEM BET).
@@ -1125,6 +1130,7 @@ function renderBetCard(race) {{
     return '#' + h.number + ' ' + (h.name||'') + ' @$' + (h.win_odds||'?') + jk;
   }}
   var waLines = [];
+  if (race.bankroll_warning) waLines.push('*LOSS LIMIT REACHED — OPTIONAL BETS, NOT SYSTEM-APPROVED*');
   // Server-side bet_ticket is the single source of truth for WA bet
   // labels too. Added 2026-05-24 (GPT-5.5 Playwright audit): each WA
   // emitter gates on `_waTicketHas(label)` so client-side fabrications
@@ -1494,6 +1500,7 @@ function renderBetCard(race) {{
   }}
 
   var ticketLinesCompact = [];
+  if (race.bankroll_warning) ticketLinesCompact.push('*LOSS LIMIT REACHED — OPTIONAL BETS, NOT SYSTEM-APPROVED*');
   var hdrVenue = race.venue ? ' · ' + race.venue : '';
   var hdrTime = race.time ? ' · ' + race.time : '';
   var hdrTier = isEdge ? ' · ★ EDGE' : (tier ? ' · ' + tier : '');
