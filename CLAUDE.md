@@ -9,17 +9,15 @@ Guidance for Claude Code working in this repo. Detail lives in `docs/`:
 ## Commands
 
 ```bash
-# Race-day phase controller (PREFERRED — ./raceday is the friendly wrapper)
-./raceday                       # interactive looping menu (pick date once, run phases)
-./raceday start  2026/05/17     # AM: race_day (generate + shadow_generate + tier_b_shadow)
-./raceday live   2026/05/17     # T-6 min before each race: generate → results_fetcher
-./raceday finish 2026/05/17     # PM: post_race (10+1 steps: results, shadows, stake_ab,
-                                #     tier_b, spoilers, longshot_trio, validate_hk,
-                                #     track_edge, gate_impact, auto_dump)
+# Race-day phase controller (preferred)
+./raceday                       # interactive menu; choose a meeting date
+./raceday start  YYYY/MM/DD     # predictions + shadows + optional API snapshot
+./raceday live   YYYY/MM/DD     # refresh odds/predictions, then merge results
+./raceday finish YYYY/MM/DD     # post-race ingestion, trackers and DB dump
 
 # One-shots
-python3 generate_predictions.py '2026/04/15'
-python3 results_fetcher.py     '2026/04/15' [--auto-learn]
+python3 generate_predictions.py 'YYYY/MM/DD'
+python3 results_fetcher.py     'YYYY/MM/DD' [--auto-learn]
 python3 train_ml_model.py
 python3 scrape_history.py [--date 2026/04/09 | --rankings | --days 90]
 
@@ -62,7 +60,7 @@ python3 -m scripts.dump_db     # → tracking_data/backup/db_core_dump.sql.gz (~
 python3 -m scripts.restore_db  # replay SQL + reload Renavon CSVs; idempotent
 python3 -m scripts.backfill_dividends [--last 20 | --force]
 
-# Bankroll discipline (stateful stop-loss / daily caps; reads frozen tickets)
+# Bankroll status (reads generated tickets; not confirmed purchases)
 python3 -m scripts.bankroll_status DATE         # daily exposure vs caps (config.py pcts); DATE required
 
 # Barrier trials (data infra only — feature KILLED; keep accruing for the record)
@@ -72,18 +70,17 @@ python3 -m scripts.scrape_trials --since-last  # → barrier_trials table (ST/HV
 python3 -m scripts.ingest_{uk,fr,au,jp} --since-last
 python3 -m scripts.{train,backtest,validate}_{uk,fr} [--since-cutoff]
 
-# HK editorial/news overlay (additive — HK pipeline still scrapes HKJC).
-# theracingapi.com PRO tier carries HK racecards with comment/spotlight/medical/
-# gear-first-time/trainer-14d. data/racing_api_hk_news.py normalises names to
-# HKJC convention (UPPERCASE), distance to meters, time to HKT.
-python3 -m scripts.hk_news 2026/05/24 [--picks]   # --picks = only MED/HIGH/EDGE
+# Optional third-party RacingAPI integrations (not required by the HKJC path).
+# The previous subscription is inactive; these commands need valid credentials
+# and may fail until the service is re-enabled.
+python3 -m scripts.hk_news YYYY/MM/DD [--picks]
 ```
 
 ## Architecture
 
 ```
 core/       — fetcher, analyzer, scorer, recommender, ML predictor   (HK)
-ml/         — feature_schema (23 feat, v6.11), features, model,      (HK)
+ml/         — feature_schema (23 features), features, model,          (HK)
               training, integrity; + uk_features/model, fr_features/model
 analytics/  — 14 specialized analyzers                                (HK)
 data/       — database, odds_tracker, scraper, sectional_scraper,    (HK)
@@ -93,10 +90,13 @@ monitor/    — race day monitor (HK)
 dashboard/  — generator + edge-first HTML template (HK)
 betting/    — edge_calculator, conviction tiers, alerts, exotic_calculator (HK)
 scripts/    — CLI entry points
-tests/      — pytest suite (835; contract/Playwright/template tests incl. R11–R15 hardening)
+tests/      — unit, integration, contract, Playwright and template tests
 ```
 
-Root-level shims (e.g., `hkjc_data_fetcher.py`) re-export from packages for backwards compat. Non-HK jurisdictions have isolated `*_history.db` + `*_racing_model.pkl` + scripts; HK code untouched.
+Root-level shims preserve backwards compatibility. Non-HK clients and models
+are separate from HK, but their data ingestion requires an active third-party
+RacingAPI subscription. Do not treat those pipelines as live-supported while
+the subscription is inactive.
 
 ### Data pipeline
 ```
@@ -201,38 +201,34 @@ structural −10pp into every edge_pp, which is what kept the EDGE tier dead.
 Stored `edge_pp` in `results/race_data_*.json` from BEFORE 2026/08/03 is on the
 old scale — `stake_ab.PURE_CALIBRATION_DATE` gates `edge_filtered` accordingly.
 
-## 🚨 LEAK CORRECTION & HONEST POSTURE (2026-05-22, supersedes every ROI in this repo)
+## Evaluation and Betting Posture
 
-Three audit rounds found 10 date-leaking rule-engine DB lookups (no `before_date` filter — backtest read the scored race's own result via `get_rolling_stats`, `get_beaten_margins`, `get_horse_cd_history`, `get_jockey_stats`/`get_trainer_stats`, etc.). All 10 fixed (`before_date` threaded from `race.date` in `core/analyzer.py`). Live was unaffected.
+No production strategy has demonstrated a durable positive betting edge. Treat
+all historical ROI and CLV values as dated measurements, not current estimates;
+multiple audits corrected leakage, form parsing, dividend units and ticket
+semantics over time. Read the specific dated reports in `docs/audits/`, and
+rerun current forward validation before making profitability claims.
 
-**Fully leak-free 668-race holdout — every bet type NEGATIVE**: straight QIN −10.7%, gated QIN −27%, Box-4 −23%, TRIO-5 −45.4%, F4 BOX-5 −44.8%. **Earlier figures (incl. "+44% / +19%") were leak-inflated AND inflated 10× by a dividend-basis bug** (HKJC dividends are per HK$10, backtest scored vs $1 — fixed in `scripts/backtest.py`). **Treat every pre-2026-05-22 ROI as ~10× overstated AND leak-contaminated.**
-
-> **⚠️ SUPERSEDED 2026-09-06 — the 668-race figures above were computed on a corrupted `last_6` parse.** `parse_form_positions` read the space-separated Renavon form character-wise, so an 11th placing became two apparent WINS (`'4 11 9 5 0 8'` → `[4,1,1,9,5,0,8]`). 58% of holdout rows (4,558/7,891) are space-form, so the rule engine's form factor was wrong across most of the fold. Fixed in `80fc093`. Re-measured on the same code and folds with only the parse swapped:
->
-> | | pre-fix | post-fix |
-> |---|---|---|
-> | straight QIN | −11.18% | **−2.39%** (hits 78→83) |
-> | BOX Q4 | −5.90% | −5.59% |
-> | BOX Q | −19.53% | −19.86% |
-> | BOX TRIO-5 | −16.1% | **−19.2%** (hits 196→194) |
-> | flat-$10 (user habit) | −21.3% | **−22.9%** |
-> | Brier top-pick / place ECE | 0.1966 / 0.0057 | 0.1965 / 0.0057 |
->
-> **Mixed, NOT an improvement** — the flat-$10 figure closest to the user's real habit got *worse*. The straight-QIN gain is 5 extra hits at a ~$7 median dividend: directional, not evidence. ML metrics barely moved (`last_6` feeds the rule engine only). **Gate conclusions moved more than the ROI did** — BOX Q4 fired on 229→168 races, stake $2,095→$1,783 — so anything tuned on the old numbers (the TRIO-5 triple gate especially) is stale. Quote the post-fix column; do not treat the pre-fix numbers as a baseline.
-
-**The PLACE model is unaffected (ML, not rule engine): BSS +0.10, ECE 0.0093** — model discriminates (rank-1 top-3 54.9% ≈ 2.2× random) but does NOT beat market + takeout on any bet type.
-
-**HONEST POSTURE: no demonstrated betting edge. PAPER-ONLY until `scripts/validate_hk.py` shows positive lower-CI over N≥250 bets.** Judge changes on place/top-4 capture, NOT top-1 win Brier. Detail: `memory/project_7expert_panel_2026-05-22.md`.
-
-**MODEL-ONLY RANKING SHADOW (2026-09-16).** User: "I don't always want to rely on market voted horses." True premise — over 236 forward races, **148 podium finishers were market rank 8+**. Ranking by `pure_prob` (our pre-market opinion) instead of the 55%-market `calibrated_prob`: same top-3-in-5 capture (24.2%), **60% more outsiders caught (26 vs 16 of 148)**, TRIO-5 ROI −15.1% vs −21.3% (survives dropping the top 1-2 dividends: −20.0% vs −26.2%) — but WORSE at naming the winner (21.2% vs 27.1%) and the bootstrap CI on the ROI gap spans zero [−22pp, +34pp]. `scripts/shadow_pure_rank` (auto-runs in `raceday finish`) accrues it. SHADOW ONLY — do not re-weight the blend on this; the 60/40-vs-45/55 A/B was already a wash and needs a fresh calibrator + ≥250-bet forward.
-
-**GATES ARE UNPROVEN (2026-09-16).** `scripts/track_gate_skips` (auto-runs in `raceday finish`) logs, per race, what the same model top-N box would have returned split by whether the gate STAKED it. 18 meetings: QIN-4 bet -47.2% vs skipped +35.4%; F4-5 bet -59.5% vs skipped -5.1%; TRIO-5 bet -45.6% vs skipped -39.7%. The skipped side looks better on every product — BUT removing the single largest dividend collapses it (QIN-4 skipped +35.4% -> -11.2%, F4-5 -5.1% -> -23.8%), so this is NOT yet evidence. Poster child: 2026/05/24 R2, model top 4 = the first 4 home, ticket EMPTY on tier LOW, F4 BOX-4 would have paid $369 on $10. Keep accruing; do not touch the gates until the gap survives the `ROI -top1` column.
-
-**FAST EDGE GAUGE (the leading indicator while N accrues):** `scripts/clv_report --split-by-market-rank` (auto-runs in `raceday finish`). CLV converges far faster than ROI, but is read-with-care: the favourite bucket shortens structurally (late-money MIRAGE, not edge) and rank-4+ longshot CLV% is inflated noise. The ONLY monetizable signal is **rank-2-3 (mild-disagreement) CLV that also converts (places)**. Progression: −12.7% n=9 (2026-05-30) → −2.6% n=13 (06-07) → +2.1% n=34 (07-01) → **+3.9% CLV, place 53%, n=36 (2026-07-04) — CROSSED POSITIVE and converting for the first time**. Still TENTATIVE (single-card variance can move it; 12-meeting replay ROI remains all-negative, STRAIGHT QIN least-bad −4.4%). Don't touch the model; keep accruing and watch the line hold. See memory: `project_clv_edge_gauge_2026-05-30.md`.
+- Use `python3 -m scripts.validate_hk --report --replay` for frozen-ticket
+  evaluation. A synthetic top-N backtest is not a replay of the user's ticket.
+- Judge ranking experiments on grouped walk-forward top-four capture,
+  calibration, timestamped price quality and frozen-ticket results.
+- Keep model/objective/gate changes shadow-only until forward evidence supports
+  them across multiple meetings. Do not retune on a repeatedly inspected
+  holdout.
+- `race_bet_ticket` records generated recommendations, not confirmed purchases.
+  Exposure summaries are therefore recommended exposure unless actual stakes
+  are separately captured.
+- Current policy: realized daily loss is a warning; `BANKROLL_LOSS_BLOCKS_BETS`
+  defaults to `False`. Card exposure above the cap is displayed for manual
+  trimming; it does not automatically remove tickets.
 
 ## DB (`tracking_data/horse_history.db`)
 
-Six tables: `race_results` (primary; sectional_times 99.4%), `race_dividends` (real HKJC payouts; backfill via `scripts.backfill_dividends`), `horses` (master; `get_horse_record()` aggregates from race_results), `jockey_stats` / `trainer_stats` (season; `rebuild_stats()` from local + optional `scrape_history.py --rankings` for full-season HKJC), **`race_bet_ticket`** (NEW 2026-05-24 — frozen per-meeting bet ticket: pool/label/legs/combos/amount/reason; ground truth for `validate_hk --replay`, dashboard STRIKE, WA copy, `stake_ab`; included in dump/restore).
+Core tables include `race_results`, `race_dividends`, horse/jockey/trainer
+statistics and `race_bet_ticket`. The frozen ticket stores pool, label, legs,
+combos, amount and reason; it is the source for `validate_hk --replay`, ticket
+display and result badges. See `data/database.py` for the current schema.
 
 **Data integrity**: `ingest_race_day()` calls `rebuild_stats()`, which recomputes jockey/trainer stats from `race_results` for the CURRENT SEASON ONLY. This is deliberate and correct, NOT damage to be undone — the window comes from `MAX(race_date)` (not the wall clock) so the same DB rebuilt on different days aggregates identically, which is what makes backtests reproducible across a season boundary (fixed 2026-08-03). Early in a season the counts are legitimately small — six meetings in, the top jockey has ~50 rides, not the ~700 of a full season; that is a stub season, not corruption. `scrape_history.py --rankings` is OPTIONAL enrichment with authoritative HKJC season figures, not a repair step. Note the season window here is Jul 1-Jun 30 while HK racing actually resumes in September, so a September card's `jockey_stats` mixes the previous season's July tail with the new opener — deliberate (recency beats a table that zeroes on opening day), but the season LABEL is then a mild misnomer. `horses` upsert derives counters from race_results via subquery (idempotent). After any DB rebuild from Renavon, re-run `scripts.backfill_from_renavon` to restore `rating_change` (lives in `renavon_race_catalog`, not `renavon_race_results`).
 
@@ -298,17 +294,22 @@ Next architectural swing per user roadmap (`memory/project_roadmap_jockey_elo_th
 
 `renavon_*` tables are a one-time historical backfill ending 2026/04/22 — will never grow. New race data / dividends / rankings come from the HKJC scraper. Do NOT design features assuming continuous `renavon_*` updates. → `docs/renavon.md` for table inventory, indexes, rebuild commands.
 
-## Multi-jurisdiction (UK / FR / AU / JP)
+## Optional Multi-jurisdiction (UK / FR / AU / JP)
 
-All non-HK data flows from **theracingapi.com** (HTTP Basic Auth via `.env`: `RACING_API_USERNAME` / `RACING_API_PASSWORD`). One client at `data/uk_racing_api.py` services every jurisdiction; only region filter + DB destination differ.
+Non-HK ingestion clients are present but depend on **theracingapi.com** (HTTP
+Basic Auth via local `.env`: `RACING_API_USERNAME` /
+`RACING_API_PASSWORD`). The subscription is currently inactive, so these paths
+are not part of the supported HKJC race-day workflow and API calls may return
+authorization errors. HK cards/results are fetched directly from HKJC; do not
+make HK predictions depend on RacingAPI credentials.
 
 | Jurisdiction | DB                | Model              | Status                                      |
 |---|---|---|---|
-| HK   | `horse_history.db`| v6.11 production    | Production                                  |
-| UK   | `uk_history.db`   | 15-feat XGB         | MVP — forward-validating                    |
-| FR   | `fr_history.db`   | 15-feat XGB         | MVP — beats market fav in backtest          |
-| AU   | `au_history.db`   | none                | Reference only (sparse on standard tier)    |
-| JP   | `jp_history.db`   | none                | Reference only (no OR ratings standard tier)|
+| HK   | `horse_history.db`| current artifact in `models/` | Primary supported workflow       |
+| UK   | `uk_history.db`   | separate model      | Ingestion requires inactive RacingAPI subscription |
+| FR   | `fr_history.db`   | separate model      | Ingestion requires inactive RacingAPI subscription |
+| AU   | `au_history.db`   | none                | Historical/reference code; API-dependent    |
+| JP   | `jp_history.db`   | none                | Historical/reference code; API-dependent    |
 
 **Forward-validation decisions** (UK + FR, on `validate_*` disagreement edge):
 - n < 200 → directional only
@@ -317,4 +318,7 @@ All non-HK data flows from **theracingapi.com** (HTTP Basic Auth via `.env`: `RA
 
 **Rules**: (1) No data leakage — `groupby + shift(1)` patterns in `ml/*_features.py`. (2) MVP feature schema is frozen — adding more degraded ROI on both UK + FR (memory: `uk-feature-ceiling-2026-05-17`). (3) Phase 2B (place model, calibration, blend, recommender) deferred until disagreement edge confirmed. (4) API quirk: `get_results_for_range` clamps `end_date` to (today-1) silently.
 
-**Credentials**: `.env` gitignored. `config.py` reads via `os.environ.get(..., "")` — never hardcode. `.env.example` is the committed template. History audited zero-leakage.
+**Credentials**: `.env` is gitignored. `config.py` reads via
+`os.environ.get(..., "")`; never hardcode credentials. `.env.example` contains
+empty optional values only. Keep all credentials out of source, test fixtures,
+logs and generated artifacts.
