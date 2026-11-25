@@ -5,7 +5,7 @@ Runs in sequence:
   2. python3 -m scripts.shadow_generate --variant tips — TIPS-off shadow (forward A/B)
   3. python3 -m scripts.tier_b_shadow <date>           — log OLD-recommender decisions
                                                           for Tier B forward-validation
-  4. python3 -m scripts.snapshot_racing_api <date>     — three-source confluence snapshot
+  4. python3 -m scripts.snapshot_racing_api <date>     — optional RacingAPI snapshot
 
 (jockey_form shadow RETIRED 2026-06-21 — SHIP: posterior 0.965, JOCKEY_FORM_RIDES_MIN
  now 15 in production. rule_w=0.9 shadow RETIRED 2026-06-03 — KILL: posterior 0.016.
@@ -17,7 +17,7 @@ These feed independent experiments. After the meeting finishes, run
 tier B old vs new, and refresh the DB dump.
 
 Usage:
-    python3 -m scripts.race_day '2026/05/17'
+    python3 -m scripts.race_day 'YYYY/MM/DD'
 """
 from __future__ import annotations
 
@@ -77,13 +77,13 @@ def main():
         print(f"\nWARN: tier B shadow failed but production succeeded.",
               file=sys.stderr)
 
-    # Three-source confluence snapshot. Racing API only carries today/tomorrow,
-    # so the snapshot MUST be captured before midnight HKT. Forward-validation
-    # for the WIN-sidebet hypothesis from [[edge-pattern-n4]].
-    rc_c = _run("4/4 confluence snapshot (racing API → JSON)",
+    # Optional RacingAPI confluence snapshot. This third-party integration is
+    # independent of HKJC prediction generation and may fail when credentials
+    # or subscription access are unavailable.
+    rc_c = _run("OPTIONAL confluence snapshot (RacingAPI → JSON)",
                 [sys.executable, '-m', 'scripts.snapshot_racing_api', args.race_date])
     if rc_c != 0:
-        print(f"\nWARN: racing API snapshot failed (network/quota?). Confluence "
+        print(f"\nWARN: optional RacingAPI snapshot failed (auth/network/quota?). Confluence "
               f"tracking will skip this meeting. Production unaffected.",
               file=sys.stderr)
 

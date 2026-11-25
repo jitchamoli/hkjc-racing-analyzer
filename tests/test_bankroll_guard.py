@@ -153,6 +153,23 @@ def test_is_counted_label_played_pools():
         assert not bg._is_counted_label(excl), excl
 
 
+def test_counted_replay_totals_filters_unplayed_pools():
+    replay = {
+        "_races": 3,
+        "labels": {
+            "STRAIGHT QIN": [20.0, 25.0, 1],
+            "BOX TRIO-5": [50.0, 0.0, 0],
+            "WIN": [10.0, 30.0, 1],
+        },
+    }
+
+    assert bg._counted_replay_totals(replay) == (70.0, 25.0, 3)
+
+
+def test_counted_replay_totals_empty_replay():
+    assert bg._counted_replay_totals(None) == (0.0, 0.0, 0)
+
+
 def test_daily_status_counts_trio_losses(monkeypatch):
     # QIN profit must not hide a large loss in another played pool.
     monkeypatch.setattr(vh, "_score_meeting_replay", lambda conn, date: {
