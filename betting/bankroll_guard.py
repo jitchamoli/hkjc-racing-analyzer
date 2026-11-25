@@ -112,6 +112,20 @@ def _ticket_total_stake(ticket_json: str, counted_only: bool = False) -> Tuple[f
     return total, n
 
 
+def _counted_replay_totals(replay: Optional[dict]) -> Tuple[float, float, int]:
+    """Return counted-pool stake, return, and race count from replay output."""
+    if replay is None:
+        return 0.0, 0.0, 0
+
+    labels = {
+        label: totals for label, totals in replay["labels"].items()
+        if _is_counted_label(label)
+    }
+    staked = sum(totals[0] for totals in labels.values())
+    returned = sum(totals[1] for totals in labels.values())
+    return staked, returned, replay["_races"]
+
+
 def daily_status(date: str, bankroll: Optional[float] = None,
                  conn: Optional[sqlite3.Connection] = None) -> DailyStatus:
     """Compute the bankroll-guard status for `date` (YYYY/MM/DD)."""
@@ -133,16 +147,7 @@ def daily_status(date: str, bankroll: Optional[float] = None,
             n_bets += n
 
         replay = _score_meeting_replay(c, date)
-        if replay is None:
-            staked_resolved = returned = 0.0
-            n_resolved = 0
-        else:
-            # Use the same configured pools for replay losses and exposure.
-            labels = {k: v for k, v in replay["labels"].items()
-                      if _is_counted_label(k)}
-            staked_resolved = sum(v[0] for v in labels.values())
-            returned = sum(v[1] for v in labels.values())
-            n_resolved = replay["_races"]
+        staked_resolved, returned, n_resolved = _counted_replay_totals(replay)
     finally:
         if owned:
             c.close()
