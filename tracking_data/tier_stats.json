@@ -1,23 +1,37 @@
 {
+  "CHAOS": {
+    "hit": 0,
+    "total": 2,
+    "rate": 0.0,
+    "ci_low": 0.0,
+    "ci_high": 0.6576
+  },
   "EDGE": {
-    "hit": 5,
+    "hit": 3,
     "total": 10,
-    "rate": 0.5,
-    "ci_low": 0.2366,
-    "ci_high": 0.7634
+    "rate": 0.3,
+    "ci_low": 0.1078,
+    "ci_high": 0.6032
   },
   "HIGH": {
-    "hit": 14,
-    "total": 49,
-    "rate": 0.2857,
-    "ci_low": 0.1785,
-    "ci_high": 0.4241
+    "hit": 13,
+    "total": 36,
+    "rate": 0.3611,
+    "ci_low": 0.2248,
+    "ci_high": 0.5242
+  },
+  "LOW": {
+    "hit": 0,
+    "total": 4,
+    "rate": 0.0,
+    "ci_low": 0.0,
+    "ci_high": 0.4899
   },
   "MED": {
-    "hit": 5,
-    "total": 14,
-    "rate": 0.3571,
-    "ci_low": 0.1634,
-    "ci_high": 0.6124
+    "hit": 4,
+    "total": 20,
+    "rate": 0.2,
+    "ci_low": 0.0807,
+    "ci_high": 0.416
   }
 }

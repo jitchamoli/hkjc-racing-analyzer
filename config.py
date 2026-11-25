@@ -2,6 +2,9 @@
 """Centralized configuration for HKJC Racing Analyzer."""
 
 import os
+
+# Played pools; standalone WIN/PLACE and legacy QPL banker excluded.
+BANKROLL_COUNTED_POOLS = ('QUINELLA', 'TRIO', 'FIRST 4', 'QIN PLACE')
 from pathlib import Path
 
 # Project root
@@ -65,7 +68,9 @@ CARD_EXPOSURE_CAP = 0.10
 # limit, no doubling). Set BANKROLL above to your real rolling bankroll.
 MAX_STAKE_PER_RACE_PCT = 0.03   # cap any single race's stake at 3% of bankroll
 DAILY_EXPOSURE_CAP_PCT = 0.10   # block NEW bets once cumulative stake >= 10%
-DAILY_LOSS_CAP_PCT = 0.08       # hard STOP once realised loss >= 8% of bankroll
+DAILY_LOSS_CAP_PCT = 0.08       # loss warning once replay loss >= 8% of bankroll
+# User policy: retain optional suggestions when the loss limit is reached.
+BANKROLL_LOSS_BLOCKS_BETS = False
 
 # Monitor
 POLL_INTERVAL = 300  # seconds

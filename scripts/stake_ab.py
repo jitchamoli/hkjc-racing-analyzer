@@ -17,6 +17,12 @@ Variants (extensible — add to VARIANTS dict to log another):
                 across firing bets by combo-share (mirrors template.py)
   flat_1pct   — 1% × bankroll for every tier, split by combo-share
   invert      — 0.5/1/2/3% ramp (high payouts → bigger stake), split
+  no_trio6 / no_f4_saver / no_qin_protection / lean_ticket
+              — forward-only add-on reduction shadows, since 2026/10/07
+
+The flat_min rows also record uncalibrated Harville box-capture estimates
+from frozen probabilities starting 2026/10/07. Their calibration report is
+a diagnostic, never a production selection or betting gate.
 
 Per-race per-variant rows append to tracking_data/stake_ab_log.csv.
 
@@ -29,10 +35,12 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import sqlite3
 import sys
 from collections import defaultdict
 from pathlib import Path
+from itertools import permutations, combinations
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -51,6 +59,7 @@ CHAOS_FILTER_SHIPPED = '2026/05/23'
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOG_PATH = REPO_ROOT / 'tracking_data' / 'stake_ab_log.csv'
 DEFAULT_BANKROLL = float(getattr(config, 'BANKROLL', 10000.0))
+REDUCTION_START = '2026/10/07'
 
 # Variant definitions. Extend by adding a new entry — the rest is generic.
 # `apply_chaos`: when False, the CHAOS soft-going filter is BYPASSED for this
@@ -61,6 +70,20 @@ VARIANTS = {
     'flat_min':   {'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
                    'skip_tiers': set(), 'apply_chaos': True,
                    'label': 'flat HK$10/combo (user habit)'},
+    'no_trio6': {'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
+                'start_date': REDUCTION_START, 'exclude_labels': {'BOX TRIO-6'},
+                'label': 'shadow: drop TRIO-6'},
+    'no_f4_saver': {'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
+                    'start_date': REDUCTION_START, 'exclude_labels': {'F4 SAVER'},
+                    'label': 'shadow: drop F4 saver'},
+    'no_qin_protection': {'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
+                         'start_date': REDUCTION_START,
+                         'exclude_labels': {'BOX QIN-4 PROTECTION'},
+                         'label': 'shadow: drop QIN protection'},
+    'lean_ticket': {'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
+                    'start_date': REDUCTION_START,
+                    'exclude_labels': {'BOX TRIO-6', 'F4 SAVER', 'BOX QIN-4 PROTECTION'},
+                    'label': 'shadow: drop all three add-ons'},
     'flat_min_pre_chaos': {
                    'mode': 'flat_per_combo', 'stake_per_combo': 10.0,
                    'skip_tiers': set(), 'apply_chaos': False,
@@ -143,6 +166,7 @@ VARIANTS = {
 LOG_HEADERS = [
     'race_date', 'race_number', 'variant', 'bet_label',
     'combos', 'stake_hkd', 'hit', 'dividend_per_1', 'pnl_hkd',
+    'capture_probability',
 ]
 
 
@@ -282,6 +306,8 @@ def _reconstruct_bets(race: dict, horses: list) -> dict:
                 out[f'BOX TRIO-{n}'] = n * (n - 1) * (n - 2) // 6
 
     horses_by_rank = sorted(horses, key=lambda h: h.get('rank') or 99)
+    # Legacy no-ticket reconstruction retains the historical policy. Current
+    # F4 restrictions and QPL boxes are read from frozen tickets above.
     if (horses_by_rank
             and (horses_by_rank[0].get('win_odds') or 99) <= 1.8
             and len(horses_by_rank) >= 4):
@@ -362,6 +388,8 @@ def variant_stakes(variant: str, race: dict, fires: dict[str, int],
     """Return {bet_label: total_stake_HKD} for this variant on this race."""
     cfg = VARIANTS[variant]
     tier = (race.get('conviction_tier') or 'SKIP').upper()
+    if cfg.get('start_date') and race.get(MEETING_DATE_KEY, '') < cfg['start_date']:
+        return {bt: 0.0 for bt in fires}
 
     # Race-selection filter (edge_filtered): skip races the model does not
     # think are mispriced. Applies before any staking mode.
@@ -377,7 +405,8 @@ def variant_stakes(variant: str, race: dict, fires: dict[str, int],
 
     if cfg['mode'] == 'flat_per_combo':
         per = cfg['stake_per_combo']
-        return {bt: combos * per for bt, combos in fires.items()}
+        return {bt: 0.0 if bt in cfg.get('exclude_labels', set()) else combos * per
+                for bt, combos in fires.items()}
 
     # race_ramp_split: race-level stake from tier × bankroll, split by combo
     race_stake = bankroll * cfg['ramp'].get(tier, 0.0)
@@ -391,6 +420,34 @@ def variant_stakes(variant: str, race: dict, fires: dict[str, int],
 # ---------------------------------------------------------------------------
 # Hit detection + dividend lookup
 # ---------------------------------------------------------------------------
+
+def box_capture_probability(bet: dict, race: dict) -> float | None:
+    """Diagnostic Harville capture estimate, using only frozen win probabilities.
+
+    This is not calibrated for exotic outcomes and never selects horses or sizes
+    stakes. Summing ordered finishes reuses the production exotic calculator.
+    """
+    from betting.exotic_calculator import _conditional_prob
+
+    k = {'QUINELLA': 2, 'TRIO': 3, 'FIRST 4': 4}.get(bet.get('pool'))
+    horses = race.get('horses') or []
+    probs = [h.get('calibrated_prob') for h in horses]
+    if not k or not probs or any(not isinstance(p, (int, float)) or
+                               not math.isfinite(p) or not 0 <= p <= 1 for p in probs):
+        return None
+    if not math.isclose(sum(probs), 1.0, abs_tol=1e-3):
+        return None
+    numbers = [str(h.get('number')) for h in horses]
+    legs = [str(h.get('number')) for h in bet.get('legs', [])]
+    if len(numbers) != len(set(numbers)) or len(legs) != len(set(legs)):
+        return None
+    if len(legs) < k or any(n not in numbers for n in legs):
+        return None
+    probs = [p / sum(probs) for p in probs]
+    indices = [numbers.index(n) for n in legs]
+    return min(1.0, sum(_conditional_prob(probs, list(order))
+                        for order in permutations(indices, k)))
+
 
 def _finishers(race: dict) -> list[dict]:
     return sorted(
@@ -694,18 +751,15 @@ def _score_bet_from_ticket(bet: dict, race: dict, conn,
         # all hit pairs.
         if len(legs) < 2:
             return (False, 0.0)
-        pivot = legs[0]
-        if _key(pivot) not in actual_top3:
-            return (False, 0.0)
-        piv_num = pivot.get('number')
-        if piv_num is None:
-            return (False, 0.0)
         div_sum = 0.0
         hit_any = False
-        for bk in legs[1:]:
-            if _key(bk) in actual_top3:
+        pairs = (combinations(legs, 2) if bet.get('label') == 'QPL BOX-3'
+                 else ((legs[0], leg) for leg in legs[1:]))
+        for pivot, bk in pairs:
+            piv_num = pivot.get('number')
+            if _key(pivot) in actual_top3 and _key(bk) in actual_top3:
                 bk_num = bk.get('number')
-                if bk_num is None:
+                if piv_num is None or bk_num is None:
                     continue
                 lo, hi = sorted([int(piv_num), int(bk_num)])
                 d2 = _lookup_dividend(conn, race_date, rn,
@@ -774,9 +828,15 @@ def evaluate_date(race_date: str, bankroll: float) -> int:
         # numbers agree with validate_hk --replay. Falls back to legacy
         # label parsing only for pre-bet_ticket JSONs. GPT-5.5 R10.
         _ticket = race.get('bet_ticket') or {}
+        if _ticket.get('post_off_unverified'):
+            continue
         _bet_by_label = {b.get('label'): b for b in (_ticket.get('bets') or [])
                          if b.get('label')}
         for variant, cfg in VARIANTS.items():
+            if cfg.get('start_date') and race_date < cfg['start_date']:
+                continue
+            if cfg.get('start_date') and 'bets' not in _ticket:
+                continue  # New shadows require the actual frozen production ticket.
             # Fires now per-variant — `flat_min_pre_chaos` bypasses the
             # CHAOS filter; everyone else applies it (production behavior).
             fires = firing_bets(race, apply_chaos=cfg.get('apply_chaos', True))
@@ -803,6 +863,10 @@ def evaluate_date(race_date: str, bankroll: float) -> int:
                     'hit': int(hit),
                     'dividend_per_1': round(div, 3),
                     'pnl_hkd': round(pnl, 2),
+                    'capture_probability': (
+                        box_capture_probability(bet_obj, race)
+                        if variant == 'flat_min' and bet_obj is not None
+                        and race_date >= REDUCTION_START else None),
                 })
                 if stake > 0:
                     print(f"R{rn:<4} {variant:<12} {bet_label:<14} {combos:>6} "
@@ -874,7 +938,8 @@ def _per_meeting_winner(rows, variant, baseline='flat_min') -> list[int]:
         return []
     out = []
     for end_date in meetings:
-        through = [r for r in rows if r['race_date'] <= end_date]
+        through = [r for r in rows if r['race_date'] in meetings
+                   and r['race_date'] <= end_date]
         def _roi(v):
             stake = sum(float(r['stake_hkd']) for r in through if r['variant'] == v)
             pnl = sum(float(r['pnl_hkd']) for r in through if r['variant'] == v)
@@ -893,6 +958,66 @@ def _bayesian_verdict(winners: list[int]) -> dict:
     out = _shared_bayesian_verdict(winners)
     return {'n': out['n_meetings'], 'wins': out['wins'],
             'posterior': out['posterior'], 'verdict': out['verdict']}
+
+
+def report_capture_calibration(rows) -> None:
+    bins = [(0, .1), (.1, .25), (.25, .5), (.5, 1.01)]
+    groups = defaultdict(list)
+    for r in rows:
+        p = r.get('capture_probability')
+        if r['variant'] != 'flat_min' or float(r['stake_hkd']) <= 0 or p in ('', None):
+            continue
+        p = float(p)
+        for low, high in bins:
+            if low <= p < high:
+                groups[(r['bet_label'], low, high)].append((p, int(r['hit'])))
+                break
+    print('\nBox capture calibration (uncalibrated Harville estimates; diagnostic only)')
+    if not groups:
+        print(f'  Awaiting forward data from {REDUCTION_START}; no historical tuning.')
+        return
+    from betting.tier_stats import wilson_ci_95
+    print(f"{'Bet':<23} {'Prob bucket':<12} {'Bets':>5} {'Expected':>9} {'Observed':>9} {'95% CI':>14}")
+    for (label, low, high), values in sorted(groups.items()):
+        n, hits = len(values), sum(h for _, h in values)
+        lo, hi = wilson_ci_95(hits, n)
+        expected = 100 * sum(p for p, _ in values) / n
+        print(f'{label:<23} {low:.2f}-{min(high, 1):.2f} {n:>9} {expected:>8.1f}% '
+              f'{100 * hits / n:>8.1f}% {100 * lo:.1f}-{100 * hi:.1f}%')
+    print('  Frozen win probabilities imply box capture, not exotic value or calibrated place probabilities.')
+
+
+def _report_reductions(rows) -> None:
+    print(f'\nAdd-on reduction shadows: paired meetings from {REDUCTION_START}')
+    for variant, cfg in VARIANTS.items():
+        if not cfg.get('start_date'):
+            continue
+        candidate = [r for r in rows if r['variant'] == variant
+                     and r['race_date'] >= cfg['start_date']]
+        # Require the same race/label opportunities in both arms, including
+        # deliberately skipped (zero-stake) bets. Missing rows are not evidence.
+        dates = sorted({r['race_date'] for r in candidate})
+        paired = []
+        for date in dates:
+            base = [r for r in rows if r['variant'] == 'flat_min' and r['race_date'] == date]
+            arm = [r for r in candidate if r['race_date'] == date]
+            keys = lambda rs: {(str(r['race_number']), r['bet_label']) for r in rs}
+            if base and keys(base) == keys(arm):
+                paired.append((base, arm))
+        if not paired:
+            print(f'  {variant}: awaiting first paired meeting')
+            continue
+        base_pnl = sum(float(r['pnl_hkd']) for base, _ in paired for r in base)
+        arm_pnl = sum(float(r['pnl_hkd']) for _, arm in paired for r in arm)
+        base_stake = sum(float(r['stake_hkd']) for base, _ in paired for r in base)
+        arm_stake = sum(float(r['stake_hkd']) for _, arm in paired for r in arm)
+        wins = sum(sum(float(r['pnl_hkd']) for r in arm) >
+                   sum(float(r['pnl_hkd']) for r in base) for base, arm in paired)
+        n = len(paired)
+        print(f'  {variant}: paired={n}, better P&L={wins}/{n}, '
+              f'spend ${arm_stake:.0f} vs ${base_stake:.0f}, '
+              f'P&L ${arm_pnl:+.0f} vs ${base_pnl:+.0f}, delta ${arm_pnl-base_pnl:+.0f}')
+        print('    WATCH: collect >=6 forward meetings and assess meeting-level uncertainty before promotion.')
 
 
 def report() -> int:
@@ -937,6 +1062,8 @@ def report() -> int:
         print(f"{v:<12} {VARIANTS[v]['label']:<28} {e['bets']:>5} {hr:>5.1f}% "
               f"{e['stake']:>11.0f} {e['pnl']:>+10.0f} {roi:>+7.1f}%")
 
+    _report_reductions(rows)
+    report_capture_calibration(rows)
     if baseline_roi is None:
         return 0
 
@@ -947,7 +1074,7 @@ def report() -> int:
     print('-' * 84)
     pending = []
     for v in VARIANTS:
-        if v == 'flat_min':
+        if v == 'flat_min' or VARIANTS[v].get('start_date'):
             continue
         # A variant with NO logged rows must not be scored. _per_meeting_winner
         # compares cumulative ROI, and a variant that never bet has ROI 0 —

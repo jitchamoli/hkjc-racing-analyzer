@@ -1,0 +1,703 @@
+{
+  "date": "2026/10/11",
+  "races": [
+    {
+      "race": 7,
+      "saved_top5": [
+        3,
+        6,
+        14,
+        5,
+        10
+      ],
+      "arms": {
+        "old": {
+          "top5": [
+            3,
+            6,
+            14,
+            5,
+            10
+          ],
+          "top_pick_probability": 0.2029387070270955,
+          "winner_ranks": [
+            4
+          ],
+          "metrics": {
+            "top_pick_wins": false,
+            "winner_in_top5": true,
+            "top3_in_top5": false,
+            "top4_in_top5": false
+          },
+          "probabilities": {
+            "3": 0.2029387070270955,
+            "6": 0.19696988348372493,
+            "14": 0.14968304822546086,
+            "5": 0.09432086754797556,
+            "10": 0.0943208154829836,
+            "9": 0.06643829824196049,
+            "4": 0.04719093167915889,
+            "1": 0.04719092117745297,
+            "2": 0.026910238035084848,
+            "8": 0.02691022369538078,
+            "7": 0.02627608558208417,
+            "11": 0.006949996847341776,
+            "13": 0.006949992116502152,
+            "12": 0.006949990857793678
+          },
+          "top4_matched": 2,
+          "top4_complete_set": false
+        },
+        "corrected": {
+          "top5": [
+            3,
+            6,
+            14,
+            5,
+            10
+          ],
+          "top_pick_probability": 0.20048270531674567,
+          "winner_ranks": [
+            4
+          ],
+          "metrics": {
+            "top_pick_wins": false,
+            "winner_in_top5": true,
+            "top3_in_top5": false,
+            "top4_in_top5": false
+          },
+          "probabilities": {
+            "3": 0.20048270531674567,
+            "6": 0.18303257139719986,
+            "14": 0.15659944933039563,
+            "5": 0.09300036261698101,
+            "10": 0.09300031489904816,
+            "9": 0.0696749589037932,
+            "1": 0.05044695820431112,
+            "4": 0.04638622035776367,
+            "2": 0.0265083880214557,
+            "8": 0.02650836652050939,
+            "7": 0.02650836417242653,
+            "11": 0.010542359172637277,
+            "13": 0.008654491140800632,
+            "12": 0.008654489945932039
+          },
+          "top4_matched": 2,
+          "top4_complete_set": false
+        }
+      },
+      "actual_top4": [
+        3,
+        5,
+        10,
+        13
+      ],
+      "fixed_box_settlement": {
+        "TRIO": {
+          "old": {
+            "stake": 100,
+            "payout": 0
+          },
+          "corrected": {
+            "stake": 100,
+            "payout": 0
+          }
+        },
+        "FIRST 4": {
+          "old": {
+            "stake": 50,
+            "payout": 0
+          },
+          "corrected": {
+            "stake": 50,
+            "payout": 0
+          }
+        }
+      }
+    },
+    {
+      "race": 8,
+      "saved_top5": [
+        11,
+        1,
+        7,
+        3,
+        12
+      ],
+      "arms": {
+        "old": {
+          "top5": [
+            11,
+            1,
+            7,
+            3,
+            13
+          ],
+          "top_pick_probability": 0.3170288947756246,
+          "winner_ranks": [
+            2
+          ],
+          "metrics": {
+            "top_pick_wins": false,
+            "winner_in_top5": true,
+            "top3_in_top5": true,
+            "top4_in_top5": false
+          },
+          "probabilities": {
+            "11": 0.3170288947756246,
+            "1": 0.17883687340639765,
+            "7": 0.07818008701836371,
+            "3": 0.07818006903274201,
+            "13": 0.04961950531707008,
+            "12": 0.046576748286167965,
+            "9": 0.04657674026100832,
+            "2": 0.04657673755183823,
+            "6": 0.046576721516480485,
+            "10": 0.02655996575749843,
+            "8": 0.026559963140691187,
+            "4": 0.02593409551371042,
+            "5": 0.02593406471392985,
+            "14": 0.006859533708477102
+          },
+          "top4_matched": 3,
+          "top4_complete_set": false
+        },
+        "corrected": {
+          "top5": [
+            11,
+            1,
+            7,
+            3,
+            12
+          ],
+          "top_pick_probability": 0.3558638107665943,
+          "winner_ranks": [
+            2
+          ],
+          "metrics": {
+            "top_pick_wins": false,
+            "winner_in_top5": true,
+            "top3_in_top5": true,
+            "top4_in_top5": false
+          },
+          "probabilities": {
+            "11": 0.3558638107665943,
+            "1": 0.15873402211521753,
+            "7": 0.07722590652616046,
+            "3": 0.065139247319465,
+            "12": 0.047163019874887996,
+            "2": 0.047163007498737294,
+            "9": 0.047163006521318884,
+            "6": 0.04716298082874032,
+            "13": 0.04716297845786411,
+            "4": 0.0247827392986112,
+            "8": 0.024782730859851936,
+            "10": 0.02478272820805349,
+            "5": 0.024782715504327132,
+            "14": 0.008091106220170239
+          },
+          "top4_matched": 3,
+          "top4_complete_set": false
+        }
+      },
+      "actual_top4": [
+        1,
+        7,
+        9,
+        11
+      ],
+      "fixed_box_settlement": {
+        "TRIO": {
+          "old": {
+            "stake": 100,
+            "payout": 171.0
+          },
+          "corrected": {
+            "stake": 100,
+            "payout": 171.0
+          }
+        },
+        "FIRST 4": {
+          "old": {
+            "stake": 50,
+            "payout": 0
+          },
+          "corrected": {
+            "stake": 50,
+            "payout": 0
+          }
+        }
+      }
+    },
+    {
+      "race": 9,
+      "saved_top5": [
+        3,
+        10,
+        4,
+        8,
+        6
+      ],
+      "arms": {
+        "old": {
+          "top5": [
+            3,
+            10,
+            4,
+            8,
+            1
+          ],
+          "top_pick_probability": 0.22404511194555643,
+          "winner_ranks": [
+            4
+          ],
+          "metrics": {
+            "top_pick_wins": false,
+            "winner_in_top5": true,
+            "top3_in_top5": true,
+            "top4_in_top5": false
+          },
+          "probabilities": {
+            "3": 0.22404511194555643,
+            "10": 0.17860349684874452,
+            "4": 0.13572592924962687,
+            "8": 0.08552593820630447,
+            "1": 0.07481511309019505,
+            "6": 0.07182509127130322,
+            "2": 0.07182506958197395,
+            "9": 0.04279065117743794,
+            "5": 0.04279065067016996,
+            "7": 0.0244010016699111,
+            "12": 0.023825976587899547,
+            "11": 0.023825969700876946
+          },
+          "top4_matched": 2,
+          "top4_complete_set": false
+        },
+        "corrected": {
+          "top5": [
+            3,
+            10,
+            4,
+            1,
+            2
+          ],
+          "top_pick_probability": 0.20082278104436802,
+          "winner_ranks": [
+            6
+          ],
+          "metrics": {
+            "top_pick_wins": false,
+            "winner_in_top5": false,
+            "top3_in_top5": false,
+            "top4_in_top5": false
+          },
+          "probabilities": {
+            "3": 0.20082278104436802,
+            "10": 0.17292376617811808,
+            "4": 0.16040956199600565,
+            "1": 0.07804108298030057,
+            "2": 0.07804107263965498,
+            "8": 0.07804106945715196,
+            "6": 0.0658268690598644,
+            "9": 0.04766082546531329,
+            "5": 0.04309998561515013,
+            "7": 0.02504435076710902,
+            "12": 0.025044321435706514,
+            "11": 0.025044313361257616
+          },
+          "top4_matched": 2,
+          "top4_complete_set": false
+        }
+      },
+      "actual_top4": [
+        1,
+        3,
+        8,
+        9
+      ],
+      "fixed_box_settlement": {
+        "TRIO": {
+          "old": {
+            "stake": 100,
+            "payout": 367.0
+          },
+          "corrected": {
+            "stake": 100,
+            "payout": 0
+          }
+        },
+        "FIRST 4": {
+          "old": {
+            "stake": 50,
+            "payout": 0
+          },
+          "corrected": {
+            "stake": 50,
+            "payout": 0
+          }
+        }
+      }
+    },
+    {
+      "race": 10,
+      "saved_top5": [
+        2,
+        10,
+        3,
+        7,
+        5
+      ],
+      "arms": {
+        "old": {
+          "top5": [
+            2,
+            10,
+            3,
+            7,
+            9
+          ],
+          "top_pick_probability": 0.2414785818329986,
+          "winner_ranks": [
+            5
+          ],
+          "metrics": {
+            "top_pick_wins": false,
+            "winner_in_top5": true,
+            "top3_in_top5": false,
+            "top4_in_top5": false
+          },
+          "probabilities": {
+            "2": 0.2414785818329986,
+            "10": 0.15112301195190056,
+            "3": 0.10048733418873702,
+            "7": 0.09522822122505797,
+            "9": 0.08330231529021861,
+            "5": 0.07997312493056688,
+            "1": 0.07997308234334666,
+            "14": 0.0476449189258797,
+            "4": 0.0271691106580887,
+            "11": 0.0265288858843331,
+            "13": 0.02652887070627807,
+            "12": 0.026528854808488652,
+            "6": 0.007016845030196183,
+            "8": 0.007016842223909343
+          },
+          "top4_matched": 1,
+          "top4_complete_set": false
+        },
+        "corrected": {
+          "top5": [
+            2,
+            10,
+            3,
+            7,
+            5
+          ],
+          "top_pick_probability": 0.21837801180845687,
+          "winner_ranks": [
+            6
+          ],
+          "metrics": {
+            "top_pick_wins": false,
+            "winner_in_top5": false,
+            "top3_in_top5": false,
+            "top4_in_top5": false
+          },
+          "probabilities": {
+            "2": 0.21837801180845687,
+            "10": 0.16088390654406998,
+            "3": 0.09623143244592927,
+            "7": 0.09554477680065365,
+            "5": 0.08486320180718845,
+            "9": 0.08486316118757223,
+            "1": 0.08486315289303352,
+            "14": 0.047655323454224095,
+            "11": 0.027233631059275728,
+            "4": 0.027233628578969344,
+            "13": 0.0272336220044146,
+            "12": 0.027233612386869912,
+            "8": 0.008891270459869325,
+            "6": 0.008891268569473016
+          },
+          "top4_matched": 1,
+          "top4_complete_set": false
+        }
+      },
+      "actual_top4": [
+        1,
+        4,
+        7,
+        9
+      ],
+      "fixed_box_settlement": {
+        "TRIO": {
+          "old": {
+            "stake": 100,
+            "payout": 0
+          },
+          "corrected": {
+            "stake": 100,
+            "payout": 0
+          }
+        },
+        "FIRST 4": {
+          "old": {
+            "stake": 50,
+            "payout": 0
+          },
+          "corrected": {
+            "stake": 50,
+            "payout": 0
+          }
+        }
+      }
+    },
+    {
+      "race": 11,
+      "saved_top5": [
+        11,
+        6,
+        2,
+        3,
+        1
+      ],
+      "arms": {
+        "old": {
+          "top5": [
+            11,
+            6,
+            2,
+            3,
+            1
+          ],
+          "top_pick_probability": 0.2219495139011833,
+          "winner_ranks": [
+            4
+          ],
+          "metrics": {
+            "top_pick_wins": false,
+            "winner_in_top5": true,
+            "top3_in_top5": true,
+            "top4_in_top5": true
+          },
+          "probabilities": {
+            "11": 0.2219495139011833,
+            "6": 0.21484713911101735,
+            "2": 0.1627630320415586,
+            "3": 0.08940506666546333,
+            "1": 0.07115325526281961,
+            "9": 0.05967980642306132,
+            "4": 0.05661325576128722,
+            "8": 0.042390382736664727,
+            "12": 0.023603130817054046,
+            "7": 0.02360312463284337,
+            "5": 0.02360312421044322,
+            "10": 0.010389168436603962
+          },
+          "top4_matched": 4,
+          "top4_complete_set": true
+        },
+        "corrected": {
+          "top5": [
+            6,
+            11,
+            2,
+            3,
+            1
+          ],
+          "top_pick_probability": 0.19947563837981525,
+          "winner_ranks": [
+            4
+          ],
+          "metrics": {
+            "top_pick_wins": false,
+            "winner_in_top5": true,
+            "top3_in_top5": true,
+            "top4_in_top5": true
+          },
+          "probabilities": {
+            "6": 0.19947563837981525,
+            "11": 0.19947563237100097,
+            "2": 0.1717637949607501,
+            "3": 0.12109347635621341,
+            "1": 0.07751755276107403,
+            "9": 0.06538527490999364,
+            "4": 0.047341109052132194,
+            "8": 0.04353034195698889,
+            "12": 0.024876327651302873,
+            "7": 0.02487632648458567,
+            "5": 0.016542858361322646,
+            "10": 0.008121666754820515
+          },
+          "top4_matched": 4,
+          "top4_complete_set": true
+        }
+      },
+      "actual_top4": [
+        2,
+        3,
+        6,
+        11
+      ],
+      "fixed_box_settlement": {
+        "TRIO": {
+          "old": {
+            "stake": 100,
+            "payout": 146.0
+          },
+          "corrected": {
+            "stake": 100,
+            "payout": 146.0
+          }
+        },
+        "FIRST 4": {
+          "old": {
+            "stake": 50,
+            "payout": 105.0
+          },
+          "corrected": {
+            "stake": 50,
+            "payout": 105.0
+          }
+        }
+      }
+    }
+  ],
+  "versions": {
+    "old": "20261011-202622",
+    "corrected": "20261011-205325"
+  },
+  "capture": {
+    "old": {
+      "top_pick_wins": 0,
+      "winner_in_top5": 5,
+      "top3_in_top5": 3,
+      "top4_in_top5": 1
+    },
+    "corrected": {
+      "top_pick_wins": 0,
+      "winner_in_top5": 3,
+      "top3_in_top5": 2,
+      "top4_in_top5": 1
+    }
+  },
+  "top4_set_metrics": {
+    "old": {
+      "matched_horses": 12,
+      "evaluated_slots": 20,
+      "complete_sets": 1,
+      "overlap_accuracy": 0.6
+    },
+    "corrected": {
+      "matched_horses": 12,
+      "evaluated_slots": 20,
+      "complete_sets": 1,
+      "overlap_accuracy": 0.6
+    }
+  },
+  "fixed_box_settlement": {
+    "old": {
+      "TRIO": {
+        "stake": 500,
+        "payout": 684.0,
+        "hits": 3,
+        "roi": 0.3680000000000001
+      },
+      "FIRST 4": {
+        "stake": 250,
+        "payout": 105.0,
+        "hits": 1,
+        "roi": -0.5800000000000001
+      }
+    },
+    "corrected": {
+      "TRIO": {
+        "stake": 500,
+        "payout": 317.0,
+        "hits": 2,
+        "roi": -0.366
+      },
+      "FIRST 4": {
+        "stake": 250,
+        "payout": 105.0,
+        "hits": 1,
+        "roi": -0.5800000000000001
+      }
+    }
+  },
+  "fold_metadata": {
+    "old": {
+      "n_groups": 4219,
+      "folds": {
+        "train": {
+          "n_rows": 30118,
+          "n_groups": 2531,
+          "first_group": "2021/10/17-1",
+          "last_group": "2024/10/23-2"
+        },
+        "val": {
+          "n_rows": 5145,
+          "n_groups": 422,
+          "first_group": "2024/10/23-3",
+          "last_group": "2025/03/30-2"
+        },
+        "calib": {
+          "n_rows": 7780,
+          "n_groups": 633,
+          "first_group": "2025/03/30-3",
+          "last_group": "2026/01/07-7"
+        },
+        "test": {
+          "n_rows": 7864,
+          "n_groups": 633,
+          "first_group": "2026/01/07-8",
+          "last_group": "2026/10/11-11"
+        }
+      }
+    },
+    "corrected": {
+      "n_groups": 3998,
+      "folds": {
+        "train": {
+          "n_rows": 28607,
+          "n_groups": 2398,
+          "first_group": "2021/10/17-1",
+          "last_group": "2024/10/13-6"
+        },
+        "val": {
+          "n_rows": 4924,
+          "n_groups": 400,
+          "first_group": "2024/10/13-7",
+          "last_group": "2025/03/30-8"
+        },
+        "calib": {
+          "n_rows": 7451,
+          "n_groups": 600,
+          "first_group": "2025/03/30-9",
+          "last_group": "2026/01/18-11"
+        },
+        "test": {
+          "n_rows": 7434,
+          "n_groups": 600,
+          "first_group": "2026/01/21-1",
+          "last_group": "2026/10/11-11"
+        }
+      }
+    }
+  },
+  "caveats": [
+    "Five individual races from one meeting, not five meetings; insufficient to establish superiority.",
+    "Both are retrospective artifacts fitted after racing; fold metadata places these races after training/validation/calibration.",
+    "Eligible population changed fold boundaries, so training sample selection and calibration also changed; not a pure venue-only ablation.",
+    "Frozen odds/rule scores and as-of reconstructed ML inputs; old arm does not exactly reproduce original pre-race predictions.",
+    "Fixed-box hypothetical settlement, not recommender gate or frozen-ticket ROI; no WIN price backtest.",
+    "Prior research exposure to test races is not ruled out by fold metadata."
+  ],
+  "old_reconstruction_max_absolute_error": {
+    "raw_ml": 0.1497785449028015,
+    "calibrated_ml": 0.07052817195653915,
+    "final_probability": 0.05571820612089068
+  },
+  "frozen_files_unchanged": true
+}

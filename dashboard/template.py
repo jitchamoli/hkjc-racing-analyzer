@@ -723,6 +723,11 @@ function _betHitsTicket(bet, race) {{
     return _holdsAnyCombo(placed.combos2);
   }}
   if (pool === 'QIN PLACE') {{
+    if (bet.label === 'QPL BOX-3') {{
+      return legs.filter(function(l) {{
+        return placed.placedSet && placed.placedSet.indexOf(l.number) >= 0;
+      }}).length >= 2;
+    }}
     // QPL BANKER: legs[0] pivot + legs[1:] bankers. Need pivot top-3 AND
     // at least one banker top-3.
     if (!placed.placedSet || nLegs < 2) return false;
@@ -1044,6 +1049,11 @@ function renderBetCard(race) {{
         '</div>' +
       '</div>';
   }}
+  if (race.bankroll_warning) {{
+    stakeHtml += '<div class="trust-block">' +
+      '<strong>LOSS LIMIT REACHED — OPTIONAL BETS, NOT SYSTEM-APPROVED</strong>' +
+      '<div>' + esc(race.bankroll_warning) + '</div></div>';
+  }}
   // Card-exposure over-cap disclosure (audit 2026-06-08 #1). Bets are NOT
   // dropped; the real allocated total simply exceeds the day cap, so flag it
   // honestly for a manual trim. Hidden on a halted day (already NO SYSTEM BET).
@@ -1085,7 +1095,7 @@ function renderBetCard(race) {{
   }} else if (strikeStatus === 'STRIKE-QIN') {{
     strikeBadge = '<span class="strike-badge qin" title="Winning quinella pair was inside top-2 model picks">★ STRIKE · QIN</span>';
   }} else if (strikeStatus === 'STRIKE-QPL') {{
-    strikeBadge = '<span class="strike-badge qpl" title="Quinella PLACE banker pair both finished top-3 (QPL hit)">★ STRIKE · QPL</span>';
+    strikeBadge = '<span class="strike-badge qpl" title="A held Quinella Place pair finished top-3 (QPL hit)">★ STRIKE · QPL</span>';
   }} else if (strikeStatus === 'STRIKE-BOX4') {{
     strikeBadge = '<span class="strike-badge box4" title="Winning quinella pair was inside top-4 model picks (Box-4 hit)">★ STRIKE · BOX-4</span>';
   }} else if (strikeStatus === 'STRIKE-F4-5') {{
@@ -1120,6 +1130,7 @@ function renderBetCard(race) {{
     return '#' + h.number + ' ' + (h.name||'') + ' @$' + (h.win_odds||'?') + jk;
   }}
   var waLines = [];
+  if (race.bankroll_warning) waLines.push('*LOSS LIMIT REACHED — OPTIONAL BETS, NOT SYSTEM-APPROVED*');
   // Server-side bet_ticket is the single source of truth for WA bet
   // labels too. Added 2026-05-24 (GPT-5.5 Playwright audit): each WA
   // emitter gates on `_waTicketHas(label)` so client-side fabrications
@@ -1271,6 +1282,11 @@ function renderBetCard(race) {{
   // even when rank order shifts after the ticket is built (GPT-5.5 R14).
   var addOns = [];
   var top6wa = race.horses.slice(0, 6);
+  if (_waTicketHas('QPL BOX-3')) {{
+    addOns.push('QPL BOX-3 (3 pairs, HK$30): ' +
+      _waTicketLegsFor('QPL BOX-3').map(function(h) {{ return '#' + h.number; }}).join(' + ') +
+      _waHitMark('QPL BOX-3'));
+  }}
 
   // QIN PLACE BANKER for short-favorite races
   if (_waTicketHas('QIN PLACE BANKER')) {{
@@ -1484,6 +1500,7 @@ function renderBetCard(race) {{
   }}
 
   var ticketLinesCompact = [];
+  if (race.bankroll_warning) ticketLinesCompact.push('*LOSS LIMIT REACHED — OPTIONAL BETS, NOT SYSTEM-APPROVED*');
   var hdrVenue = race.venue ? ' · ' + race.venue : '';
   var hdrTime = race.time ? ' · ' + race.time : '';
   var hdrTier = isEdge ? ' · ★ EDGE' : (tier ? ' · ' + tier : '');
@@ -2295,6 +2312,14 @@ function _buildRaceDetailPanel(race) {{
     }}
   }}
 
+  if (_ticketHas('QPL BOX-3')) {{
+    var qplBoxLegs = _ticketLegsFor('QPL BOX-3');
+    ticketLines.push('<div style="margin:6px 0;padding-top:6px">' +
+      '<strong>QPL BOX-3 · 3 pairs · HK$30</strong> ' +
+      _ticketHitMark('QPL BOX-3') +
+      qplBoxLegs.map(function(h) {{ return '#' + esc(h.number) + ' ' + esc(h.name); }}).join(' / ') +
+      '</div>');
+  }}
   // QIN PLACE BANKER — for short-favorite races. Read legs from the
   // frozen ticket so display matches what replay scores (GPT-5.5 R13 #6).
   if (_ticketHas('QIN PLACE BANKER')) {{

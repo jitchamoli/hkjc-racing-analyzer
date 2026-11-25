@@ -10,6 +10,7 @@ Three sources in priority order:
 import re
 import sqlite3
 import logging
+from collections import Counter
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
 from pathlib import Path
@@ -53,36 +54,36 @@ def estimate_field_size(rows) -> int:
     return max(len(rows), max(positions, default=0))
 
 
+def _hk_venue(row):
+    return {'sha tin': 'ST', 'st': 'ST', 'happy valley': 'HV', 'hv': 'HV'}.get(
+        str(row.get('venue') or '').strip().lower())
+
+
 def looks_truncated(rows, typical_field: int = _TYPICAL_HK_FIELD) -> bool:
-    """True when these rows are not a complete HK race card.
+    """Reject mixed or visibly incomplete fields, not genuine small fields.
 
-    Detects a bad INGEST, not a small FIELD. This originally gated on
-    `estimate_field_size <= 6`, which dropped 53 races from the training window
-    — and 38 of them were GENUINE: complete Group/Class fields with contiguous
-    saddle numbers and declared HKJC dividends (2026/03/01 R7 Group One, 6
-    runners; 2023/03/19 R7 G1, 5 runners; …). That removed ~11% of all Group
-    races, and because a 6-horse field has a ~1/6 base win rate vs ~1/12 the
-    deletion correlated with the label — MNAR deletion on a feature the model
-    uses (`field_size`, `field_rel_draw`). It also raised the minimum training
-    field to 7, so inference on a 6-runner Group race extrapolated outside
-    training support. One train/predict skew traded for another.
-
-    The artefact's real signature (memory: project_overseas_runner_rows) is a
-    MISSING VENUE — HK horses racing abroad (Dubai/Saudi/Japan) are stored
-    without one. 15 such races; every one of the 38 genuine short fields has a
-    venue.
-
-    `typical_field` is retained for signature compatibility but no longer gates
-    on the declared field: the floor below is absolute. The smallest genuine HK
-    field in five years is 5 runners (0 venue-present races have <= 4), so a
-    <= 4 backstop cannot delete a real race while still catching a future
-    truncated ingest.
+    Competition ranking advances by the number of finishers already seen:
+    1,2,2,4 is a valid dead heat; 1,2,4 is a missing third-place runner.
+    A contiguous missing tail cannot be proven from these rows alone.
     """
     if not rows:
         return False
-    if not any(str(r.get('venue') or '').strip() for r in rows):
+    venues = {_hk_venue(r) for r in rows}
+    if None in venues or len(venues) != 1:
         return True
-    return estimate_field_size(rows) <= _MIN_CREDIBLE_HK_FIELD
+    if estimate_field_size(rows) <= _MIN_CREDIBLE_HK_FIELD:
+        return True
+    if any('horse_number' in r for r in rows):
+        numbers = [r.get('horse_number') for r in rows]
+        if any(not isinstance(n, int) or n <= 0 for n in numbers) or len(set(numbers)) != len(numbers):
+            return True
+    counts = Counter(int(r.get('finish_position') or 0) for r in rows)
+    seen = 0
+    for position in sorted(p for p in counts if p > 0):
+        if position != seen + 1:
+            return True
+        seen += counts[position]
+    return seen == 0
 
 
 def drop_unusable_races(rows):
@@ -102,6 +103,10 @@ def drop_unusable_races(rows):
     by_race = {}
     for r in rows:
         d = r if isinstance(r, dict) else dict(r)
+        # Overseas history remains in the DB, but must never join a local
+        # race sharing its date/number or affect local field aggregates.
+        if _hk_venue(d) is None:
+            continue
         key = (d.get('race_date', ''), d.get('race_number', 0))
         by_race.setdefault(key, []).append(d)
     keep = [k for k, rs in by_race.items() if not looks_truncated(rs)]
@@ -112,6 +117,7 @@ def drop_unusable_races(rows):
 def build_training_data_from_db(
     years_back: Optional[int] = None,
     return_groups: bool = False,
+    return_metadata: bool = False,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
     """Build training data from real race results in horse_database.
 
@@ -123,6 +129,8 @@ def build_training_data_from_db(
             the recent-only window — older eras dilute current-market signal.
 
     Returns (features, win_labels, sample_weights, place_labels) or (None, None, None, None).
+    return_metadata adds race groups and explicit runner/finish keys for isolated
+    research. The default and return_groups-only contracts are unchanged.
     """
     conn = None
     try:
@@ -165,6 +173,11 @@ def build_training_data_from_db(
             WHERE r.finish_position > 0{cutoff_clause}
             ORDER BY r.race_date, r.race_number
         """, cutoff_args).fetchall()
+
+        n_raw = len(rows)
+        rows = drop_unusable_races(rows)
+        logger.info(f"Training eligibility: retained {len(rows)}/{n_raw} rows; "
+                    "excluded non-HK or incomplete/ambiguous fields")
 
         if len(rows) < config.MIN_REAL_SAMPLES:
             logger.info(f"Only {len(rows)} results in DB — not enough for real training")
@@ -295,6 +308,7 @@ def build_training_data_from_db(
         # Now both training and inference use the same conn-based DB query.
 
         X, y, y_place, weights, groups = [], [], [], [], []
+        metadata = []
         for row in rows:
             r = dict(row)
             draw = r.get('draw', 0) or 0
@@ -593,6 +607,10 @@ def build_training_data_from_db(
             y_place.append(1 if r.get('is_top3', 0) else 0)
             weights.append(0.0)  # placeholder; overwritten below
             groups.append(race_key)
+            if return_metadata:
+                metadata.append({'race_date': race_date, 'race_number': race_no,
+                                 'horse_number': r['horse_number'],
+                                 'finish_position': r['finish_position']})
 
         # Recency weights — exponential decay so recent races dominate.
         # Diagnostic 2026-04-25: linear 0.3→1.0 over 5y window made the most
@@ -631,6 +649,8 @@ def build_training_data_from_db(
         np.array(weights),
         np.array(y_place),
     )
+    if return_metadata:
+        return (*result, np.array(groups, dtype=object), metadata)
     if return_groups:
         return (*result, np.array(groups, dtype=object))
     return result

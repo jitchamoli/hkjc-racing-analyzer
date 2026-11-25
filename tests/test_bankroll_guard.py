@@ -13,8 +13,7 @@ from betting import bankroll_guard as bg
 
 
 def _bet(combos, unit, names, pool="QUINELLA", label="STRAIGHT QIN"):
-    # Default to a QIN-pool bet — daily_status only counts QIN labels the user
-    # actually plays (STRAIGHT QIN / BOX QIN-*); see _is_counted_label.
+    # Default to a QIN-pool bet; exotic-pool tests override pool and label.
     return {"combos": combos, "unit_stake": unit, "pool": pool,
             "label": label, "legs": [{"name": n} for n in names]}
 
@@ -142,30 +141,69 @@ def test_resolved_stake_matches_replay_scorer(monkeypatch):
     assert st.staked == scorer_staked == 40.0
 
 
-# --- QIN-only scoping (user decision 2026-06-21) ---
+# --- Played-pool scoping (user decision 2026-10-11) ---
 
-def test_is_counted_label_qin_only():
+def test_is_counted_label_played_pools():
     assert bg._is_counted_label("STRAIGHT QIN")
     assert bg._is_counted_label("BOX QIN-3")
     assert bg._is_counted_label("BOX QIN-4 PROTECTION")
-    for excl in ("BOX TRIO-5", "F4 BOX-5", "BOX TRIO-6", "F4 SAVER",
-                 "WIN", "PLACE", "EDGE PLACE", "QIN PLACE BANKER", "", None):
+    for label in ("BOX TRIO-5", "F4 BOX-5", "BOX TRIO-6", "F4 SAVER", "QPL BOX-3"):
+        assert bg._is_counted_label(label)
+    for excl in ("WIN", "PLACE", "EDGE PLACE", "QIN PLACE BANKER", "", None):
         assert not bg._is_counted_label(excl), excl
 
 
-def test_daily_status_excludes_non_qin_losses(monkeypatch):
-    # A big TRIO/F4 loss must NOT halt the day — the user only plays QIN.
-    # Realized: QIN +5 (profit), TRIO -900 (ignored). Loss cap 8% of 1000 = 80.
+def test_counted_replay_totals_filters_unplayed_pools():
+    replay = {
+        "_races": 3,
+        "labels": {
+            "STRAIGHT QIN": [20.0, 25.0, 1],
+            "BOX TRIO-5": [50.0, 0.0, 0],
+            "WIN": [10.0, 30.0, 1],
+        },
+    }
+
+    assert bg._counted_replay_totals(replay) == (70.0, 25.0, 3)
+
+
+def test_counted_replay_totals_empty_replay():
+    assert bg._counted_replay_totals(None) == (0.0, 0.0, 0)
+
+
+def test_daily_status_counts_trio_losses(monkeypatch):
+    # QIN profit must not hide a large loss in another played pool.
     monkeypatch.setattr(vh, "_score_meeting_replay", lambda conn, date: {
         "_races": 3,
         "labels": {"STRAIGHT QIN": [30.0, 35.0, 1],   # +5
-                   "BOX TRIO-5": [900.0, 0.0, 0]},     # -900, must be excluded
+                   "BOX TRIO-5": [900.0, 0.0, 0]},
     })
     conn = _db([(1, _ticket([
         _bet(3, 10.0, ["A", "B"], label="STRAIGHT QIN"),         # 30, counted
-        _bet(10, 90.0, ["A", "B", "C"], pool="TRIO", label="BOX TRIO-5"),  # not counted
+        _bet(10, 90.0, ["A", "B", "C"], pool="TRIO", label="BOX TRIO-5"),
     ]))])
     st = bg.daily_status("2026/06/03", bankroll=1000, conn=conn)
-    assert st.realized_pnl == 5.0     # QIN only, TRIO loss ignored
-    assert st.staked == 30.0          # QIN stake only
-    assert not st.halted
+    assert st.realized_pnl == -895.0
+    assert st.staked == 930.0
+    assert st.halted
+
+
+def test_pool_configuration_can_exclude_exotics(monkeypatch):
+    monkeypatch.setattr(bg.config, 'BANKROLL_COUNTED_POOLS', ('QUINELLA',))
+    assert bg._is_counted_label('STRAIGHT QIN')
+    assert not bg._is_counted_label('BOX TRIO-5')
+    assert not bg._is_counted_label('F4 BOX-5')
+
+
+def test_f4_pending_exposure_excludes_paper_and_win_place(monkeypatch):
+    monkeypatch.setattr(vh, '_score_meeting_replay', lambda conn, date: None)
+    paper = _bet(20, 10, ['A', 'B', 'C'], pool='TRIO', label='BOX TRIO-6')
+    paper['paper'] = True
+    conn = _db([(1, _ticket([
+        _bet(5, 10, ['A', 'B', 'C', 'D', 'E'], pool='FIRST 4', label='F4 BOX-5'),
+        paper,
+        _bet(1, 100, ['A'], pool='WIN', label='WIN'),
+        _bet(1, 100, ['A'], pool='PLACE', label='PLACE'),
+    ]))])
+    st = bg.daily_status('2026/06/03', bankroll=1000, conn=conn)
+    assert st.staked == 50
+    assert st.n_bets == 1

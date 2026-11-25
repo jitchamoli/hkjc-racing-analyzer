@@ -1,0 +1,499 @@
+{
+  "status": "DIAGNOSTIC ONLY",
+  "dead_heat_convention": "fractional win credit",
+  "exclusions": {
+    "missing_time_provenance": 111,
+    "not_verified_pre_off": 137,
+    "incomplete_or_withdrawn_field": 19
+  },
+  "all_runners": {
+    "groups": [
+      {
+        "tier": "EDGE",
+        "band": "[0.00,0.05)",
+        "runners": 201,
+        "races": 34,
+        "meetings": 15,
+        "mean_probability": 0.028033998709687136,
+        "observed": 0.03482587064676617,
+        "gap": 0.006791871937079032,
+        "gap_ci95": [
+          -0.01493259990289914,
+          0.039099305997472515
+        ],
+        "brier": 0.034159762716527965,
+        "insufficient_evidence": false
+      },
+      {
+        "tier": "EDGE",
+        "band": "[0.05,0.10)",
+        "runners": 133,
+        "races": 35,
+        "meetings": 16,
+        "mean_probability": 0.072369013354915,
+        "observed": 0.045112781954887216,
+        "gap": -0.027256231400027763,
+        "gap_ci95": [
+          -0.053417314248320386,
+          -0.004229529206042493
+        ],
+        "brier": 0.04347211876759239,
+        "insufficient_evidence": false
+      },
+      {
+        "tier": "EDGE",
+        "band": "[0.10,0.20)",
+        "runners": 65,
+        "races": 31,
+        "meetings": 16,
+        "mean_probability": 0.1584876542190269,
+        "observed": 0.12307692307692308,
+        "gap": -0.03541073114210383,
+        "gap_ci95": [
+          -0.0963681659567224,
+          0.04947179380020007
+        ],
+        "brier": 0.10857725153610256,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "EDGE",
+        "band": "[0.20,0.30)",
+        "runners": 17,
+        "races": 16,
+        "meetings": 12,
+        "mean_probability": 0.24739565523234286,
+        "observed": 0.35294117647058826,
+        "gap": 0.10554552123824537,
+        "gap_ci95": [
+          -0.10169543712582249,
+          0.3086621954534493
+        ],
+        "brier": 0.24130502797725756,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "EDGE",
+        "band": "[0.30,0.50)",
+        "runners": 13,
+        "races": 13,
+        "meetings": 9,
+        "mean_probability": 0.40251260153558566,
+        "observed": 0.6153846153846154,
+        "gap": 0.21287201384902962,
+        "gap_ci95": [
+          -0.1379434980067375,
+          0.4364068748783015
+        ],
+        "brier": 0.2693690344267759,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "HIGH",
+        "band": "[0.00,0.05)",
+        "runners": 716,
+        "races": 107,
+        "meetings": 26,
+        "mean_probability": 0.026153454521893608,
+        "observed": 0.036312849162011177,
+        "gap": 0.010159394640117562,
+        "gap_ci95": [
+          0.00022663413414833304,
+          0.02323695510126763
+        ],
+        "brier": 0.03517563425469231,
+        "insufficient_evidence": false
+      },
+      {
+        "tier": "HIGH",
+        "band": "[0.05,0.10)",
+        "runners": 325,
+        "races": 103,
+        "meetings": 26,
+        "mean_probability": 0.073869963694413,
+        "observed": 0.08615384615384615,
+        "gap": 0.012283882459433156,
+        "gap_ci95": [
+          -0.014445061753754799,
+          0.04410099735972414
+        ],
+        "brier": 0.0780836539918279,
+        "insufficient_evidence": false
+      },
+      {
+        "tier": "HIGH",
+        "band": "[0.10,0.20)",
+        "runners": 187,
+        "races": 98,
+        "meetings": 27,
+        "mean_probability": 0.15364131897036987,
+        "observed": 0.11229946524064172,
+        "gap": -0.041341853729728165,
+        "gap_ci95": [
+          -0.07229261609379356,
+          -0.007298466296968248
+        ],
+        "brier": 0.10051810282030872,
+        "insufficient_evidence": false
+      },
+      {
+        "tier": "HIGH",
+        "band": "[0.20,0.30)",
+        "runners": 67,
+        "races": 56,
+        "meetings": 23,
+        "mean_probability": 0.24154155661961887,
+        "observed": 0.19402985074626866,
+        "gap": -0.047511705873350234,
+        "gap_ci95": [
+          -0.11938534635769485,
+          0.029556864019102697
+        ],
+        "brier": 0.15972936740316476,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "HIGH",
+        "band": "[0.30,0.50)",
+        "runners": 57,
+        "races": 56,
+        "meetings": 21,
+        "mean_probability": 0.35705574422221614,
+        "observed": 0.3508771929824561,
+        "gap": -0.006178551239759988,
+        "gap_ci95": [
+          -0.13098780473883323,
+          0.1275272667383824
+        ],
+        "brier": 0.23597439652697624,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "LOW",
+        "band": "[0.00,0.05)",
+        "runners": 30,
+        "races": 7,
+        "meetings": 3,
+        "mean_probability": 0.02845135530894094,
+        "observed": 0.03333333333333333,
+        "gap": 0.0048819780243923964,
+        "gap_ci95": [
+          -0.03909386491253453,
+          0.018751944637239962
+        ],
+        "brier": 0.03188361495349668,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "LOW",
+        "band": "[0.05,0.10)",
+        "runners": 45,
+        "races": 8,
+        "meetings": 3,
+        "mean_probability": 0.07948775085152601,
+        "observed": 0.08888888888888889,
+        "gap": 0.009401138037362894,
+        "gap_ci95": [
+          -0.027194495116114513,
+          0.04233438398461382
+        ],
+        "brier": 0.07844411230649316,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "LOW",
+        "band": "[0.10,0.20)",
+        "runners": 29,
+        "races": 8,
+        "meetings": 3,
+        "mean_probability": 0.12308657077286561,
+        "observed": 0.10344827586206896,
+        "gap": -0.01963829491079664,
+        "gap_ci95": [
+          -0.15729686082552388,
+          0.0054727966792921245
+        ],
+        "brier": 0.09108400559483433,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "MED",
+        "band": "[0.00,0.05)",
+        "runners": 222,
+        "races": 44,
+        "meetings": 20,
+        "mean_probability": 0.02858689566403182,
+        "observed": 0.013513513513513514,
+        "gap": -0.01507338215051831,
+        "gap_ci95": [
+          -0.028682127821319684,
+          0.00024606652321207737
+        ],
+        "brier": 0.013511412106802867,
+        "insufficient_evidence": false
+      },
+      {
+        "tier": "MED",
+        "band": "[0.05,0.10)",
+        "runners": 180,
+        "races": 44,
+        "meetings": 20,
+        "mean_probability": 0.07508765604044498,
+        "observed": 0.08888888888888889,
+        "gap": 0.013801232848443907,
+        "gap_ci95": [
+          -0.025862938879992463,
+          0.04776347263609671
+        ],
+        "brier": 0.08086154970808847,
+        "insufficient_evidence": false
+      },
+      {
+        "tier": "MED",
+        "band": "[0.10,0.20)",
+        "runners": 139,
+        "races": 43,
+        "meetings": 20,
+        "mean_probability": 0.15200606987718324,
+        "observed": 0.1510791366906475,
+        "gap": -0.0009269331865357448,
+        "gap_ci95": [
+          -0.048626491798818984,
+          0.045702470709678845
+        ],
+        "brier": 0.12727643111654385,
+        "insufficient_evidence": false
+      },
+      {
+        "tier": "MED",
+        "band": "[0.20,0.30)",
+        "runners": 13,
+        "races": 13,
+        "meetings": 10,
+        "mean_probability": 0.23146825864433615,
+        "observed": 0.3076923076923077,
+        "gap": 0.07622404904797159,
+        "gap_ci95": [
+          -0.16415461718250143,
+          0.40251646839776756
+        ],
+        "brier": 0.21761597656108717,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "SKIP",
+        "band": "[0.00,0.05)",
+        "runners": 6,
+        "races": 2,
+        "meetings": 2,
+        "mean_probability": 0.03162117708984081,
+        "observed": 0.0,
+        "gap": -0.03162117708984081,
+        "gap_ci95": [
+          -0.03313825178065527,
+          -0.028587027708211893
+        ],
+        "brier": 0.0011891680317922713,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "SKIP",
+        "band": "[0.05,0.10)",
+        "runners": 12,
+        "races": 2,
+        "meetings": 2,
+        "mean_probability": 0.07855534195393764,
+        "observed": 0.0,
+        "gap": -0.07855534195393764,
+        "gap_ci95": [
+          -0.0845961337669046,
+          -0.07251455014097068
+        ],
+        "brier": 0.006324404640635732,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "SKIP",
+        "band": "[0.10,0.20)",
+        "runners": 8,
+        "races": 2,
+        "meetings": 2,
+        "mean_probability": 0.108451104251713,
+        "observed": 0.25,
+        "gap": 0.14154889574828702,
+        "gap_ci95": [
+          0.14118771450446282,
+          0.14191007699211122
+        ],
+        "brier": 0.20779022481009457,
+        "insufficient_evidence": true
+      }
+    ],
+    "race_log_loss": 2.2280447640944305
+  },
+  "rank_one": {
+    "groups": [
+      {
+        "tier": "EDGE",
+        "band": "[0.10,0.20)",
+        "runners": 6,
+        "races": 6,
+        "meetings": 6,
+        "mean_probability": 0.18513840107336843,
+        "observed": 0.16666666666666666,
+        "gap": -0.018471734406701745,
+        "gap_ci95": [
+          -0.18951639785843474,
+          0.3132940874761233
+        ],
+        "brier": 0.13557161545716614,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "EDGE",
+        "band": "[0.20,0.30)",
+        "runners": 16,
+        "races": 16,
+        "meetings": 12,
+        "mean_probability": 0.25007287446845694,
+        "observed": 0.375,
+        "gap": 0.12492712553154306,
+        "gap_ci95": [
+          -0.10036145859887347,
+          0.3369478348339497
+        ],
+        "brier": 0.25377128885542277,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "EDGE",
+        "band": "[0.30,0.50)",
+        "runners": 13,
+        "races": 13,
+        "meetings": 9,
+        "mean_probability": 0.40251260153558566,
+        "observed": 0.6153846153846154,
+        "gap": 0.21287201384902962,
+        "gap_ci95": [
+          -0.1379434980067375,
+          0.4364068748783015
+        ],
+        "brier": 0.2693690344267759,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "HIGH",
+        "band": "[0.10,0.20)",
+        "runners": 3,
+        "races": 3,
+        "meetings": 3,
+        "mean_probability": 0.1876019316054464,
+        "observed": 0.3333333333333333,
+        "gap": 0.14573140172788693,
+        "gap_ci95": [
+          -0.18732595397900095,
+          0.8081162191738844
+        ],
+        "brier": 0.24061678332589362,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "HIGH",
+        "band": "[0.20,0.30)",
+        "runners": 49,
+        "races": 49,
+        "meetings": 22,
+        "mean_probability": 0.2484387618610931,
+        "observed": 0.20408163265306123,
+        "gap": -0.04435712920803189,
+        "gap_ci95": [
+          -0.14922227332910937,
+          0.06279760211909126
+        ],
+        "brier": 0.16552140528498394,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "HIGH",
+        "band": "[0.30,0.50)",
+        "runners": 56,
+        "races": 56,
+        "meetings": 21,
+        "mean_probability": 0.35742753522555226,
+        "observed": 0.35714285714285715,
+        "gap": -0.0002846780826950993,
+        "gap_ci95": [
+          -0.12958927240170443,
+          0.13598535635608705
+        ],
+        "brier": 0.23816939867003722,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "LOW",
+        "band": "[0.10,0.20)",
+        "runners": 8,
+        "races": 8,
+        "meetings": 3,
+        "mean_probability": 0.14578384412502698,
+        "observed": 0.125,
+        "gap": -0.020783844125026978,
+        "gap_ci95": [
+          -0.17027098781443606,
+          0.057750954465607865
+        ],
+        "brier": 0.11105547024416942,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "MED",
+        "band": "[0.10,0.20)",
+        "runners": 31,
+        "races": 31,
+        "meetings": 17,
+        "mean_probability": 0.18187967317977094,
+        "observed": 0.1935483870967742,
+        "gap": 0.011668713917003248,
+        "gap_ci95": [
+          -0.15198107763888666,
+          0.18933650901609483
+        ],
+        "brier": 0.15602905911291096,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "MED",
+        "band": "[0.20,0.30)",
+        "runners": 13,
+        "races": 13,
+        "meetings": 10,
+        "mean_probability": 0.23146825864433615,
+        "observed": 0.3076923076923077,
+        "gap": 0.07622404904797159,
+        "gap_ci95": [
+          -0.16415461718250143,
+          0.40251646839776756
+        ],
+        "brier": 0.21761597656108717,
+        "insufficient_evidence": true
+      },
+      {
+        "tier": "SKIP",
+        "band": "[0.10,0.20)",
+        "runners": 2,
+        "races": 2,
+        "meetings": 2,
+        "mean_probability": 0.1099659520205277,
+        "observed": 0.0,
+        "gap": -0.1099659520205277,
+        "gap_ci95": [
+          -0.11184198103316659,
+          -0.10808992300788879
+        ],
+        "brier": 0.012096030088637261,
+        "insufficient_evidence": true
+      }
+    ],
+    "race_log_loss": null
+  }
+}

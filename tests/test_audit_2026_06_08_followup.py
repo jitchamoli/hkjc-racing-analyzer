@@ -93,7 +93,25 @@ def _patch_guard(monkeypatch, *, halted, reason='', realized_pnl_pct=0.0):
 
 
 class TestBankrollGuardEnforced:
+    def test_advisory_loss_limit_preserves_payable_suggestions(self, monkeypatch):
+        import config
+        from dashboard.generator import finalize_tickets_and_stakes
+        monkeypatch.setattr(config, 'BANKROLL_LOSS_BLOCKS_BETS', False)
+        _patch_guard(monkeypatch, halted=True,
+                     reason='DAILY LOSS CAP (-8%)', realized_pnl_pct=-0.10)
+        race = _unresolved_win_race()
+        race['bankroll_halt'] = 'DAILY LOSS CAP (-8%)'
+        finalize_tickets_and_stakes([race], '2026/06/07', object())
+        assert race['suggested_stake']['amount'] > 0
+        assert race['bet_ticket']['bets']
+        assert race['bet_ticket']['allocated_amount'] > 0
+        assert 'bankroll_halt' not in race
+        assert race['bankroll_warning'] == 'DAILY LOSS CAP (-8%)'
+        assert race['bet_ticket']['bankroll_warning'] == race['bankroll_warning']
+
     def test_halted_day_zeroes_stake_and_flags(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, 'BANKROLL_LOSS_BLOCKS_BETS', True)
         from dashboard.generator import finalize_tickets_and_stakes
         # Realized stop-loss (pnl% past the loss cap) -> blank the card.
         _patch_guard(monkeypatch, halted=True,
@@ -187,10 +205,7 @@ def _busy_edge_race(n=8):
 class TestCardCapDisclosure:
     def test_over_cap_flagged_and_nothing_dropped(self, monkeypatch):
         import config
-        # cap = $50. The busy ticket's QIN exposure (BOX QIN-4 = 6 combos × $10 =
-        # $60) alone exceeds it; the ~$160 of TRIO-5/F4 boxes are NOT counted
-        # (2026-07-01 expert review — banner is QIN-scoped to match the user's
-        # flat-$10 QIN wallet and bankroll_guard._is_counted_label).
+        # The $50 cap must include QIN and the played TRIO/F4 add-ons.
         monkeypatch.setattr(config, 'BANKROLL', 500)
         _patch_guard(monkeypatch, halted=False)
         from dashboard.generator import finalize_tickets_and_stakes
@@ -202,14 +217,14 @@ class TestCardCapDisclosure:
         assert r['card_over_cap'] is True
         assert r['card_over_cap_amount'] > 0
         assert r['card_allocated_total'] > r['card_exposure_cap']
-        # QIN-scoped: allocated_total counts ONLY the QIN pool, not the exotic
-        # boxes the user never stakes — so it equals the sum of counted bets.
+        # Disclosure and the guard share the configured played pools.
         bets = r['bet_ticket']['bets']
         qin_only = sum((b.get('amount') or 0.0) for b in bets
                        if not b.get('paper') and _is_counted_label(b.get('label')))
         all_pool = sum((b.get('amount') or 0.0) for b in bets if not b.get('paper'))
         assert r['card_allocated_total'] == round(qin_only, 2)
-        assert all_pool > qin_only, "test needs non-QIN boxes to prove scoping"
+        assert all_pool == qin_only
+        assert any(b.get('pool') in ('TRIO', 'FIRST 4') for b in bets)
         # Disclosure-only: the ticket must still carry its bets (nothing dropped).
         assert bets, "bets must NOT be dropped (disclosure only)"
 

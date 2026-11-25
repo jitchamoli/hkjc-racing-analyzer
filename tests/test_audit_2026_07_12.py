@@ -118,7 +118,8 @@ def test_qin_protection_not_suppressed_by_qin_place_banker():
     )
     labels = [b["label"] for b in ticket.get("bets", [])]
 
-    assert "QIN PLACE BANKER" in labels, "precondition: short fav should banker"
+    assert "QPL BOX-3" in labels
+    assert "QIN PLACE BANKER" not in labels
     assert "BOX QIN-4 PROTECTION" in labels, (
         "protection bet suppressed by the QIN PLACE BANKER's legs"
     )
