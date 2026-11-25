@@ -57,7 +57,7 @@ python3 -m scripts.eval_swap_rule --rank-out 6 --odds-ratio 0.5
 
 # DB recovery (binary too large for git)
 python3 -m scripts.dump_db     # → tracking_data/backup/db_core_dump.sql.gz (~3 MB)
-python3 -m scripts.restore_db  # replay SQL + reload Renavon CSVs; idempotent
+python3 -m scripts.restore_db  # replay SQL + reload locally supplied Renavon CSVs; idempotent
 python3 -m scripts.backfill_dividends [--last 20 | --force]
 
 # Bankroll status (reads generated tickets; not confirmed purchases)

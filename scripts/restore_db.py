@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Rebuild tracking_data/horse_history.db from committed sources.
+"""Rebuild tracking_data/horse_history.db from the core dump and local sources.
 
-Two committed sources cover the full DB:
+The rebuild uses two sources:
   1. renavon_Hongkong_Jockey_Club_races_and_horses/  → renavon_* tables
-     (frozen one-time HKJC export ending 2026-04-26, 49 years of history)
+     (locally supplied export; not included in this repository)
   2. tracking_data/backup/db_core_dump.sql.gz       → core tables
      (race_results 5y window + horses + jockey/trainer_stats + race_dividends
      + prediction_log; refreshed via `python3 -m scripts.dump_db`)
@@ -12,7 +12,7 @@ Use after any local DB loss. Idempotent — safe to re-run; existing DB is
 moved aside before rebuild so nothing is silently overwritten.
 
 Usage:
-  python3 -m scripts.restore_db                  # full rebuild
+  python3 -m scripts.restore_db                  # full rebuild; requires local Renavon exports
   python3 -m scripts.restore_db --skip-renavon   # only restore core dump
                                                   (faster if renavon_* tables
                                                   are already loaded)

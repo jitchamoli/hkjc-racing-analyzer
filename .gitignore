@@ -83,10 +83,8 @@ tracking_data/fr_history.db-wal
 tracking_data/simulcast_history.db-shm
 tracking_data/simulcast_history.db-wal
 
-# Renavon one-time export CSVs (~76MB gzipped, frozen 2026-04-26).
-# Tracked in git so the DB can be rebuilt via `python3 -m scripts.load_renavon_csvs`
-# after any local DB loss. Never updated (one-time HKJC export, no subscription).
-# See docs/renavon.md.
+# Renavon source exports are local-only; do not commit or redistribute them.
+renavon_Hongkong_Jockey_Club_races_and_horses/
 
 # stray root-level DB (ingest_uk should write tracking_data/uk_history.db)
 /uk_history.db

@@ -2,7 +2,7 @@
 """Refresh tracking_data/backup/db_core_dump.sql.gz from the live DB.
 
 Dumps only the tables that contain derived/ingested data not recoverable
-from the committed Renavon CSVs (which cover renavon_* tables). Run after
+from the locally supplied Renavon exports (which cover renavon_* tables). Run after
 any meaningful DB change (post-race ingest, retrain, dividend backfill)
 and commit the updated dump file so a future DB loss is recoverable.
 

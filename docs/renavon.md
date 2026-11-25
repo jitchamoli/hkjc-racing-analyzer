@@ -4,7 +4,7 @@ Companion to `CLAUDE.md`. Holds the 11-table inventory, indexes, backfill impact
 
 ## Background (2026-04-25 import)
 
-After purchasing Renavon's **one-time** $49 HKJC History Export, 11 gzipped CSVs were ingested into dedicated `renavon_*` tables alongside our scraped data. The DB grew from ~4MB to ~614MB; **`tracking_data/*.db` is now gitignored**, so the database must be regenerated locally from the source CSVs in `renavon_Hongkong_Jockey_Club_races_and_horses/` (also gitignored).
+After purchasing Renavon's **one-time** HKJC History Export, 11 gzipped CSVs were ingested into dedicated `renavon_*` tables alongside our scraped data. The source exports are not included in this public repository. Keep any locally retained source files outside Git and only use or share them as permitted by the applicable Renavon license. `tracking_data/*.db` is gitignored; rebuilding the Renavon tables requires the separately obtained local source exports.
 
 ## Frozen snapshot, not a subscription
 
